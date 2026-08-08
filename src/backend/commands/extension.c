@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <dirent.h>
 #include <limits.h>
@@ -183,17 +184,21 @@ char     *find_in_paths(const char *basename, List *paths);
 Oid
 get_extension_oid(const char *extname, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     result;
 
   result = GetSysCacheOid1(EXTENSIONNAME, Anum_pg_extension_oid,
                            CStringGetDatum(extname));
 
-  if (!OidIsValid(result) && !missing_ok)
+  if (!OidIsValid(result) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "extension \"%s\" does not exist", extname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("extension \"%s\" does not exist",
                     extname)));
+  }
 
+  DBUG_PRINT("info", "given an extension name:%s, look up the OID:%d", extname, result);
   return result;
 }
 
@@ -205,15 +210,19 @@ get_extension_oid(const char *extname, bool missing_ok)
 char *
 get_extension_name(Oid ext_oid)
 {
+  DBUG_TRACE;
   char     *result;
   HeapTuple tuple;
 
   tuple = SearchSysCache1(EXTENSIONOID, ObjectIdGetDatum(ext_oid));
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_PRINT("info", "given an extension OID:%d, look up the name:nullptr", ext_oid);
     return NULL;
+  }
 
   result = pstrdup(NameStr(((Form_pg_extension) GETSTRUCT(tuple))->extname));
+  DBUG_PRINT("info", "given an extension OID:%d, look up the name:%s", ext_oid, result);
   ReleaseSysCache(tuple);
 
   return result;
@@ -227,6 +236,7 @@ get_extension_name(Oid ext_oid)
 Oid
 get_extension_schema(Oid ext_oid)
 {
+  DBUG_TRACE;
   Oid     result;
   HeapTuple tuple;
 
@@ -238,6 +248,7 @@ get_extension_schema(Oid ext_oid)
   result = ((Form_pg_extension) GETSTRUCT(tuple))->extnamespace;
   ReleaseSysCache(tuple);
 
+  DBUG_PRINT("info", "given an extension OID:%d, look up the OID:%d", ext_oid, result);
   return result;
 }
 
@@ -356,26 +367,31 @@ ext_sibling_callback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 check_valid_extension_name(const char *extensionname)
 {
+  DBUG_TRACE;
   int     namelen = strlen(extensionname);
 
   /*
    * Disallow empty names (the parser rejects empty identifiers anyway, but
    * let's check).
    */
-  if (namelen == 0)
+  if (namelen == 0) {
+    DBUG_INSTANT_PRINT("info", "invalid extension name: \"%s\"", extensionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension name: \"%s\"", extensionname),
              errdetail("Extension names must not be empty.")));
+  }
 
   /*
    * No double dashes, since that would make script filenames ambiguous.
    */
-  if (strstr(extensionname, "--"))
+  if (strstr(extensionname, "--")) {
+    DBUG_INSTANT_PRINT("info", "invalid extension name: \"%s\"", extensionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension name: \"%s\"", extensionname),
              errdetail("Extension names must not contain \"--\".")));
+  }
 
   /*
    * No leading or trailing dash either.  (We could probably allow this, but
@@ -383,65 +399,80 @@ check_valid_extension_name(const char *extensionname)
    * visually if not formally ambiguous.  Since there's no real-world use
    * case, let's just forbid it.)
    */
-  if (extensionname[0] == '-' || extensionname[namelen - 1] == '-')
+  if (extensionname[0] == '-' || extensionname[namelen - 1] == '-') {
+    DBUG_INSTANT_PRINT("info", "invalid extension name: \"%s\"", extensionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension name: \"%s\"", extensionname),
              errdetail("Extension names must not begin or end with \"-\".")));
+  }
 
   /*
    * No directory separators either (this is sufficient to prevent ".."
    * style attacks).
    */
-  if (first_dir_separator(extensionname) != NULL)
+  if (first_dir_separator(extensionname) != NULL) {
+    DBUG_INSTANT_PRINT("info", "invalid extension name: \"%s\"", extensionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension name: \"%s\"", extensionname),
              errdetail("Extension names must not contain directory separator characters.")));
+  }
+
+  DBUG_PRINT("info", "valid extension name: \"%s\"", extensionname);
 }
 
 static void
 check_valid_version_name(const char *versionname)
 {
+  DBUG_TRACE;
   int     namelen = strlen(versionname);
 
   /*
    * Disallow empty names (we could possibly allow this, but there seems
    * little point).
    */
-  if (namelen == 0)
+  if (namelen == 0) {
+    DBUG_INSTANT_PRINT("info", "invalid extension version name: \"%s\"", versionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension version name: \"%s\"", versionname),
              errdetail("Version names must not be empty.")));
+  }
 
   /*
    * No double dashes, since that would make script filenames ambiguous.
    */
-  if (strstr(versionname, "--"))
+  if (strstr(versionname, "--")) {
+    DBUG_INSTANT_PRINT("info", "invalid extension version name: \"%s\"", versionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension version name: \"%s\"", versionname),
              errdetail("Version names must not contain \"--\".")));
+  }
 
   /*
    * No leading or trailing dash either.
    */
-  if (versionname[0] == '-' || versionname[namelen - 1] == '-')
+  if (versionname[0] == '-' || versionname[namelen - 1] == '-') {
+    DBUG_INSTANT_PRINT("info", "invalid extension version name: \"%s\"", versionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension version name: \"%s\"", versionname),
              errdetail("Version names must not begin or end with \"-\".")));
+  }
 
   /*
    * No directory separators either (this is sufficient to prevent ".."
    * style attacks).
    */
-  if (first_dir_separator(versionname) != NULL)
+  if (first_dir_separator(versionname) != NULL) {
+    DBUG_INSTANT_PRINT("info", "invalid extension version name: \"%s\"", versionname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid extension version name: \"%s\"", versionname),
              errdetail("Version names must not contain directory separator characters.")));
+  }
 }
 
 /*
@@ -469,6 +500,7 @@ is_extension_script_filename(const char *filename)
 static List *
 get_extension_control_directories(void)
 {
+  DBUG_TRACE;
   char    sharepath[MAXPGPATH];
   char     *system_dir;
   char     *ecp;
@@ -552,12 +584,15 @@ find_extension_control_filename(ExtensionControlFile *control)
     control->control_dir = pnstrdup(result, p - result);
   }
 
+  DBUG_PRINT("info", "extension script directory:%s", result);
   return result;
 }
 
 static char *
 get_extension_script_directory(ExtensionControlFile *control)
 {
+  DBUG_TRACE;
+
   /*
    * The directory parameter can be omitted, absolute, or relative to the
    * installation's base directory, which can be the sharedir or a custom
@@ -578,6 +613,7 @@ static char *
 get_extension_aux_control_filename(ExtensionControlFile *control,
                                    const char *version)
 {
+  DBUG_TRACE;
   char     *result;
   char     *scriptdir;
 
@@ -589,6 +625,7 @@ get_extension_aux_control_filename(ExtensionControlFile *control,
 
   pfree(scriptdir);
 
+  DBUG_PRINT("info", "extension aux control filename:%s", result);
   return result;
 }
 
@@ -596,6 +633,7 @@ static char *
 get_extension_script_filename(ExtensionControlFile *control,
                               const char *from_version, const char *version)
 {
+  DBUG_TRACE;
   char     *result;
   char     *scriptdir;
 
@@ -612,6 +650,7 @@ get_extension_script_filename(ExtensionControlFile *control,
 
   pfree(scriptdir);
 
+  DBUG_PRINT("info", "extension script filename:%s", result);
   return result;
 }
 
@@ -634,6 +673,7 @@ static void
 parse_extension_control_file(ExtensionControlFile *control,
                              const char *version)
 {
+  DBUG_TRACE;
   char     *filename;
   FILE     *file;
   ConfigVariable *item,
@@ -677,16 +717,17 @@ parse_extension_control_file(ExtensionControlFile *control,
       return;
     }
 
+    DBUG_INSTANT_PRINT("info", "could not open extension control file \"%s\"", filename);
     ereport(ERROR,
             (errcode_for_file_access(),
-             errmsg("could not open extension control file \"%s\": %m",
-                    filename)));
+             errmsg("could not open extension control file \"%s\": %m", filename)));
   }
 
   /*
    * Parse the file content, using GUC's file parsing code.  We need not
    * check the return value since any errors will be thrown at ERROR level.
    */
+  DBUG_PRINT("info", "parse the file content, using GUC's file parsing code");
   (void) ParseConfigFp(file, filename, CONF_FILE_START_DEPTH, ERROR,
                        &head, &tail);
 
@@ -695,21 +736,27 @@ parse_extension_control_file(ExtensionControlFile *control,
   /*
    * Convert the ConfigVariable list into ExtensionControlFile entries.
    */
+  DBUG_PRINT("info", "convert the ConfigVariable list into ExtensionControlFile entries");
+
   for (item = head; item != NULL; item = item->next) {
     if (strcmp(item->name, "directory") == 0) {
-      if (version)
+      if (version) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" cannot be set in a secondary extension control file", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("parameter \"%s\" cannot be set in a secondary extension control file",
                         item->name)));
+      }
 
       control->directory = pstrdup(item->value);
     } else if (strcmp(item->name, "default_version") == 0) {
-      if (version)
+      if (version) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" cannot be set in a secondary extension control file", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("parameter \"%s\" cannot be set in a secondary extension control file",
                         item->name)));
+      }
 
       control->default_version = pstrdup(item->value);
     } else if (strcmp(item->name, "module_pathname") == 0) {
@@ -719,31 +766,39 @@ parse_extension_control_file(ExtensionControlFile *control,
     } else if (strcmp(item->name, "schema") == 0) {
       control->schema = pstrdup(item->value);
     } else if (strcmp(item->name, "relocatable") == 0) {
-      if (!parse_bool(item->value, &control->relocatable))
+      if (!parse_bool(item->value, &control->relocatable)) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" requires a Boolean value", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("parameter \"%s\" requires a Boolean value",
                         item->name)));
+      }
     } else if (strcmp(item->name, "superuser") == 0) {
-      if (!parse_bool(item->value, &control->superuser))
+      if (!parse_bool(item->value, &control->superuser)) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" requires a Boolean value", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("parameter \"%s\" requires a Boolean value",
                         item->name)));
+      }
     } else if (strcmp(item->name, "trusted") == 0) {
-      if (!parse_bool(item->value, &control->trusted))
+      if (!parse_bool(item->value, &control->trusted)) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" requires a Boolean value", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("parameter \"%s\" requires a Boolean value",
                         item->name)));
+      }
     } else if (strcmp(item->name, "encoding") == 0) {
       control->encoding = pg_valid_server_encoding(item->value);
 
-      if (control->encoding < 0)
+      if (control->encoding < 0) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a valid encoding name", item->value);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("\"%s\" is not a valid encoding name",
                         item->value)));
+      }
     } else if (strcmp(item->name, "requires") == 0) {
       /* Need a modifiable copy of string */
       char     *rawnames = pstrdup(item->value);
@@ -751,6 +806,7 @@ parse_extension_control_file(ExtensionControlFile *control,
       /* Parse string into list of identifiers */
       if (!SplitIdentifierString(rawnames, ',', &control->requires)) {
         /* syntax error in name list */
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be a list of extension names", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("parameter \"%s\" must be a list of extension names",
@@ -763,24 +819,29 @@ parse_extension_control_file(ExtensionControlFile *control,
       /* Parse string into list of identifiers */
       if (!SplitIdentifierString(rawnames, ',', &control->no_relocate)) {
         /* syntax error in name list */
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be a list of extension names", item->name);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("parameter \"%s\" must be a list of extension names",
                         item->name)));
       }
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized parameter \"%s\" in file \"%s\"", item->name, filename);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized parameter \"%s\" in file \"%s\"",
                       item->name, filename)));
+    }
   }
 
   FreeConfigVariables(head);
 
-  if (control->relocatable && control->schema != NULL)
+  if (control->relocatable && control->schema != NULL) {
+    DBUG_INSTANT_PRINT("info", "parameter \"schema\" cannot be specified when \"relocatable\" is true");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("parameter \"schema\" cannot be specified when \"relocatable\" is true")));
+  }
 
   pfree(filename);
 }
@@ -791,11 +852,13 @@ parse_extension_control_file(ExtensionControlFile *control,
 static ExtensionControlFile *
 read_extension_control_file(const char *extname)
 {
+  DBUG_TRACE;
   ExtensionControlFile *control = new_ExtensionControlFile(extname);
 
   /*
    * Parse the primary control file.
    */
+  DBUG_PRINT("inf", "parse the primary control file");
   parse_extension_control_file(control, NULL);
 
   return control;
@@ -811,8 +874,10 @@ static ExtensionControlFile *
 read_extension_aux_control_file(const ExtensionControlFile *pcontrol,
                                 const char *version)
 {
+  DBUG_TRACE;
   ExtensionControlFile *acontrol;
 
+  DBUG_PRINT("inf", "read the auxiliary control file for the specified extension and version");
   /*
    * Flat-copy the struct.  Pointer fields share values with original.
    */
@@ -822,6 +887,7 @@ read_extension_aux_control_file(const ExtensionControlFile *pcontrol,
   /*
    * Parse the auxiliary control file, overwriting struct fields
    */
+  DBUG_PRINT("inf", "parse the auxiliary control file, overwriting struct fields");
   parse_extension_control_file(acontrol, version);
 
   return acontrol;
@@ -834,11 +900,13 @@ static char *
 read_extension_script_file(const ExtensionControlFile *control,
                            const char *filename)
 {
+  DBUG_TRACE;
   int     src_encoding;
   char     *src_str;
   char     *dest_str;
   int     len;
 
+  DBUG_PRINT("inf", "read an SQL script file into a string, and convert to database encoding");
   src_str = read_whole_file(filename, &len);
 
   /* use database encoding if not given */
@@ -1006,12 +1074,14 @@ script_error_callback(void *arg)
 static void
 execute_sql_string(const char *sql, const char *filename)
 {
+  DBUG_TRACE;
   script_error_callback_arg callback_arg;
   ErrorContextCallback scripterrcontext;
   List     *raw_parsetree_list;
   DestReceiver *dest;
   ListCell   *lc1;
 
+  DBUG_PRINT("inf", "execute given SQL string");
   /*
    * Setup error traceback support for ereport().
    */
@@ -1028,6 +1098,7 @@ execute_sql_string(const char *sql, const char *filename)
   /*
    * Parse the SQL string into a list of raw parse trees.
    */
+  DBUG_PRINT("inf", "parse the SQL string into a list of raw parse trees");
   raw_parsetree_list = pg_parse_query(sql);
 
   /* All output from SELECTs goes to the bit bucket */
@@ -1038,6 +1109,8 @@ execute_sql_string(const char *sql, const char *filename)
    * parsetree.  We must fully execute each query before beginning parse
    * analysis on the next one, since there may be interdependencies.
    */
+  DBUG_PRINT("inf", "do parse analysis, rule rewrite, planning, and execution for each raw parsetree");
+
   foreach(lc1, raw_parsetree_list) {
     RawStmt    *parsetree = lfirst_node(RawStmt, lc1);
     MemoryContext per_parsetree_context,
@@ -1091,10 +1164,12 @@ execute_sql_string(const char *sql, const char *filename)
 
         FreeQueryDesc(qdesc);
       } else {
-        if (IsA(stmt->utilityStmt, TransactionStmt))
+        if (IsA(stmt->utilityStmt, TransactionStmt)) {
+          DBUG_INSTANT_PRINT("info", "transaction control statements are not allowed within an extension script");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("transaction control statements are not allowed within an extension script")));
+        }
 
         ProcessUtility(stmt,
                        sql,
@@ -1129,18 +1204,24 @@ execute_sql_string(const char *sql, const char *filename)
 static bool
 extension_is_trusted(ExtensionControlFile *control)
 {
+  DBUG_TRACE;
   AclResult aclresult;
 
   /* Never trust unless extension's control file says it's okay */
-  if (!control->trusted)
+  if (!control->trusted) {
+    DBUG_PRINT("info", "never trust unless extension's control file says it's okay");
     return false;
+  }
 
   /* Allow if user has CREATE privilege on current database */
   aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
 
-  if (aclresult == ACLCHECK_OK)
+  if (aclresult == ACLCHECK_OK) {
+    DBUG_PRINT("info", "allow when user has CREATE privilege on current database");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -1158,6 +1239,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
                          List *requiredSchemas,
                          const char *schemaName)
 {
+  DBUG_TRACE;
   bool    switch_to_superuser = false;
   char     *filename;
   Oid     save_userid = 0;
@@ -1167,15 +1249,19 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
   ListCell   *lc;
   ListCell   *lc2;
 
+  DBUG_PRINT("info", "execute the appropriate script file for installing or updating the extension");
   /*
    * Enforce superuser-ness if appropriate.  We postpone these checks until
    * here so that the control flags are correctly associated with the right
    * script(s) if they happen to be set in secondary control files.
    */
+  DBUG_PRINT("info", "enforce superuser-ness if appropriate");
+
   if (control->superuser && !superuser()) {
     if (extension_is_trusted(control))
       switch_to_superuser = true;
-    else if (from_version == NULL)
+    else if (from_version == NULL) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create extension \"%s\"", control->name);
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create extension \"%s\"",
@@ -1183,7 +1269,8 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
                control->trusted
                ? errhint("Must have CREATE privilege on current database to create this extension.")
                : errhint("Must be superuser to create this extension.")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "permission denied to update extension \"%s\"", control->name);
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to update extension \"%s\"",
@@ -1191,14 +1278,18 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
                control->trusted
                ? errhint("Must have CREATE privilege on current database to update this extension.")
                : errhint("Must be superuser to update this extension.")));
+    }
   }
 
   filename = get_extension_script_filename(control, from_version, version);
 
-  if (from_version == NULL)
+  if (from_version == NULL) {
+    DBUG_PRINT("info", "executing extension script for \"%s\" version '%s'", control->name, version);
     elog(DEBUG1, "executing extension script for \"%s\" version '%s'", control->name, version);
-  else
+  } else {
+    DBUG_PRINT("info", "executing extension script for \"%s\" update from version '%s' to '%s'", control->name, from_version, version);
     elog(DEBUG1, "executing extension script for \"%s\" update from version '%s' to '%s'", control->name, from_version, version);
+  }
 
   /*
    * If installing a trusted extension on behalf of a non-superuser, become
@@ -1206,6 +1297,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
    * if the transaction aborts, as will the GUC changes below.)
    */
   if (switch_to_superuser) {
+    DBUG_PRINT("info", "become the bootstrap superuser");
     GetUserIdAndSecContext(&save_userid, &save_sec_context);
     SetUserIdAndSecContext(BOOTSTRAP_SUPERUSERID,
                            save_sec_context | SECURITY_LOCAL_USERID_CHANGE);
@@ -1240,10 +1332,12 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
    * Similarly disable check_function_bodies, to ensure that SQL functions
    * won't be parsed during creation.
    */
-  if (check_function_bodies)
+  if (check_function_bodies) {
+    DBUG_PRINT("info", "similarly disable check_function_bodies, to ensure that SQL functions won't be parsed during creation");
     (void) set_config_option("check_function_bodies", "off",
                              PGC_USERSET, PGC_S_SESSION,
                              GUC_ACTION_SAVE, true, 0, false);
+  }
 
   /*
    * Set up the search path to have the target schema first, making it be
@@ -1253,6 +1347,8 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
    * position would be bad for security.)  Finally add pg_temp to ensure
    * that temp objects can't take precedence over others.
    */
+  DBUG_PRINT("info", "set up up the search path to have the target schema first");
+  DBUG_PRINT("info", "making it be the default creation target namespace");
   initStringInfo(&pathbuf);
   appendStringInfoString(&pathbuf, quote_identifier(schemaName));
 
@@ -1275,6 +1371,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
    * recordDependencyOnCurrentExtension and other functions do the right
    * things.  On failure, ensure we reset these variables.
    */
+  DBUG_PRINT("info", "set creating_extension and related variables");
   creating_extension = true;
   CurrentExtensionObject = extensionOid;
   PG_TRY();
@@ -1293,6 +1390,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
     const char *quoting_relevant_chars = "\"$'\\";
 
     /* We use various functions that want to operate on text datums */
+    DBUG_PRINT("info", "we use various functions that want to operate on text datums");
     t_sql = CStringGetTextDatum(c_sql);
 
     /*
@@ -1315,17 +1413,20 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
       const char *userName = GetUserNameFromId(uid, false);
       const char *qUserName = quote_identifier(userName);
 
+      DBUG_PRINT("info", "the script uses @extowner@ and substitute the calling username");
       t_sql = DirectFunctionCall3Coll(replace_text,
                                       C_COLLATION_OID,
                                       t_sql,
                                       CStringGetTextDatum("@extowner@"),
                                       CStringGetTextDatum(qUserName));
 
-      if (strpbrk(userName, quoting_relevant_chars))
+      if (strpbrk(userName, quoting_relevant_chars)) {
+        DBUG_INSTANT_PRINT("info", "invalid character in extension owner: must not contain any of \"%s\"", quoting_relevant_chars);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                  errmsg("invalid character in extension owner: must not contain any of \"%s\"",
                         quoting_relevant_chars)));
+      }
     }
 
     /*
@@ -1339,23 +1440,28 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
       Datum   old = t_sql;
       const char *qSchemaName = quote_identifier(schemaName);
 
+      DBUG_PRINT("info", "substitute the target schema name for occurrences of @extschema@");
       t_sql = DirectFunctionCall3Coll(replace_text,
                                       C_COLLATION_OID,
                                       t_sql,
                                       CStringGetTextDatum("@extschema@"),
                                       CStringGetTextDatum(qSchemaName));
 
-      if (t_sql != old && strpbrk(schemaName, quoting_relevant_chars))
+      if (t_sql != old && strpbrk(schemaName, quoting_relevant_chars)) {
+        DBUG_INSTANT_PRINT("info", "invalid character in extension \"%s\" schema: must not contain any of \"%s\"",
+                           control->name, quoting_relevant_chars);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                  errmsg("invalid character in extension \"%s\" schema: must not contain any of \"%s\"",
                         control->name, quoting_relevant_chars)));
+      }
     }
 
     /*
      * Likewise, substitute required extensions' schema names for
      * occurrences of @extschema:extension_name@.
      */
+    DBUG_PRINT("info", "substitute required extensions' schema names for occurrences of @extschema:extension_name@");
     Assert(list_length(control->requires) == list_length(requiredSchemas));
     forboth(lc, control->requires, lc2, requiredSchemas) {
       Datum   old = t_sql;
@@ -1372,11 +1478,14 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
                                       CStringGetTextDatum(repltoken),
                                       CStringGetTextDatum(qSchemaName));
 
-      if (t_sql != old && strpbrk(schemaName, quoting_relevant_chars))
+      if (t_sql != old && strpbrk(schemaName, quoting_relevant_chars)) {
+        DBUG_INSTANT_PRINT("info", "invalid character in extension \"%s\" schema: must not contain any of \"%s\"",
+                           reqextname, quoting_relevant_chars);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                  errmsg("invalid character in extension \"%s\" schema: must not contain any of \"%s\"",
                         reqextname, quoting_relevant_chars)));
+      }
     }
 
     /*
@@ -1384,6 +1493,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
      * value for occurrences of MODULE_PATHNAME.
      */
     if (control->module_pathname) {
+      DBUG_PRINT("info", "substitute its value for occurrences of MODULE_PATHNAME");
       t_sql = DirectFunctionCall3Coll(replace_text,
                                       C_COLLATION_OID,
                                       t_sql,
@@ -1487,6 +1597,7 @@ get_nearest_unprocessed_vertex(List *evi_list)
 static List *
 get_ext_ver_list(ExtensionControlFile *control)
 {
+  DBUG_TRACE;
   List     *evi_list = NIL;
   int     extnamelen = strlen(control->name);
   char     *location;
@@ -1553,6 +1664,7 @@ static List *
 identify_update_path(ExtensionControlFile *control,
                      const char *oldVersion, const char *newVersion)
 {
+  DBUG_TRACE;
   List     *result;
   List     *evi_list;
   ExtensionVersionInfo *evi_start;
@@ -1568,11 +1680,14 @@ identify_update_path(ExtensionControlFile *control,
   /* Find shortest path */
   result = find_update_path(evi_list, evi_start, evi_target, false, false);
 
-  if (result == NIL)
+  if (result == NIL) {
+    DBUG_INSTANT_PRINT("info", "extension \"%s\" has no update path from version \"%s\" to version \"%s\"",
+                       control->name, oldVersion, newVersion);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("extension \"%s\" has no update path from version \"%s\" to version \"%s\"",
                     control->name, oldVersion, newVersion)));
+  }
 
   return result;
 }
@@ -1599,10 +1714,12 @@ find_update_path(List *evi_list,
                  bool reject_indirect,
                  bool reinitialize)
 {
+  DBUG_TRACE;
   List     *result;
   ExtensionVersionInfo *evi;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "apply Dijkstra's algorithm to find the shortest path from evi_start to evi_target");
   /* Caller error if start == target */
   Assert(evi_start != evi_target);
   /* Caller error if reject_indirect and target is installable */
@@ -1688,9 +1805,12 @@ static ExtensionVersionInfo *
 find_install_path(List *evi_list, ExtensionVersionInfo *evi_target,
                   List **best_path)
 {
+  DBUG_TRACE;
   ExtensionVersionInfo *evi_start = NULL;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "given a target version that is not directly installable");
+  DBUG_PRINT("info", "find the best installation sequence starting from a directly-installable version");
   *best_path = NIL;
 
   /*
@@ -1746,6 +1866,7 @@ CreateExtensionInternal(char *extensionName,
                         List *parents,
                         bool is_create)
 {
+  DBUG_TRACE;
   char     *origSchemaName = schemaName;
   Oid     schemaOid = InvalidOid;
   Oid     extowner = GetUserId();
@@ -1760,6 +1881,8 @@ CreateExtensionInternal(char *extensionName,
   ObjectAddress address;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "CREATE EXTENSION worker");
+  DBUG_PRINT("info", "read the primary control file");
   /*
    * Read the primary control file.  Note we assume that it does not contain
    * any non-ASCII data, so there is no need to worry about encoding at this
@@ -1767,16 +1890,20 @@ CreateExtensionInternal(char *extensionName,
    */
   pcontrol = read_extension_control_file(extensionName);
 
+  DBUG_PRINT("info", "determine the version to install");
+
   /*
    * Determine the version to install
    */
   if (versionName == NULL) {
     if (pcontrol->default_version)
       versionName = pcontrol->default_version;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "version to install must be specified");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("version to install must be specified")));
+    }
   }
 
   check_valid_version_name(versionName);
@@ -1788,9 +1915,11 @@ CreateExtensionInternal(char *extensionName,
    * will get us there.
    */
   filename = get_extension_script_filename(pcontrol, NULL, versionName);
+  DBUG_PRINT("info", "figure out which script(s) we need to run to install the desired version of the extension:%s", filename);
 
   if (stat(filename, &fst) == 0) {
     /* Easy, no extra scripts */
+    DBUG_PRINT("info", "easy, no extra scripts");
     updateVersions = NIL;
   } else {
     /* Look for best way to install this version */
@@ -1798,6 +1927,7 @@ CreateExtensionInternal(char *extensionName,
     ExtensionVersionInfo *evi_start;
     ExtensionVersionInfo *evi_target;
 
+    DBUG_PRINT("info", "look for best way to install this version");
     /* Extract the version update graph from the script directory */
     evi_list = get_ext_ver_list(pcontrol);
 
@@ -1809,11 +1939,14 @@ CreateExtensionInternal(char *extensionName,
                                   &updateVersions);
 
     /* Fail if no path ... */
-    if (evi_start == NULL)
+    if (evi_start == NULL) {
+      DBUG_INSTANT_PRINT("info", "extension \"%s\" has no installation script nor update path for version \"%s\"",
+                         pcontrol->name, versionName);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("extension \"%s\" has no installation script nor update path for version \"%s\"",
                       pcontrol->name, versionName)));
+    }
 
     /* Otherwise, install best starting point and then upgrade */
     versionName = evi_start->name;
@@ -1822,11 +1955,14 @@ CreateExtensionInternal(char *extensionName,
   /*
    * Fetch control parameters for installation target version
    */
+  DBUG_PRINT("info", "fetch control parameters for installation target version");
   control = read_extension_aux_control_file(pcontrol, versionName);
 
   /*
    * Determine the target schema to install the extension into
    */
+  DBUG_PRINT("info", "determine the target schema to install the extension into");
+
   if (schemaName) {
     /* If the user is giving us the schema name, it must exist already. */
     schemaOid = get_namespace_oid(schemaName, false);
@@ -1840,13 +1976,18 @@ CreateExtensionInternal(char *extensionName,
      * Unless CASCADE parameter was given, it's an error to give a schema
      * different from control->schema if control->schema is specified.
      */
+    DBUG_PRINT("info", "the extension is not relocatable and the author gave us a schema for it");
+
     if (schemaName && strcmp(control->schema, schemaName) != 0 &&
-        !cascade)
+        !cascade) {
+      DBUG_INSTANT_PRINT("info", "extension \"%s\" must be installed in schema \"%s\"",
+                         control->name, control->schema);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("extension \"%s\" must be installed in schema \"%s\"",
                       control->name,
                       control->schema)));
+    }
 
     /* Always use the schema from control file for current extension. */
     schemaName = control->schema;
@@ -1878,18 +2019,24 @@ CreateExtensionInternal(char *extensionName,
      */
     List     *search_path = fetch_search_path(false);
 
-    if (search_path == NIL) /* nothing valid in search_path? */
+    DBUG_PRINT("info", "neither user nor author of the extension specified schema");
+
+    if (search_path == NIL) { /* nothing valid in search_path? */
+      DBUG_INSTANT_PRINT("info", "no schema has been selected to create in");
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_SCHEMA),
                errmsg("no schema has been selected to create in")));
+    }
 
     schemaOid = linitial_oid(search_path);
     schemaName = get_namespace_name(schemaOid);
 
-    if (schemaName == NULL) /* recently-deleted namespace? */
+    if (schemaName == NULL) { /* recently-deleted namespace? */
+      DBUG_INSTANT_PRINT("info", "no schema has been selected to create in");
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_SCHEMA),
                errmsg("no schema has been selected to create in")));
+    }
 
     list_free(search_path);
   }
@@ -1898,8 +2045,10 @@ CreateExtensionInternal(char *extensionName,
    * Make note if a temporary namespace has been accessed in this
    * transaction.
    */
-  if (isTempNamespace(schemaOid))
+  if (isTempNamespace(schemaOid)) {
+    DBUG_PRINT("info", "make note when a temporary namespace has been accessed in this transaction");
     MyXactFlags |= XACT_FLAGS_ACCESSEDTEMPNAMESPACE;
+  }
 
   /*
    * We don't check creation rights on the target namespace here.  If the
@@ -1916,6 +2065,7 @@ CreateExtensionInternal(char *extensionName,
    */
   requiredExtensions = NIL;
   requiredSchemas = NIL;
+  DBUG_PRINT("info", "look up the prerequisite extensions, install them if necessary");
 
   foreach(lc, control->requires) {
     char     *curreq = (char *) lfirst(lc);
@@ -1936,6 +2086,7 @@ CreateExtensionInternal(char *extensionName,
   /*
    * Insert new tuple into pg_extension, and create dependency entries.
    */
+  DBUG_PRINT("info", "insert new tuple into pg_extension, and create dependency entries");
   address = InsertExtensionTuple(control->name, extowner,
                                  schemaOid, control->relocatable,
                                  versionName,
@@ -1947,9 +2098,12 @@ CreateExtensionInternal(char *extensionName,
   /*
    * Apply any control-file comment on extension
    */
-  if (control->comment != NULL)
+  if (control->comment != NULL) {
+    DBUG_PRINT("info", "apply any control-file comment on extension");
     CreateComments(extensionOid, ExtensionRelationId, 0, control->comment);
+  }
 
+  DBUG_PRINT("info", "execute the installation script file");
   /*
    * Execute the installation script file
    */
@@ -1980,6 +2134,7 @@ get_required_extension(char *reqExtensionName,
                        List *parents,
                        bool is_create)
 {
+  DBUG_TRACE;
   Oid     reqExtensionOid;
 
   reqExtensionOid = get_extension_oid(reqExtensionName, true);
@@ -1998,13 +2153,17 @@ get_required_extension(char *reqExtensionName,
       foreach(lc, parents) {
         char     *pname = (char *) lfirst(lc);
 
-        if (strcmp(pname, reqExtensionName) == 0)
+        if (strcmp(pname, reqExtensionName) == 0) {
+          DBUG_INSTANT_PRINT("info", "cyclic dependency detected between extensions \"%s\" and \"%s\"",
+                             reqExtensionName, extensionName);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_RECURSION),
                    errmsg("cyclic dependency detected between extensions \"%s\" and \"%s\"",
                           reqExtensionName, extensionName)));
+        }
       }
 
+      DBUG_INSTANT_PRINT("info", "installing required extension \"%s\"", reqExtensionName);
       ereport(NOTICE,
               (errmsg("installing required extension \"%s\"",
                       reqExtensionName)));
@@ -2025,15 +2184,18 @@ get_required_extension(char *reqExtensionName,
 
       /* Get its newly-assigned OID. */
       reqExtensionOid = addr.objectId;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "required extension \"%s\" is not installed", reqExtensionName);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("required extension \"%s\" is not installed",
                       reqExtensionName),
                is_create ?
                errhint("Use CREATE EXTENSION ... CASCADE to install required extensions too.") : 0));
+    }
   }
 
+  DBUG_PRINT("info", "get the OID of an extension listed in 'requires':%d", reqExtensionOid);
   return reqExtensionOid;
 }
 
@@ -2043,6 +2205,7 @@ get_required_extension(char *reqExtensionName,
 ObjectAddress
 CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt)
 {
+  DBUG_TRACE;
   DefElem    *d_schema = NULL;
   DefElem    *d_new_version = NULL;
   DefElem    *d_cascade = NULL;
@@ -2051,6 +2214,7 @@ CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt)
   bool    cascade = false;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "check extension name validity before any filesystem access");
   /* Check extension name validity before any filesystem access */
   check_valid_extension_name(stmt->extname);
 
@@ -2060,28 +2224,37 @@ CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt)
    * in case of race conditions; but this is a friendlier error message, and
    * besides we need a check to support IF NOT EXISTS.
    */
+  DBUG_PRINT("info", "check for duplicate extension name");
+
   if (get_extension_oid(stmt->extname, true) != InvalidOid) {
     if (stmt->if_not_exists) {
+      DBUG_INSTANT_PRINT("info", "extension \"%s\" already exists, skipping", stmt->extname);
       ereport(NOTICE,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("extension \"%s\" already exists, skipping",
                       stmt->extname)));
       return InvalidObjectAddress;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "extension \"%s\" already exists", stmt->extname);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("extension \"%s\" already exists",
                       stmt->extname)));
+    }
   }
 
   /*
    * We use global variables to track the extension being created, so we can
    * create only one extension at the same time.
    */
-  if (creating_extension)
+  if (creating_extension) {
+    DBUG_INSTANT_PRINT("info", "nested CREATE EXTENSION is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("nested CREATE EXTENSION is not supported")));
+  }
+
+  DBUG_PRINT("info", "deconstruct the statement option list");
 
   /* Deconstruct the statement option list */
   foreach(lc, stmt->options) {
@@ -2109,6 +2282,7 @@ CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt)
       elog(ERROR, "unrecognized option: %s", defel->defname);
   }
 
+  DBUG_PRINT("info", "call CreateExtensionInternal to do the real work");
   /* Call CreateExtensionInternal to do the real work. */
   return CreateExtensionInternal(stmt->extname,
                                  schemaName,
@@ -2137,6 +2311,7 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
                      Datum extConfig, Datum extCondition,
                      List *requiredExtensions)
 {
+  DBUG_TRACE;
   Oid     extensionOid;
   Relation  rel;
   Datum   values[Natts_pg_extension];
@@ -2150,6 +2325,7 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
   /*
    * Build and insert the pg_extension tuple
    */
+  DBUG_PRINT("info", "build and insert the pg_extension tuple");
   rel = table_open(ExtensionRelationId, RowExclusiveLock);
 
   memset(values, 0, sizeof(values));
@@ -2185,6 +2361,7 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
   /*
    * Record dependencies on owner, schema, and prerequisite extensions
    */
+  DBUG_PRINT("info", "record dependencies on owner, schema, and prerequisite extensions");
   recordDependencyOnOwner(ExtensionRelationId, extensionOid, extOwner);
 
   refobjs = new_object_addresses();
@@ -2202,10 +2379,12 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
     add_exact_object_address(&otherext, refobjs);
   }
 
+  DBUG_PRINT("info", "record all of them (this includes duplicate elimination)");
   /* Record all of them (this includes duplicate elimination) */
   record_object_address_dependencies(&myself, refobjs, DEPENDENCY_NORMAL);
   free_object_addresses(refobjs);
 
+  DBUG_PRINT("info", "post creation hook for new extension");
   /* Post creation hook for new extension */
   InvokeObjectPostCreateHook(ExtensionRelationId, extensionOid, 0);
 
@@ -2221,10 +2400,14 @@ InsertExtensionTuple(const char *extName, Oid extOwner,
 void
 RemoveExtensionById(Oid extId)
 {
+  DBUG_TRACE;
   Relation  rel;
   SysScanDesc scandesc;
   HeapTuple tuple;
   ScanKeyData entry[1];
+
+  DBUG_PRINT("info", "guts of extension deletion");
+  DBUG_PRINT("info", "all we need do here is remove the pg_extension tuple itself");
 
   /*
    * Disallow deletion of any extension that's currently open for insertion;
@@ -2237,11 +2420,14 @@ RemoveExtensionById(Oid extId)
    * from some contained object.  Because of that, we must test for the case
    * here, not at some higher level of the DROP EXTENSION command.
    */
-  if (extId == CurrentExtensionObject)
+  if (extId == CurrentExtensionObject) {
+    char *ext_name = get_extension_name(extId);
+    DBUG_INSTANT_PRINT("info", "cannot drop extension \"%s\" because it is being modified", ext_name);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("cannot drop extension \"%s\" because it is being modified",
-                    get_extension_name(extId))));
+                    ext_name)));
+  }
 
   rel = table_open(ExtensionRelationId, RowExclusiveLock);
 
@@ -2254,9 +2440,12 @@ RemoveExtensionById(Oid extId)
 
   tuple = systable_getnext(scandesc);
 
+  DBUG_PRINT("info", "we assume that there can be at most one matching tuple");
+
   /* We assume that there can be at most one matching tuple */
-  if (HeapTupleIsValid(tuple))
+  if (HeapTupleIsValid(tuple)) {
     CatalogTupleDelete(rel, &tuple->t_self);
+  }
 
   systable_endscan(scandesc);
 
@@ -2275,12 +2464,14 @@ RemoveExtensionById(Oid extId)
 Datum
 pg_available_extensions(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   List     *locations;
   DIR      *dir;
   struct dirent *de;
   List     *found_ext = NIL;
 
+  DBUG_PRINT("info", "this function lists the available extensions");
   /* Build tuplestore to hold the result rows */
   InitMaterializedSRF(fcinfo, 0);
 
@@ -2371,6 +2562,7 @@ pg_available_extensions(PG_FUNCTION_ARGS)
 Datum
 pg_available_extension_versions(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   List     *locations;
   DIR      *dir;
@@ -2445,6 +2637,7 @@ get_available_versions_for_extension(ExtensionControlFile *pcontrol,
                                      Tuplestorestate *tupstore,
                                      TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   List     *evi_list;
   ListCell   *lc;
 
@@ -2559,6 +2752,7 @@ get_available_versions_for_extension(ExtensionControlFile *pcontrol,
 bool
 extension_file_exists(const char *extensionName)
 {
+  DBUG_TRACE;
   bool    result = false;
   List     *locations;
   DIR      *dir;
@@ -2604,6 +2798,12 @@ extension_file_exists(const char *extensionName)
       break;
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -2613,11 +2813,13 @@ extension_file_exists(const char *extensionName)
 static Datum
 convert_requires_to_datum(List *requires)
 {
+  DBUG_TRACE;
   Datum    *datums;
   int     ndatums;
   ArrayType  *a;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "convert a list of extension names to a name[] Datum");
   ndatums = list_length(requires);
   datums = (Datum *) palloc(ndatums * sizeof(Datum));
   ndatums = 0;
@@ -2640,6 +2842,7 @@ convert_requires_to_datum(List *requires)
 Datum
 pg_extension_update_paths(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    extname = PG_GETARG_NAME(0);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   List     *evi_list;
@@ -2724,6 +2927,7 @@ pg_extension_update_paths(PG_FUNCTION_ARGS)
 Datum
 pg_extension_config_dump(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tableoid = PG_GETARG_OID(0);
   text     *wherecond = PG_GETARG_TEXT_PP(1);
   char     *tablename;
@@ -2745,11 +2949,13 @@ pg_extension_config_dump(PG_FUNCTION_ARGS)
    * We only allow this to be called from an extension's SQL script. We
    * shouldn't need any permissions check beyond that.
    */
-  if (!creating_extension)
+  if (!creating_extension) {
+    DBUG_INSTANT_PRINT("info", "pg_extension_config_dump() can only be called from an SQL script executed by CREATE EXTENSION");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("%s can only be called from an SQL script executed by CREATE EXTENSION",
                     "pg_extension_config_dump()")));
+  }
 
   /*
    * Check that the table exists and is a member of the extension being
@@ -2758,17 +2964,21 @@ pg_extension_config_dump(PG_FUNCTION_ARGS)
    */
   tablename = get_rel_name(tableoid);
 
-  if (tablename == NULL)
+  if (tablename == NULL) {
+    DBUG_INSTANT_PRINT("info", "OID %u does not refer to a table", tableoid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_TABLE),
              errmsg("OID %u does not refer to a table", tableoid)));
+  }
 
   if (getExtensionOfObject(RelationRelationId, tableoid) !=
-      CurrentExtensionObject)
+      CurrentExtensionObject) {
+    DBUG_INSTANT_PRINT("info", "table \"%s\" is not a member of the extension being created", tablename);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("table \"%s\" is not a member of the extension being created",
                     tablename)));
+  }
 
   /*
    * Add the table OID and WHERE condition to the extension's extconfig and
@@ -2963,6 +3173,7 @@ pg_get_loaded_modules(PG_FUNCTION_ARGS)
 static void
 extension_config_remove(Oid extensionoid, Oid tableoid)
 {
+  DBUG_TRACE;
   Relation  extRel;
   ScanKeyData key[1];
   SysScanDesc extScan;
@@ -3120,6 +3331,7 @@ extension_config_remove(Oid extensionoid, Oid tableoid)
 ObjectAddress
 AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *oldschema)
 {
+  DBUG_TRACE;
   Oid     extensionOid;
   Oid     nspOid;
   Oid     oldNspOid;
@@ -3135,6 +3347,7 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
   ObjectAddresses *objsMoved;
   ObjectAddress extAddr;
 
+  DBUG_PRINT("info", "execute ALTER EXTENSION SET SCHEMA");
   extensionOid = get_extension_oid(extensionName, false);
 
   nspOid = LookupCreationNamespace(newschema);
@@ -3157,12 +3370,15 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
    * If the schema is currently a member of the extension, disallow moving
    * the extension into the schema.  That would create a dependency loop.
    */
-  if (getExtensionOfObject(NamespaceRelationId, nspOid) == extensionOid)
+  if (getExtensionOfObject(NamespaceRelationId, nspOid) == extensionOid) {
+    DBUG_INSTANT_PRINT("info", "cannot move extension \"%s\" into schema \"%s\" because the extension contains the schema",
+                       extensionName, newschema);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("cannot move extension \"%s\" into schema \"%s\" "
                     "because the extension contains the schema",
                     extensionName, newschema)));
+  }
 
   /* Locate the pg_extension tuple */
   extRel = table_open(ExtensionRelationId, RowExclusiveLock);
@@ -3197,11 +3413,13 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
   }
 
   /* Check extension is supposed to be relocatable */
-  if (!extForm->extrelocatable)
+  if (!extForm->extrelocatable) {
+    DBUG_INSTANT_PRINT("info", "extension \"%s\" does not support SET SCHEMA", NameStr(extForm->extname));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("extension \"%s\" does not support SET SCHEMA",
                     NameStr(extForm->extname))));
+  }
 
   objsMoved = new_object_addresses();
 
@@ -3252,6 +3470,7 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
         char     *nrextname = (char *) lfirst(lc);
 
         if (strcmp(nrextname, NameStr(extForm->extname)) == 0) {
+          DBUG_INSTANT_PRINT("info", "cannot SET SCHEMA of extension \"%s\" because other extensions prevent it", NameStr(extForm->extname));
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cannot SET SCHEMA of extension \"%s\" because other extensions prevent it",
@@ -3288,7 +3507,8 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
      * If not all the objects had the same old namespace (ignoring any
      * that are not in namespaces or are dependent types), complain.
      */
-    if (dep_oldNspOid != InvalidOid && dep_oldNspOid != oldNspOid)
+    if (dep_oldNspOid != InvalidOid && dep_oldNspOid != oldNspOid) {
+      DBUG_INSTANT_PRINT("info", "extension \"%s\" does not support SET SCHEMA", NameStr(extForm->extname));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("extension \"%s\" does not support SET SCHEMA",
@@ -3296,6 +3516,7 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
                errdetail("%s is not in the extension's schema \"%s\"",
                          getObjectDescription(&dep, false),
                          get_namespace_name(oldNspOid))));
+    }
   }
 
   /* report old schema, if caller wants it */
@@ -3332,6 +3553,7 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
 ObjectAddress
 ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt)
 {
+  DBUG_TRACE;
   DefElem    *d_new_version = NULL;
   char     *versionName;
   char     *oldVersionName;
@@ -3347,14 +3569,18 @@ ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt)
   ListCell   *lc;
   ObjectAddress address;
 
+  DBUG_PRINT("info", "execute ALTER EXTENSION UPDATE");
+
   /*
    * We use global variables to track the extension being created, so we can
    * create/update only one extension at the same time.
    */
-  if (creating_extension)
+  if (creating_extension) {
+    DBUG_INSTANT_PRINT("info", "nested ALTER EXTENSION is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("nested ALTER EXTENSION is not supported")));
+  }
 
   /*
    * Look up the extension --- it must already exist in pg_extension
@@ -3371,11 +3597,13 @@ ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt)
 
   extTup = systable_getnext(extScan);
 
-  if (!HeapTupleIsValid(extTup))
+  if (!HeapTupleIsValid(extTup)) {
+    DBUG_INSTANT_PRINT("info", "extension \"%s\" does not exist", stmt->extname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("extension \"%s\" does not exist",
                     stmt->extname)));
+  }
 
   extensionOid = ((Form_pg_extension) GETSTRUCT(extTup))->oid;
 
@@ -3429,6 +3657,7 @@ ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt)
   else if (control->default_version)
     versionName = control->default_version;
   else {
+    DBUG_INSTANT_PRINT("info", "version to install must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("version to install must be specified")));
@@ -3441,6 +3670,7 @@ ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt)
    * If we're already at that version, just say so
    */
   if (strcmp(oldVersionName, versionName) == 0) {
+    DBUG_INSTANT_PRINT("info", "version \"%s\" of extension \"%s\" is already installed", versionName, stmt->extname);
     ereport(NOTICE,
             (errmsg("version \"%s\" of extension \"%s\" is already installed",
                     versionName, stmt->extname)));
@@ -3484,8 +3714,11 @@ ApplyExtensionUpdates(Oid extensionOid,
                       bool cascade,
                       bool is_create)
 {
+  DBUG_TRACE;
   const char *oldVersionName = initialVersion;
   ListCell   *lcv;
+
+  DBUG_PRINT("info", "apply a series of update scripts as though individual ALTER EXTENSION UPDATE commands had been given");
 
   foreach(lcv, updateVersions) {
     char     *versionName = (char *) lfirst(lcv);
@@ -3609,6 +3842,7 @@ ApplyExtensionUpdates(Oid extensionOid,
     /*
      * Finally, execute the update script file
      */
+    DBUG_PRINT("info", "finally, execute the update script file");
     execute_extension_script(extensionOid, control,
                              oldVersionName, versionName,
                              requiredSchemas,
@@ -3635,9 +3869,12 @@ ObjectAddress
 ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt,
                                ObjectAddress *objAddr)
 {
+  DBUG_TRACE;
   ObjectAddress extension;
   ObjectAddress object;
   Relation  relation;
+
+  DBUG_PRINT("info", "execute ALTER EXTENSION ADD/DROP");
 
   switch (stmt->objtype) {
     case OBJECT_DATABASE:
@@ -3648,6 +3885,7 @@ ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt,
     case OBJECT_STATISTIC_EXT:
     case OBJECT_SUBSCRIPTION:
     case OBJECT_TABLESPACE:
+      DBUG_INSTANT_PRINT("info", "cannot add an object of this type to an extension");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cannot add an object of this type to an extension")));
@@ -3723,8 +3961,11 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
                                   ObjectAddress extension,
                                   ObjectAddress object)
 {
+  DBUG_TRACE;
   Oid     oldExtension;
+  char *name_str;
 
+  DBUG_PRINT("info", "check existing extension membership");
   /*
    * Check existing extension membership.
    */
@@ -3734,29 +3975,39 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
     /*
      * ADD, so complain if object is already attached to some extension.
      */
-    if (OidIsValid(oldExtension))
+    if (OidIsValid(oldExtension)) {
+      char *objDescrip = getObjectDescription(&object, false);
+      char *ext_name = get_extension_name(oldExtension);
+      DBUG_INSTANT_PRINT("info", "%s is already a member of extension \"%s\"", objDescrip, ext_name);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("%s is already a member of extension \"%s\"",
-                      getObjectDescription(&object, false),
-                      get_extension_name(oldExtension))));
+                      objDescrip, ext_name)));
+    }
+
+    DBUG_PRINT("info", "prevent a schema from being added to an extension if the schema contains the extension");
 
     /*
      * Prevent a schema from being added to an extension if the schema
      * contains the extension.  That would create a dependency loop.
      */
     if (object.classId == NamespaceRelationId &&
-        object.objectId == get_extension_schema(extension.objectId))
+        object.objectId == get_extension_schema(extension.objectId)) {
+      char *namespace_name = get_namespace_name(object.objectId);
+      DBUG_INSTANT_PRINT("info", "cannot add schema \"%s\" to extension \"%s\" because the schema contains the extension",
+                         namespace_name, stmt->extname);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("cannot add schema \"%s\" to extension \"%s\" "
                       "because the schema contains the extension",
-                      get_namespace_name(object.objectId),
+                      namespace_name,
                       stmt->extname)));
+    }
 
     /*
      * OK, add the dependency.
      */
+    DBUG_PRINT("info", "OK, add the dependency");
     recordDependencyOn(&object, &extension, DEPENDENCY_EXTENSION);
 
     /*
@@ -3772,16 +4023,21 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
     /*
      * DROP, so complain if it's not a member.
      */
-    if (oldExtension != extension.objectId)
+    if (oldExtension != extension.objectId) {
+      name_str = getObjectDescription(&object, false);
+      DBUG_INSTANT_PRINT("info", "%s is not a member of extension \"%s\"", name_str, stmt->extname);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("%s is not a member of extension \"%s\"",
-                      getObjectDescription(&object, false),
+                      name_str,
                       stmt->extname)));
+    }
 
     /*
      * OK, drop the dependency.
      */
+    DBUG_PRINT("info", "OK, drop the dependency");
+
     if (deleteDependencyRecordsForClass(object.classId, object.objectId,
                                         ExtensionRelationId,
                                         DEPENDENCY_EXTENSION) != 1)
@@ -3791,8 +4047,10 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
      * If it's a relation, it might have an entry in the extension's
      * extconfig array, which we must remove.
      */
-    if (object.classId == RelationRelationId)
+    if (object.classId == RelationRelationId) {
+      DBUG_PRINT("info", "it might have an entry in the extension's extconfig array, which we must remove.");
       extension_config_remove(extension.objectId, object.objectId);
+    }
 
     /*
      * Remove all the initial ACLs, if any.
@@ -3802,6 +4060,7 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
      * this will remove the table's ACL and the ACLs for the columns on
      * the table, if any).
      */
+    DBUG_PRINT("info", "remove all the initial ACLs, if any");
     removeExtObjInitPriv(object.objectId, object.classId);
   }
 
@@ -3810,6 +4069,8 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
    * type of a base type, the multirange type associated with a range type,
    * and the rowtype of a table.
    */
+  DBUG_PRINT("info", "recurse to any dependent objects");
+
   if (object.classId == TypeRelationId) {
     ObjectAddress depobject;
 
@@ -3826,11 +4087,14 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
     if (type_is_range(object.objectId)) {
       depobject.objectId = get_range_multirange(object.objectId);
 
-      if (!OidIsValid(depobject.objectId))
+      if (!OidIsValid(depobject.objectId)) {
+        char *format1 = format_type_be(object.objectId);
+        DBUG_INSTANT_PRINT("info", "could not find multirange type for data type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("could not find multirange type for data type %s",
-                        format_type_be(object.objectId))));
+                        format1)));
+      }
 
       ExecAlterExtensionContentsRecurse(stmt, extension, depobject);
     }
@@ -3860,37 +4124,49 @@ ExecAlterExtensionContentsRecurse(AlterExtensionContentsStmt *stmt,
 static char *
 read_whole_file(const char *filename, int *length)
 {
+  DBUG_TRACE;
   char     *buf;
   FILE     *file;
   size_t    bytes_to_read;
   struct stat fst;
 
-  if (stat(filename, &fst) < 0)
+  DBUG_PRINT("info", "read the whole of file into memory");
+
+  if (stat(filename, &fst) < 0) {
+    DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", filename);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not stat file \"%s\": %m", filename)));
+  }
 
-  if (fst.st_size > (MaxAllocSize - 1))
+  if (fst.st_size > (MaxAllocSize - 1)) {
+    DBUG_INSTANT_PRINT("info", "file \"%s\" is too large", filename);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("file \"%s\" is too large", filename)));
+  }
+
 
   bytes_to_read = (size_t) fst.st_size;
 
-  if ((file = AllocateFile(filename, PG_BINARY_R)) == NULL)
+  if ((file = AllocateFile(filename, PG_BINARY_R)) == NULL) {
+    DBUG_INSTANT_PRINT("info", "could not open file \"%s\" for reading", filename);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not open file \"%s\" for reading: %m",
                     filename)));
+  }
 
   buf = (char *) palloc(bytes_to_read + 1);
 
   bytes_to_read = fread(buf, 1, bytes_to_read, file);
 
-  if (ferror(file))
+  if (ferror(file)) {
+    DBUG_INSTANT_PRINT("info", "could not read file \"%s\"", filename);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not read file \"%s\": %m", filename)));
+  }
 
   FreeFile(file);
 

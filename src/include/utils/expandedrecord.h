@@ -229,12 +229,10 @@ expanded_record_get_field(ExpandedRecordHeader *erh, int fnumber,
                           bool *isnull)
 {
   if ((erh->flags & ER_FLAG_DVALUES_VALID) &&
-      likely(fnumber > 0 && fnumber <= erh->nfields))
-  {
+      likely(fnumber > 0 && fnumber <= erh->nfields)) {
     *isnull = erh->dnulls[fnumber - 1];
     return erh->dvalues[fnumber - 1];
-  }
-  else
+  } else
     return expanded_record_fetch_field(erh, fnumber, isnull);
 }
 

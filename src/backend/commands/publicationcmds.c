@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -83,6 +84,7 @@ parse_publication_options(ParseState *pstate,
                           bool *publish_generated_columns_given,
                           char *publish_generated_columns)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   *publish_given = false;
@@ -126,11 +128,13 @@ parse_publication_options(ParseState *pstate,
        */
       publish = pstrdup(defGetString(defel));
 
-      if (!SplitIdentifierString(publish, ',', &publish_list))
+      if (!SplitIdentifierString(publish, ',', &publish_list)) {
+        DBUG_INSTANT_PRINT("info", "invalid list syntax in parameter \"%s\"", "publish");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("invalid list syntax in parameter \"%s\"",
                         "publish")));
+      }
 
       /* Process the option list. */
       foreach(lc2, publish_list) {
@@ -144,11 +148,13 @@ parse_publication_options(ParseState *pstate,
           pubactions->pubdelete = true;
         else if (strcmp(publish_opt, "truncate") == 0)
           pubactions->pubtruncate = true;
-        else
+        else {
+          DBUG_INSTANT_PRINT("info", "unrecognized value for publication option \"%s\": \"%s\"", "publish", publish_opt);
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("unrecognized value for publication option \"%s\": \"%s\"",
                           "publish", publish_opt)));
+        }
       }
     } else if (strcmp(defel->defname, "publish_via_partition_root") == 0) {
       if (*publish_via_partition_root_given)
@@ -162,10 +168,12 @@ parse_publication_options(ParseState *pstate,
 
       *publish_generated_columns_given = true;
       *publish_generated_columns = defGetGeneratedColsOption(defel);
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized publication parameter: \"%s\"", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized publication parameter: \"%s\"", defel->defname)));
+    }
   }
 }
 
@@ -177,6 +185,7 @@ static void
 ObjectsInPublicationToOids(List *pubobjspec_list, ParseState *pstate,
                            List **rels, List **schemas)
 {
+  DBUG_TRACE;
   ListCell   *cell;
   PublicationObjSpec *pubobj;
 
@@ -204,10 +213,12 @@ ObjectsInPublicationToOids(List *pubobjspec_list, ParseState *pstate,
       case PUBLICATIONOBJ_TABLES_IN_CUR_SCHEMA:
         search_path = fetch_search_path(false);
 
-        if (search_path == NIL) /* nothing valid in search_path? */
+        if (search_path == NIL) { /* nothing valid in search_path? */
+          DBUG_INSTANT_PRINT("info", "no schema has been selected for CURRENT_SCHEMA");
           ereport(ERROR,
                   errcode(ERRCODE_UNDEFINED_SCHEMA),
                   errmsg("no schema has been selected for CURRENT_SCHEMA"));
+        }
 
         schemaid = linitial_oid(search_path);
         list_free(search_path);
@@ -231,6 +242,8 @@ ObjectsInPublicationToOids(List *pubobjspec_list, ParseState *pstate,
 static bool
 contain_invalid_rfcolumn_walker(Node *node, rf_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -269,6 +282,7 @@ bool
 pub_rf_contains_invalid_column(Oid pubid, Relation relation, List *ancestors,
                                bool pubviaroot)
 {
+  DBUG_TRACE;
   HeapTuple rftuple;
   Oid     relid = RelationGetRelid(relation);
   Oid     publish_as_relid = RelationGetRelid(relation);
@@ -566,6 +580,7 @@ contain_mutable_or_user_functions_checker(Oid func_id, void *context)
 static bool
 check_simple_rowfilter_expr_walker(Node *node, ParseState *pstate)
 {
+  DBUG_TRACE;
   char     *errdetail_msg = NULL;
 
   if (node == NULL)
@@ -659,12 +674,14 @@ check_simple_rowfilter_expr_walker(Node *node, ParseState *pstate)
    * If we found a problem in this node, throw error now. Otherwise keep
    * going.
    */
-  if (errdetail_msg)
+  if (errdetail_msg) {
+    DBUG_INSTANT_PRINT("info", "invalid publication WHERE expression");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("invalid publication WHERE expression"),
              errdetail_internal("%s", errdetail_msg),
              parser_errposition(pstate, exprLocation(node))));
+  }
 
   return expression_tree_walker(node, check_simple_rowfilter_expr_walker,
                                 pstate);
@@ -694,6 +711,7 @@ static void
 TransformPubWhereClauses(List *tables, const char *queryString,
                          bool pubviaroot)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, tables) {
@@ -711,13 +729,16 @@ TransformPubWhereClauses(List *tables, const char *queryString,
      * WHERE clause on partitioned table in this case.
      */
     if (!pubviaroot &&
-        pri->relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+        pri->relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+      DBUG_INSTANT_PRINT("info", "cannot use publication WHERE clause for relation \"%s\"",
+                         RelationGetRelationName(pri->relation));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("cannot use publication WHERE clause for relation \"%s\"",
                       RelationGetRelationName(pri->relation)),
                errdetail("WHERE clause cannot be used for a partitioned table when %s is false.",
                          "publish_via_partition_root")));
+    }
 
     /*
      * A fresh pstate is required so that we only have "this" table in its
@@ -767,6 +788,7 @@ static void
 CheckPubRelationColumnList(char *pubname, List *tables,
                            bool publish_schema, bool pubviaroot)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, tables) {
@@ -785,13 +807,17 @@ CheckPubRelationColumnList(char *pubname, List *tables,
      * ALTER TABLE ... SET SCHEMA to prevent such a case which doesn't
      * seem to be a good idea.
      */
-    if (publish_schema)
+    if (publish_schema) {
+      char *namespace_name = get_namespace_name(RelationGetNamespace(pri->relation));
+      DBUG_INSTANT_PRINT("info", "cannot use column list for relation \"%s.%s\" in publication \"%s\"",
+                         namespace_name, RelationGetRelationName(pri->relation), pubname);
       ereport(ERROR,
               errcode(ERRCODE_INVALID_PARAMETER_VALUE),
               errmsg("cannot use column list for relation \"%s.%s\" in publication \"%s\"",
-                     get_namespace_name(RelationGetNamespace(pri->relation)),
+                     namespace_name,
                      RelationGetRelationName(pri->relation), pubname),
               errdetail("Column lists cannot be specified in publications containing FOR TABLES IN SCHEMA elements."));
+    }
 
     /*
      * If the publication doesn't publish changes via the root partitioned
@@ -799,14 +825,18 @@ CheckPubRelationColumnList(char *pubname, List *tables,
      * a column list on the partitioned table in this case.
      */
     if (!pubviaroot &&
-        pri->relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+        pri->relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+      char *namespace_name = get_namespace_name(RelationGetNamespace(pri->relation));
+      DBUG_INSTANT_PRINT("info", "cannot use column list for relation \"%s.%s\" in publication \"%s\"",
+                         namespace_name, RelationGetRelationName(pri->relation), pubname);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("cannot use column list for relation \"%s.%s\" in publication \"%s\"",
-                      get_namespace_name(RelationGetNamespace(pri->relation)),
+                      namespace_name,
                       RelationGetRelationName(pri->relation), pubname),
                errdetail("Column lists cannot be specified for partitioned tables when %s is false.",
                          "publish_via_partition_root")));
+    }
   }
 }
 
@@ -816,6 +846,7 @@ CheckPubRelationColumnList(char *pubname, List *tables,
 ObjectAddress
 CreatePublication(ParseState *pstate, CreatePublicationStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   ObjectAddress myself;
   Oid     puboid;
@@ -840,10 +871,12 @@ CreatePublication(ParseState *pstate, CreatePublicationStmt *stmt)
                    get_database_name(MyDatabaseId));
 
   /* FOR ALL TABLES requires superuser */
-  if (stmt->for_all_tables && !superuser())
+  if (stmt->for_all_tables && !superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to create FOR ALL TABLES publication");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to create FOR ALL TABLES publication")));
+  }
 
   rel = table_open(PublicationRelationId, RowExclusiveLock);
 
@@ -851,11 +884,13 @@ CreatePublication(ParseState *pstate, CreatePublicationStmt *stmt)
   puboid = GetSysCacheOid1(PUBLICATIONNAME, Anum_pg_publication_oid,
                            CStringGetDatum(stmt->pubname));
 
-  if (OidIsValid(puboid))
+  if (OidIsValid(puboid)) {
+    DBUG_INSTANT_PRINT("info", "publication \"%s\" already exists", stmt->pubname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("publication \"%s\" already exists",
                     stmt->pubname)));
+  }
 
   /* Form a tuple. */
   memset(values, 0, sizeof(values));
@@ -913,10 +948,12 @@ CreatePublication(ParseState *pstate, CreatePublicationStmt *stmt)
                                &schemaidlist);
 
     /* FOR TABLES IN SCHEMA requires superuser */
-    if (schemaidlist != NIL && !superuser())
+    if (schemaidlist != NIL && !superuser()) {
+      DBUG_INSTANT_PRINT("info", "must be superuser to create FOR TABLES IN SCHEMA publication");
       ereport(ERROR,
               errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
               errmsg("must be superuser to create FOR TABLES IN SCHEMA publication"));
+    }
 
     if (relations != NIL) {
       List     *rels;
@@ -963,6 +1000,7 @@ static void
 AlterPublicationOptions(ParseState *pstate, AlterPublicationStmt *stmt,
                         Relation rel, HeapTuple tup)
 {
+  DBUG_TRACE;
   bool    nulls[Natts_pg_publication];
   bool    replaces[Natts_pg_publication];
   Datum   values[Natts_pg_publication];
@@ -1049,7 +1087,8 @@ AlterPublicationOptions(ParseState *pstate, AlterPublicationStmt *stmt,
         continue;
       }
 
-      if (has_rowfilter)
+      if (has_rowfilter) {
+        DBUG_INSTANT_PRINT("info", "cannot set parameter \"%s\" to false for publication \"%s\"", "publish_via_partition_root", stmt->pubname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("cannot set parameter \"%s\" to false for publication \"%s\"",
@@ -1057,8 +1096,10 @@ AlterPublicationOptions(ParseState *pstate, AlterPublicationStmt *stmt,
                         stmt->pubname),
                  errdetail("The publication contains a WHERE clause for partitioned table \"%s\", which is not allowed when \"%s\" is false.",
                            relname, "publish_via_partition_root")));
+      }
 
       Assert(has_collist);
+      DBUG_INSTANT_PRINT("info", "cannot set parameter \"%s\" to false for publication \"%s\"", "publish_via_partition_root", stmt->pubname);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("cannot set parameter \"%s\" to false for publication \"%s\"",
@@ -1175,6 +1216,7 @@ AlterPublicationTables(AlterPublicationStmt *stmt, HeapTuple tup,
                        List *tables, const char *queryString,
                        bool publish_schema)
 {
+  DBUG_TRACE;
   List     *rels = NIL;
   Form_pg_publication pubform = (Form_pg_publication) GETSTRUCT(tup);
   Oid     pubid = pubform->oid;
@@ -1328,6 +1370,7 @@ static void
 AlterPublicationSchemas(AlterPublicationStmt *stmt,
                         HeapTuple tup, List *schemaidlist)
 {
+  DBUG_TRACE;
   Form_pg_publication pubform = (Form_pg_publication) GETSTRUCT(tup);
 
   /*
@@ -1364,12 +1407,14 @@ AlterPublicationSchemas(AlterPublicationStmt *stmt,
        * Disallow adding schema if column list is already part of the
        * publication. See CheckPubRelationColumnList.
        */
-      if (!heap_attisnull(coltuple, Anum_pg_publication_rel_prattrs, NULL))
+      if (!heap_attisnull(coltuple, Anum_pg_publication_rel_prattrs, NULL)) {
+        DBUG_INSTANT_PRINT("info", "cannot add schema to publication \"%s\"", stmt->pubname);
         ereport(ERROR,
                 errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                 errmsg("cannot add schema to publication \"%s\"",
                        stmt->pubname),
                 errdetail("Schemas cannot be added if any tables that specify a column list are already part of the publication."));
+      }
 
       ReleaseSysCache(coltuple);
     }
@@ -1409,32 +1454,39 @@ static void
 CheckAlterPublication(AlterPublicationStmt *stmt, HeapTuple tup,
                       List *tables, List *schemaidlist)
 {
+  DBUG_TRACE;
   Form_pg_publication pubform = (Form_pg_publication) GETSTRUCT(tup);
 
   if ((stmt->action == AP_AddObjects || stmt->action == AP_SetObjects) &&
-      schemaidlist && !superuser())
+      schemaidlist && !superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to add or set schemas");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to add or set schemas")));
+  }
 
   /*
    * Check that user is allowed to manipulate the publication tables in
    * schema
    */
-  if (schemaidlist && pubform->puballtables)
+  if (schemaidlist && pubform->puballtables) {
+    DBUG_INSTANT_PRINT("info", "publication \"%s\" is defined as FOR ALL TABLES", NameStr(pubform->pubname));
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("publication \"%s\" is defined as FOR ALL TABLES",
                     NameStr(pubform->pubname)),
              errdetail("Schemas cannot be added to or dropped from FOR ALL TABLES publications.")));
+  }
 
   /* Check that user is allowed to manipulate the publication tables. */
-  if (tables && pubform->puballtables)
+  if (tables && pubform->puballtables) {
+    DBUG_INSTANT_PRINT("info", "publication \"%s\" is defined as FOR ALL TABLES", NameStr(pubform->pubname));
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("publication \"%s\" is defined as FOR ALL TABLES",
                     NameStr(pubform->pubname)),
              errdetail("Tables cannot be added to or dropped from FOR ALL TABLES publications.")));
+  }
 }
 
 /*
@@ -1446,6 +1498,7 @@ CheckAlterPublication(AlterPublicationStmt *stmt, HeapTuple tup,
 void
 AlterPublication(ParseState *pstate, AlterPublicationStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_publication pubform;
@@ -1455,11 +1508,13 @@ AlterPublication(ParseState *pstate, AlterPublicationStmt *stmt)
   tup = SearchSysCacheCopy1(PUBLICATIONNAME,
                             CStringGetDatum(stmt->pubname));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "publication \"%s\" does not exist", stmt->pubname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("publication \"%s\" does not exist",
                     stmt->pubname)));
+  }
 
   pubform = (Form_pg_publication) GETSTRUCT(tup);
 
@@ -1494,11 +1549,13 @@ AlterPublication(ParseState *pstate, AlterPublicationStmt *stmt)
      */
     tup = SearchSysCacheCopy1(PUBLICATIONOID, ObjectIdGetDatum(pubid));
 
-    if (!HeapTupleIsValid(tup))
+    if (!HeapTupleIsValid(tup)) {
+      DBUG_INSTANT_PRINT("info", "publication \"%s\" does not exist", stmt->pubname);
       ereport(ERROR,
               errcode(ERRCODE_UNDEFINED_OBJECT),
               errmsg("publication \"%s\" does not exist",
                      stmt->pubname));
+    }
 
     AlterPublicationTables(stmt, tup, relations, pstate->p_sourcetext,
                            schemaidlist != NIL);
@@ -1516,6 +1573,7 @@ AlterPublication(ParseState *pstate, AlterPublicationStmt *stmt)
 void
 RemovePublicationRelById(Oid proid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_publication_rel pubrel;
@@ -1557,6 +1615,7 @@ RemovePublicationRelById(Oid proid)
 void
 RemovePublicationById(Oid pubid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_publication pubform;
@@ -1587,6 +1646,7 @@ RemovePublicationById(Oid pubid)
 void
 RemovePublicationSchemaById(Oid psoid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   List     *schemaRels = NIL;
@@ -1625,6 +1685,7 @@ RemovePublicationSchemaById(Oid psoid)
 static List *
 OpenTableList(List *tables)
 {
+  DBUG_TRACE;
   List     *relids = NIL;
   List     *rels = NIL;
   ListCell   *lc;
@@ -1656,18 +1717,22 @@ OpenTableList(List *tables)
      */
     if (list_member_oid(relids, myrelid)) {
       /* Disallow duplicate tables if there are any with row filters. */
-      if (t->whereClause || list_member_oid(relids_with_rf, myrelid))
+      if (t->whereClause || list_member_oid(relids_with_rf, myrelid)) {
+        DBUG_INSTANT_PRINT("info", "");
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_OBJECT),
                  errmsg("conflicting or redundant WHERE clauses for table \"%s\"",
                         RelationGetRelationName(rel))));
+      }
 
       /* Disallow duplicate tables if there are any with column lists. */
-      if (t->columns || list_member_oid(relids_with_collist, myrelid))
+      if (t->columns || list_member_oid(relids_with_collist, myrelid)) {
+        DBUG_INSTANT_PRINT("info", "conflicting or redundant column lists for table \"%s\"", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_OBJECT),
                  errmsg("conflicting or redundant column lists for table \"%s\"",
                         RelationGetRelationName(rel))));
+      }
 
       table_close(rel, ShareUpdateExclusiveLock);
       continue;
@@ -1716,11 +1781,13 @@ OpenTableList(List *tables)
            * clear which one should be given preference.
            */
           if (childrelid != myrelid &&
-              (t->whereClause || list_member_oid(relids_with_rf, childrelid)))
+              (t->whereClause || list_member_oid(relids_with_rf, childrelid))) {
+            DBUG_INSTANT_PRINT("info", "conflicting or redundant WHERE clauses for table \"%s\"", RelationGetRelationName(rel));
             ereport(ERROR,
                     (errcode(ERRCODE_DUPLICATE_OBJECT),
                      errmsg("conflicting or redundant WHERE clauses for table \"%s\"",
                             RelationGetRelationName(rel))));
+          }
 
           /*
            * We don't allow to specify column list for both parent
@@ -1728,11 +1795,13 @@ OpenTableList(List *tables)
            * clear which one should be given preference.
            */
           if (childrelid != myrelid &&
-              (t->columns || list_member_oid(relids_with_collist, childrelid)))
+              (t->columns || list_member_oid(relids_with_collist, childrelid))) {
+            DBUG_INSTANT_PRINT("info", "conflicting or redundant column lists for table \"%s\"", RelationGetRelationName(rel));
             ereport(ERROR,
                     (errcode(ERRCODE_DUPLICATE_OBJECT),
                      errmsg("conflicting or redundant column lists for table \"%s\"",
                             RelationGetRelationName(rel))));
+          }
 
           continue;
         }
@@ -1770,6 +1839,7 @@ OpenTableList(List *tables)
 static void
 CloseTableList(List *rels)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, rels) {
@@ -1789,6 +1859,7 @@ CloseTableList(List *rels)
 static void
 LockSchemaList(List *schemalist)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, schemalist) {
@@ -1803,10 +1874,12 @@ LockSchemaList(List *schemalist)
      * concurrent DDL has removed it. We can test this by checking the
      * existence of schema.
      */
-    if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(schemaid)))
+    if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(schemaid))) {
+      DBUG_INSTANT_PRINT("info", "schema with OID %u does not exist", schemaid);
       ereport(ERROR,
               errcode(ERRCODE_UNDEFINED_SCHEMA),
               errmsg("schema with OID %u does not exist", schemaid));
+    }
   }
 }
 
@@ -1817,6 +1890,7 @@ static void
 PublicationAddTables(Oid pubid, List *rels, bool if_not_exists,
                      AlterPublicationStmt *stmt)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(!stmt || !stmt->for_all_tables);
@@ -1849,6 +1923,7 @@ PublicationAddTables(Oid pubid, List *rels, bool if_not_exists,
 static void
 PublicationDropTables(Oid pubid, List *rels, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress obj;
   ListCell   *lc;
   Oid     prid;
@@ -1858,10 +1933,12 @@ PublicationDropTables(Oid pubid, List *rels, bool missing_ok)
     Relation  rel = pubrel->relation;
     Oid     relid = RelationGetRelid(rel);
 
-    if (pubrel->columns)
+    if (pubrel->columns) {
+      DBUG_INSTANT_PRINT("info", "column list must not be specified in ALTER PUBLICATION ... DROP");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("column list must not be specified in ALTER PUBLICATION ... DROP"));
+    }
 
     prid = GetSysCacheOid2(PUBLICATIONRELMAP, Anum_pg_publication_rel_oid,
                            ObjectIdGetDatum(relid),
@@ -1871,16 +1948,19 @@ PublicationDropTables(Oid pubid, List *rels, bool missing_ok)
       if (missing_ok)
         continue;
 
+      DBUG_INSTANT_PRINT("info", "relation \"%s\" is not part of the publication", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("relation \"%s\" is not part of the publication",
                       RelationGetRelationName(rel))));
     }
 
-    if (pubrel->whereClause)
+    if (pubrel->whereClause) {
+      DBUG_INSTANT_PRINT("info", "cannot use a WHERE clause when removing a table from a publication");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("cannot use a WHERE clause when removing a table from a publication")));
+    }
 
     ObjectAddressSet(obj, PublicationRelRelationId, prid);
     performDeletion(&obj, DROP_CASCADE, 0);
@@ -1894,6 +1974,7 @@ static void
 PublicationAddSchemas(Oid pubid, List *schemas, bool if_not_exists,
                       AlterPublicationStmt *stmt)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(!stmt || !stmt->for_all_tables);
@@ -1920,9 +2001,11 @@ PublicationAddSchemas(Oid pubid, List *schemas, bool if_not_exists,
 static void
 PublicationDropSchemas(Oid pubid, List *schemas, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress obj;
   ListCell   *lc;
   Oid     psid;
+  char *namespace_name;
 
   foreach(lc, schemas) {
     Oid     schemaid = lfirst_oid(lc);
@@ -1936,10 +2019,12 @@ PublicationDropSchemas(Oid pubid, List *schemas, bool missing_ok)
       if (missing_ok)
         continue;
 
+      namespace_name = get_namespace_name(schemaid);
+      DBUG_INSTANT_PRINT("info", "tables from schema \"%s\" are not part of the publication", namespace_name);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("tables from schema \"%s\" are not part of the publication",
-                      get_namespace_name(schemaid))));
+                      namespace_name)));
     }
 
     ObjectAddressSet(obj, PublicationNamespaceRelationId, psid);
@@ -1953,6 +2038,7 @@ PublicationDropSchemas(Oid pubid, List *schemas, bool missing_ok)
 static void
 AlterPublicationOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_publication form;
 
   form = (Form_pg_publication) GETSTRUCT(tup);
@@ -1978,19 +2064,23 @@ AlterPublicationOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
       aclcheck_error(aclresult, OBJECT_DATABASE,
                      get_database_name(MyDatabaseId));
 
-    if (form->puballtables && !superuser_arg(newOwnerId))
+    if (form->puballtables && !superuser_arg(newOwnerId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to change owner of publication \"%s\"", NameStr(form->pubname));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to change owner of publication \"%s\"",
                       NameStr(form->pubname)),
                errhint("The owner of a FOR ALL TABLES publication must be a superuser.")));
+    }
 
-    if (!superuser_arg(newOwnerId) && is_schema_publication(form->oid))
+    if (!superuser_arg(newOwnerId) && is_schema_publication(form->oid)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to change owner of publication \"%s\"", NameStr(form->pubname));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to change owner of publication \"%s\"",
                       NameStr(form->pubname)),
                errhint("The owner of a FOR TABLES IN SCHEMA publication must be a superuser.")));
+    }
   }
 
   form->pubowner = newOwnerId;
@@ -2011,6 +2101,7 @@ AlterPublicationOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterPublicationOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     pubid;
   HeapTuple tup;
   Relation  rel;
@@ -2021,10 +2112,12 @@ AlterPublicationOwner(const char *name, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(PUBLICATIONNAME, CStringGetDatum(name));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "publication \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("publication \"%s\" does not exist", name)));
+  }
 
   pubform = (Form_pg_publication) GETSTRUCT(tup);
   pubid = pubform->oid;
@@ -2046,6 +2139,7 @@ AlterPublicationOwner(const char *name, Oid newOwnerId)
 void
 AlterPublicationOwner_oid(Oid pubid, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
@@ -2053,10 +2147,13 @@ AlterPublicationOwner_oid(Oid pubid, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(PUBLICATIONOID, ObjectIdGetDatum(pubid));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "publication with OID %u does not exist", pubid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("publication with OID %u does not exist", pubid)));
+  }
+
 
   AlterPublicationOwner_internal(rel, tup, newOwnerId);
 

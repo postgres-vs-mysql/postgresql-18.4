@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -19,6 +20,7 @@ static JsonbValue *SV_to_JsonbValue(SV *obj, JsonbParseState **ps, bool is_elem)
 static SV  *
 JsonbValue_to_SV(JsonbValue *jbv)
 {
+  DBUG_TRACE;
   dTHX;
 
   switch (jbv->type) {
@@ -58,6 +60,7 @@ JsonbValue_to_SV(JsonbValue *jbv)
 static SV  *
 Jsonb_to_SV(JsonbContainer *jsonb)
 {
+  DBUG_TRACE;
   dTHX;
   JsonbValue  v;
   JsonbIterator *it;
@@ -118,6 +121,7 @@ Jsonb_to_SV(JsonbContainer *jsonb)
 static JsonbValue *
 AV_to_JsonbValue(AV *in, JsonbParseState **jsonb_state)
 {
+  DBUG_TRACE;
   dTHX;
   SSize_t   pcount = av_len(in) + 1;
   SSize_t   i;
@@ -137,6 +141,7 @@ AV_to_JsonbValue(AV *in, JsonbParseState **jsonb_state)
 static JsonbValue *
 HV_to_JsonbValue(HV *obj, JsonbParseState **jsonb_state)
 {
+  DBUG_TRACE;
   dTHX;
   JsonbValue  key;
   SV       *val;
@@ -162,6 +167,7 @@ HV_to_JsonbValue(HV *obj, JsonbParseState **jsonb_state)
 static JsonbValue *
 SV_to_JsonbValue(SV *in, JsonbParseState **jsonb_state, bool is_elem)
 {
+  DBUG_TRACE;
   dTHX;
   JsonbValue  out;      /* result */
 
@@ -250,6 +256,7 @@ PG_FUNCTION_INFO_V1(jsonb_to_plperl);
 Datum
 jsonb_to_plperl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   SV       *sv = Jsonb_to_SV(&in->root);
@@ -263,6 +270,7 @@ PG_FUNCTION_INFO_V1(plperl_to_jsonb);
 Datum
 plperl_to_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   JsonbParseState *jsonb_state = NULL;
   SV       *in = (SV *) PG_GETARG_POINTER(0);

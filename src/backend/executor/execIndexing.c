@@ -105,6 +105,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/relscan.h"
@@ -159,6 +160,7 @@ static void ExecWithoutOverlapsNotEmpty(Relation rel, NameData attname, Datum at
 void
 ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 {
+  DBUG_TRACE;
   Relation  resultRelation = resultRelInfo->ri_RelationDesc;
   List     *indexoidlist;
   ListCell   *l;
@@ -238,6 +240,7 @@ ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 void
 ExecCloseIndices(ResultRelInfo *resultRelInfo)
 {
+  DBUG_TRACE;
   int     i;
   int     numIndices;
   RelationPtr indexDescs;
@@ -315,6 +318,7 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
                       List *arbiterIndexes,
                       bool onlySummarizing)
 {
+  DBUG_TRACE;
   ItemPointer tupleid = &slot->tts_tid;
   List     *result = NIL;
   int     i;
@@ -445,13 +449,13 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 
     satisfiesConstraint =
       index_insert(indexRelation, /* index relation */
-                   values,  /* array of index Datums */
-                   isnull,  /* null flags */
-                   tupleid, /* tid of heap tuple */
-                   heapRelation,  /* heap relation */
-                   checkUnique, /* type of uniqueness check to do */
-                   indexUnchanged,  /* UPDATE without logical change? */
-                   indexInfo);  /* index AM may need this */
+                   values, /* array of index Datums */
+                   isnull, /* null flags */
+                   tupleid,  /* tid of heap tuple */
+                   heapRelation, /* heap relation */
+                   checkUnique,  /* type of uniqueness check to do */
+                   indexUnchanged, /* UPDATE without logical change? */
+                   indexInfo); /* index AM may need this */
 
     /*
      * If the index has an associated exclusion constraint, check that.
@@ -535,6 +539,7 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
                           EState *estate, ItemPointer conflictTid,
                           ItemPointer tupleid, List *arbiterIndexes)
 {
+  DBUG_TRACE;
   int     i;
   int     numIndices;
   RelationPtr relationDescs;
@@ -701,6 +706,7 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
                                      bool violationOK,
                                      ItemPointer conflictTid)
 {
+  DBUG_TRACE;
   Oid      *constr_procs;
   uint16     *constr_strats;
   Oid      *index_collations = index->rd_indcollation;
@@ -763,8 +769,10 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
    */
   if (!indexInfo->ii_NullsNotDistinct) {
     for (i = 0; i < indnkeyatts; i++) {
-      if (isnull[i])
+      if (isnull[i]) {
+        DBUG_PRINT("info", "result: true");
         return true;
+      }
     }
   }
 
@@ -845,7 +853,7 @@ retry:
                                     values))
         continue;   /* tuple doesn't actually match, so no
 
-                 * conflict */
+                     * conflict */
     }
 
     /*
@@ -885,6 +893,7 @@ retry:
      * didn't want to wait).  Return it to caller, or report it.
      */
     if (violationOK) {
+      DBUG_PRINT("info", "we have a definite conflict (or a potential one, but the callerdidn't want to wait)");
       conflict = true;
 
       if (conflictTid)
@@ -897,7 +906,8 @@ retry:
     error_existing = BuildIndexValueDescription(index, existing_values,
                      existing_isnull);
 
-    if (newIndex)
+    if (newIndex) {
+      DBUG_INSTANT_PRINT("info", "could not create exclusion constraint \"%s\"", RelationGetRelationName(index));
       ereport(ERROR,
               (errcode(ERRCODE_EXCLUSION_VIOLATION),
                errmsg("could not create exclusion constraint \"%s\"",
@@ -908,7 +918,8 @@ retry:
                errdetail("Key conflicts exist."),
                errtableconstraint(heap,
                                   RelationGetRelationName(index))));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "conflicting key value violates exclusion constraint \"%s\"", RelationGetRelationName(index));
       ereport(ERROR,
               (errcode(ERRCODE_EXCLUSION_VIOLATION),
                errmsg("conflicting key value violates exclusion constraint \"%s\"",
@@ -919,6 +930,7 @@ retry:
                errdetail("Key conflicts with existing key."),
                errtableconstraint(heap,
                                   RelationGetRelationName(index))));
+    }
   }
 
   index_endscan(index_scan);
@@ -934,6 +946,12 @@ retry:
   econtext->ecxt_scantuple = save_scantuple;
 
   ExecDropSingleTupleTableSlot(existing_slot);
+
+  if (!conflict) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
 
   return !conflict;
 }
@@ -951,6 +969,7 @@ check_exclusion_constraint(Relation heap, Relation index,
                            const Datum *values, const bool *isnull,
                            EState *estate, bool newIndex)
 {
+  DBUG_TRACE;
   (void) check_exclusion_or_unique_constraint(heap, index, indexInfo, tupleid,
       values, isnull,
       estate, newIndex,
@@ -966,6 +985,7 @@ index_recheck_constraint(Relation index, const Oid *constr_procs,
                          const Datum *existing_values, const bool *existing_isnull,
                          const Datum *new_values)
 {
+  DBUG_TRACE;
   int     indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
   int     i;
 
@@ -995,6 +1015,7 @@ static bool
 index_unchanged_by_update(ResultRelInfo *resultRelInfo, EState *estate,
                           IndexInfo *indexInfo, Relation indexRelation)
 {
+  DBUG_TRACE;
   Bitmapset  *updatedCols;
   Bitmapset  *extraUpdatedCols;
   Bitmapset  *allUpdatedCols;
@@ -1106,6 +1127,8 @@ index_unchanged_by_update(ResultRelInfo *resultRelInfo, EState *estate,
 static bool
 index_expression_changed_walker(Node *node, Bitmapset *allUpdatedCols)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 

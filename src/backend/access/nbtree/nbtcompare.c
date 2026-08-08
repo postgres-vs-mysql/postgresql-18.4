@@ -54,6 +54,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -74,10 +75,14 @@
 Datum
 btboolcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    a = PG_GETARG_BOOL(0);
   bool    b = PG_GETARG_BOOL(1);
 
-  PG_RETURN_INT32((int32) a - (int32) b);
+  int32 result = ((int32) a - (int32) b);
+
+  DBUG_PRINT("info", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 static Datum
@@ -113,6 +118,7 @@ bool_increment(Relation rel, Datum existing, bool *overflow)
 Datum
 btboolskipsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SkipSupport sksup = (SkipSupport) PG_GETARG_POINTER(0);
 
   sksup->decrement = bool_decrement;
@@ -126,17 +132,36 @@ btboolskipsupport(PG_FUNCTION_ARGS)
 Datum
 btint2cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   a = PG_GETARG_INT16(0);
   int16   b = PG_GETARG_INT16(1);
 
+  if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%d)'", a, b);
+  } else if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%d)'", a, b);
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%d)'", a, b);
+  }
+
   PG_RETURN_INT32((int32) a - (int32) b);
+
 }
 
 static int
 btint2fastcmp(Datum x, Datum y, SortSupport ssup)
 {
+  DBUG_TRACE;
   int16   a = DatumGetInt16(x);
   int16   b = DatumGetInt16(y);
+
+  if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%d)'", a, b);
+  } else if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%d)'", a, b);
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%d)'", a, b);
+  }
 
   return (int) a - (int) b;
 }
@@ -144,8 +169,10 @@ btint2fastcmp(Datum x, Datum y, SortSupport ssup)
 Datum
 btint2sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
+  DBUG_PRINT("info", "use btint2fastcmp as the comparator");
   ssup->comparator = btint2fastcmp;
   PG_RETURN_VOID();
 }
@@ -183,6 +210,7 @@ int2_increment(Relation rel, Datum existing, bool *overflow)
 Datum
 btint2skipsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SkipSupport sksup = (SkipSupport) PG_GETARG_POINTER(0);
 
   sksup->decrement = int2_decrement;
@@ -196,6 +224,7 @@ btint2skipsupport(PG_FUNCTION_ARGS)
 Datum
 btint4cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   a = PG_GETARG_INT32(0);
   int32   b = PG_GETARG_INT32(1);
 
@@ -210,8 +239,10 @@ btint4cmp(PG_FUNCTION_ARGS)
 Datum
 btint4sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
+  DBUG_PRINT("info", "use ssup_datum_int32_cmp as the comparator");
   ssup->comparator = ssup_datum_int32_cmp;
   PG_RETURN_VOID();
 }
@@ -249,6 +280,7 @@ int4_increment(Relation rel, Datum existing, bool *overflow)
 Datum
 btint4skipsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SkipSupport sksup = (SkipSupport) PG_GETARG_POINTER(0);
 
   sksup->decrement = int4_decrement;
@@ -262,15 +294,20 @@ btint4skipsupport(PG_FUNCTION_ARGS)
 Datum
 btint8cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   a = PG_GETARG_INT64(0);
   int64   b = PG_GETARG_INT64(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%ld) > b(%ld)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%ld) == b(%ld)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%ld) < b(%ld)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 #if SIZEOF_DATUM < 8
@@ -280,24 +317,31 @@ btint8fastcmp(Datum x, Datum y, SortSupport ssup)
   int64   a = DatumGetInt64(x);
   int64   b = DatumGetInt64(y);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%ld) > b(%ld)'", a, b);
     return A_GREATER_THAN_B;
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%ld) == b(%ld)'", a, b);
     return 0;
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%ld) < b(%ld)'", a, b);
     return A_LESS_THAN_B;
+  }
 }
 #endif
 
 Datum
 btint8sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
 #if SIZEOF_DATUM >= 8
   ssup->comparator = ssup_datum_signed_cmp;
+  DBUG_PRINT("info", "use ssup_datum_signed_cmp as the comparator");
 #else
   ssup->comparator = btint8fastcmp;
+  DBUG_PRINT("info", "use btint8fastcmp as the comparator");
 #endif
   PG_RETURN_VOID();
 }
@@ -348,118 +392,159 @@ btint8skipsupport(PG_FUNCTION_ARGS)
 Datum
 btint48cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   a = PG_GETARG_INT32(0);
   int64   b = PG_GETARG_INT64(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%ld)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%ld)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%ld)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btint84cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   a = PG_GETARG_INT64(0);
   int32   b = PG_GETARG_INT32(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%ld) > b(%d)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%ld) == b(%d)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%ld) < b(%d)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btint24cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   a = PG_GETARG_INT16(0);
   int32   b = PG_GETARG_INT32(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%d)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%d)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%d)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btint42cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   a = PG_GETARG_INT32(0);
   int16   b = PG_GETARG_INT16(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%d)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%d)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%d)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btint28cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   a = PG_GETARG_INT16(0);
   int64   b = PG_GETARG_INT64(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%d) > b(%ld)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%d) == b(%ld)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%d) < b(%ld)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btint82cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   a = PG_GETARG_INT64(0);
   int16   b = PG_GETARG_INT16(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%ld) > b(%d)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%ld) == b(%d)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%ld) < b(%d)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 Datum
 btoidcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%u) > b(%u)'", a, b);
     PG_RETURN_INT32(A_GREATER_THAN_B);
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%u) == b(%u)'", a, b);
     PG_RETURN_INT32(0);
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%u) < b(%u)'", a, b);
     PG_RETURN_INT32(A_LESS_THAN_B);
+  }
 }
 
 static int
 btoidfastcmp(Datum x, Datum y, SortSupport ssup)
 {
+  DBUG_TRACE;
   Oid     a = DatumGetObjectId(x);
   Oid     b = DatumGetObjectId(y);
 
-  if (a > b)
+  if (a > b) {
+    DBUG_PRINT("info", "return 'a(%u) > b(%u)'", a, b);
     return A_GREATER_THAN_B;
-  else if (a == b)
+  } else if (a == b) {
+    DBUG_PRINT("info", "return 'a(%u) == b(%u)'", a, b);
     return 0;
-  else
+  } else {
+    DBUG_PRINT("info", "return 'a(%u) < b(%u)'", a, b);
     return A_LESS_THAN_B;
+  }
 }
 
 Datum
 btoidsortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = btoidfastcmp;
@@ -512,6 +597,7 @@ btoidskipsupport(PG_FUNCTION_ARGS)
 Datum
 btoidvectorcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   oidvector  *a = (oidvector *) PG_GETARG_POINTER(0);
   oidvector  *b = (oidvector *) PG_GETARG_POINTER(1);
   int     i;
@@ -525,24 +611,31 @@ btoidvectorcmp(PG_FUNCTION_ARGS)
 
   for (i = 0; i < a->dim1; i++) {
     if (a->values[i] != b->values[i]) {
-      if (a->values[i] > b->values[i])
+      if (a->values[i] > b->values[i]) {
+        DBUG_PRINT("info", "return 'a > b'");
         PG_RETURN_INT32(A_GREATER_THAN_B);
-      else
+      } else {
+        DBUG_PRINT("info", "return 'a < b'");
         PG_RETURN_INT32(A_LESS_THAN_B);
+      }
     }
   }
 
+  DBUG_PRINT("info", "return 'a == b'");
   PG_RETURN_INT32(0);
 }
 
 Datum
 btcharcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    a = PG_GETARG_CHAR(0);
   char    b = PG_GETARG_CHAR(1);
+  int32 result = ((int32) ((uint8) a) - (int32) ((uint8) b));
 
+  DBUG_PRINT("info", "result:%d", result);
   /* Be careful to compare chars as unsigned */
-  PG_RETURN_INT32((int32) ((uint8) a) - (int32) ((uint8) b));
+  PG_RETURN_INT32(result);
 }
 
 static Datum

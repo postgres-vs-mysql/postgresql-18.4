@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -48,6 +49,7 @@ recordDependencyOn(const ObjectAddress *depender,
                    const ObjectAddress *referenced,
                    DependencyType behavior)
 {
+  DBUG_TRACE;
   recordMultipleDependencies(depender, referenced, 1, behavior);
 }
 
@@ -61,6 +63,7 @@ recordMultipleDependencies(const ObjectAddress *depender,
                            int nreferenced,
                            DependencyType behavior)
 {
+  DBUG_TRACE;
   Relation  dependDesc;
   CatalogIndexState indstate;
   TupleTableSlot **slot;
@@ -69,8 +72,10 @@ recordMultipleDependencies(const ObjectAddress *depender,
           slot_init_count,
           slot_stored_count;
 
-  if (nreferenced <= 0)
+  if (nreferenced <= 0) {
+    DBUG_PRINT("info", "nothing to do");
     return;         /* nothing to do */
+  }
 
   /*
    * During bootstrap, do nothing since pg_depend may not exist yet.
@@ -79,9 +84,12 @@ recordMultipleDependencies(const ObjectAddress *depender,
    * that are not do not have dependencies on each other, so that there
    * would be no need to make a pg_depend entry anyway.
    */
-  if (IsBootstrapProcessingMode())
+  if (IsBootstrapProcessingMode()) {
+    DBUG_PRINT("info", "during bootstrap, do nothing since pg_depend may not exist yet");
     return;
+  }
 
+  DBUG_PRINT("info", "nreferenced:%d", nreferenced);
   dependDesc = table_open(DependRelationId, RowExclusiveLock);
 
   /*
@@ -137,6 +145,8 @@ recordMultipleDependencies(const ObjectAddress *depender,
 
     /* If slots are full, insert a batch of tuples */
     if (slot_stored_count == max_slots) {
+      DBUG_PRINT("info", "if slots are full, insert a batch of tuples");
+
       /* fetch index info only when we know we need it */
       if (indstate == NULL)
         indstate = CatalogOpenIndexes(dependDesc);
@@ -149,6 +159,8 @@ recordMultipleDependencies(const ObjectAddress *depender,
 
   /* Insert any tuples left in the buffer */
   if (slot_stored_count > 0) {
+    DBUG_PRINT("info", "insert any tuples left in the buffer");
+
     /* fetch index info only when we know we need it */
     if (indstate == NULL)
       indstate = CatalogOpenIndexes(dependDesc);
@@ -193,6 +205,7 @@ void
 recordDependencyOnCurrentExtension(const ObjectAddress *object,
                                    bool isReplace)
 {
+  DBUG_TRACE;
   /* Only whole objects can be extension members */
   Assert(object->objectSubId == 0);
 
@@ -202,6 +215,8 @@ recordDependencyOnCurrentExtension(const ObjectAddress *object,
     /* Only need to check for existing membership if isReplace */
     if (isReplace) {
       Oid     oldext;
+      char *description;
+      char *ext_name;
 
       /*
        * Side note: these catalog lookups are safe only because the
@@ -213,23 +228,33 @@ recordDependencyOnCurrentExtension(const ObjectAddress *object,
 
       if (OidIsValid(oldext)) {
         /* If already a member of this extension, nothing to do */
-        if (oldext == CurrentExtensionObject)
+        if (oldext == CurrentExtensionObject) {
+          DBUG_PRINT("info", "if already a member of this extension(%u), nothing to do", oldext);
           return;
+        }
 
+        description = getObjectDescription(object, false);
+        ext_name = get_extension_name(oldext);
         /* Already a member of some other extension, so reject */
+        DBUG_INSTANT_PRINT("info", "%s is already a member of extension \"%s\"",
+                           description, ext_name);
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                  errmsg("%s is already a member of extension \"%s\"",
-                        getObjectDescription(object, false),
-                        get_extension_name(oldext))));
+                        description,
+                        ext_name)));
       }
 
+
+      description = getObjectDescription(object, false);
+      ext_name = get_extension_name(CurrentExtensionObject);
       /* It's a free-standing object, so reject */
+      DBUG_INSTANT_PRINT("info", "%s is not a member of extension \"%s\"", description, ext_name);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("%s is not a member of extension \"%s\"",
-                      getObjectDescription(object, false),
-                      get_extension_name(CurrentExtensionObject)),
+                      description,
+                      ext_name),
                errdetail("An extension is not allowed to replace an object that it does not own.")));
     }
 
@@ -257,6 +282,7 @@ recordDependencyOnCurrentExtension(const ObjectAddress *object,
 void
 checkMembershipInCurrentExtension(const ObjectAddress *object)
 {
+  DBUG_TRACE;
   /*
    * This is actually the same condition tested in
    * recordDependencyOnCurrentExtension; but we want to issue a
@@ -269,19 +295,27 @@ checkMembershipInCurrentExtension(const ObjectAddress *object)
 
   if (creating_extension) {
     Oid     oldext;
+    char *description;
+    char *ext_name;
 
     oldext = getExtensionOfObject(object->classId, object->objectId);
 
     /* If already a member of this extension, OK */
-    if (oldext == CurrentExtensionObject)
+    if (oldext == CurrentExtensionObject) {
+      DBUG_PRINT("info", "if already a member of this extension, OK");
       return;
+    }
+
+    description = getObjectDescription(object, false);
+    ext_name = get_extension_name(CurrentExtensionObject);
 
     /* Else complain */
+    DBUG_INSTANT_PRINT("info", "%s is not a member of extension \"%s\"", description, ext_name);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("%s is not a member of extension \"%s\"",
-                    getObjectDescription(object, false),
-                    get_extension_name(CurrentExtensionObject)),
+                    description,
+                    ext_name),
              errdetail("An extension may only use CREATE ... IF NOT EXISTS to skip object creation if the conflicting object is one that it already owns.")));
   }
 }
@@ -302,6 +336,7 @@ long
 deleteDependencyRecordsFor(Oid classId, Oid objectId,
                            bool skipExtensionDeps)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
@@ -335,6 +370,7 @@ deleteDependencyRecordsFor(Oid classId, Oid objectId,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records deleted:%ld", count);
   return count;
 }
 
@@ -351,6 +387,7 @@ long
 deleteDependencyRecordsForClass(Oid classId, Oid objectId,
                                 Oid refclassId, char deptype)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
@@ -384,6 +421,7 @@ deleteDependencyRecordsForClass(Oid classId, Oid objectId,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records deleted:%ld", count);
   return count;
 }
 
@@ -396,6 +434,7 @@ long
 deleteDependencyRecordsForSpecific(Oid classId, Oid objectId, char deptype,
                                    Oid refclassId, Oid refobjectId)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
@@ -431,6 +470,7 @@ deleteDependencyRecordsForSpecific(Oid classId, Oid objectId, char deptype,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records deleted:%ld", count);
   return count;
 }
 
@@ -454,6 +494,7 @@ changeDependencyFor(Oid classId, Oid objectId,
                     Oid refClassId, Oid oldRefObjectId,
                     Oid newRefObjectId)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
@@ -485,8 +526,11 @@ changeDependencyFor(Oid classId, Oid objectId,
      * If both are pinned, we need do nothing.  However, return 1 not 0,
      * else callers will think this is an error case.
      */
-    if (newIsPinned)
+    if (newIsPinned) {
+      DBUG_PRINT("info", "if both are pinned, we need do nothing");
+      DBUG_PRINT("info", "return 1");
       return 1;
+    }
 
     /*
      * There is no old dependency record, but we should insert a new one.
@@ -497,12 +541,16 @@ changeDependencyFor(Oid classId, Oid objectId,
     depAddr.objectSubId = 0;
     recordDependencyOn(&depAddr, &objAddr, DEPENDENCY_NORMAL);
 
+    DBUG_PRINT("info", "there is no old dependency record, but we should insert a new one");
+    DBUG_PRINT("info", "assume a normal dependency is wanted");
+    DBUG_PRINT("info", "return 1");
     return 1;
   }
 
   depRel = table_open(DependRelationId, RowExclusiveLock);
 
   /* There should be existing dependency record(s), so search. */
+  DBUG_PRINT("info", "there should be existing dependency record(s), so search");
   ScanKeyInit(&key[0],
               Anum_pg_depend_classid,
               BTEqualStrategyNumber, F_OIDEQ,
@@ -542,6 +590,7 @@ changeDependencyFor(Oid classId, Oid objectId,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records updated:%ld", count);
   return count;
 }
 
@@ -557,6 +606,7 @@ long
 changeDependenciesOf(Oid classId, Oid oldObjectId,
                      Oid newObjectId)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
@@ -597,6 +647,7 @@ changeDependenciesOf(Oid classId, Oid oldObjectId,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records updated:%ld", count);
   return count;
 }
 
@@ -612,12 +663,14 @@ long
 changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
                      Oid newRefObjectId)
 {
+  DBUG_TRACE;
   long    count = 0;
   Relation  depRel;
   ScanKeyData key[2];
   SysScanDesc scan;
   HeapTuple tup;
   ObjectAddress objAddr;
+  char *name_str;
   bool    newIsPinned;
 
   depRel = table_open(DependRelationId, RowExclusiveLock);
@@ -632,11 +685,13 @@ changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
   objAddr.objectId = oldRefObjectId;
   objAddr.objectSubId = 0;
 
-  if (isObjectPinned(&objAddr))
+  if (isObjectPinned(&objAddr)) {
+    name_str = getObjectDescription(&objAddr, false);
+    DBUG_INSTANT_PRINT("info", "cannot remove dependency on %s because it is a system object", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-             errmsg("cannot remove dependency on %s because it is a system object",
-                    getObjectDescription(&objAddr, false))));
+             errmsg("cannot remove dependency on %s because it is a system object", name_str)));
+  }
 
   /*
    * We can handle adding a dependency on something pinned, though, since
@@ -683,6 +738,7 @@ changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
 
   table_close(depRel, RowExclusiveLock);
 
+  DBUG_PRINT("info", "return the number of records updated:%ld", count);
   return count;
 }
 
@@ -720,12 +776,14 @@ isObjectPinned(const ObjectAddress *object)
 Oid
 getExtensionOfObject(Oid classId, Oid objectId)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   Relation  depRel;
   ScanKeyData key[2];
   SysScanDesc scan;
   HeapTuple tup;
 
+  DBUG_PRINT("info", "find the extension containing the specified object, if any");
   depRel = table_open(DependRelationId, AccessShareLock);
 
   ScanKeyInit(&key[0],
@@ -754,6 +812,7 @@ getExtensionOfObject(Oid classId, Oid objectId)
 
   table_close(depRel, AccessShareLock);
 
+  DBUG_PRINT("info", "return the OID(%u) of the extension, or InvalidOid if the object does not belong to any extension", result);
   return result;
 }
 
@@ -764,6 +823,7 @@ getExtensionOfObject(Oid classId, Oid objectId)
 List *
 getAutoExtensionsOfObject(Oid classId, Oid objectId)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relation  depRel;
   ScanKeyData key[2];
@@ -884,6 +944,7 @@ getExtensionType(Oid extensionOid, const char *typname)
 bool
 sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId)
 {
+  DBUG_TRACE;
   bool    ret = false;
   Relation  depRel;
   ScanKeyData key[2];
@@ -920,6 +981,12 @@ sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId)
 
   table_close(depRel, AccessShareLock);
 
+  if (ret) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return ret;
 }
 
@@ -931,6 +998,7 @@ sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId)
 static List *
 getOwnedSequences_internal(Oid relid, AttrNumber attnum, char deptype)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relation  depRel;
   ScanKeyData key[3];
@@ -998,6 +1066,7 @@ getOwnedSequences(Oid relid)
 Oid
 getIdentitySequence(Relation rel, AttrNumber attnum, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     relid = RelationGetRelid(rel);
   List     *seqlist;
 
@@ -1042,6 +1111,7 @@ getIdentitySequence(Relation rel, AttrNumber attnum, bool missing_ok)
 Oid
 get_index_constraint(Oid indexId)
 {
+  DBUG_TRACE;
   Oid     constraintId = InvalidOid;
   Relation  depRel;
   ScanKeyData key[3];
@@ -1049,6 +1119,7 @@ get_index_constraint(Oid indexId)
   HeapTuple tup;
 
   /* Search the dependency table for the index */
+  DBUG_PRINT("info", "search the dependency table for the index");
   depRel = table_open(DependRelationId, AccessShareLock);
 
   ScanKeyInit(&key[0],
@@ -1085,6 +1156,7 @@ get_index_constraint(Oid indexId)
   systable_endscan(scan);
   table_close(depRel, AccessShareLock);
 
+  DBUG_PRINT("info", "return constraintId:%u", constraintId);
   return constraintId;
 }
 
@@ -1096,6 +1168,7 @@ get_index_constraint(Oid indexId)
 List *
 get_index_ref_constraints(Oid indexId)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relation  depRel;
   ScanKeyData key[3];

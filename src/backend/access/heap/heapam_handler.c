@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -117,6 +118,7 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
                          TupleTableSlot *slot,
                          bool *call_again, bool *all_dead)
 {
+  DBUG_TRACE;
   IndexFetchHeapData *hscan = (IndexFetchHeapData *) scan;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   bool    got_heap_tuple;
@@ -135,8 +137,10 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
     /*
      * Prune page, but only if we weren't already on this page
      */
-    if (prev_buf != hscan->xs_cbuf)
+    if (prev_buf != hscan->xs_cbuf) {
+      DBUG_PRINT("info", "we weren't already on this page and prune page");
       heap_page_prune_opt(hscan->xs_base.rel, hscan->xs_cbuf);
+    }
   }
 
   /* Obtain share-lock on the buffer so we can examine visibility */
@@ -152,6 +156,7 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
   LockBuffer(hscan->xs_cbuf, BUFFER_LOCK_UNLOCK);
 
   if (got_heap_tuple) {
+    DBUG_PRINT("info", "only in a non-MVCC snapshot can more than one member of the HOT chain be visible");
     /*
      * Only in a non-MVCC snapshot can more than one member of the HOT
      * chain be visible.
@@ -162,6 +167,7 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
     ExecStoreBufferHeapTuple(&bslot->base.tupdata, slot, hscan->xs_cbuf);
   } else {
     /* We've reached the end of the HOT chain. */
+    DBUG_PRINT("info", "we've reached the end of the HOT chain");
     *call_again = false;
   }
 
@@ -180,6 +186,7 @@ heapam_fetch_row_version(Relation relation,
                          Snapshot snapshot,
                          TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   Buffer    buffer;
 
@@ -211,6 +218,7 @@ static bool
 heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
                                 Snapshot snapshot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   bool    res;
 
@@ -239,6 +247,7 @@ static void
 heapam_tuple_insert(Relation relation, TupleTableSlot *slot, CommandId cid,
                     int options, BulkInsertState bistate)
 {
+  DBUG_TRACE;
   bool    shouldFree = true;
   HeapTuple tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
@@ -259,6 +268,7 @@ heapam_tuple_insert_speculative(Relation relation, TupleTableSlot *slot,
                                 CommandId cid, int options,
                                 BulkInsertState bistate, uint32 specToken)
 {
+  DBUG_TRACE;
   bool    shouldFree = true;
   HeapTuple tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
@@ -281,6 +291,7 @@ static void
 heapam_tuple_complete_speculative(Relation relation, TupleTableSlot *slot,
                                   uint32 specToken, bool succeeded)
 {
+  DBUG_TRACE;
   bool    shouldFree = true;
   HeapTuple tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
@@ -314,6 +325,7 @@ heapam_tuple_update(Relation relation, ItemPointer otid, TupleTableSlot *slot,
                     bool wait, TM_FailureData *tmfd,
                     LockTupleMode *lockmode, TU_UpdateIndexes *update_indexes)
 {
+  DBUG_TRACE;
   bool    shouldFree = true;
   HeapTuple tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
   TM_Result result;
@@ -357,6 +369,7 @@ heapam_tuple_lock(Relation relation, ItemPointer tid, Snapshot snapshot,
                   LockWaitPolicy wait_policy, uint8 flags,
                   TM_FailureData *tmfd)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   TM_Result result;
   Buffer    buffer;
@@ -385,6 +398,7 @@ tuple_lock_retry:
       TransactionId priorXmax;
 
       /* it was updated, so look at the updated version */
+      DBUG_PRINT("info", "it was updated, so look at the updated version");
       *tid = tmfd->ctid;
       /* updated row should have xmin matching this xmax */
       priorXmax = tmfd->xmax;
@@ -548,6 +562,7 @@ tuple_lock_retry:
       }
     } else {
       /* tuple was deleted, so give up */
+      DBUG_PRINT("info", "tuple was deleted, so give up");
       return TM_Deleted;
     }
   }
@@ -574,6 +589,7 @@ heapam_relation_set_new_filelocator(Relation rel,
                                     TransactionId *freezeXid,
                                     MultiXactId *minmulti)
 {
+  DBUG_TRACE;
   SMgrRelation srel;
 
   /*
@@ -618,6 +634,7 @@ heapam_relation_nontransactional_truncate(Relation rel)
 static void
 heapam_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 {
+  DBUG_TRACE;
   SMgrRelation dstrel;
 
   /*
@@ -677,6 +694,7 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
                                  double *tups_vacuumed,
                                  double *tups_recently_dead)
 {
+  DBUG_TRACE;
   RewriteState rwstate;
   IndexScanDesc indexScan;
   TableScanDesc tableScan;
@@ -689,6 +707,8 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
   int     natts;
   Datum    *values;
   bool     *isnull;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
   BufferHeapTupleTableSlot *hslot;
   BlockNumber prev_cblock = InvalidBlockNumber;
 
@@ -768,6 +788,15 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
     Buffer    buf;
     bool    isdead;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     CHECK_FOR_INTERRUPTS();
 
     if (indexScan != NULL) {
@@ -775,8 +804,17 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
         break;
 
       /* Since we used no scan keys, should never need to recheck */
-      if (indexScan->xs_recheck)
+      if (indexScan->xs_recheck) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         elog(ERROR, "CLUSTER does not support lossy index conditions");
+      }
     } else {
       if (!table_scan_getnextslot(tableScan, ForwardScanDirection, slot)) {
         /*
@@ -811,6 +849,7 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
       }
     }
 
+    count++;
     tuple = ExecFetchSlotHeapTuple(slot, false, NULL);
     buf = hslot->buffer;
 
@@ -866,6 +905,14 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
         break;
 
       default:
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         elog(ERROR, "unexpected HeapTupleSatisfiesVacuum result");
         isdead = false; /* keep compiler quiet */
         break;
@@ -917,6 +964,15 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
     }
   }
 
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   if (indexScan != NULL)
     index_endscan(indexScan);
 
@@ -937,14 +993,27 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
     pgstat_progress_update_param(PROGRESS_CLUSTER_PHASE,
                                  PROGRESS_CLUSTER_PHASE_SORT_TUPLES);
 
+    DBUG_PRINT("info", "we are now sorting tuples");
     tuplesort_performsort(tuplesort);
 
+    DBUG_PRINT("info", "we are now writing new heap");
     /* Report that we are now writing new heap */
     pgstat_progress_update_param(PROGRESS_CLUSTER_PHASE,
                                  PROGRESS_CLUSTER_PHASE_WRITE_NEW_HEAP);
 
+    count = 0;
+
     for (;;) {
       HeapTuple tuple;
+
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
 
       CHECK_FOR_INTERRUPTS();
 
@@ -953,6 +1022,7 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
       if (tuple == NULL)
         break;
 
+      count++;
       n_tuples += 1;
       reform_and_rewrite_tuple(tuple,
                                OldHeap, NewHeap,
@@ -963,9 +1033,18 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
                                    n_tuples);
     }
 
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
+    }
+
     tuplesort_end(tuplesort);
   }
 
+  DBUG_PRINT("info", "write out any remaining tuples, and fsync if needed");
   /* Write out any remaining tuples, and fsync if needed */
   end_heap_rewrite(rwstate);
 
@@ -986,6 +1065,7 @@ heapam_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
 static bool
 heapam_scan_analyze_next_block(TableScanDesc scan, ReadStream *stream)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan = (HeapScanDesc) scan;
 
   /*
@@ -1013,6 +1093,7 @@ heapam_scan_analyze_next_tuple(TableScanDesc scan, TransactionId OldestXmin,
                                double *liverows, double *deadrows,
                                TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan = (HeapScanDesc) scan;
   Page    targpage;
   OffsetNumber maxoffset;
@@ -1161,6 +1242,7 @@ heapam_index_build_range_scan(Relation heapRelation,
                               void *callback_state,
                               TableScanDesc scan)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan;
   bool    is_system_catalog;
   bool    checking_uniqueness;
@@ -1178,6 +1260,8 @@ heapam_index_build_range_scan(Relation heapRelation,
   BlockNumber previous_blkno = InvalidBlockNumber;
   BlockNumber root_blkno = InvalidBlockNumber;
   OffsetNumber root_offsets[MaxHeapTuplesPerPage];
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   /*
    * sanity checks
@@ -1225,6 +1309,8 @@ heapam_index_build_range_scan(Relation heapRelation,
     OldestXmin = GetOldestNonRemovableTransactionId(heapRelation);
 
   if (!scan) {
+    DBUG_PRINT("info", "serial index build");
+
     /*
      * Serial index build.
      *
@@ -1251,6 +1337,7 @@ heapam_index_build_range_scan(Relation heapRelation,
      * is taken from parallel heap scan, and is SnapshotAny or an MVCC
      * snapshot, based on same criteria as serial case.
      */
+    DBUG_PRINT("info", "parallel index build");
     Assert(!IsBootstrapProcessingMode());
     Assert(allow_sync);
     snapshot = scan->rs_snapshot;
@@ -1299,10 +1386,23 @@ heapam_index_build_range_scan(Relation heapRelation,
   /*
    * Scan all tuples in the base relation.
    */
+  DBUG_PRINT("info", "scan all tuples in the base relation");
+
   while ((heapTuple = heap_getnext(scan, ForwardScanDirection)) != NULL) {
     bool    tupleIsAlive;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     CHECK_FOR_INTERRUPTS();
+
+    count++;
 
     /* Report scan progress, if asked to. */
     if (progress) {
@@ -1445,9 +1545,10 @@ recheck:
           xwait = HeapTupleHeaderGetXmin(heapTuple->t_data);
 
           if (!TransactionIdIsCurrentTransactionId(xwait)) {
-            if (!is_system_catalog)
+            if (!is_system_catalog) {
               elog(WARNING, "concurrent insert in progress within table \"%s\"",
                    RelationGetRelationName(heapRelation));
+            }
 
             /*
              * If we are performing uniqueness checks, indexing
@@ -1501,9 +1602,10 @@ recheck:
           xwait = HeapTupleHeaderGetUpdateXid(heapTuple->t_data);
 
           if (!TransactionIdIsCurrentTransactionId(xwait)) {
-            if (!is_system_catalog)
+            if (!is_system_catalog) {
               elog(WARNING, "concurrent delete in progress within table \"%s\"",
                    RelationGetRelationName(heapRelation));
+            }
 
             /*
              * If we are performing uniqueness checks, assuming
@@ -1570,6 +1672,14 @@ recheck:
           break;
 
         default:
+          if (tmp_trace_disabled) {
+            set_trace_enabled();
+            tmp_trace_disabled = false;
+            DBUG_PRINT("info", "...");
+            DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+            DBUG_PRINT("info", "total processed:%lu", count);
+          }
+
           elog(ERROR, "unexpected HeapTupleSatisfiesVacuum result");
           indexIt = tupleIsAlive = false; /* keep compiler quiet */
           break;
@@ -1639,26 +1749,47 @@ recheck:
         LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
       }
 
-      if (!OffsetNumberIsValid(root_offsets[offnum - 1]))
+      if (!OffsetNumberIsValid(root_offsets[offnum - 1])) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg_internal("failed to find parent tuple for heap-only tuple at (%u,%u) in table \"%s\"",
                                  ItemPointerGetBlockNumber(&heapTuple->t_self),
                                  offnum,
                                  RelationGetRelationName(heapRelation))));
+      }
 
       ItemPointerSet(&tid, ItemPointerGetBlockNumber(&heapTuple->t_self),
                      root_offsets[offnum - 1]);
 
       /* Call the AM's callback routine to process the tuple */
+      DBUG_PRINT("info", "call the AM's callback routine to process the tuple");
       callback(indexRelation, &tid, values, isnull, tupleIsAlive,
                callback_state);
     } else {
       /* Call the AM's callback routine to process the tuple */
+      DBUG_PRINT("info", "call the AM's callback routine to process the tuple");
       callback(indexRelation, &heapTuple->t_self, values, isnull,
                tupleIsAlive, callback_state);
     }
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
+
 
   /* Report scan progress one last time. */
   if (progress) {
@@ -1700,6 +1831,7 @@ heapam_index_validate_scan(Relation heapRelation,
                            Snapshot snapshot,
                            ValidateIndexState *state)
 {
+  DBUG_TRACE;
   TableScanDesc scan;
   HeapScanDesc hscan;
   HeapTuple heapTuple;
@@ -1935,6 +2067,7 @@ heapam_index_validate_scan(Relation heapRelation,
 static BlockNumber
 heapam_scan_get_blocks_done(HeapScanDesc hscan)
 {
+  DBUG_TRACE;
   ParallelBlockTableScanDesc bpscan = NULL;
   BlockNumber startblock;
   BlockNumber blocks_done;
@@ -1977,6 +2110,7 @@ heapam_scan_get_blocks_done(HeapScanDesc hscan)
 static bool
 heapam_relation_needs_toast_table(Relation rel)
 {
+  DBUG_TRACE;
   int32   data_length = 0;
   bool    maxlength_unknown = false;
   bool    has_toastable_attrs = false;
@@ -2068,6 +2202,7 @@ heapam_scan_bitmap_next_tuple(TableScanDesc scan,
                               uint64 *lossy_pages,
                               uint64 *exact_pages)
 {
+  DBUG_TRACE;
   BitmapHeapScanDesc bscan = (BitmapHeapScanDesc) scan;
   HeapScanDesc hscan = (HeapScanDesc) bscan;
   OffsetNumber targoffset;
@@ -2114,6 +2249,7 @@ heapam_scan_bitmap_next_tuple(TableScanDesc scan,
 static bool
 heapam_scan_sample_next_block(TableScanDesc scan, SampleScanState *scanstate)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan = (HeapScanDesc) scan;
   TsmRoutine *tsm = scanstate->tsmroutine;
   BlockNumber blockno;
@@ -2197,6 +2333,7 @@ static bool
 heapam_scan_sample_next_tuple(TableScanDesc scan, SampleScanState *scanstate,
                               TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan = (HeapScanDesc) scan;
   TsmRoutine *tsm = scanstate->tsmroutine;
   BlockNumber blockno = hscan->rs_cblock;
@@ -2312,11 +2449,17 @@ reform_and_rewrite_tuple(HeapTuple tuple,
                          Relation OldHeap, Relation NewHeap,
                          Datum *values, bool *isnull, RewriteState rwstate)
 {
+  DBUG_TRACE;
   TupleDesc oldTupDesc = RelationGetDescr(OldHeap);
   TupleDesc newTupDesc = RelationGetDescr(NewHeap);
   HeapTuple copiedTuple;
   int     i;
 
+  char *old_rel_name, *new_rel_name;
+
+  old_rel_name = RelationGetRelationName(OldHeap);
+  new_rel_name = RelationGetRelationName(NewHeap);
+  DBUG_PRINT("info", "old:%s, new:%s", old_rel_name, new_rel_name);
   heap_deform_tuple(tuple, oldTupDesc, values, isnull);
 
   /* Be sure to null out any dropped columns */
@@ -2341,6 +2484,7 @@ SampleHeapTupleVisible(TableScanDesc scan, Buffer buffer,
                        HeapTuple tuple,
                        OffsetNumber tupoffset)
 {
+  DBUG_TRACE;
   HeapScanDesc hscan = (HeapScanDesc) scan;
 
   if (scan->rs_flags & SO_ALLOW_PAGEMODE) {
@@ -2386,6 +2530,7 @@ BitmapHeapScanNextBlock(TableScanDesc scan,
                         bool *recheck,
                         uint64 *lossy_pages, uint64 *exact_pages)
 {
+  DBUG_TRACE;
   BitmapHeapScanDesc bscan = (BitmapHeapScanDesc) scan;
   HeapScanDesc hscan = (HeapScanDesc) bscan;
   BlockNumber block;
@@ -2603,5 +2748,6 @@ GetHeapamTableAmRoutine(void)
 Datum
 heap_tableam_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(&heapam_methods);
 }

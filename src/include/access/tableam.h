@@ -875,6 +875,7 @@ static inline TableScanDesc
 table_beginscan(Relation rel, Snapshot snapshot,
                 int nkeys, struct ScanKeyData *key)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_SEQSCAN |
                     SO_ALLOW_STRAT | SO_ALLOW_SYNC | SO_ALLOW_PAGEMODE;
 
@@ -900,6 +901,7 @@ table_beginscan_strat(Relation rel, Snapshot snapshot,
                       int nkeys, struct ScanKeyData *key,
                       bool allow_strat, bool allow_sync)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_SEQSCAN | SO_ALLOW_PAGEMODE;
 
   if (allow_strat)
@@ -921,6 +923,7 @@ static inline TableScanDesc
 table_beginscan_bm(Relation rel, Snapshot snapshot,
                    int nkeys, struct ScanKeyData *key)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_BITMAPSCAN | SO_ALLOW_PAGEMODE;
 
   return rel->rd_tableam->scan_begin(rel, snapshot, nkeys, key,
@@ -940,6 +943,7 @@ table_beginscan_sampling(Relation rel, Snapshot snapshot,
                          bool allow_strat, bool allow_sync,
                          bool allow_pagemode)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_SAMPLESCAN;
 
   if (allow_strat)
@@ -962,6 +966,7 @@ table_beginscan_sampling(Relation rel, Snapshot snapshot,
 static inline TableScanDesc
 table_beginscan_tid(Relation rel, Snapshot snapshot)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_TIDSCAN;
 
   return rel->rd_tableam->scan_begin(rel, snapshot, 0, NULL, NULL, flags);
@@ -975,6 +980,7 @@ table_beginscan_tid(Relation rel, Snapshot snapshot)
 static inline TableScanDesc
 table_beginscan_analyze(Relation rel)
 {
+  DBUG_TRACE;
   uint32    flags = SO_TYPE_ANALYZE;
 
   return rel->rd_tableam->scan_begin(rel, NULL, 0, NULL, NULL, flags);
@@ -986,6 +992,7 @@ table_beginscan_analyze(Relation rel)
 static inline void
 table_endscan(TableScanDesc scan)
 {
+  DBUG_TRACE;
   scan->rs_rd->rd_tableam->scan_end(scan);
 }
 
@@ -996,6 +1003,7 @@ static inline void
 table_rescan(TableScanDesc scan,
              struct ScanKeyData *key)
 {
+  DBUG_TRACE;
   scan->rs_rd->rd_tableam->scan_rescan(scan, key, false, false, false, false);
 }
 
@@ -1011,6 +1019,7 @@ static inline void
 table_rescan_set_params(TableScanDesc scan, struct ScanKeyData *key,
                         bool allow_strat, bool allow_sync, bool allow_pagemode)
 {
+  DBUG_TRACE;
   scan->rs_rd->rd_tableam->scan_rescan(scan, key, true,
                                        allow_strat, allow_sync,
                                        allow_pagemode);
@@ -1022,6 +1031,7 @@ table_rescan_set_params(TableScanDesc scan, struct ScanKeyData *key,
 static inline bool
 table_scan_getnextslot(TableScanDesc sscan, ScanDirection direction, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   slot->tts_tableOid = RelationGetRelid(sscan->rs_rd);
 
   /* We don't expect actual scans using NoMovementScanDirection */
@@ -1053,6 +1063,7 @@ table_beginscan_tidrange(Relation rel, Snapshot snapshot,
                          ItemPointer mintid,
                          ItemPointer maxtid)
 {
+  DBUG_TRACE;
   TableScanDesc sscan;
   uint32    flags = SO_TYPE_TIDRANGESCAN | SO_ALLOW_PAGEMODE;
 
@@ -1073,6 +1084,7 @@ static inline void
 table_rescan_tidrange(TableScanDesc sscan, ItemPointer mintid,
                       ItemPointer maxtid)
 {
+  DBUG_TRACE;
   /* Ensure table_beginscan_tidrange() was used. */
   Assert((sscan->rs_flags & SO_TYPE_TIDRANGESCAN) != 0);
 
@@ -1089,6 +1101,7 @@ static inline bool
 table_scan_getnextslot_tidrange(TableScanDesc sscan, ScanDirection direction,
                                 TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   /* Ensure table_beginscan_tidrange() was used. */
   Assert((sscan->rs_flags & SO_TYPE_TIDRANGESCAN) != 0);
 
@@ -1141,6 +1154,7 @@ extern TableScanDesc table_beginscan_parallel(Relation relation,
 static inline void
 table_parallelscan_reinitialize(Relation rel, ParallelTableScanDesc pscan)
 {
+  DBUG_TRACE;
   rel->rd_tableam->parallelscan_reinitialize(rel, pscan);
 }
 
@@ -1159,6 +1173,7 @@ table_parallelscan_reinitialize(Relation rel, ParallelTableScanDesc pscan)
 static inline IndexFetchTableData *
 table_index_fetch_begin(Relation rel)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->index_fetch_begin(rel);
 }
 
@@ -1169,6 +1184,7 @@ table_index_fetch_begin(Relation rel)
 static inline void
 table_index_fetch_reset(struct IndexFetchTableData *scan)
 {
+  DBUG_TRACE;
   scan->rel->rd_tableam->index_fetch_reset(scan);
 }
 
@@ -1178,6 +1194,7 @@ table_index_fetch_reset(struct IndexFetchTableData *scan)
 static inline void
 table_index_fetch_end(struct IndexFetchTableData *scan)
 {
+  DBUG_TRACE;
   scan->rel->rd_tableam->index_fetch_end(scan);
 }
 
@@ -1212,6 +1229,8 @@ table_index_fetch_tuple(struct IndexFetchTableData *scan,
                         TupleTableSlot *slot,
                         bool *call_again, bool *all_dead)
 {
+  DBUG_TRACE;
+
   /*
    * We don't expect direct calls to table_index_fetch_tuple with valid
    * CheckXidAlive for catalog or regular tables.  See detailed comments in
@@ -1258,6 +1277,8 @@ table_tuple_fetch_row_version(Relation rel,
                               Snapshot snapshot,
                               TupleTableSlot *slot)
 {
+  DBUG_TRACE;
+
   /*
    * We don't expect direct calls to table_tuple_fetch_row_version with
    * valid CheckXidAlive for catalog or regular tables.  See detailed
@@ -1281,6 +1302,7 @@ table_tuple_fetch_row_version(Relation rel,
 static inline bool
 table_tuple_tid_valid(TableScanDesc scan, ItemPointer tid)
 {
+  DBUG_TRACE;
   return scan->rs_rd->rd_tableam->tuple_tid_valid(scan, tid);
 }
 
@@ -1303,6 +1325,7 @@ static inline bool
 table_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
                                Snapshot snapshot)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->tuple_satisfies_snapshot(rel, slot, snapshot);
 }
 
@@ -1323,6 +1346,7 @@ table_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
 static inline TransactionId
 table_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->index_delete_tuples(rel, delstate);
 }
 
@@ -1370,6 +1394,7 @@ static inline void
 table_tuple_insert(Relation rel, TupleTableSlot *slot, CommandId cid,
                    int options, struct BulkInsertStateData *bistate)
 {
+  DBUG_TRACE;
   rel->rd_tableam->tuple_insert(rel, slot, cid, options,
                                 bistate);
 }
@@ -1391,6 +1416,7 @@ table_tuple_insert_speculative(Relation rel, TupleTableSlot *slot,
                                struct BulkInsertStateData *bistate,
                                uint32 specToken)
 {
+  DBUG_TRACE;
   rel->rd_tableam->tuple_insert_speculative(rel, slot, cid, options,
       bistate, specToken);
 }
@@ -1403,6 +1429,7 @@ static inline void
 table_tuple_complete_speculative(Relation rel, TupleTableSlot *slot,
                                  uint32 specToken, bool succeeded)
 {
+  DBUG_TRACE;
   rel->rd_tableam->tuple_complete_speculative(rel, slot, specToken,
       succeeded);
 }
@@ -1425,6 +1452,7 @@ static inline void
 table_multi_insert(Relation rel, TupleTableSlot **slots, int nslots,
                    CommandId cid, int options, struct BulkInsertStateData *bistate)
 {
+  DBUG_TRACE;
   rel->rd_tableam->multi_insert(rel, slots, nslots,
                                 cid, options, bistate);
 }
@@ -1460,6 +1488,7 @@ table_tuple_delete(Relation rel, ItemPointer tid, CommandId cid,
                    Snapshot snapshot, Snapshot crosscheck, bool wait,
                    TM_FailureData *tmfd, bool changingPart)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->tuple_delete(rel, tid, cid,
                                        snapshot, crosscheck,
                                        wait, tmfd, changingPart);
@@ -1505,6 +1534,7 @@ table_tuple_update(Relation rel, ItemPointer otid, TupleTableSlot *slot,
                    bool wait, TM_FailureData *tmfd, LockTupleMode *lockmode,
                    TU_UpdateIndexes *update_indexes)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->tuple_update(rel, otid, slot,
                                        cid, snapshot, crosscheck,
                                        wait, tmfd,
@@ -1552,6 +1582,7 @@ table_tuple_lock(Relation rel, ItemPointer tid, Snapshot snapshot,
                  LockWaitPolicy wait_policy, uint8 flags,
                  TM_FailureData *tmfd)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->tuple_lock(rel, tid, snapshot, slot,
                                      cid, mode, wait_policy,
                                      flags, tmfd);
@@ -1564,6 +1595,8 @@ table_tuple_lock(Relation rel, ItemPointer tid, Snapshot snapshot,
 static inline void
 table_finish_bulk_insert(Relation rel, int options)
 {
+  DBUG_TRACE;
+
   /* optional callback */
   if (rel->rd_tableam && rel->rd_tableam->finish_bulk_insert)
     rel->rd_tableam->finish_bulk_insert(rel, options);
@@ -1594,6 +1627,7 @@ table_relation_set_new_filelocator(Relation rel,
                                    TransactionId *freezeXid,
                                    MultiXactId *minmulti)
 {
+  DBUG_TRACE;
   rel->rd_tableam->relation_set_new_filelocator(rel, newrlocator,
       persistence, freezeXid,
       minmulti);
@@ -1608,6 +1642,7 @@ table_relation_set_new_filelocator(Relation rel,
 static inline void
 table_relation_nontransactional_truncate(Relation rel)
 {
+  DBUG_TRACE;
   rel->rd_tableam->relation_nontransactional_truncate(rel);
 }
 
@@ -1620,6 +1655,7 @@ table_relation_nontransactional_truncate(Relation rel)
 static inline void
 table_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 {
+  DBUG_TRACE;
   rel->rd_tableam->relation_copy_data(rel, newrlocator);
 }
 
@@ -1655,6 +1691,7 @@ table_relation_copy_for_cluster(Relation OldTable, Relation NewTable,
                                 double *tups_vacuumed,
                                 double *tups_recently_dead)
 {
+  DBUG_TRACE;
   OldTable->rd_tableam->relation_copy_for_cluster(OldTable, NewTable, OldIndex,
       use_sort, OldestXmin,
       xid_cutoff, multi_cutoff,
@@ -1677,6 +1714,7 @@ static inline void
 table_relation_vacuum(Relation rel, struct VacuumParams *params,
                       BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   rel->rd_tableam->relation_vacuum(rel, params, bstrategy);
 }
 
@@ -1691,6 +1729,7 @@ table_relation_vacuum(Relation rel, struct VacuumParams *params,
 static inline bool
 table_scan_analyze_next_block(TableScanDesc scan, ReadStream *stream)
 {
+  DBUG_TRACE;
   return scan->rs_rd->rd_tableam->scan_analyze_next_block(scan, stream);
 }
 
@@ -1709,6 +1748,7 @@ table_scan_analyze_next_tuple(TableScanDesc scan, TransactionId OldestXmin,
                               double *liverows, double *deadrows,
                               TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   return scan->rs_rd->rd_tableam->scan_analyze_next_tuple(scan, OldestXmin,
          liverows, deadrows,
          slot);
@@ -1751,6 +1791,7 @@ table_index_build_scan(Relation table_rel,
                        void *callback_state,
                        TableScanDesc scan)
 {
+  DBUG_TRACE;
   return table_rel->rd_tableam->index_build_range_scan(table_rel,
          index_rel,
          index_info,
@@ -1787,6 +1828,7 @@ table_index_build_range_scan(Relation table_rel,
                              void *callback_state,
                              TableScanDesc scan)
 {
+  DBUG_TRACE;
   return table_rel->rd_tableam->index_build_range_scan(table_rel,
          index_rel,
          index_info,
@@ -1812,6 +1854,7 @@ table_index_validate_scan(Relation table_rel,
                           Snapshot snapshot,
                           struct ValidateIndexState *state)
 {
+  DBUG_TRACE;
   table_rel->rd_tableam->index_validate_scan(table_rel,
       index_rel,
       index_info,
@@ -1837,6 +1880,7 @@ table_index_validate_scan(Relation table_rel,
 static inline uint64
 table_relation_size(Relation rel, ForkNumber forkNumber)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->relation_size(rel, forkNumber);
 }
 
@@ -1846,6 +1890,7 @@ table_relation_size(Relation rel, ForkNumber forkNumber)
 static inline bool
 table_relation_needs_toast_table(Relation rel)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->relation_needs_toast_table(rel);
 }
 
@@ -1856,6 +1901,7 @@ table_relation_needs_toast_table(Relation rel)
 static inline Oid
 table_relation_toast_am(Relation rel)
 {
+  DBUG_TRACE;
   return rel->rd_tableam->relation_toast_am(rel);
 }
 
@@ -1887,6 +1933,7 @@ table_relation_fetch_toast_slice(Relation toastrel, Oid valueid,
                                  int32 attrsize, int32 sliceoffset,
                                  int32 slicelength, struct varlena *result)
 {
+  DBUG_TRACE;
   toastrel->rd_tableam->relation_fetch_toast_slice(toastrel, valueid,
       attrsize,
       sliceoffset, slicelength,
@@ -1908,6 +1955,7 @@ table_relation_estimate_size(Relation rel, int32 *attr_widths,
                              BlockNumber *pages, double *tuples,
                              double *allvisfrac)
 {
+  DBUG_TRACE;
   rel->rd_tableam->relation_estimate_size(rel, attr_widths, pages, tuples,
                                           allvisfrac);
 }
@@ -1938,6 +1986,8 @@ table_scan_bitmap_next_tuple(TableScanDesc scan,
                              uint64 *lossy_pages,
                              uint64 *exact_pages)
 {
+  DBUG_TRACE;
+
   /*
    * We don't expect direct calls to table_scan_bitmap_next_tuple with valid
    * CheckXidAlive for catalog or regular tables.  See detailed comments in
@@ -1966,6 +2016,8 @@ static inline bool
 table_scan_sample_next_block(TableScanDesc scan,
                              struct SampleScanState *scanstate)
 {
+  DBUG_TRACE;
+
   /*
    * We don't expect direct calls to table_scan_sample_next_block with valid
    * CheckXidAlive for catalog or regular tables.  See detailed comments in
@@ -1990,13 +2042,17 @@ table_scan_sample_next_tuple(TableScanDesc scan,
                              struct SampleScanState *scanstate,
                              TupleTableSlot *slot)
 {
+  DBUG_TRACE;
+
   /*
    * We don't expect direct calls to table_scan_sample_next_tuple with valid
    * CheckXidAlive for catalog or regular tables.  See detailed comments in
    * xact.c where these variables are declared.
    */
-  if (unlikely(TransactionIdIsValid(CheckXidAlive) && !bsysscan))
+  if (unlikely(TransactionIdIsValid(CheckXidAlive) && !bsysscan)) {
+    DBUG_INSTANT_PRINT("info", "unexpected table_scan_sample_next_tuple call during logical decoding");
     elog(ERROR, "unexpected table_scan_sample_next_tuple call during logical decoding");
+  }
 
   return scan->rs_rd->rd_tableam->scan_sample_next_tuple(scan, scanstate,
          slot);

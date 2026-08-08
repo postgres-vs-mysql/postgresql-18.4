@@ -15,6 +15,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 #include "access/transam.h"
 #include "access/twophase.h"
@@ -92,6 +93,7 @@ static const char *get_recovery_conflict_desc(ProcSignalReason reason);
 void
 InitRecoveryTransactionEnvironment(void)
 {
+  DBUG_TRACE;
   VirtualTransactionId vxid;
   HASHCTL   hash_ctl;
 
@@ -158,6 +160,8 @@ InitRecoveryTransactionEnvironment(void)
 void
 ShutdownRecoveryTransactionEnvironment(void)
 {
+  DBUG_TRACE;
+
   /*
    * Do nothing if RecoveryLockHash is NULL because that means that
    * transaction tracking has not yet been initialized or has already been
@@ -198,6 +202,7 @@ ShutdownRecoveryTransactionEnvironment(void)
 static TimestampTz
 GetStandbyLimitTime(void)
 {
+  DBUG_TRACE;
   TimestampTz rtime;
   bool    fromStream;
 
@@ -231,6 +236,7 @@ static int  standbyWait_us = STANDBY_INITIAL_WAIT_US;
 static bool
 WaitExceedsMaxStandbyDelay(uint32 wait_event_info)
 {
+  DBUG_TRACE;
   TimestampTz ltime;
 
   CHECK_FOR_INTERRUPTS();
@@ -275,6 +281,7 @@ LogRecoveryConflict(ProcSignalReason reason, TimestampTz wait_start,
                     TimestampTz now, VirtualTransactionId *wait_list,
                     bool still_waiting)
 {
+  DBUG_TRACE;
   long    secs;
   int     usecs;
   long    msecs;
@@ -354,6 +361,7 @@ ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
                                        ProcSignalReason reason, uint32 wait_event_info,
                                        bool report_waiting)
 {
+  DBUG_TRACE;
   TimestampTz waitStart = 0;
   bool    waiting = false;
   bool    logged_recovery_conflict = false;
@@ -456,6 +464,7 @@ ResolveRecoveryConflictWithSnapshot(TransactionId snapshotConflictHorizon,
                                     bool isCatalogRel,
                                     RelFileLocator locator)
 {
+  DBUG_TRACE;
   VirtualTransactionId *backends;
 
   /*
@@ -500,6 +509,7 @@ ResolveRecoveryConflictWithSnapshotFullXid(FullTransactionId snapshotConflictHor
     bool isCatalogRel,
     RelFileLocator locator)
 {
+  DBUG_TRACE;
   /*
    * ResolveRecoveryConflictWithSnapshot operates on 32-bit TransactionIds,
    * so truncate the logged FullTransactionId.  If the logged value is very
@@ -525,6 +535,7 @@ ResolveRecoveryConflictWithSnapshotFullXid(FullTransactionId snapshotConflictHor
 void
 ResolveRecoveryConflictWithTablespace(Oid tsid)
 {
+  DBUG_TRACE;
   VirtualTransactionId *temp_file_users;
 
   /*
@@ -555,6 +566,8 @@ ResolveRecoveryConflictWithTablespace(Oid tsid)
 void
 ResolveRecoveryConflictWithDatabase(Oid dbid)
 {
+  DBUG_TRACE;
+
   /*
    * We don't do ResolveRecoveryConflictWithVirtualXIDs() here since that
    * only waits for transactions and completely idle sessions would block
@@ -608,6 +621,7 @@ ResolveRecoveryConflictWithDatabase(Oid dbid)
 void
 ResolveRecoveryConflictWithLock(LOCKTAG locktag, bool logging_conflict)
 {
+  DBUG_TRACE;
   TimestampTz ltime;
   TimestampTz now;
 
@@ -772,6 +786,7 @@ cleanup:
 void
 ResolveRecoveryConflictWithBufferPin(void)
 {
+  DBUG_TRACE;
   TimestampTz ltime;
 
   Assert(InHotStandby);
@@ -851,6 +866,7 @@ ResolveRecoveryConflictWithBufferPin(void)
 static void
 SendRecoveryConflictWithBufferPin(ProcSignalReason reason)
 {
+  DBUG_TRACE;
   Assert(reason == PROCSIG_RECOVERY_CONFLICT_BUFFERPIN ||
          reason == PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK);
 
@@ -879,6 +895,7 @@ SendRecoveryConflictWithBufferPin(ProcSignalReason reason)
 void
 CheckRecoveryConflictDeadlock(void)
 {
+  DBUG_TRACE;
   Assert(!InRecovery);    /* do not call in Startup process */
 
   if (!HoldingBufferPinThatDelaysRecovery())
@@ -891,6 +908,7 @@ CheckRecoveryConflictDeadlock(void)
    * subtransaction and the pin is held by a parent, then the Startup
    * process will continue to wait even though we have avoided deadlock.
    */
+  DBUG_INSTANT_PRINT("info", "canceling statement due to conflict with recovery");
   ereport(ERROR,
           (errcode(ERRCODE_T_R_DEADLOCK_DETECTED),
            errmsg("canceling statement due to conflict with recovery"),
@@ -910,6 +928,7 @@ CheckRecoveryConflictDeadlock(void)
 void
 StandbyDeadLockHandler(void)
 {
+  DBUG_TRACE;
   got_standby_deadlock_timeout = true;
 }
 
@@ -919,6 +938,7 @@ StandbyDeadLockHandler(void)
 void
 StandbyTimeoutHandler(void)
 {
+  DBUG_TRACE;
   got_standby_delay_timeout = true;
 }
 
@@ -928,6 +948,7 @@ StandbyTimeoutHandler(void)
 void
 StandbyLockTimeoutHandler(void)
 {
+  DBUG_TRACE;
   got_standby_lock_timeout = true;
 }
 
@@ -960,6 +981,7 @@ StandbyLockTimeoutHandler(void)
 void
 StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 {
+  DBUG_TRACE;
   RecoveryLockXidEntry *xidentry;
   RecoveryLockEntry *lockentry;
   xl_standby_lock key;
@@ -1009,6 +1031,7 @@ StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 static void
 StandbyReleaseXidEntryLocks(RecoveryLockXidEntry *xidentry)
 {
+  DBUG_TRACE;
   RecoveryLockEntry *entry;
   RecoveryLockEntry *next;
 
@@ -1042,6 +1065,7 @@ StandbyReleaseXidEntryLocks(RecoveryLockXidEntry *xidentry)
 static void
 StandbyReleaseLocks(TransactionId xid)
 {
+  DBUG_TRACE;
   RecoveryLockXidEntry *entry;
 
   if (TransactionIdIsValid(xid)) {
@@ -1063,6 +1087,7 @@ StandbyReleaseLocks(TransactionId xid)
 void
 StandbyReleaseLockTree(TransactionId xid, int nsubxids, TransactionId *subxids)
 {
+  DBUG_TRACE;
   int     i;
 
   StandbyReleaseLocks(xid);
@@ -1077,6 +1102,7 @@ StandbyReleaseLockTree(TransactionId xid, int nsubxids, TransactionId *subxids)
 void
 StandbyReleaseAllLocks(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RecoveryLockXidEntry *entry;
 
@@ -1101,6 +1127,7 @@ StandbyReleaseAllLocks(void)
 void
 StandbyReleaseOldLocks(TransactionId oldxid)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RecoveryLockXidEntry *entry;
 
@@ -1134,18 +1161,23 @@ StandbyReleaseOldLocks(TransactionId oldxid)
 void
 standby_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /* Backup blocks are not used in standby records */
   Assert(!XLogRecHasAnyBlockRefs(record));
 
   /* Do nothing if we're not in hot standby mode */
-  if (standbyState == STANDBY_DISABLED)
+  if (standbyState == STANDBY_DISABLED) {
+    DBUG_PRINT("info", "do nothing if we're not in hot standby mode");
     return;
+  }
 
   if (info == XLOG_STANDBY_LOCK) {
     xl_standby_locks *xlrec = (xl_standby_locks *) XLogRecGetData(record);
     int     i;
+
+    DBUG_PRINT("info", "XLOG_STANDBY_LOCK");
 
     for (i = 0; i < xlrec->nlocks; i++)
       StandbyAcquireAccessExclusiveLock(xlrec->locks[i].xid,
@@ -1155,6 +1187,7 @@ standby_redo(XLogReaderState *record)
     xl_running_xacts *xlrec = (xl_running_xacts *) XLogRecGetData(record);
     RunningTransactionsData running;
 
+    DBUG_PRINT("info", "XLOG_RUNNING_XACTS");
     running.xcnt = xlrec->xcnt;
     running.subxcnt = xlrec->subxcnt;
     running.subxid_status = xlrec->subxid_overflow ? SUBXIDS_MISSING : SUBXIDS_IN_ARRAY;
@@ -1176,6 +1209,7 @@ standby_redo(XLogReaderState *record)
   } else if (info == XLOG_INVALIDATIONS) {
     xl_invalidations *xlrec = (xl_invalidations *) XLogRecGetData(record);
 
+    DBUG_PRINT("info", "XLOG_INVALIDATIONS");
     ProcessCommittedInvalidationMessages(xlrec->msgs,
                                          xlrec->nmsgs,
                                          xlrec->relcacheInitFileInval,
@@ -1247,6 +1281,7 @@ standby_redo(XLogReaderState *record)
 XLogRecPtr
 LogStandbySnapshot(void)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
   RunningTransactions running;
   xl_standby_lock *locks;
@@ -1321,6 +1356,7 @@ LogStandbySnapshot(void)
 static XLogRecPtr
 LogCurrentRunningXacts(RunningTransactions CurrRunningXacts)
 {
+  DBUG_TRACE;
   xl_running_xacts xlrec;
   XLogRecPtr  recptr;
 
@@ -1381,6 +1417,7 @@ LogCurrentRunningXacts(RunningTransactions CurrRunningXacts)
 static void
 LogAccessExclusiveLocks(int nlocks, xl_standby_lock *locks)
 {
+  DBUG_TRACE;
   xl_standby_locks xlrec;
 
   xlrec.nlocks = nlocks;
@@ -1399,6 +1436,7 @@ LogAccessExclusiveLocks(int nlocks, xl_standby_lock *locks)
 void
 LogAccessExclusiveLock(Oid dbOid, Oid relOid)
 {
+  DBUG_TRACE;
   xl_standby_lock xlrec;
 
   xlrec.xid = GetCurrentTransactionId();
@@ -1416,6 +1454,7 @@ LogAccessExclusiveLock(Oid dbOid, Oid relOid)
 void
 LogAccessExclusiveLockPrepare(void)
 {
+  DBUG_TRACE;
   /*
    * Ensure that a TransactionId has been assigned to this transaction, for
    * two reasons, both related to lock release on the standby. First, we
@@ -1439,6 +1478,7 @@ void
 LogStandbyInvalidations(int nmsgs, SharedInvalidationMessage *msgs,
                         bool relcacheInitFileInval)
 {
+  DBUG_TRACE;
   xl_invalidations xlrec;
 
   /* prepare record */

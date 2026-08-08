@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/objectaddress.h"
 #include "common/ip.h"
@@ -448,6 +449,7 @@ fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 Datum
 pg_hba_file_rules(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi;
 
   /*
@@ -589,6 +591,7 @@ fill_ident_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 Datum
 pg_ident_file_mappings(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi;
 
   /*

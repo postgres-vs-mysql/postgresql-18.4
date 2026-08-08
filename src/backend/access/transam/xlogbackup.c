@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xlog.h"
@@ -28,6 +29,7 @@
 char *
 build_backup_content(BackupState *state, bool ishistoryfile)
 {
+  DBUG_TRACE;
   char    startstrbuf[128];
   char    startxlogfile[MAXFNAMELEN]; /* backup start WAL file */
   XLogSegNo startsegno;

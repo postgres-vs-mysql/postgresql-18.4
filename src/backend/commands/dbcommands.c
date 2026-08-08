@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -144,6 +145,7 @@ static void
 CreateDatabaseUsingWalLog(Oid src_dboid, Oid dst_dboid,
                           Oid src_tsid, Oid dst_tsid)
 {
+  DBUG_TRACE;
   char     *srcpath;
   char     *dstpath;
   List     *rlocatorlist = NULL;
@@ -154,16 +156,20 @@ CreateDatabaseUsingWalLog(Oid src_dboid, Oid dst_dboid,
   RelFileLocator dstrlocator;
   CreateDBRelInfo *relinfo;
 
+  DBUG_PRINT("info", "create a new database using the WAL_LOG strategy");
   /* Get source and destination database paths. */
   srcpath = GetDatabasePath(src_dboid, src_tsid);
   dstpath = GetDatabasePath(dst_dboid, dst_tsid);
 
   /* Create database directory and write PG_VERSION file. */
+  DBUG_PRINT("info", "create database directory and write PG_VERSION file");
   CreateDirAndVersionFile(dstpath, dst_dboid, dst_tsid, false);
 
+  DBUG_PRINT("info", "copy relmap file from source database to the destination database");
   /* Copy relmap file from source database to the destination database. */
   RelationMapCopy(dst_dboid, dst_tsid, srcpath, dstpath);
 
+  DBUG_PRINT("info", "get list of relfilelocators to copy from the source database");
   /* Get list of relfilelocators to copy from the source database. */
   rlocatorlist = ScanSourceDatabasePgClass(src_tsid, src_dboid, srcpath);
   Assert(rlocatorlist != NIL);
@@ -174,6 +180,8 @@ CreateDatabaseUsingWalLog(Oid src_dboid, Oid dst_dboid,
    */
   srcrelid.dbId = src_dboid;
   dstrelid.dbId = dst_dboid;
+
+  DBUG_PRINT("info", "loop over our list of relfilelocators and copy each one");
 
   /* Loop over our list of relfilelocators and copy each one. */
   foreach(cell, rlocatorlist) {
@@ -244,6 +252,7 @@ CreateDatabaseUsingWalLog(Oid src_dboid, Oid dst_dboid,
 static List *
 ScanSourceDatabasePgClass(Oid tbid, Oid dbid, char *srcpath)
 {
+  DBUG_TRACE;
   RelFileLocator rlocator;
   BlockNumber nblocks;
   BlockNumber blkno;
@@ -256,6 +265,8 @@ ScanSourceDatabasePgClass(Oid tbid, Oid dbid, char *srcpath)
   SMgrRelation smgr;
   BufferAccessStrategy bstrategy;
 
+  DBUG_PRINT("info", "scan the pg_class table in the source database to identify the relations");
+  DBUG_PRINT("info", "that need to be copied to the destination database");
   /* Get pg_class relfilenumber. */
   relfilenumber = RelationMapOidToFilenumberForDatabase(srcpath,
                   RelationRelationId);
@@ -325,6 +336,7 @@ ScanSourceDatabasePgClassPage(Page page, Buffer buf, Oid tbid, Oid dbid,
                               char *srcpath, List *rlocatorlist,
                               Snapshot snapshot)
 {
+  DBUG_TRACE;
   BlockNumber blkno = BufferGetBlockNumber(buf);
   OffsetNumber offnum;
   OffsetNumber maxoff;
@@ -386,6 +398,7 @@ CreateDBRelInfo *
 ScanSourceDatabasePgClassTuple(HeapTupleData *tuple, Oid tbid, Oid dbid,
                                char *srcpath)
 {
+  DBUG_TRACE;
   CreateDBRelInfo *relinfo;
   Form_pg_class classForm;
   RelFileNumber relfilenumber = InvalidRelFileNumber;
@@ -451,6 +464,7 @@ ScanSourceDatabasePgClassTuple(HeapTupleData *tuple, Oid tbid, Oid dbid,
 static void
 CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
 {
+  DBUG_TRACE;
   int     fd;
   int     nbytes;
   char    versionfile[MAXPGPATH];
@@ -464,12 +478,16 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
   nbytes = strlen(PG_MAJORVERSION) + 1;
 
   /* Create database directory. */
+  DBUG_PRINT("info", "create database directory:%s", dbpath);
+
   if (MakePGDirectory(dbpath) < 0) {
     /* Failure other than already exists or not in WAL replay? */
-    if (errno != EEXIST || !isRedo)
+    if (errno != EEXIST || !isRedo) {
+      DBUG_INSTANT_PRINT("info", "could not create directory \"%s\"", dbpath);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not create directory \"%s\": %m", dbpath)));
+    }
   }
 
   /*
@@ -477,6 +495,7 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
    * exists and we are in WAL replay then try again to open it in write
    * mode.
    */
+  DBUG_PRINT("info", "create PG_VERSION file in the database path");
   snprintf(versionfile, sizeof(versionfile), "%s/%s", dbpath, "PG_VERSION");
 
   fd = OpenTransientFile(versionfile, O_WRONLY | O_CREAT | O_EXCL | PG_BINARY);
@@ -484,12 +503,15 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
   if (fd < 0 && errno == EEXIST && isRedo)
     fd = OpenTransientFile(versionfile, O_WRONLY | O_TRUNC | PG_BINARY);
 
-  if (fd < 0)
+  if (fd < 0) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", versionfile);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m", versionfile)));
+  }
 
   /* Write PG_MAJORVERSION in the PG_VERSION file. */
+  DBUG_PRINT("info", "write PG_MAJORVERSION in the PG_VERSION file");
   pgstat_report_wait_start(WAIT_EVENT_VERSION_FILE_WRITE);
   errno = 0;
 
@@ -498,6 +520,7 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
     if (errno == 0)
       errno = ENOSPC;
 
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", versionfile);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", versionfile)));
@@ -507,14 +530,17 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
 
   pgstat_report_wait_start(WAIT_EVENT_VERSION_FILE_SYNC);
 
-  if (pg_fsync(fd) != 0)
+  if (pg_fsync(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", versionfile);
     ereport(data_sync_elevel(ERROR),
             (errcode_for_file_access(),
              errmsg("could not fsync file \"%s\": %m", versionfile)));
+  }
 
   fsync_fname(dbpath, true);
   pgstat_report_wait_end();
 
+  DBUG_PRINT("info", "close the version file");
   /* Close the version file. */
   CloseTransientFile(fd);
 
@@ -522,6 +548,7 @@ CreateDirAndVersionFile(char *dbpath, Oid dbid, Oid tsid, bool isRedo)
   if (!isRedo) {
     xl_dbase_create_wal_log_rec xlrec;
 
+    DBUG_PRINT("info", "write the WAL");
     START_CRIT_SECTION();
 
     xlrec.db_id = dbid;
@@ -549,9 +576,12 @@ static void
 CreateDatabaseUsingFileCopy(Oid src_dboid, Oid dst_dboid, Oid src_tsid,
                             Oid dst_tsid)
 {
+  DBUG_TRACE;
   TableScanDesc scan;
   Relation  rel;
   HeapTuple tuple;
+
+  DBUG_PRINT("info", "create a new database using the FILE_COPY strategy");
 
   /*
    * Force a checkpoint before starting the copy. This will force all dirty
@@ -681,6 +711,7 @@ CreateDatabaseUsingFileCopy(Oid src_dboid, Oid dst_dboid, Oid src_tsid,
 Oid
 createdb(ParseState *pstate, const CreatedbStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     src_dboid;
   Oid     src_owner;
   int     src_encoding = -1;
@@ -819,6 +850,7 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 
       collversionEl = defel;
     } else if (strcmp(defel->defname, "location") == 0) {
+      DBUG_INSTANT_PRINT("info", "LOCATION is not supported anymore");
       ereport(WARNING,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("LOCATION is not supported anymore"),
@@ -842,20 +874,24 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
        * in the source cluster).
        */
       if (dboid < FirstNormalObjectId &&
-          !allowSystemTableMods && !IsBinaryUpgrade)
+          !allowSystemTableMods && !IsBinaryUpgrade) {
+        DBUG_INSTANT_PRINT("info", "OIDs less than %u are reserved for system objects", FirstNormalObjectId);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE)),
                 errmsg("OIDs less than %u are reserved for system objects", FirstNormalObjectId));
+      }
     } else if (strcmp(defel->defname, "strategy") == 0) {
       if (strategyEl)
         errorConflictingDefElem(defel, pstate);
 
       strategyEl = defel;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "option \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("option \"%s\" not recognized", defel->defname),
                parser_errposition(pstate, defel->location)));
+    }
   }
 
   if (ownerEl && ownerEl->arg)
@@ -872,22 +908,26 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
       encoding_name = pg_encoding_to_char(encoding);
 
       if (strcmp(encoding_name, "") == 0 ||
-          pg_valid_server_encoding(encoding_name) < 0)
+          pg_valid_server_encoding(encoding_name) < 0) {
+        DBUG_INSTANT_PRINT("info", "%d is not a valid encoding code", encoding);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("%d is not a valid encoding code",
                         encoding),
                  parser_errposition(pstate, encodingEl->location)));
+      }
     } else {
       encoding_name = defGetString(encodingEl);
       encoding = pg_valid_server_encoding(encoding_name);
 
-      if (encoding < 0)
+      if (encoding < 0) {
+        DBUG_INSTANT_PRINT("info", "%s is not a valid encoding name", encoding_name);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("%s is not a valid encoding name",
                         encoding_name),
                  parser_errposition(pstate, encodingEl->location)));
+      }
     }
   }
 
@@ -921,11 +961,13 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
       dblocprovider = COLLPROVIDER_ICU;
     else if (pg_strcasecmp(locproviderstr, "libc") == 0)
       dblocprovider = COLLPROVIDER_LIBC;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "unrecognized locale provider: %s", locproviderstr);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("unrecognized locale provider: %s",
                       locproviderstr)));
+    }
   }
 
   if (istemplateEl && istemplateEl->arg)
@@ -937,10 +979,12 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
   if (connlimitEl && connlimitEl->arg) {
     dbconnlimit = defGetInt32(connlimitEl);
 
-    if (dbconnlimit < DATCONNLIMIT_UNLIMITED)
+    if (dbconnlimit < DATCONNLIMIT_UNLIMITED) {
+      DBUG_INSTANT_PRINT("info", "invalid connection limit: %d", dbconnlimit);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid connection limit: %d", dbconnlimit)));
+    }
   }
 
   if (collversionEl)
@@ -959,10 +1003,12 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
    * "giveaway" attacks.  Note that a superuser will always have both of
    * these privileges a fortiori.
    */
-  if (!have_createdb_privilege())
+  if (!have_createdb_privilege()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to create database");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create database")));
+  }
 
   check_can_set_role(GetUserId(), datdba);
 
@@ -983,32 +1029,38 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
                    &src_istemplate, &src_allowconn, &src_hasloginevt,
                    &src_frozenxid, &src_minmxid, &src_deftablespace,
                    &src_collate, &src_ctype, &src_locale, &src_icurules, &src_locprovider,
-                   &src_collversion))
+                   &src_collversion)) {
+    DBUG_INSTANT_PRINT("info", "template database \"%s\" does not exist", dbtemplate);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("template database \"%s\" does not exist",
                     dbtemplate)));
+  }
 
   /*
    * If the source database was in the process of being dropped, we can't
    * use it as a template.
    */
-  if (database_is_invalid_oid(src_dboid))
+  if (database_is_invalid_oid(src_dboid)) {
+    DBUG_INSTANT_PRINT("info", "cannot use invalid database \"%s\" as template", dbtemplate);
     ereport(ERROR,
             errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
             errmsg("cannot use invalid database \"%s\" as template", dbtemplate),
             errhint("Use DROP DATABASE to drop invalid databases."));
+  }
 
   /*
    * Permission check: to copy a DB that's not marked datistemplate, you
    * must be superuser or the owner thereof.
    */
   if (!src_istemplate) {
-    if (!object_ownercheck(DatabaseRelationId, src_dboid, GetUserId()))
+    if (!object_ownercheck(DatabaseRelationId, src_dboid, GetUserId())) {
+      DBUG_INSTANT_PRINT("info", "permission denied to copy database \"%s\"", dbtemplate);
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to copy database \"%s\"",
                       dbtemplate)));
+    }
   }
 
   /* Validate the database creation strategy. */
@@ -1021,11 +1073,13 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
       dbstrategy = CREATEDB_WAL_LOG;
     else if (pg_strcasecmp(strategy, "file_copy") == 0)
       dbstrategy = CREATEDB_FILE_COPY;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "invalid create database strategy \"%s\"", strategy);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid create database strategy \"%s\"", strategy),
                errhint("Valid strategies are \"wal_log\" and \"file_copy\".")));
+    }
   }
 
   /* If encoding or locales are defaulted, use source's setting */
@@ -1048,46 +1102,56 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
     dbicurules = src_icurules;
 
   /* Some encodings are client only */
-  if (!PG_VALID_BE_ENCODING(encoding))
+  if (!PG_VALID_BE_ENCODING(encoding)) {
+    DBUG_INSTANT_PRINT("info", "invalid server encoding %d", encoding);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("invalid server encoding %d", encoding)));
+  }
 
   /* Check that the chosen locales are valid, and get canonical spellings */
   if (!check_locale(LC_COLLATE, dbcollate, &canonname)) {
-    if (dblocprovider == COLLPROVIDER_BUILTIN)
+    if (dblocprovider == COLLPROVIDER_BUILTIN) {
+      DBUG_INSTANT_PRINT("info", "invalid LC_COLLATE locale name: \"%s\"", dbcollate);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_COLLATE locale name: \"%s\"", dbcollate),
                errhint("If the locale name is specific to the builtin provider, use BUILTIN_LOCALE.")));
-    else if (dblocprovider == COLLPROVIDER_ICU)
+    } else if (dblocprovider == COLLPROVIDER_ICU) {
+      DBUG_INSTANT_PRINT("info", "invalid LC_COLLATE locale name: \"%s\"", dbcollate);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_COLLATE locale name: \"%s\"", dbcollate),
                errhint("If the locale name is specific to the ICU provider, use ICU_LOCALE.")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "invalid LC_COLLATE locale name: \"%s\"", dbcollate);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_COLLATE locale name: \"%s\"", dbcollate)));
+    }
   }
 
   dbcollate = canonname;
 
   if (!check_locale(LC_CTYPE, dbctype, &canonname)) {
-    if (dblocprovider == COLLPROVIDER_BUILTIN)
+    if (dblocprovider == COLLPROVIDER_BUILTIN) {
+      DBUG_INSTANT_PRINT("info", "invalid LC_CTYPE locale name: \"%s\"", dbctype);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_CTYPE locale name: \"%s\"", dbctype),
                errhint("If the locale name is specific to the builtin provider, use BUILTIN_LOCALE.")));
-    else if (dblocprovider == COLLPROVIDER_ICU)
+    } else if (dblocprovider == COLLPROVIDER_ICU) {
+      DBUG_INSTANT_PRINT("info", "invalid LC_CTYPE locale name: \"%s\"", dbctype);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_CTYPE locale name: \"%s\"", dbctype),
                errhint("If the locale name is specific to the ICU provider, use ICU_LOCALE.")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "invalid LC_CTYPE locale name: \"%s\"", dbctype);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("invalid LC_CTYPE locale name: \"%s\"", dbctype)));
+    }
   }
 
   dbctype = canonname;
@@ -1096,22 +1160,28 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 
   /* validate provider-specific parameters */
   if (dblocprovider != COLLPROVIDER_BUILTIN) {
-    if (builtinlocaleEl)
+    if (builtinlocaleEl) {
+      DBUG_INSTANT_PRINT("info", "BUILTIN_LOCALE cannot be specified unless locale provider is builtin");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("BUILTIN_LOCALE cannot be specified unless locale provider is builtin")));
+    }
   }
 
   if (dblocprovider != COLLPROVIDER_ICU) {
-    if (iculocaleEl)
+    if (iculocaleEl) {
+      DBUG_INSTANT_PRINT("info", "ICU locale cannot be specified unless locale provider is ICU");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("ICU locale cannot be specified unless locale provider is ICU")));
+    }
 
-    if (dbicurules)
+    if (dbicurules) {
+      DBUG_INSTANT_PRINT("info", "ICU rules cannot be specified unless locale provider is ICU");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("ICU rules cannot be specified unless locale provider is ICU")));
+    }
   }
 
   /* validate and canonicalize locale for the provider */
@@ -1120,27 +1190,33 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
      * This would happen if template0 uses the libc provider but the new
      * database uses builtin.
      */
-    if (!dblocale)
+    if (!dblocale) {
+      DBUG_INSTANT_PRINT("info", "LOCALE or BUILTIN_LOCALE must be specified");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("LOCALE or BUILTIN_LOCALE must be specified")));
+    }
 
     dblocale = builtin_validate_locale(encoding, dblocale);
   } else if (dblocprovider == COLLPROVIDER_ICU) {
-    if (!(is_encoding_supported_by_icu(encoding)))
+    if (!(is_encoding_supported_by_icu(encoding))) {
+      DBUG_INSTANT_PRINT("info", "encoding \"%s\" is not supported with ICU provider", pg_encoding_to_char(encoding));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("encoding \"%s\" is not supported with ICU provider",
                       pg_encoding_to_char(encoding))));
+    }
 
     /*
      * This would happen if template0 uses the libc provider but the new
      * database uses icu.
      */
-    if (!dblocale)
+    if (!dblocale) {
+      DBUG_INSTANT_PRINT("info", "LOCALE or ICU_LOCALE must be specified");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("LOCALE or ICU_LOCALE must be specified")));
+    }
 
     /*
      * During binary upgrade, or when the locale came from the template
@@ -1152,6 +1228,7 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
                                            icu_validation_level);
 
       if (langtag && strcmp(dblocale, langtag) != 0) {
+        DBUG_PRINT("info", "using standard form \"%s\" for ICU locale \"%s\"", langtag, dblocale);
         ereport(NOTICE,
                 (errmsg("using standard form \"%s\" for ICU locale \"%s\"",
                         langtag, dblocale)));
@@ -1178,34 +1255,46 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
    * used as template for creating a database with any encoding or locale.
    */
   if (strcmp(dbtemplate, "template0") != 0) {
-    if (encoding != src_encoding)
+    if (encoding != src_encoding) {
+      DBUG_INSTANT_PRINT("info", "new encoding (%s) is incompatible with the encoding of the template database (%s)",
+                         pg_encoding_to_char(encoding), pg_encoding_to_char(src_encoding));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("new encoding (%s) is incompatible with the encoding of the template database (%s)",
                       pg_encoding_to_char(encoding),
                       pg_encoding_to_char(src_encoding)),
                errhint("Use the same encoding as in the template database, or use template0 as template.")));
+    }
 
-    if (strcmp(dbcollate, src_collate) != 0)
+    if (strcmp(dbcollate, src_collate) != 0) {
+      DBUG_INSTANT_PRINT("info", "new collation (%s) is incompatible with the collation of the template database (%s)",
+                         dbcollate, src_collate);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("new collation (%s) is incompatible with the collation of the template database (%s)",
                       dbcollate, src_collate),
                errhint("Use the same collation as in the template database, or use template0 as template.")));
+    }
 
-    if (strcmp(dbctype, src_ctype) != 0)
+    if (strcmp(dbctype, src_ctype) != 0) {
+      DBUG_INSTANT_PRINT("info", "new LC_CTYPE (%s) is incompatible with the LC_CTYPE of the template database (%s)",
+                         dbctype, src_ctype);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("new LC_CTYPE (%s) is incompatible with the LC_CTYPE of the template database (%s)",
                       dbctype, src_ctype),
                errhint("Use the same LC_CTYPE as in the template database, or use template0 as template.")));
+    }
 
-    if (dblocprovider != src_locprovider)
+    if (dblocprovider != src_locprovider) {
+      DBUG_INSTANT_PRINT("info", "new locale provider (%s) does not match locale provider of the template database (%s)",
+                         collprovider_name(dblocprovider), collprovider_name(src_locprovider));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("new locale provider (%s) does not match locale provider of the template database (%s)",
                       collprovider_name(dblocprovider), collprovider_name(src_locprovider)),
                errhint("Use the same locale provider as in the template database, or use template0 as template.")));
+    }
 
     if (dblocprovider == COLLPROVIDER_ICU) {
       char     *val1;
@@ -1214,12 +1303,15 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
       Assert(dblocale);
       Assert(src_locale);
 
-      if (strcmp(dblocale, src_locale) != 0)
+      if (strcmp(dblocale, src_locale) != 0) {
+        DBUG_INSTANT_PRINT("info", "new ICU locale (%s) is incompatible with the ICU locale of the template database (%s)",
+                           dblocale, src_locale);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("new ICU locale (%s) is incompatible with the ICU locale of the template database (%s)",
                         dblocale, src_locale),
                  errhint("Use the same ICU locale as in the template database, or use template0 as template.")));
+      }
 
       val1 = dbicurules;
 
@@ -1231,12 +1323,15 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
       if (!val2)
         val2 = "";
 
-      if (strcmp(val1, val2) != 0)
+      if (strcmp(val1, val2) != 0) {
+        DBUG_INSTANT_PRINT("info", "new ICU collation rules (%s) are incompatible with the ICU collation rules of the template database (%s)",
+                           val1, val2);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("new ICU collation rules (%s) are incompatible with the ICU collation rules of the template database (%s)",
                         val1, val2),
                  errhint("Use the same ICU collation rules as in the template database, or use template0 as template.")));
+      }
     }
   }
 
@@ -1263,12 +1358,16 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 
     actual_versionstr = get_collation_actual_version(dblocprovider, locale);
 
-    if (!actual_versionstr)
+    if (!actual_versionstr) {
+      DBUG_INSTANT_PRINT("info", "template database \"%s\" has a collation version, but no actual collation version could be determined",
+                         dbtemplate);
       ereport(ERROR,
               (errmsg("template database \"%s\" has a collation version, but no actual collation version could be determined",
                       dbtemplate)));
+    }
 
-    if (strcmp(actual_versionstr, src_collversion) != 0)
+    if (strcmp(actual_versionstr, src_collversion) != 0) {
+      DBUG_INSTANT_PRINT("info", "template database \"%s\" has a collation version mismatch", dbtemplate);
       ereport(ERROR,
               (errmsg("template database \"%s\" has a collation version mismatch",
                       dbtemplate),
@@ -1279,6 +1378,7 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
                        "ALTER DATABASE %s REFRESH COLLATION VERSION, "
                        "or build PostgreSQL with the right library version.",
                        quote_identifier(dbtemplate))));
+    }
   }
 
   if (dbcollversion == NULL)
@@ -1316,10 +1416,12 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
                      tablespacename);
 
     /* pg_global must never be the default tablespace */
-    if (dst_deftablespace == GLOBALTABLESPACE_OID)
+    if (dst_deftablespace == GLOBALTABLESPACE_OID) {
+      DBUG_INSTANT_PRINT("info", "pg_global cannot be used as default tablespace");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_global cannot be used as default tablespace")));
+    }
 
     /*
      * If we are trying to change the default tablespace of the template,
@@ -1341,13 +1443,15 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 
       if (stat(srcpath, &st) == 0 &&
           S_ISDIR(st.st_mode) &&
-          !directory_is_empty(srcpath))
+          !directory_is_empty(srcpath)) {
+        DBUG_INSTANT_PRINT("info", "cannot assign new default tablespace \"%s\"", tablespacename);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot assign new default tablespace \"%s\"",
                         tablespacename),
                  errdetail("There is a conflict because database \"%s\" already has some tables in this tablespace.",
                            dbtemplate)));
+      }
 
       pfree(srcpath);
     }
@@ -1374,10 +1478,12 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
    * message than "unique index violation".  There's a race condition but
    * we're willing to accept the less friendly message in that case.
    */
-  if (OidIsValid(get_database_oid(dbname, true)))
+  if (OidIsValid(get_database_oid(dbname, true))) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" already exists", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_DATABASE),
              errmsg("database \"%s\" already exists", dbname)));
+  }
 
   /*
    * The source DB can't have any active backends, except this one
@@ -1388,12 +1494,14 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
    * potential waiting; we may as well throw an error first if we're gonna
    * throw one.
    */
-  if (CountOtherDBBackends(src_dboid, &notherbackends, &npreparedxacts))
+  if (CountOtherDBBackends(src_dboid, &notherbackends, &npreparedxacts)) {
+    DBUG_INSTANT_PRINT("info", "source database \"%s\" is being accessed by other users", dbtemplate);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("source database \"%s\" is being accessed by other users",
                     dbtemplate),
              errdetail_busy_db(notherbackends, npreparedxacts)));
+  }
 
   /*
    * Select an OID for the new database, checking that it doesn't have a
@@ -1409,16 +1517,20 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
   if (OidIsValid(dboid)) {
     char     *existing_dbname = get_database_name(dboid);
 
-    if (existing_dbname != NULL)
+    if (existing_dbname != NULL) {
+      DBUG_INSTANT_PRINT("info", "database OID %u is already in use by database \"%s\"", dboid, existing_dbname);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE)),
               errmsg("database OID %u is already in use by database \"%s\"",
                      dboid, existing_dbname));
+    }
 
-    if (check_db_file_conflict(dboid))
+    if (check_db_file_conflict(dboid)) {
+      DBUG_INSTANT_PRINT("info", "data directory with the specified OID %u already exists", dboid);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE)),
               errmsg("data directory with the specified OID %u already exists", dboid));
+    }
   } else {
     /* Select an OID for the new database if is not explicitly configured. */
     do {
@@ -1579,6 +1691,7 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 void
 check_encoding_locale_matches(int encoding, const char *collate, const char *ctype)
 {
+  DBUG_TRACE;
   int     ctype_encoding = pg_get_encoding_from_locale(ctype, true);
   int     collate_encoding = pg_get_encoding_from_locale(collate, true);
 
@@ -1588,7 +1701,8 @@ check_encoding_locale_matches(int encoding, const char *collate, const char *cty
 #ifdef WIN32
         encoding == PG_UTF8 ||
 #endif
-        (encoding == PG_SQL_ASCII && superuser())))
+        (encoding == PG_SQL_ASCII && superuser()))) {
+    DBUG_INSTANT_PRINT("info", "encoding \"%s\" does not match locale \"%s\"", pg_encoding_to_char(encoding), ctype);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("encoding \"%s\" does not match locale \"%s\"",
@@ -1596,6 +1710,7 @@ check_encoding_locale_matches(int encoding, const char *collate, const char *cty
                     ctype),
              errdetail("The chosen LC_CTYPE setting requires encoding \"%s\".",
                        pg_encoding_to_char(ctype_encoding))));
+  }
 
   if (!(collate_encoding == encoding ||
         collate_encoding == PG_SQL_ASCII ||
@@ -1603,7 +1718,8 @@ check_encoding_locale_matches(int encoding, const char *collate, const char *cty
 #ifdef WIN32
         encoding == PG_UTF8 ||
 #endif
-        (encoding == PG_SQL_ASCII && superuser())))
+        (encoding == PG_SQL_ASCII && superuser()))) {
+    DBUG_INSTANT_PRINT("info", "encoding \"%s\" does not match locale \"%s\"", pg_encoding_to_char(encoding), collate);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("encoding \"%s\" does not match locale \"%s\"",
@@ -1611,12 +1727,14 @@ check_encoding_locale_matches(int encoding, const char *collate, const char *cty
                     collate),
              errdetail("The chosen LC_COLLATE setting requires encoding \"%s\".",
                        pg_encoding_to_char(collate_encoding))));
+  }
 }
 
 /* Error cleanup callback for createdb */
 static void
 createdb_failure_callback(int code, Datum arg)
 {
+  DBUG_TRACE;
   createdb_failure_params *fparms = (createdb_failure_params *) DatumGetPointer(arg);
 
   /*
@@ -1655,6 +1773,7 @@ createdb_failure_callback(int code, Datum arg)
 void
 dropdb(const char *dbname, bool missing_ok, bool force)
 {
+  DBUG_TRACE;
   Oid     db_id;
   bool    db_istemplate;
   Relation  pgdbrel;
@@ -1680,12 +1799,14 @@ dropdb(const char *dbname, bool missing_ok, bool force)
   if (!get_db_info(dbname, AccessExclusiveLock, &db_id, NULL, NULL,
                    &db_istemplate, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
     if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_DATABASE),
                errmsg("database \"%s\" does not exist", dbname)));
     } else {
       /* Close pg_database, release the lock, since we changed nothing */
       table_close(pgdbrel, RowExclusiveLock);
+      DBUG_PRINT("info", "database \"%s\" does not exist, skipping", dbname);
       ereport(NOTICE,
               (errmsg("database \"%s\" does not exist, skipping",
                       dbname)));
@@ -1708,16 +1829,20 @@ dropdb(const char *dbname, bool missing_ok, bool force)
    * prevent people from accidentally dropping template0 or template1; they
    * can do so if they're really determined ...
    */
-  if (db_istemplate)
+  if (db_istemplate) {
+    DBUG_INSTANT_PRINT("info", "cannot drop a template database");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot drop a template database")));
+  }
 
   /* Obviously can't drop my own database */
-  if (db_id == MyDatabaseId)
+  if (db_id == MyDatabaseId) {
+    DBUG_INSTANT_PRINT("info", "cannot drop the currently open database");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("cannot drop the currently open database")));
+  }
 
   /*
    * Check whether there are active logical slots that refer to the
@@ -1728,6 +1853,7 @@ dropdb(const char *dbname, bool missing_ok, bool force)
   (void) ReplicationSlotsCountDBSlots(db_id, &nslots, &nslots_active);
 
   if (nslots_active) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" is used by an active logical replication slot", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("database \"%s\" is used by an active logical replication slot",
@@ -1743,7 +1869,8 @@ dropdb(const char *dbname, bool missing_ok, bool force)
    * We can't drop them automatically because they might be holding
    * resources in other databases/instances.
    */
-  if ((nsubscriptions = CountDBSubscriptions(db_id)) > 0)
+  if ((nsubscriptions = CountDBSubscriptions(db_id)) > 0) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" is being used by logical replication subscription", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("database \"%s\" is being used by logical replication subscription",
@@ -1751,6 +1878,7 @@ dropdb(const char *dbname, bool missing_ok, bool force)
              errdetail_plural("There is %d subscription.",
                               "There are %d subscriptions.",
                               nsubscriptions, nsubscriptions)));
+  }
 
 
   /*
@@ -1766,12 +1894,14 @@ dropdb(const char *dbname, bool missing_ok, bool force)
    *
    * As in CREATE DATABASE, check this after other error conditions.
    */
-  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts))
+  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" is being accessed by other users", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("database \"%s\" is being accessed by other users",
                     dbname),
              errdetail_busy_db(notherbackends, npreparedxacts)));
+  }
 
   /*
    * Delete any comments or security labels associated with the database.
@@ -1882,6 +2012,7 @@ dropdb(const char *dbname, bool missing_ok, bool force)
 ObjectAddress
 RenameDatabase(const char *oldname, const char *newname)
 {
+  DBUG_TRACE;
   Oid     db_id;
   HeapTuple newtup;
   ItemPointerData otid;
@@ -1897,10 +2028,12 @@ RenameDatabase(const char *oldname, const char *newname)
   rel = table_open(DatabaseRelationId, RowExclusiveLock);
 
   if (!get_db_info(oldname, AccessExclusiveLock, &db_id, NULL, NULL, NULL,
-                   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL))
+                   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", oldname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist", oldname)));
+  }
 
   /* must be owner */
   if (!object_ownercheck(DatabaseRelationId, db_id, GetUserId()))
@@ -1908,10 +2041,12 @@ RenameDatabase(const char *oldname, const char *newname)
                    oldname);
 
   /* must have createdb rights */
-  if (!have_createdb_privilege())
+  if (!have_createdb_privilege()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to rename database");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to rename database")));
+  }
 
   /*
    * If built with appropriate switch, whine when regression-testing
@@ -1928,10 +2063,12 @@ RenameDatabase(const char *oldname, const char *newname)
    * Make sure the new name doesn't exist.  See notes for same error in
    * CREATE DATABASE.
    */
-  if (OidIsValid(get_database_oid(newname, true)))
+  if (OidIsValid(get_database_oid(newname, true))) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" already exists", newname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_DATABASE),
              errmsg("database \"%s\" already exists", newname)));
+  }
 
   /*
    * XXX Client applications probably store the current database somewhere,
@@ -1939,10 +2076,12 @@ RenameDatabase(const char *oldname, const char *newname)
    * be an actual problem besides a little confusion, so think about this
    * and decide.
    */
-  if (db_id == MyDatabaseId)
+  if (db_id == MyDatabaseId) {
+    DBUG_INSTANT_PRINT("info", "current database cannot be renamed");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("current database cannot be renamed")));
+  }
 
   /*
    * Make sure the database does not have active sessions.  This is the same
@@ -1950,18 +2089,21 @@ RenameDatabase(const char *oldname, const char *newname)
    *
    * As in CREATE DATABASE, check this after other error conditions.
    */
-  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts))
+  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" is being accessed by other users", oldname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("database \"%s\" is being accessed by other users",
                     oldname),
              errdetail_busy_db(notherbackends, npreparedxacts)));
+  }
 
   /* rename */
   newtup = SearchSysCacheLockedCopy1(DATABASEOID, ObjectIdGetDatum(db_id));
 
-  if (!HeapTupleIsValid(newtup))
+  if (!HeapTupleIsValid(newtup)) {
     elog(ERROR, "cache lookup failed for database %u", db_id);
+  }
 
   otid = newtup->t_self;
   namestrcpy(&(((Form_pg_database) GETSTRUCT(newtup))->datname), newname);
@@ -1987,6 +2129,7 @@ RenameDatabase(const char *oldname, const char *newname)
 static void
 movedb(const char *dbname, const char *tblspcname)
 {
+  DBUG_TRACE;
   Oid     db_id;
   Relation  pgdbrel;
   int     notherbackends;
@@ -2013,10 +2156,12 @@ movedb(const char *dbname, const char *tblspcname)
   pgdbrel = table_open(DatabaseRelationId, RowExclusiveLock);
 
   if (!get_db_info(dbname, AccessExclusiveLock, &db_id, NULL, NULL, NULL,
-                   NULL, NULL, NULL, NULL, &src_tblspcoid, NULL, NULL, NULL, NULL, NULL, NULL))
+                   NULL, NULL, NULL, NULL, &src_tblspcoid, NULL, NULL, NULL, NULL, NULL, NULL)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist", dbname)));
+  }
 
   /*
    * We actually need a session lock, so that the lock will persist across
@@ -2037,10 +2182,12 @@ movedb(const char *dbname, const char *tblspcname)
   /*
    * Obviously can't move the tables of my own database
    */
-  if (db_id == MyDatabaseId)
+  if (db_id == MyDatabaseId) {
+    DBUG_INSTANT_PRINT("info", "cannot change the tablespace of the currently open database");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("cannot change the tablespace of the currently open database")));
+  }
 
   /*
    * Get tablespace's oid
@@ -2060,10 +2207,12 @@ movedb(const char *dbname, const char *tblspcname)
   /*
    * pg_global must never be the default tablespace
    */
-  if (dst_tblspcoid == GLOBALTABLESPACE_OID)
+  if (dst_tblspcoid == GLOBALTABLESPACE_OID) {
+    DBUG_INSTANT_PRINT("info", "pg_global cannot be used as default tablespace");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("pg_global cannot be used as default tablespace")));
+  }
 
   /*
    * No-op if same tablespace
@@ -2081,12 +2230,14 @@ movedb(const char *dbname, const char *tblspcname)
    *
    * As in CREATE DATABASE, check this after other error conditions.
    */
-  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts))
+  if (CountOtherDBBackends(db_id, &notherbackends, &npreparedxacts)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" is being accessed by other users", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_IN_USE),
              errmsg("database \"%s\" is being accessed by other users",
                     dbname),
              errdetail_busy_db(notherbackends, npreparedxacts)));
+  }
 
   /*
    * Get old and new database paths
@@ -2143,6 +2294,7 @@ movedb(const char *dbname, const char *tblspcname)
           strcmp(xlde->d_name, "..") == 0)
         continue;
 
+      DBUG_INSTANT_PRINT("info", "some relations of database \"%s\" are already in tablespace \"%s\"", dbname, tblspcname);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("some relations of database \"%s\" are already in tablespace \"%s\"",
@@ -2156,9 +2308,11 @@ movedb(const char *dbname, const char *tblspcname)
      * The directory exists but is empty. We must remove it before using
      * the copydir function.
      */
-    if (rmdir(dst_dbpath) != 0)
+    if (rmdir(dst_dbpath) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not remove directory \"%s\"", dst_dbpath);
       elog(ERROR, "could not remove directory \"%s\": %m",
            dst_dbpath);
+    }
   }
 
   /*
@@ -2211,10 +2365,12 @@ movedb(const char *dbname, const char *tblspcname)
                                  NULL, 1, &scankey);
     oldtuple = systable_getnext(sysscan);
 
-    if (!HeapTupleIsValid(oldtuple))  /* shouldn't happen... */
+    if (!HeapTupleIsValid(oldtuple)) { /* shouldn't happen... */
+      DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_DATABASE),
                errmsg("database \"%s\" does not exist", dbname)));
+    }
 
     LockTuple(pgdbrel, &oldtuple->t_self, InplaceUpdateTupleLock);
 
@@ -2276,10 +2432,12 @@ movedb(const char *dbname, const char *tblspcname)
   /*
    * Remove files from the old tablespace
    */
-  if (!rmtree(src_dbpath, true))
+  if (!rmtree(src_dbpath, true)) {
+    DBUG_INSTANT_PRINT("info", "some useless files may be left behind in old database directory \"%s\"", src_dbpath);
     ereport(WARNING,
             (errmsg("some useless files may be left behind in old database directory \"%s\"",
                     src_dbpath)));
+  }
 
   /*
    * Record the filesystem change in XLOG
@@ -2310,6 +2468,7 @@ movedb(const char *dbname, const char *tblspcname)
 static void
 movedb_failure_callback(int code, Datum arg)
 {
+  DBUG_TRACE;
   movedb_failure_params *fparms = (movedb_failure_params *) DatumGetPointer(arg);
   char     *dstpath;
 
@@ -2327,6 +2486,7 @@ movedb_failure_callback(int code, Datum arg)
 void
 DropDatabase(ParseState *pstate, DropdbStmt *stmt)
 {
+  DBUG_TRACE;
   bool    force = false;
   ListCell   *lc;
 
@@ -2335,12 +2495,14 @@ DropDatabase(ParseState *pstate, DropdbStmt *stmt)
 
     if (strcmp(opt->defname, "force") == 0)
       force = true;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "unrecognized %s option \"%s\"", "DROP DATABASE", opt->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized %s option \"%s\"",
                       "DROP DATABASE", opt->defname),
                parser_errposition(pstate, opt->location)));
+    }
   }
 
   dropdb(stmt->dbname, stmt->missing_ok, force);
@@ -2352,6 +2514,7 @@ DropDatabase(ParseState *pstate, DropdbStmt *stmt)
 Oid
 AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   Relation  rel;
   Oid     dboid;
   HeapTuple tuple,
@@ -2395,11 +2558,13 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
         errorConflictingDefElem(defel, pstate);
 
       dtablespace = defel;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "option \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("option \"%s\" not recognized", defel->defname),
                parser_errposition(pstate, defel->location)));
+    }
   }
 
   if (dtablespace) {
@@ -2408,12 +2573,14 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
      * somebody could write "WITH TABLESPACE ...".  Forbid any other
      * options from being specified in that case.
      */
-    if (list_length(stmt->options) != 1)
+    if (list_length(stmt->options) != 1) {
+      DBUG_INSTANT_PRINT("info", "option \"%s\" cannot be specified with other options", dtablespace->defname);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("option \"%s\" cannot be specified with other options",
                       dtablespace->defname),
                parser_errposition(pstate, dtablespace->location)));
+    }
 
     /* this case isn't allowed within a transaction block */
     PreventInTransactionBlock(isTopLevel, "ALTER DATABASE SET TABLESPACE");
@@ -2430,10 +2597,12 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
   if (dconnlimit && dconnlimit->arg) {
     dbconnlimit = defGetInt32(dconnlimit);
 
-    if (dbconnlimit < DATCONNLIMIT_UNLIMITED)
+    if (dbconnlimit < DATCONNLIMIT_UNLIMITED) {
+      DBUG_INSTANT_PRINT("info", "invalid connection limit: %d", dbconnlimit);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid connection limit: %d", dbconnlimit)));
+    }
   }
 
   /*
@@ -2450,10 +2619,12 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
                             NULL, 1, &scankey);
   tuple = systable_getnext(scan);
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", stmt->dbname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist", stmt->dbname)));
+  }
 
   LockTuple(rel, &tuple->t_self, InplaceUpdateTupleLock);
 
@@ -2461,6 +2632,7 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
   dboid = datform->oid;
 
   if (database_is_invalid_form(datform)) {
+    DBUG_INSTANT_PRINT("info", "cannot alter invalid database \"%s\"", stmt->dbname);
     ereport(FATAL,
             errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
             errmsg("cannot alter invalid database \"%s\"", stmt->dbname),
@@ -2477,10 +2649,12 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
    * we're currently connected to.  Lockout can still happen with concurrent
    * sessions but the likeliness of that is not high enough to worry about.
    */
-  if (!dballowconnections && dboid == MyDatabaseId)
+  if (!dballowconnections && dboid == MyDatabaseId) {
+    DBUG_INSTANT_PRINT("info", "cannot disallow connections for current database");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("cannot disallow connections for current database")));
+  }
 
   /*
    * Build an updated tuple, perusing the information just obtained
@@ -2522,6 +2696,7 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
 ObjectAddress
 AlterDatabaseRefreshColl(AlterDatabaseRefreshCollStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData scankey;
   SysScanDesc scan;
@@ -2543,10 +2718,12 @@ AlterDatabaseRefreshColl(AlterDatabaseRefreshCollStmt *stmt)
                             NULL, 1, &scankey);
   tuple = systable_getnext(scan);
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", stmt->dbname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist", stmt->dbname)));
+  }
 
   datForm = (Form_pg_database) GETSTRUCT(tuple);
   db_id = datForm->oid;
@@ -2576,14 +2753,16 @@ AlterDatabaseRefreshColl(AlterDatabaseRefreshCollStmt *stmt)
                TextDatumGetCString(datum));
 
   /* cannot change from NULL to non-NULL or vice versa */
-  if ((!oldversion && newversion) || (oldversion && !newversion))
+  if ((!oldversion && newversion) || (oldversion && !newversion)) {
+    DBUG_INSTANT_PRINT("info", "invalid collation version change");
     elog(ERROR, "invalid collation version change");
-  else if (oldversion && newversion && strcmp(newversion, oldversion) != 0) {
+  } else if (oldversion && newversion && strcmp(newversion, oldversion) != 0) {
     bool    nulls[Natts_pg_database] = {0};
     bool    replaces[Natts_pg_database] = {0};
     Datum   values[Natts_pg_database] = {0};
     HeapTuple newtuple;
 
+    DBUG_PRINT("info", "changing version from %s to %s", oldversion, newversion);
     ereport(NOTICE,
             (errmsg("changing version from %s to %s",
                     oldversion, newversion)));
@@ -2619,6 +2798,7 @@ AlterDatabaseRefreshColl(AlterDatabaseRefreshCollStmt *stmt)
 Oid
 AlterDatabaseSet(AlterDatabaseSetStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     datid = get_database_oid(stmt->dbname, false);
 
   /*
@@ -2645,6 +2825,7 @@ AlterDatabaseSet(AlterDatabaseSetStmt *stmt)
 ObjectAddress
 AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     db_id;
   HeapTuple tuple;
   Relation  rel;
@@ -2667,10 +2848,12 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
                             NULL, 1, &scankey);
   tuple = systable_getnext(scan);
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist", dbname)));
+  }
 
   datForm = (Form_pg_database) GETSTRUCT(tuple);
   db_id = datForm->oid;
@@ -2706,10 +2889,12 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
      * databases.  Because superusers will always have this right, we need
      * no special case for them.
      */
-    if (!have_createdb_privilege())
+    if (!have_createdb_privilege()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to change owner of database");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to change owner of database")));
+    }
 
     LockTuple(rel, &tuple->t_self, InplaceUpdateTupleLock);
 
@@ -2758,6 +2943,7 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 Datum
 pg_database_collation_actual_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     dbid = PG_GETARG_OID(0);
   HeapTuple tp;
   char    datlocprovider;
@@ -2766,10 +2952,12 @@ pg_database_collation_actual_version(PG_FUNCTION_ARGS)
 
   tp = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(dbid));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_INSTANT_PRINT("info", "database with OID %u does not exist", dbid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("database with OID %u does not exist", dbid)));
+  }
 
   datlocprovider = ((Form_pg_database) GETSTRUCT(tp))->datlocprovider;
 
@@ -2810,6 +2998,7 @@ get_db_info(const char *name, LOCKMODE lockmode,
             char *dbLocProvider,
             char **dbCollversion)
 {
+  DBUG_TRACE;
   bool    result = false;
   Relation  relation;
 
@@ -2972,6 +3161,7 @@ get_db_info(const char *name, LOCKMODE lockmode,
 bool
 have_createdb_privilege(void)
 {
+  DBUG_TRACE;
   bool    result = false;
   HeapTuple utup;
 
@@ -2998,6 +3188,7 @@ have_createdb_privilege(void)
 static void
 remove_dbtablespaces(Oid db_id)
 {
+  DBUG_TRACE;
   Relation  rel;
   TableScanDesc scan;
   HeapTuple tuple;
@@ -3028,10 +3219,12 @@ remove_dbtablespaces(Oid db_id)
       continue;
     }
 
-    if (!rmtree(dstpath, true))
+    if (!rmtree(dstpath, true)) {
+      DBUG_INSTANT_PRINT("info", "some useless files may be left behind in old database directory \"%s\"", dstpath);
       ereport(WARNING,
               (errmsg("some useless files may be left behind in old database directory \"%s\"",
                       dstpath)));
+    }
 
     ltblspc = lappend_oid(ltblspc, dsttablespace);
     pfree(dstpath);
@@ -3088,6 +3281,7 @@ remove_dbtablespaces(Oid db_id)
 static bool
 check_db_file_conflict(Oid db_id)
 {
+  DBUG_TRACE;
   bool    result = false;
   Relation  rel;
   TableScanDesc scan;
@@ -3161,6 +3355,7 @@ errdetail_busy_db(int notherbackends, int npreparedxacts)
 Oid
 get_database_oid(const char *dbname, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  pg_database;
   ScanKeyData entry[1];
   SysScanDesc scan;
@@ -3190,11 +3385,13 @@ get_database_oid(const char *dbname, bool missing_ok)
   systable_endscan(scan);
   table_close(pg_database, AccessShareLock);
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" does not exist",
                     dbname)));
+  }
 
   return oid;
 }
@@ -3208,6 +3405,7 @@ get_database_oid(const char *dbname, bool missing_ok)
 char *
 get_database_name(Oid dbid)
 {
+  DBUG_TRACE;
   HeapTuple dbtuple;
   char     *result;
 
@@ -3241,6 +3439,7 @@ database_is_invalid_form(Form_pg_database datform)
 bool
 database_is_invalid_oid(Oid dboid)
 {
+  DBUG_TRACE;
   HeapTuple dbtup;
   Form_pg_database dbform;
   bool    invalid;
@@ -3276,6 +3475,7 @@ database_is_invalid_oid(Oid dboid)
 static void
 recovery_create_dbdir(char *path, bool only_tblspc)
 {
+  DBUG_TRACE;
   struct stat st;
 
   Assert(RecoveryInProgress());
@@ -3283,19 +3483,24 @@ recovery_create_dbdir(char *path, bool only_tblspc)
   if (stat(path, &st) == 0)
     return;
 
-  if (only_tblspc && strstr(path, PG_TBLSPC_DIR_SLASH) == NULL)
+  if (only_tblspc && strstr(path, PG_TBLSPC_DIR_SLASH) == NULL) {
     elog(PANIC, "requested to created invalid directory: %s", path);
+  }
 
-  if (reachedConsistency && !allow_in_place_tablespaces)
+  if (reachedConsistency && !allow_in_place_tablespaces) {
+    DBUG_INSTANT_PRINT("info", "missing directory \"%s\"", path);
     ereport(PANIC,
             errmsg("missing directory \"%s\"", path));
+  }
 
   elog(reachedConsistency ? WARNING : DEBUG1,
        "creating missing directory: %s", path);
 
-  if (pg_mkdir_p(path, pg_dir_create_mode) != 0)
+  if (pg_mkdir_p(path, pg_dir_create_mode) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not create missing directory \"%s\"", path);
     ereport(PANIC,
             errmsg("could not create missing directory \"%s\": %m", path));
+  }
 }
 
 
@@ -3305,6 +3510,7 @@ recovery_create_dbdir(char *path, bool only_tblspc)
 void
 dbase_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /* Backup blocks are not used in dbase records */
@@ -3318,6 +3524,7 @@ dbase_redo(XLogReaderState *record)
     char     *parent_path;
     struct stat st;
 
+    DBUG_PRINT("info", "XLOG_DBASE_CREATE_FILE_COPY");
     src_path = GetDatabasePath(xlrec->src_db_id, xlrec->src_tablespace_id);
     dst_path = GetDatabasePath(xlrec->db_id, xlrec->tablespace_id);
 
@@ -3327,12 +3534,17 @@ dbase_redo(XLogReaderState *record)
      * more work than needed, but it is simple to implement.
      */
     if (stat(dst_path, &st) == 0 && S_ISDIR(st.st_mode)) {
-      if (!rmtree(dst_path, true))
+      if (!rmtree(dst_path, true)) {
+        DBUG_INSTANT_PRINT("info", "some useless files may be left behind in old database directory \"%s\"", dst_path);
         /* If this failed, copydir() below is going to error. */
         ereport(WARNING,
                 (errmsg("some useless files may be left behind in old database directory \"%s\"",
                         dst_path)));
+      }
     }
+
+    DBUG_PRINT("info", "src_path:'%s'", src_path);
+    DBUG_PRINT("info", "dst_path:'%s'", dst_path);
 
     /*
      * If the parent of the target path doesn't exist, create it now. This
@@ -3341,11 +3553,15 @@ dbase_redo(XLogReaderState *record)
     parent_path = pstrdup(dst_path);
     get_parent_directory(parent_path);
 
+    DBUG_PRINT("info", "parent_path:'%s'", parent_path);
+
     if (stat(parent_path, &st) < 0) {
-      if (errno != ENOENT)
+      if (errno != ENOENT) {
+        DBUG_INSTANT_PRINT("info", "could not stat directory \"%s\"", dst_path);
         ereport(FATAL,
                 errmsg("could not stat directory \"%s\": %m",
                        dst_path));
+      }
 
       /* create the parent directory if needed and valid */
       recovery_create_dbdir(parent_path, true);
@@ -3386,6 +3602,7 @@ dbase_redo(XLogReaderState *record)
     char     *dbpath;
     char     *parent_path;
 
+    DBUG_PRINT("info", "XLOG_DBASE_CREATE_WAL_LOG");
     dbpath = GetDatabasePath(xlrec->db_id, xlrec->tablespace_id);
 
     /* create the parent directory if needed and valid */
@@ -3403,6 +3620,8 @@ dbase_redo(XLogReaderState *record)
     char     *dst_path;
     int     i;
 
+    DBUG_PRINT("info", "XLOG_DBASE_DROP");
+
     if (InHotStandby) {
       /*
        * Lock database while we resolve conflicts to ensure that
@@ -3419,6 +3638,7 @@ dbase_redo(XLogReaderState *record)
     }
 
     /* Drop any database-specific replication slots */
+    DBUG_PRINT("info", "drop any database-specific replication slots");
     ReplicationSlotsDropDBSlots(xlrec->db_id);
 
     /* Drop pages for this database that are in the shared buffer cache */
@@ -3437,10 +3657,12 @@ dbase_redo(XLogReaderState *record)
       dst_path = GetDatabasePath(xlrec->db_id, xlrec->tablespace_ids[i]);
 
       /* And remove the physical files */
-      if (!rmtree(dst_path, true))
+      if (!rmtree(dst_path, true)) {
+        DBUG_INSTANT_PRINT("info", "some useless files may be left behind in old database directory \"%s\"", dst_path);
         ereport(WARNING,
                 (errmsg("some useless files may be left behind in old database directory \"%s\"",
                         dst_path)));
+      }
 
       pfree(dst_path);
     }

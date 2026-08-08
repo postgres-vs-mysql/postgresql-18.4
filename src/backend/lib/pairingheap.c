@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "lib/pairingheap.h"
@@ -233,10 +234,13 @@ pairingheap_remove(pairingheap *heap, pairingheap_node *node)
 static pairingheap_node *
 merge_children(pairingheap *heap, pairingheap_node *children)
 {
+  DBUG_TRACE;
   pairingheap_node *curr,
                    *next;
   pairingheap_node *pairs;
   pairingheap_node *newroot;
+
+  DBUG_PRINT("info", "merge a list of subheaps into a single heap");
 
   if (children == NULL || children->next_sibling == NULL)
     return children;

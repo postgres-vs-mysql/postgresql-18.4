@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/cryptohash.h"
 #include "common/md5.h"
@@ -33,6 +34,7 @@
 Datum
 md5_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in_text = PG_GETARG_TEXT_PP(0);
   size_t    len;
   char    hexsum[MD5_HASH_LEN + 1];
@@ -58,6 +60,7 @@ md5_text(PG_FUNCTION_ARGS)
 Datum
 md5_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *in = PG_GETARG_BYTEA_PP(0);
   size_t    len;
   char    hexsum[MD5_HASH_LEN + 1];
@@ -147,6 +150,7 @@ cryptohash_internal(pg_cryptohash_type type, bytea *input)
 Datum
 sha224_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *result = cryptohash_internal(PG_SHA224, PG_GETARG_BYTEA_PP(0));
 
   PG_RETURN_BYTEA_P(result);
@@ -155,6 +159,7 @@ sha224_bytea(PG_FUNCTION_ARGS)
 Datum
 sha256_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *result = cryptohash_internal(PG_SHA256, PG_GETARG_BYTEA_PP(0));
 
   PG_RETURN_BYTEA_P(result);
@@ -163,6 +168,7 @@ sha256_bytea(PG_FUNCTION_ARGS)
 Datum
 sha384_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *result = cryptohash_internal(PG_SHA384, PG_GETARG_BYTEA_PP(0));
 
   PG_RETURN_BYTEA_P(result);
@@ -171,6 +177,7 @@ sha384_bytea(PG_FUNCTION_ARGS)
 Datum
 sha512_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *result = cryptohash_internal(PG_SHA512, PG_GETARG_BYTEA_PP(0));
 
   PG_RETURN_BYTEA_P(result);

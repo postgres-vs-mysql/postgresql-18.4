@@ -8,6 +8,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -42,6 +43,7 @@ static void sepgsql_index_modify(Oid indexOid);
 void
 sepgsql_attribute_post_create(Oid relOid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey[2];
   SysScanDesc sscan;
@@ -133,6 +135,7 @@ sepgsql_attribute_post_create(Oid relOid, AttrNumber attnum)
 void
 sepgsql_attribute_drop(Oid relOid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   char    relkind = get_rel_relkind(relOid);
@@ -166,6 +169,7 @@ void
 sepgsql_attribute_relabel(Oid relOid, AttrNumber attnum,
                           const char *seclabel)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   char    relkind = get_rel_relkind(relOid);
@@ -209,6 +213,7 @@ sepgsql_attribute_relabel(Oid relOid, AttrNumber attnum,
 void
 sepgsql_attribute_setattr(Oid relOid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   char    relkind = get_rel_relkind(relOid);
@@ -240,6 +245,7 @@ sepgsql_attribute_setattr(Oid relOid, AttrNumber attnum)
 void
 sepgsql_relation_post_create(Oid relOid)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey;
   SysScanDesc sscan;
@@ -420,6 +426,7 @@ out:
 void
 sepgsql_relation_drop(Oid relOid)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   uint16_t  tclass = 0;
@@ -532,6 +539,7 @@ sepgsql_relation_drop(Oid relOid)
 void
 sepgsql_relation_truncate(Oid relOid)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   uint16_t  tclass = 0;
@@ -572,6 +580,7 @@ sepgsql_relation_truncate(Oid relOid)
 void
 sepgsql_relation_relabel(Oid relOid, const char *seclabel)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   char    relkind = get_rel_relkind(relOid);
@@ -623,6 +632,7 @@ sepgsql_relation_relabel(Oid relOid, const char *seclabel)
 void
 sepgsql_relation_setattr(Oid relOid)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey;
   SysScanDesc sscan;
@@ -740,6 +750,7 @@ sepgsql_relation_setattr_extra(Relation catalog,
                                AttrNumber anum_relation_id,
                                AttrNumber anum_extra_id)
 {
+  DBUG_TRACE;
   ScanKeyData skey;
   SysScanDesc sscan;
   HeapTuple tuple;
@@ -778,6 +789,7 @@ sepgsql_relation_setattr_extra(Relation catalog,
 static void
 sepgsql_index_modify(Oid indexOid)
 {
+  DBUG_TRACE;
   Relation  catalog = table_open(IndexRelationId, AccessShareLock);
 
   /* check db_table:{setattr} permission of the table being indexed */

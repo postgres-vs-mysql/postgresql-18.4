@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -48,6 +49,7 @@ PG_FUNCTION_INFO_V1(get_raw_page_1_9);
 Datum
 get_raw_page_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   int64   blkno = PG_GETARG_INT64(1);
   bytea    *raw_page;
@@ -70,6 +72,7 @@ PG_FUNCTION_INFO_V1(get_raw_page);
 Datum
 get_raw_page(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   uint32    blkno = PG_GETARG_UINT32(1);
   bytea    *raw_page;
@@ -99,6 +102,7 @@ PG_FUNCTION_INFO_V1(get_raw_page_fork_1_9);
 Datum
 get_raw_page_fork_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   text     *forkname = PG_GETARG_TEXT_PP(1);
   int64   blkno = PG_GETARG_INT64(2);
@@ -125,6 +129,7 @@ PG_FUNCTION_INFO_V1(get_raw_page_fork);
 Datum
 get_raw_page_fork(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   text     *forkname = PG_GETARG_TEXT_PP(1);
   uint32    blkno = PG_GETARG_UINT32(2);
@@ -144,16 +149,19 @@ get_raw_page_fork(PG_FUNCTION_ARGS)
 static bytea *
 get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 {
+  DBUG_TRACE;
   bytea    *raw_page;
   RangeVar   *relrv;
   Relation  rel;
   char     *raw_page_data;
   Buffer    buf;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
   rel = relation_openrv(relrv, AccessShareLock);
@@ -217,6 +225,7 @@ get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 Page
 get_page_from_raw(bytea *raw_page)
 {
+  DBUG_TRACE;
   Page    page;
   int     raw_page_size;
 
@@ -248,6 +257,7 @@ PG_FUNCTION_INFO_V1(page_header);
 Datum
 page_header(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
 
   TupleDesc tupdesc;
@@ -261,10 +271,12 @@ page_header(PG_FUNCTION_ARGS)
   PageHeader  pageheader;
   XLogRecPtr  lsn;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = get_page_from_raw(raw_page);
   pageheader = (PageHeader) page;
@@ -341,14 +353,17 @@ PG_FUNCTION_INFO_V1(page_checksum);
 static Datum
 page_checksum_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   int64   blkno = (ext_version == PAGEINSPECT_V1_8 ? PG_GETARG_UINT32(1) : PG_GETARG_INT64(1));
   Page    page;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   if (blkno < 0 || blkno > MaxBlockNumber)
     ereport(ERROR,
@@ -366,6 +381,7 @@ page_checksum_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 Datum
 page_checksum_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return page_checksum_internal(fcinfo, PAGEINSPECT_V1_9);
 }
 
@@ -375,5 +391,6 @@ page_checksum_1_9(PG_FUNCTION_ARGS)
 Datum
 page_checksum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return page_checksum_internal(fcinfo, PAGEINSPECT_V1_8);
 }

@@ -19,6 +19,7 @@
 
 #include <math.h>
 
+#include "debug_trace.h"
 #include "access/gist.h"
 #include "access/stratnum.h"
 #include "utils/float.h"
@@ -54,6 +55,7 @@ static bool gist_bbox_zorder_abbrev_abort(int memtupcount, SortSupport ssup);
 static void
 rt_box_union(BOX *n, const BOX *a, const BOX *b)
 {
+  DBUG_TRACE;
   n->high.x = float8_max(a->high.x, b->high.x);
   n->high.y = float8_max(a->high.y, b->high.y);
   n->low.x = float8_min(a->low.x, b->low.x);
@@ -67,6 +69,8 @@ rt_box_union(BOX *n, const BOX *a, const BOX *b)
 static float8
 size_box(const BOX *box)
 {
+  DBUG_TRACE;
+
   /*
    * Check for zero-width cases.  Note that we define the size of a zero-
    * by-infinity box as zero.  It's important to special-case this somehow,
@@ -97,6 +101,7 @@ size_box(const BOX *box)
 static float8
 box_penalty(const BOX *original, const BOX *new)
 {
+  DBUG_TRACE;
   BOX     unionbox;
 
   rt_box_union(&unionbox, original, new);
@@ -113,31 +118,49 @@ box_penalty(const BOX *original, const BOX *new)
 Datum
 gist_box_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   BOX      *query = PG_GETARG_BOX_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+  bool result;
 
   /* Oid    subtype = PG_GETARG_OID(3); */
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
 
+  DBUG_PRINT("info", "the GiST Consistent method for boxes");
   /* All cases served by this function are exact */
   *recheck = false;
 
-  if (DatumGetBoxP(entry->key) == NULL || query == NULL)
+  if (DatumGetBoxP(entry->key) == NULL || query == NULL) {
+    DBUG_PRINT("info", "return false");
     PG_RETURN_BOOL(false);
+  }
 
   /*
    * if entry is not leaf, use rtree_internal_consistent, else use
    * gist_box_leaf_consistent
    */
-  if (GIST_LEAF(entry))
-    PG_RETURN_BOOL(gist_box_leaf_consistent(DatumGetBoxP(entry->key),
-                                            query,
-                                            strategy));
-  else
-    PG_RETURN_BOOL(rtree_internal_consistent(DatumGetBoxP(entry->key),
-                   query,
-                   strategy));
+  if (GIST_LEAF(entry)) {
+    result = gist_box_leaf_consistent(DatumGetBoxP(entry->key), query, strategy);
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+  } else {
+    result = rtree_internal_consistent(DatumGetBoxP(entry->key), query, strategy);
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+  }
 }
 
 /*
@@ -146,6 +169,8 @@ gist_box_consistent(PG_FUNCTION_ARGS)
 static void
 adjustBox(BOX *b, const BOX *addon)
 {
+  DBUG_TRACE;
+
   if (float8_lt(b->high.x, addon->high.x))
     b->high.x = addon->high.x;
 
@@ -167,6 +192,7 @@ adjustBox(BOX *b, const BOX *addon)
 Datum
 gist_box_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *sizep = (int *) PG_GETARG_POINTER(1);
   int     numranges,
@@ -202,6 +228,7 @@ gist_box_union(PG_FUNCTION_ARGS)
 Datum
 gist_box_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -209,6 +236,8 @@ gist_box_penalty(PG_FUNCTION_ARGS)
   BOX      *newbox = DatumGetBoxP(newentry->key);
 
   *result = (float) box_penalty(origbox, newbox);
+
+  DBUG_PRINT("info", "the GiST Penalty method for boxes:%g", *result);
   PG_RETURN_POINTER(result);
 }
 
@@ -219,6 +248,7 @@ gist_box_penalty(PG_FUNCTION_ARGS)
 static void
 fallbackSplit(GistEntryVector *entryvec, GIST_SPLITVEC *v)
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff;
   BOX      *unionL = NULL,
@@ -347,6 +377,7 @@ g_box_consider_split(ConsiderSplitContext *context, int dimNum,
                      float8 rightLower, int minLeftCount,
                      float8 leftUpper, int maxLeftCount)
 {
+  DBUG_TRACE;
   int     leftCount,
           rightCount;
   float4    ratio,
@@ -482,6 +513,7 @@ common_entry_cmp(const void *i1, const void *i2)
 Datum
 gist_box_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   OffsetNumber i,
@@ -826,6 +858,7 @@ gist_box_picksplit(PG_FUNCTION_ARGS)
 Datum
 gist_box_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *b1 = PG_GETARG_BOX_P(0);
   BOX      *b2 = PG_GETARG_BOX_P(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -838,6 +871,12 @@ gist_box_same(PG_FUNCTION_ARGS)
   else
     *result = (b1 == NULL && b2 == NULL);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 
@@ -847,6 +886,7 @@ gist_box_same(PG_FUNCTION_ARGS)
 static bool
 gist_box_leaf_consistent(BOX *key, BOX *query, StrategyNumber strategy)
 {
+  DBUG_TRACE;
   bool    retval;
 
   switch (strategy) {
@@ -928,6 +968,12 @@ gist_box_leaf_consistent(BOX *key, BOX *query, StrategyNumber strategy)
       break;
   }
 
+  if (retval) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return retval;
 }
 
@@ -944,6 +990,7 @@ gist_box_leaf_consistent(BOX *key, BOX *query, StrategyNumber strategy)
 static bool
 rtree_internal_consistent(BOX *key, BOX *query, StrategyNumber strategy)
 {
+  DBUG_TRACE;
   bool    retval;
 
   switch (strategy) {
@@ -1020,6 +1067,12 @@ rtree_internal_consistent(BOX *key, BOX *query, StrategyNumber strategy)
       break;
   }
 
+  if (retval) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return retval;
 }
 
@@ -1033,6 +1086,7 @@ rtree_internal_consistent(BOX *key, BOX *query, StrategyNumber strategy)
 Datum
 gist_poly_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
 
@@ -1059,6 +1113,7 @@ gist_poly_compress(PG_FUNCTION_ARGS)
 Datum
 gist_poly_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   POLYGON    *query = PG_GETARG_POLYGON_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -1067,6 +1122,7 @@ gist_poly_consistent(PG_FUNCTION_ARGS)
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
   bool    result;
 
+  DBUG_PRINT("info", "the GiST Consistent method for polygons");
   /* All cases served by this function are inexact */
   *recheck = true;
 
@@ -1084,6 +1140,12 @@ gist_poly_consistent(PG_FUNCTION_ARGS)
   /* Avoid memory leak if supplied poly is toasted */
   PG_FREE_IF_COPY(query, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -1097,6 +1159,7 @@ gist_poly_consistent(PG_FUNCTION_ARGS)
 Datum
 gist_circle_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
 
@@ -1126,6 +1189,7 @@ gist_circle_compress(PG_FUNCTION_ARGS)
 Datum
 gist_circle_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   CIRCLE     *query = PG_GETARG_CIRCLE_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -1154,6 +1218,12 @@ gist_circle_consistent(PG_FUNCTION_ARGS)
   result = rtree_internal_consistent(DatumGetBoxP(entry->key),
                                      &bbox, strategy);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -1164,6 +1234,7 @@ gist_circle_consistent(PG_FUNCTION_ARGS)
 Datum
 gist_point_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   if (entry->leafkey) {   /* Point, actually */
@@ -1191,6 +1262,7 @@ gist_point_compress(PG_FUNCTION_ARGS)
 Datum
 gist_point_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   BOX      *in = DatumGetBoxP(entry->key);
   Point    *r;
@@ -1216,6 +1288,7 @@ gist_point_fetch(PG_FUNCTION_ARGS)
 static float8
 computeDistance(bool isLeaf, BOX *box, Point *point)
 {
+  DBUG_TRACE;
   float8    result = 0.0;
 
   if (isLeaf) {
@@ -1279,6 +1352,7 @@ static bool
 gist_point_consistent_internal(StrategyNumber strategy,
                                bool isLeaf, BOX *key, Point *query)
 {
+  DBUG_TRACE;
   bool    result = false;
 
   switch (strategy) {
@@ -1318,6 +1392,12 @@ gist_point_consistent_internal(StrategyNumber strategy,
       break;
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -1330,6 +1410,7 @@ gist_point_consistent_internal(StrategyNumber strategy,
 Datum
 gist_point_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
@@ -1441,12 +1522,19 @@ gist_point_consistent(PG_FUNCTION_ARGS)
       break;
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 gist_point_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
   float8    distance;
@@ -1465,12 +1553,14 @@ gist_point_distance(PG_FUNCTION_ARGS)
       break;
   }
 
+  DBUG_PRINT("info", "distance:%g", distance);
   PG_RETURN_FLOAT8(distance);
 }
 
 static float8
 gist_bbox_distance(GISTENTRY *entry, Datum query, StrategyNumber strategy)
 {
+  DBUG_TRACE;
   float8    distance;
   StrategyNumber strategyGroup = strategy / GeoStrategyNumberOffset;
 
@@ -1486,12 +1576,14 @@ gist_bbox_distance(GISTENTRY *entry, Datum query, StrategyNumber strategy)
       distance = 0.0;   /* keep compiler quiet */
   }
 
+  DBUG_PRINT("info", "distance:%g", distance);
   return distance;
 }
 
 Datum
 gist_box_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -1502,6 +1594,7 @@ gist_box_distance(PG_FUNCTION_ARGS)
 
   distance = gist_bbox_distance(entry, query, strategy);
 
+  DBUG_PRINT("info", "distance:%g", distance);
   PG_RETURN_FLOAT8(distance);
 }
 
@@ -1518,6 +1611,7 @@ gist_box_distance(PG_FUNCTION_ARGS)
 Datum
 gist_circle_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -1529,12 +1623,14 @@ gist_circle_distance(PG_FUNCTION_ARGS)
   distance = gist_bbox_distance(entry, query, strategy);
   *recheck = true;
 
+  DBUG_PRINT("info", "distance:%g", distance);
   PG_RETURN_FLOAT8(distance);
 }
 
 Datum
 gist_poly_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -1546,6 +1642,7 @@ gist_poly_distance(PG_FUNCTION_ARGS)
   distance = gist_bbox_distance(entry, query, strategy);
   *recheck = true;
 
+  DBUG_PRINT("info", "distance:%g", distance);
   PG_RETURN_FLOAT8(distance);
 }
 
@@ -1567,6 +1664,7 @@ gist_poly_distance(PG_FUNCTION_ARGS)
 static uint64
 point_zorder_internal(float4 x, float4 y)
 {
+  DBUG_TRACE;
   uint32    ix = ieee_float32_to_uint32(x);
   uint32    iy = ieee_float32_to_uint32(y);
 
@@ -1578,6 +1676,7 @@ point_zorder_internal(float4 x, float4 y)
 static uint64
 part_bits32_by2(uint32 x)
 {
+  DBUG_TRACE;
   uint64    n = x;
 
   n = (n | (n << 16)) & UINT64CONST(0x0000FFFF0000FFFF);
@@ -1595,6 +1694,8 @@ part_bits32_by2(uint32 x)
 static uint32
 ieee_float32_to_uint32(float f)
 {
+  DBUG_TRACE;
+
   /*----
    *
    * IEEE 754 floating point format
@@ -1668,6 +1769,7 @@ ieee_float32_to_uint32(float f)
 static int
 gist_bbox_zorder_cmp(Datum a, Datum b, SortSupport ssup)
 {
+  DBUG_TRACE;
   Point    *p1 = &(DatumGetBoxP(a)->low);
   Point    *p2 = &(DatumGetBoxP(b)->low);
   uint64    z1;
@@ -1702,6 +1804,7 @@ gist_bbox_zorder_cmp(Datum a, Datum b, SortSupport ssup)
 static Datum
 gist_bbox_zorder_abbrev_convert(Datum original, SortSupport ssup)
 {
+  DBUG_TRACE;
   Point    *p = &(DatumGetBoxP(original)->low);
   uint64    z;
 

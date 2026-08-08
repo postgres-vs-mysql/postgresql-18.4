@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/htup_details.h"
@@ -57,6 +58,7 @@ typedef struct output_type {
 static void
 statapprox_heap(Relation rel, output_type *stat)
 {
+  DBUG_TRACE;
   BlockNumber scanned,
               nblocks,
               blkno;
@@ -206,12 +208,16 @@ statapprox_heap(Relation rel, output_type *stat)
 Datum
 pgstattuple_approx(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+
+  }
 
   PG_RETURN_DATUM(pgstattuple_approx_internal(relid, fcinfo));
 }
@@ -226,6 +232,7 @@ pgstattuple_approx(PG_FUNCTION_ARGS)
 Datum
 pgstattuple_approx_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
 
   PG_RETURN_DATUM(pgstattuple_approx_internal(relid, fcinfo));
@@ -234,6 +241,7 @@ pgstattuple_approx_v1_5(PG_FUNCTION_ARGS)
 Datum
 pgstattuple_approx_internal(Oid relid, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   Relation  rel;
   output_type stat = {0};
   TupleDesc tupdesc;

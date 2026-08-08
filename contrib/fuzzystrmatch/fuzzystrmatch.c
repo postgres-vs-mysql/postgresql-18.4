@@ -37,6 +37,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -153,6 +154,7 @@ PG_FUNCTION_INFO_V1(levenshtein_with_costs);
 Datum
 levenshtein_with_costs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *src = PG_GETARG_TEXT_PP(0);
   text     *dst = PG_GETARG_TEXT_PP(1);
   int     ins_c = PG_GETARG_INT32(2);
@@ -162,6 +164,7 @@ levenshtein_with_costs(PG_FUNCTION_ARGS)
   const char *t_data;
   int     s_bytes,
           t_bytes;
+  int32 result;
 
   /* Extract a pointer to the actual character data */
   s_data = VARDATA_ANY(src);
@@ -170,8 +173,10 @@ levenshtein_with_costs(PG_FUNCTION_ARGS)
   s_bytes = VARSIZE_ANY_EXHDR(src);
   t_bytes = VARSIZE_ANY_EXHDR(dst);
 
-  PG_RETURN_INT32(varstr_levenshtein(s_data, s_bytes, t_data, t_bytes,
-                                     ins_c, del_c, sub_c, false));
+  result = (varstr_levenshtein(s_data, s_bytes, t_data, t_bytes,
+                               ins_c, del_c, sub_c, false));
+  DBUG_PRINT("fuzzystrmatch", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 
@@ -179,12 +184,14 @@ PG_FUNCTION_INFO_V1(levenshtein);
 Datum
 levenshtein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *src = PG_GETARG_TEXT_PP(0);
   text     *dst = PG_GETARG_TEXT_PP(1);
   const char *s_data;
   const char *t_data;
   int     s_bytes,
           t_bytes;
+  int32 result;
 
   /* Extract a pointer to the actual character data */
   s_data = VARDATA_ANY(src);
@@ -193,8 +200,10 @@ levenshtein(PG_FUNCTION_ARGS)
   s_bytes = VARSIZE_ANY_EXHDR(src);
   t_bytes = VARSIZE_ANY_EXHDR(dst);
 
-  PG_RETURN_INT32(varstr_levenshtein(s_data, s_bytes, t_data, t_bytes,
-                                     1, 1, 1, false));
+  result = (varstr_levenshtein(s_data, s_bytes, t_data, t_bytes,
+                               1, 1, 1, false));
+  DBUG_PRINT("fuzzystrmatch", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 
@@ -202,6 +211,7 @@ PG_FUNCTION_INFO_V1(levenshtein_less_equal_with_costs);
 Datum
 levenshtein_less_equal_with_costs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *src = PG_GETARG_TEXT_PP(0);
   text     *dst = PG_GETARG_TEXT_PP(1);
   int     ins_c = PG_GETARG_INT32(2);
@@ -212,6 +222,7 @@ levenshtein_less_equal_with_costs(PG_FUNCTION_ARGS)
   const char *t_data;
   int     s_bytes,
           t_bytes;
+  int32 result;
 
   /* Extract a pointer to the actual character data */
   s_data = VARDATA_ANY(src);
@@ -220,10 +231,12 @@ levenshtein_less_equal_with_costs(PG_FUNCTION_ARGS)
   s_bytes = VARSIZE_ANY_EXHDR(src);
   t_bytes = VARSIZE_ANY_EXHDR(dst);
 
-  PG_RETURN_INT32(varstr_levenshtein_less_equal(s_data, s_bytes,
-                  t_data, t_bytes,
-                  ins_c, del_c, sub_c,
-                  max_d, false));
+  result = (varstr_levenshtein_less_equal(s_data, s_bytes,
+                                          t_data, t_bytes,
+                                          ins_c, del_c, sub_c,
+                                          max_d, false));
+  DBUG_PRINT("fuzzystrmatch", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 
@@ -231,6 +244,7 @@ PG_FUNCTION_INFO_V1(levenshtein_less_equal);
 Datum
 levenshtein_less_equal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *src = PG_GETARG_TEXT_PP(0);
   text     *dst = PG_GETARG_TEXT_PP(1);
   int     max_d = PG_GETARG_INT32(2);
@@ -262,6 +276,7 @@ PG_FUNCTION_INFO_V1(metaphone);
 Datum
 metaphone(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str_i = TextDatumGetCString(PG_GETARG_DATUM(0));
   size_t    str_i_len = strlen(str_i);
   int     reqlen;
@@ -324,6 +339,7 @@ metaphone(PG_FUNCTION_ARGS)
 static char
 Lookahead(char *word, int how_far)
 {
+  DBUG_TRACE;
   char    letter_ahead = '\0';  /* null by default */
   int     idx;
 
@@ -715,6 +731,7 @@ PG_FUNCTION_INFO_V1(soundex);
 Datum
 soundex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    outstr[SOUNDEX_LEN + 1];
   char     *arg;
 
@@ -728,6 +745,7 @@ soundex(PG_FUNCTION_ARGS)
 static void
 _soundex(const char *instr, char *outstr)
 {
+  DBUG_TRACE;
   int     count;
 
   Assert(instr);
@@ -778,6 +796,7 @@ PG_FUNCTION_INFO_V1(difference);
 Datum
 difference(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    sndx1[SOUNDEX_LEN + 1],
           sndx2[SOUNDEX_LEN + 1];
   int     i,
@@ -793,5 +812,6 @@ difference(PG_FUNCTION_ARGS)
       result++;
   }
 
+  DBUG_PRINT("fuzzystrmatch", "result:%d", result);
   PG_RETURN_INT32(result);
 }

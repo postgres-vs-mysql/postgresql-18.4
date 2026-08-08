@@ -9,6 +9,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <selinux/label.h>
 
@@ -78,6 +79,8 @@ typedef struct {
 char *
 sepgsql_get_client_label(void)
 {
+  DBUG_TRACE;
+
   /* trusted procedure client label override */
   if (client_label_func)
     return client_label_func;
@@ -107,6 +110,7 @@ sepgsql_get_client_label(void)
 static void
 sepgsql_set_client_label(const char *new_label)
 {
+  DBUG_TRACE;
   const char *tcontext;
   MemoryContext oldcxt;
   pending_label *plabel;
@@ -163,6 +167,8 @@ sepgsql_set_client_label(const char *new_label)
 static void
 sepgsql_xact_callback(XactEvent event, void *arg)
 {
+  DBUG_TRACE;
+
   if (event == XACT_EVENT_COMMIT) {
     if (client_label_pending != NIL) {
       pending_label *plabel = llast(client_label_pending);
@@ -200,6 +206,7 @@ static void
 sepgsql_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
                          SubTransactionId parentSubid, void *arg)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   if (event == SUBXACT_EVENT_ABORT_SUB) {
@@ -223,6 +230,8 @@ sepgsql_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
 static void
 sepgsql_client_auth(Port *port, int status)
 {
+  DBUG_TRACE;
+
   if (next_client_auth_hook)
     (*next_client_auth_hook) (port, status);
 
@@ -261,11 +270,14 @@ sepgsql_client_auth(Port *port, int status)
 static bool
 sepgsql_needs_fmgr_hook(Oid functionId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
 
   if (next_needs_fmgr_hook &&
-      (*next_needs_fmgr_hook) (functionId))
+      (*next_needs_fmgr_hook) (functionId)) {
+    DBUG_PRINT("sepgsql", "return true");
     return true;
+  }
 
   /*
    * SELinux needs the function to be called via security_definer wrapper,
@@ -273,8 +285,10 @@ sepgsql_needs_fmgr_hook(Oid functionId)
    * functions as trusted-procedure, if the security policy has a rule that
    * switches security label of the client on execution.
    */
-  if (sepgsql_avc_trusted_proc(functionId) != NULL)
+  if (sepgsql_avc_trusted_proc(functionId) != NULL) {
+    DBUG_PRINT("sepgsql", "return true");
     return true;
+  }
 
   /*
    * Even if not a trusted-procedure, this function should not be inlined
@@ -290,9 +304,12 @@ sepgsql_needs_fmgr_hook(Oid functionId)
                                SEPG_CLASS_DB_PROCEDURE,
                                SEPG_DB_PROCEDURE__EXECUTE |
                                SEPG_DB_PROCEDURE__ENTRYPOINT,
-                               SEPGSQL_AVC_NOAUDIT, false))
+                               SEPGSQL_AVC_NOAUDIT, false)) {
+    DBUG_PRINT("sepgsql", "return true");
     return true;
+  }
 
+  DBUG_PRINT("sepgsql", "return false");
   return false;
 }
 
@@ -306,6 +323,7 @@ static void
 sepgsql_fmgr_hook(FmgrHookEventType event,
                   FmgrInfo *flinfo, Datum *private)
 {
+  DBUG_TRACE;
   struct {
     char     *old_label;
     char     *new_label;
@@ -399,6 +417,8 @@ sepgsql_fmgr_hook(FmgrHookEventType event,
 void
 sepgsql_init_client_label(void)
 {
+  DBUG_TRACE;
+
   /*
    * Set up dummy client label.
    *
@@ -440,6 +460,7 @@ sepgsql_init_client_label(void)
 char *
 sepgsql_get_label(Oid classId, Oid objectId, int32 subId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *label;
 
@@ -479,6 +500,8 @@ sepgsql_get_label(Oid classId, Oid objectId, int32 subId)
 void
 sepgsql_object_relabel(const ObjectAddress *object, const char *seclabel)
 {
+  DBUG_TRACE;
+
   /*
    * validate format of the supplied security label, if it is security
    * context of selinux.
@@ -534,6 +557,7 @@ PG_FUNCTION_INFO_V1(sepgsql_getcon);
 Datum
 sepgsql_getcon(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *client_label;
 
   if (!sepgsql_is_enabled())
@@ -553,6 +577,7 @@ PG_FUNCTION_INFO_V1(sepgsql_setcon);
 Datum
 sepgsql_setcon(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *new_label;
 
   if (PG_ARGISNULL(0))
@@ -575,6 +600,7 @@ PG_FUNCTION_INFO_V1(sepgsql_mcstrans_in);
 Datum
 sepgsql_mcstrans_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *label = PG_GETARG_TEXT_PP(0);
   char     *raw_label;
   char     *result;
@@ -613,6 +639,7 @@ PG_FUNCTION_INFO_V1(sepgsql_mcstrans_out);
 Datum
 sepgsql_mcstrans_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *label = PG_GETARG_TEXT_PP(0);
   char     *qual_label;
   char     *result;
@@ -680,6 +707,7 @@ quote_object_name(const char *src1, const char *src2,
 static void
 exec_object_restorecon(struct selabel_handle *sehnd, Oid catalogId)
 {
+  DBUG_TRACE;
   Relation  rel;
   SysScanDesc sscan;
   HeapTuple tuple;
@@ -860,6 +888,7 @@ PG_FUNCTION_INFO_V1(sepgsql_restorecon);
 Datum
 sepgsql_restorecon(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   struct selabel_handle *sehnd;
   struct selinux_opt seopts;
 

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
@@ -33,6 +34,338 @@ static bool planstate_walk_members(PlanState **planstates, int nplans,
                                    planstate_tree_walker_callback walker,
                                    void *context);
 
+static void trace_node_type(int type)
+{
+  switch (type) {
+    case T_Var:
+      DBUG_PRINT("info", "node type(var)");
+      break;
+
+    case T_Const:
+      DBUG_PRINT("info", "node type(const)");
+      break;
+
+    case T_Param:
+      DBUG_PRINT("info", "node type(param)");
+      break;
+
+    case T_CaseTestExpr:
+      DBUG_PRINT("info", "node type(case test expr)");
+      break;
+
+    case T_SQLValueFunction:
+      DBUG_PRINT("info", "node type(SQL value function)");
+      break;
+
+    case T_CoerceToDomainValue:
+      DBUG_PRINT("info", "node type(coerce to domain value)");
+      break;
+
+    case T_SetToDefault:
+      DBUG_PRINT("info", "node type(set to default)");
+      break;
+
+    case T_CurrentOfExpr:
+      DBUG_PRINT("info", "node type(current of expr)");
+      break;
+
+    case T_NextValueExpr:
+      DBUG_PRINT("info", "node type(next value expr)");
+      break;
+
+    case T_RangeTblRef:
+      DBUG_PRINT("info", "node type(range table ref)");
+      break;
+
+    case T_SortGroupClause:
+      DBUG_PRINT("info", "node type(sort group clause)");
+      break;
+
+    case T_CTESearchClause:
+      DBUG_PRINT("info", "node type(cte search clause)");
+      break;
+
+    case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node type(merge support func)");
+      break;
+
+    case T_WithCheckOption:
+      DBUG_PRINT("info", "node type(with check option)");
+      break;
+
+    case T_Aggref:
+      DBUG_PRINT("info", "node type(aggref)");
+      break;
+
+    case T_GroupingFunc:
+      DBUG_PRINT("info", "node type(grouping func)");
+      break;
+
+    case T_WindowFunc:
+      DBUG_PRINT("info", "node type(window func)");
+      break;
+
+    case T_WindowFuncRunCondition:
+      DBUG_PRINT("info", "node type(window func run condition)");
+      break;
+
+    case T_SubscriptingRef:
+      DBUG_PRINT("info", "node type(subscripting ref)");
+      break;
+
+    case T_FuncExpr:
+      DBUG_PRINT("info", "node type(func expr)");
+      break;
+
+    case T_NamedArgExpr:
+      DBUG_PRINT("info", "node type(named arg expr)");
+      break;
+
+    case T_OpExpr:
+      DBUG_PRINT("info", "node type(op expr)");
+      break;
+
+    case T_DistinctExpr:  /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(distinct expr)");
+      break;
+
+    case T_NullIfExpr:    /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(null if expr)");
+      break;
+
+    case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node type(scalar array op expr)");
+      break;
+
+    case T_BoolExpr:
+      DBUG_PRINT("info", "node type(bool expr)");
+      break;
+
+    case T_SubLink:
+      DBUG_PRINT("info", "node type(sub link)");
+      break;
+
+    case T_SubPlan:
+      DBUG_PRINT("info", "node type(sub plan)");
+      break;
+
+    case T_AlternativeSubPlan:
+      DBUG_PRINT("info", "node type(alternative sub plan)");
+      break;
+
+    case T_FieldSelect:
+      DBUG_PRINT("info", "node type(field select)");
+      break;
+
+    case T_FieldStore:
+      DBUG_PRINT("info", "node type(field store)");
+      break;
+
+    case T_RelabelType:
+      DBUG_PRINT("info", "node type(relabel type)");
+      break;
+
+    case T_CoerceViaIO:
+      DBUG_PRINT("info", "node type(coerce via io)");
+      break;
+
+    case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node type(array coerce expr)");
+      break;
+
+    case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node type(convert row type expr)");
+      break;
+
+    case T_CollateExpr:
+      DBUG_PRINT("info", "node type(collate expr)");
+      break;
+
+    case T_CaseExpr:
+      DBUG_PRINT("info", "node type(case expr)");
+      break;
+
+    case T_ArrayExpr:
+      DBUG_PRINT("info", "node type(array expr)");
+      break;
+
+    case T_RowExpr:
+      DBUG_PRINT("info", "node type(row expr)");
+      break;
+
+    case T_RowCompareExpr:
+      DBUG_PRINT("info", "node type(row compare expr)");
+      break;
+
+    case T_CoalesceExpr:
+      DBUG_PRINT("info", "node type(coalesce expr)");
+      break;
+
+    case T_MinMaxExpr:
+      DBUG_PRINT("info", "node type(min max expr)");
+      break;
+
+    case T_XmlExpr:
+      DBUG_PRINT("info", "node type(xml expr)");
+      break;
+
+    case T_JsonValueExpr:
+      DBUG_PRINT("info", "node type(json value expr)");
+      break;
+
+    case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node type(json constructor expr)");
+      break;
+
+    case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node type(json is predicate)");
+      break;
+
+    case T_JsonExpr:
+      DBUG_PRINT("info", "node type(json expr)");
+      break;
+
+    case T_JsonBehavior:
+      DBUG_PRINT("info", "node type(json behavior)");
+      break;
+
+    case T_NullTest:
+      DBUG_PRINT("info", "node type(null test)");
+      break;
+
+    case T_BooleanTest:
+      DBUG_PRINT("info", "node type(boolean test)");
+      break;
+
+    case T_CoerceToDomain:
+      DBUG_PRINT("info", "node type(coerce to domain)");
+      break;
+
+    case T_TargetEntry:
+      DBUG_PRINT("info", "node type(target entry)");
+      break;
+
+    case T_Query:
+      DBUG_PRINT("info", "node type(query)");
+      break;
+
+    case T_WindowClause:
+      DBUG_PRINT("info", "node type(window clause)");
+      break;
+
+    case T_CTECycleClause:
+      DBUG_PRINT("info", "node type(cte cycle clause)");
+      break;
+
+    case T_CommonTableExpr:
+      DBUG_PRINT("info", "node type(common table expr)");
+      break;
+
+    case T_JsonKeyValue:
+      DBUG_PRINT("info", "node type(json key value)");
+      break;
+
+    case T_JsonObjectConstructor:
+      DBUG_PRINT("info", "node type(json Object constructor)");
+      break;
+
+    case T_JsonArrayConstructor:
+      DBUG_PRINT("info", "node type(json array constructor)");
+      break;
+
+    case T_JsonArrayQueryConstructor:
+      DBUG_PRINT("info", "node type(json array query constructor)");
+      break;
+
+    case T_JsonAggConstructor:
+      DBUG_PRINT("info", "node type(json agg constructor)");
+      break;
+
+    case T_JsonObjectAgg:
+      DBUG_PRINT("info", "node type(json object agg)");
+      break;
+
+    case T_JsonArrayAgg:
+      DBUG_PRINT("info", "node type(json array agg)");
+      break;
+
+    case T_PartitionBoundSpec:
+      DBUG_PRINT("info", "node type(partition bound spec)");
+      break;
+
+    case T_PartitionRangeDatum:
+      DBUG_PRINT("info", "node type(partition range datum)");
+      break;
+
+    case T_List:
+      DBUG_PRINT("info", "node type(list)");
+      break;
+
+    case T_FromExpr:
+      DBUG_PRINT("info", "node type(from expr)");
+      break;
+
+    case T_OnConflictExpr:
+      DBUG_PRINT("info", "node type(on conflict expr)");
+      break;
+
+    case T_MergeAction:
+      DBUG_PRINT("info", "node type(merge action)");
+      break;
+
+    case T_PartitionPruneStepOp:
+      DBUG_PRINT("info", "node type(partition prune step op)");
+      break;
+
+    case T_PartitionPruneStepCombine:
+      DBUG_PRINT("info", "node type(partition prune step combine)");
+      break;
+
+    case T_JoinExpr:
+      DBUG_PRINT("info", "node type(join expr)");
+      break;
+
+    case T_SetOperationStmt:
+      DBUG_PRINT("info", "node type(set operation stmt)");
+      break;
+
+    case T_IndexClause:
+      DBUG_PRINT("info", "node type(index clause)");
+      break;
+
+    case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node type(place holder var)");
+      break;
+
+    case T_InferenceElem:
+      DBUG_PRINT("info", "node type(inference elem)");
+      break;
+
+    case T_AppendRelInfo:
+      DBUG_PRINT("info", "node type(append rel info)");
+      break;
+
+    case T_PlaceHolderInfo:
+      DBUG_PRINT("info", "node type(place holder info)");
+      break;
+
+    case T_RangeTblFunction:
+      DBUG_PRINT("info", "node type(range table function)");
+      break;
+
+    case T_TableSampleClause:
+      DBUG_PRINT("info", "node type(table sample clause)");
+      break;
+
+    case T_TableFunc:
+      DBUG_PRINT("info", "node type(table func)");
+      break;
+
+    default:
+      DBUG_PRINT("info", "node tag:%d", type);
+      break;
+  }
+}
 
 /*
  *  exprType -
@@ -41,6 +374,7 @@ static bool planstate_walk_members(PlanState **planstates, int nplans,
 Oid
 exprType(const Node *expr)
 {
+  DBUG_TRACE;
   Oid     type;
 
   if (!expr)
@@ -48,67 +382,84 @@ exprType(const Node *expr)
 
   switch (nodeTag(expr)) {
     case T_Var:
+      DBUG_PRINT("info", "node tag(var)");
       type = ((const Var *) expr)->vartype;
       break;
 
     case T_Const:
+      DBUG_PRINT("info", "node tag(const)");
       type = ((const Const *) expr)->consttype;
       break;
 
     case T_Param:
+      DBUG_PRINT("info", "node tag(param)");
       type = ((const Param *) expr)->paramtype;
       break;
 
     case T_Aggref:
+      DBUG_PRINT("info", "node tag(aggref)");
       type = ((const Aggref *) expr)->aggtype;
       break;
 
     case T_GroupingFunc:
+      DBUG_PRINT("info", "node tag(grouping func)");
       type = INT4OID;
       break;
 
     case T_WindowFunc:
+      DBUG_PRINT("info", "node tag(window func)");
       type = ((const WindowFunc *) expr)->wintype;
       break;
 
     case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node tag(merge support func)");
       type = ((const MergeSupportFunc *) expr)->msftype;
       break;
 
     case T_SubscriptingRef:
+      DBUG_PRINT("info", "node tag(subscripting ref)");
       type = ((const SubscriptingRef *) expr)->refrestype;
       break;
 
     case T_FuncExpr:
+      DBUG_PRINT("info", "node tag(func expr)");
       type = ((const FuncExpr *) expr)->funcresulttype;
       break;
 
     case T_NamedArgExpr:
+      DBUG_PRINT("info", "node tag(named arg expr)");
       type = exprType((Node *) ((const NamedArgExpr *) expr)->arg);
       break;
 
     case T_OpExpr:
+      DBUG_PRINT("info", "node tag(op expr)");
       type = ((const OpExpr *) expr)->opresulttype;
       break;
 
     case T_DistinctExpr:
+      DBUG_PRINT("info", "node tag(distinct expr)");
       type = ((const DistinctExpr *) expr)->opresulttype;
       break;
 
     case T_NullIfExpr:
+      DBUG_PRINT("info", "node tag(null if expr)");
       type = ((const NullIfExpr *) expr)->opresulttype;
       break;
 
     case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node tag(scalar array op expr)");
       type = BOOLOID;
       break;
 
     case T_BoolExpr:
+      DBUG_PRINT("info", "node tag(bool expr)");
       type = BOOLOID;
       break;
 
     case T_SubLink: {
       const SubLink *sublink = (const SubLink *) expr;
+
+      DBUG_PRINT("info", "node tag(sub link)");
 
       if (sublink->subLinkType == EXPR_SUBLINK ||
           sublink->subLinkType == ARRAY_SUBLINK) {
@@ -145,6 +496,8 @@ exprType(const Node *expr)
     case T_SubPlan: {
       const SubPlan *subplan = (const SubPlan *) expr;
 
+      DBUG_PRINT("info", "node tag(sub plan)");
+
       if (subplan->subLinkType == EXPR_SUBLINK ||
           subplan->subLinkType == ARRAY_SUBLINK) {
         /* get the type of the subselect's first target column */
@@ -171,6 +524,7 @@ exprType(const Node *expr)
 
     case T_AlternativeSubPlan: {
       const AlternativeSubPlan *asplan = (const AlternativeSubPlan *) expr;
+      DBUG_PRINT("info", "node tag(alternative sub plan)");
 
       /* subplans should all return the same thing */
       type = exprType((Node *) linitial(asplan->subplans));
@@ -178,66 +532,83 @@ exprType(const Node *expr)
     break;
 
     case T_FieldSelect:
+      DBUG_PRINT("info", "node tag(field select)");
       type = ((const FieldSelect *) expr)->resulttype;
       break;
 
     case T_FieldStore:
+      DBUG_PRINT("info", "node tag(field store)");
       type = ((const FieldStore *) expr)->resulttype;
       break;
 
     case T_RelabelType:
+      DBUG_PRINT("info", "node tag(relabel type)");
       type = ((const RelabelType *) expr)->resulttype;
       break;
 
     case T_CoerceViaIO:
+      DBUG_PRINT("info", "node tag(coerce via io)");
       type = ((const CoerceViaIO *) expr)->resulttype;
       break;
 
     case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node tag(array coerce expr)");
       type = ((const ArrayCoerceExpr *) expr)->resulttype;
       break;
 
     case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node tag(convert row type expr)");
       type = ((const ConvertRowtypeExpr *) expr)->resulttype;
       break;
 
     case T_CollateExpr:
+      DBUG_PRINT("info", "node tag(collate expr)");
       type = exprType((Node *) ((const CollateExpr *) expr)->arg);
       break;
 
     case T_CaseExpr:
+      DBUG_PRINT("info", "node tag(case expr)");
       type = ((const CaseExpr *) expr)->casetype;
       break;
 
     case T_CaseTestExpr:
+      DBUG_PRINT("info", "node tag(case test expr)");
       type = ((const CaseTestExpr *) expr)->typeId;
       break;
 
     case T_ArrayExpr:
+      DBUG_PRINT("info", "node tag(array expr)");
       type = ((const ArrayExpr *) expr)->array_typeid;
       break;
 
     case T_RowExpr:
+      DBUG_PRINT("info", "node tag(row expr)");
       type = ((const RowExpr *) expr)->row_typeid;
       break;
 
     case T_RowCompareExpr:
+      DBUG_PRINT("info", "node tag(row compare expr)");
       type = BOOLOID;
       break;
 
     case T_CoalesceExpr:
+      DBUG_PRINT("info", "node tag(coalesce expr)");
       type = ((const CoalesceExpr *) expr)->coalescetype;
       break;
 
     case T_MinMaxExpr:
+      DBUG_PRINT("info", "node tag(min max expr)");
       type = ((const MinMaxExpr *) expr)->minmaxtype;
       break;
 
     case T_SQLValueFunction:
+      DBUG_PRINT("info", "node tag(SQL value function)");
       type = ((const SQLValueFunction *) expr)->type;
       break;
 
     case T_XmlExpr:
+      DBUG_PRINT("info", "node tag(xml expr)");
+
       if (((const XmlExpr *) expr)->op == IS_DOCUMENT)
         type = BOOLOID;
       else if (((const XmlExpr *) expr)->op == IS_XMLSERIALIZE)
@@ -249,22 +620,25 @@ exprType(const Node *expr)
 
     case T_JsonValueExpr: {
       const JsonValueExpr *jve = (const JsonValueExpr *) expr;
-
+      DBUG_PRINT("info", "node tag(json value expr)");
       type = exprType((Node *) jve->formatted_expr);
     }
     break;
 
     case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node tag(json constructor expr)");
       type = ((const JsonConstructorExpr *) expr)->returning->typid;
       break;
 
     case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node tag(json is predicate)");
       type = BOOLOID;
       break;
 
     case T_JsonExpr: {
       const JsonExpr *jexpr = (const JsonExpr *) expr;
 
+      DBUG_PRINT("info", "node tag(json expr)");
       type = jexpr->returning->typid;
       break;
     }
@@ -272,41 +646,50 @@ exprType(const Node *expr)
     case T_JsonBehavior: {
       const JsonBehavior *behavior = (const JsonBehavior *) expr;
 
+      DBUG_PRINT("info", "node tag(json behavior)");
       type = exprType(behavior->expr);
       break;
     }
 
     case T_NullTest:
       type = BOOLOID;
+      DBUG_PRINT("info", "node tag(null test)");
       break;
 
     case T_BooleanTest:
       type = BOOLOID;
+      DBUG_PRINT("info", "node tag(boolean test)");
       break;
 
     case T_CoerceToDomain:
       type = ((const CoerceToDomain *) expr)->resulttype;
+      DBUG_PRINT("info", "node tag(coerce to domain)");
       break;
 
     case T_CoerceToDomainValue:
       type = ((const CoerceToDomainValue *) expr)->typeId;
+      DBUG_PRINT("info", "node tag(coerce to domain value)");
       break;
 
     case T_SetToDefault:
       type = ((const SetToDefault *) expr)->typeId;
+      DBUG_PRINT("info", "node tag(set to default)");
       break;
 
     case T_CurrentOfExpr:
       type = BOOLOID;
+      DBUG_PRINT("info", "node tag(current of expr)");
       break;
 
     case T_NextValueExpr:
       type = ((const NextValueExpr *) expr)->typeId;
+      DBUG_PRINT("info", "node tag(next value expr)");
       break;
 
     case T_InferenceElem: {
       const InferenceElem *n = (const InferenceElem *) expr;
 
+      DBUG_PRINT("info", "node tag(inference elem)");
       type = exprType((Node *) n->expr);
     }
     break;
@@ -317,6 +700,7 @@ exprType(const Node *expr)
 
     case T_PlaceHolderVar:
       type = exprType((Node *) ((const PlaceHolderVar *) expr)->phexpr);
+      DBUG_PRINT("info", "node tag(place holder var)");
       break;
 
     default:
@@ -325,6 +709,7 @@ exprType(const Node *expr)
       break;
   }
 
+  DBUG_PRINT("info", "return the oid of the type of the expression's result:%u", type);
   return type;
 }
 
@@ -336,8 +721,12 @@ exprType(const Node *expr)
 int32
 exprTypmod(const Node *expr)
 {
+  DBUG_TRACE;
+
   if (!expr)
     return -1;
+
+  trace_node_type(nodeTag(expr));
 
   switch (nodeTag(expr)) {
     case T_Var:
@@ -627,6 +1016,8 @@ exprTypmod(const Node *expr)
 bool
 exprIsLengthCoercion(const Node *expr, int32 *coercedTypmod)
 {
+  DBUG_TRACE;
+
   if (coercedTypmod != NULL)
     *coercedTypmod = -1;  /* default result on failure */
 
@@ -707,6 +1098,8 @@ Node *
 applyRelabelType(Node *arg, Oid rtype, int32 rtypmod, Oid rcollid,
                  CoercionForm rformat, int rlocation, bool overwrite_ok)
 {
+  DBUG_TRACE;
+
   /*
    * If we find stacked RelabelTypes (eg, from foo::int::oid) we can discard
    * all but the top one, and must do so to ensure that semantically
@@ -882,6 +1275,7 @@ expression_returns_set_walker(Node *node, void *context)
 Oid
 exprCollation(const Node *expr)
 {
+  DBUG_TRACE;
   Oid     coll;
 
   if (!expr)
@@ -889,69 +1283,86 @@ exprCollation(const Node *expr)
 
   switch (nodeTag(expr)) {
     case T_Var:
+      DBUG_PRINT("info", "node tag(var)");
       coll = ((const Var *) expr)->varcollid;
       break;
 
     case T_Const:
+      DBUG_PRINT("info", "node tag(const)");
       coll = ((const Const *) expr)->constcollid;
       break;
 
     case T_Param:
+      DBUG_PRINT("info", "node tag(param)");
       coll = ((const Param *) expr)->paramcollid;
       break;
 
     case T_Aggref:
+      DBUG_PRINT("info", "node tag(aggref)");
       coll = ((const Aggref *) expr)->aggcollid;
       break;
 
     case T_GroupingFunc:
+      DBUG_PRINT("info", "node tag(grouping func)");
       coll = InvalidOid;
       break;
 
     case T_WindowFunc:
+      DBUG_PRINT("info", "node tag(window func)");
       coll = ((const WindowFunc *) expr)->wincollid;
       break;
 
     case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node tag(merge support func)");
       coll = ((const MergeSupportFunc *) expr)->msfcollid;
       break;
 
     case T_SubscriptingRef:
+      DBUG_PRINT("info", "node tag(subscripting ref)");
       coll = ((const SubscriptingRef *) expr)->refcollid;
       break;
 
     case T_FuncExpr:
+      DBUG_PRINT("info", "node tag(func expr)");
       coll = ((const FuncExpr *) expr)->funccollid;
       break;
 
     case T_NamedArgExpr:
+      DBUG_PRINT("info", "node tag(named arg expr)");
       coll = exprCollation((Node *) ((const NamedArgExpr *) expr)->arg);
       break;
 
     case T_OpExpr:
+      DBUG_PRINT("info", "node tag(op expr)");
       coll = ((const OpExpr *) expr)->opcollid;
       break;
 
     case T_DistinctExpr:
+      DBUG_PRINT("info", "node tag(distinct expr)");
       coll = ((const DistinctExpr *) expr)->opcollid;
       break;
 
     case T_NullIfExpr:
+      DBUG_PRINT("info", "node tag(null if expr)");
       coll = ((const NullIfExpr *) expr)->opcollid;
       break;
 
     case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node tag(scalar array op expr)");
       /* ScalarArrayOpExpr's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_BoolExpr:
+      DBUG_PRINT("info", "node tag(bool expr)");
       /* BoolExpr's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_SubLink: {
       const SubLink *sublink = (const SubLink *) expr;
+
+      DBUG_PRINT("info", "node tag(sub link)");
 
       if (sublink->subLinkType == EXPR_SUBLINK ||
           sublink->subLinkType == ARRAY_SUBLINK) {
@@ -975,6 +1386,7 @@ exprCollation(const Node *expr)
 
     case T_SubPlan: {
       const SubPlan *subplan = (const SubPlan *) expr;
+      DBUG_PRINT("info", "node tag(sub plan)");
 
       if (subplan->subLinkType == EXPR_SUBLINK ||
           subplan->subLinkType == ARRAY_SUBLINK) {
@@ -991,72 +1403,88 @@ exprCollation(const Node *expr)
     case T_AlternativeSubPlan: {
       const AlternativeSubPlan *asplan = (const AlternativeSubPlan *) expr;
 
+      DBUG_PRINT("info", "node tag(alternative sub plan)");
       /* subplans should all return the same thing */
       coll = exprCollation((Node *) linitial(asplan->subplans));
     }
     break;
 
     case T_FieldSelect:
+      DBUG_PRINT("info", "node tag(field select)");
       coll = ((const FieldSelect *) expr)->resultcollid;
       break;
 
     case T_FieldStore:
+      DBUG_PRINT("info", "node tag(field store)");
       /* FieldStore's result is composite ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_RelabelType:
+      DBUG_PRINT("info", "node tag(relabel type)");
       coll = ((const RelabelType *) expr)->resultcollid;
       break;
 
     case T_CoerceViaIO:
+      DBUG_PRINT("info", "node tag(coerce via io)");
       coll = ((const CoerceViaIO *) expr)->resultcollid;
       break;
 
     case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node tag(array coerce expr)");
       coll = ((const ArrayCoerceExpr *) expr)->resultcollid;
       break;
 
     case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node tag(convert row type expr)");
       /* ConvertRowtypeExpr's result is composite ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_CollateExpr:
+      DBUG_PRINT("info", "node tag(collate expr)");
       coll = ((const CollateExpr *) expr)->collOid;
       break;
 
     case T_CaseExpr:
+      DBUG_PRINT("info", "node tag(case expr)");
       coll = ((const CaseExpr *) expr)->casecollid;
       break;
 
     case T_CaseTestExpr:
+      DBUG_PRINT("info", "node tag(case test expr)");
       coll = ((const CaseTestExpr *) expr)->collation;
       break;
 
     case T_ArrayExpr:
+      DBUG_PRINT("info", "node tag(array expr)");
       coll = ((const ArrayExpr *) expr)->array_collid;
       break;
 
     case T_RowExpr:
+      DBUG_PRINT("info", "node tag(row expr)");
       /* RowExpr's result is composite ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_RowCompareExpr:
+      DBUG_PRINT("info", "node tag(row compare expr)");
       /* RowCompareExpr's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_CoalesceExpr:
+      DBUG_PRINT("info", "node tag(coalesce expr)");
       coll = ((const CoalesceExpr *) expr)->coalescecollid;
       break;
 
     case T_MinMaxExpr:
+      DBUG_PRINT("info", "node tag(min max expr)");
       coll = ((const MinMaxExpr *) expr)->minmaxcollid;
       break;
 
     case T_SQLValueFunction:
+      DBUG_PRINT("info", "node tag(SQL value function)");
 
       /* Returns either NAME or a non-collatable type */
       if (((const SQLValueFunction *) expr)->type == NAMEOID)
@@ -1067,6 +1495,7 @@ exprCollation(const Node *expr)
       break;
 
     case T_XmlExpr:
+      DBUG_PRINT("info", "node tag(xml expr)");
 
       /*
        * XMLSERIALIZE returns text from non-collatable inputs, so its
@@ -1081,11 +1510,14 @@ exprCollation(const Node *expr)
       break;
 
     case T_JsonValueExpr:
+      DBUG_PRINT("info", "node tag(json value expr)");
       coll = exprCollation((Node *) ((const JsonValueExpr *) expr)->formatted_expr);
       break;
 
     case T_JsonConstructorExpr: {
       const JsonConstructorExpr *ctor = (const JsonConstructorExpr *) expr;
+
+      DBUG_PRINT("info", "node tag(json constructor expr)");
 
       if (ctor->coercion)
         coll = exprCollation((Node *) ctor->coercion);
@@ -1095,6 +1527,7 @@ exprCollation(const Node *expr)
     break;
 
     case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node tag(json is predicate)");
       /* IS JSON's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
       break;
@@ -1102,12 +1535,15 @@ exprCollation(const Node *expr)
     case T_JsonExpr: {
       const JsonExpr *jsexpr = (JsonExpr *) expr;
 
+      DBUG_PRINT("info", "node tag(json expr)");
       coll = jsexpr->collation;
     }
     break;
 
     case T_JsonBehavior: {
       const JsonBehavior *behavior = (JsonBehavior *) expr;
+
+      DBUG_PRINT("info", "node tag(json behavior)");
 
       if (behavior->expr)
         coll = exprCollation(behavior->expr);
@@ -1119,36 +1555,44 @@ exprCollation(const Node *expr)
     case T_NullTest:
       /* NullTest's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
+      DBUG_PRINT("info", "node tag(null test)");
       break;
 
     case T_BooleanTest:
       /* BooleanTest's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
+      DBUG_PRINT("info", "node tag(boolean test)");
       break;
 
     case T_CoerceToDomain:
       coll = ((const CoerceToDomain *) expr)->resultcollid;
+      DBUG_PRINT("info", "node tag(coerce to domain)");
       break;
 
     case T_CoerceToDomainValue:
       coll = ((const CoerceToDomainValue *) expr)->collation;
+      DBUG_PRINT("info", "node tag(coerce to domain value)");
       break;
 
     case T_SetToDefault:
       coll = ((const SetToDefault *) expr)->collation;
+      DBUG_PRINT("info", "node tag(set to default)");
       break;
 
     case T_CurrentOfExpr:
       /* CurrentOfExpr's result is boolean ... */
       coll = InvalidOid;  /* ... so it has no collation */
+      DBUG_PRINT("info", "node tag(current of expr)");
       break;
 
     case T_NextValueExpr:
       /* NextValueExpr's result is an integer type ... */
+      DBUG_PRINT("info", "node tag(next value expr)");
       coll = InvalidOid;  /* ... so it has no collation */
       break;
 
     case T_InferenceElem:
+      DBUG_PRINT("info", "node tag(inference elem)");
       coll = exprCollation((Node *) ((const InferenceElem *) expr)->expr);
       break;
 
@@ -1157,6 +1601,7 @@ exprCollation(const Node *expr)
       break;
 
     case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node tag(place holder var)");
       coll = exprCollation((Node *) ((const PlaceHolderVar *) expr)->phexpr);
       break;
 
@@ -1178,10 +1623,13 @@ exprCollation(const Node *expr)
 Oid
 exprInputCollation(const Node *expr)
 {
+  DBUG_TRACE;
   Oid     coll;
 
   if (!expr)
     return InvalidOid;
+
+  DBUG_PRINT("info", "node tag:%d", nodeTag(expr));
 
   switch (nodeTag(expr)) {
     case T_Aggref:
@@ -1224,6 +1672,7 @@ exprInputCollation(const Node *expr)
   return coll;
 }
 
+
 /*
  *  exprSetCollation -
  *    Assign collation information to an expression tree node.
@@ -1234,6 +1683,9 @@ exprInputCollation(const Node *expr)
 void
 exprSetCollation(Node *expr, Oid collation)
 {
+  DBUG_TRACE;
+  trace_node_type(nodeTag(expr));
+
   switch (nodeTag(expr)) {
     case T_Var:
       ((Var *) expr)->varcollid = collation;
@@ -1324,6 +1776,7 @@ exprSetCollation(Node *expr, Oid collation)
     break;
 
     case T_FieldSelect:
+      DBUG_PRINT("info", "assign collation information to an expression tree node:field select");
       ((FieldSelect *) expr)->resultcollid = collation;
       break;
 
@@ -1400,7 +1853,7 @@ exprSetCollation(Node *expr, Oid collation)
       else
         Assert(!OidIsValid(collation)); /* result is always a
 
-                         * json[b] type */
+                       * json[b] type */
     }
     break;
 
@@ -1469,6 +1922,9 @@ exprSetCollation(Node *expr, Oid collation)
 void
 exprSetInputCollation(Node *expr, Oid inputcollation)
 {
+  DBUG_TRACE;
+  trace_node_type(nodeTag(expr));
+
   switch (nodeTag(expr)) {
     case T_Aggref:
       ((Aggref *) expr)->inputcollid = inputcollation;
@@ -1540,10 +1996,13 @@ exprSetInputCollation(Node *expr, Oid inputcollation)
 int
 exprLocation(const Node *expr)
 {
+  DBUG_TRACE;
   int     loc;
 
   if (expr == NULL)
     return -1;
+
+  trace_node_type(nodeTag(expr));
 
   switch (nodeTag(expr)) {
     case T_RangeVar:
@@ -2068,6 +2527,8 @@ fix_opfuncids(Node *node)
 static bool
 fix_opfuncids_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -2133,6 +2594,9 @@ bool
 check_functions_in_node(Node *node, check_function_callback checker,
                         void *context)
 {
+  DBUG_TRACE;
+  trace_node_type(nodeTag(node));
+
   switch (nodeTag(node)) {
     case T_Aggref: {
       Aggref     *expr = (Aggref *) node;
@@ -2223,7 +2687,6 @@ check_functions_in_node(Node *node, check_function_callback checker,
   return false;
 }
 
-
 /*
  * Standard expression-tree walking support
  *
@@ -2309,18 +2772,19 @@ check_functions_in_node(Node *node, check_function_callback checker,
  * walker on all the expression subtrees of the given Query node.
  *
  * expression_tree_walker will handle SubPlan nodes by recursing normally
- * into the "testexpr" and the "args" list (which are expressions belonging to
- * the outer plan).  It will not touch the completed subplan, however.  Since
- * there is no link to the original Query, it is not possible to recurse into
- * subselects of an already-planned expression tree.  This is OK for current
- * uses, but may need to be revisited in future.
- */
+* into the "testexpr" and the "args" list (which are expressions belonging to
+    * the outer plan).  It will not touch the completed subplan, however.  Since
+* there is no link to the original Query, it is not possible to recurse into
+* subselects of an already-planned expression tree.  This is OK for current
+* uses, but may need to be revisited in future.
+*/
 
 bool
 expression_tree_walker_impl(Node *node,
                             tree_walker_callback walker,
                             void *context)
 {
+  DBUG_TRACE;
   ListCell   *temp;
 
   /*
@@ -2340,6 +2804,8 @@ expression_tree_walker_impl(Node *node,
 
   /* Guard against stack overflow due to overly complex expressions */
   check_stack_depth();
+
+  trace_node_type(nodeTag(node));
 
   switch (nodeTag(node)) {
     case T_Var:
@@ -3003,6 +3469,7 @@ query_tree_walker_impl(Query *query,
                        void *context,
                        int flags)
 {
+  DBUG_TRACE;
   Assert(query != NULL && IsA(query, Query));
 
   /*
@@ -3012,38 +3479,60 @@ query_tree_walker_impl(Query *query,
    * in a rule action.
    */
 
-  if (WALK(query->targetList))
+  if (WALK(query->targetList)) {
+    DBUG_PRINT("info", "after walking through all items in the target list, return true");
     return true;
+  }
 
-  if (WALK(query->withCheckOptions))
+  if (WALK(query->withCheckOptions)) {
+    DBUG_PRINT("info", "after walking through the withCheckOptions, return true");
     return true;
+  }
 
-  if (WALK(query->onConflict))
+  if (WALK(query->onConflict)) {
+    DBUG_PRINT("info", "after walking through the onConflict, return true");
     return true;
+  }
 
-  if (WALK(query->mergeActionList))
+  if (WALK(query->mergeActionList)) {
+    DBUG_PRINT("info", "after walking through the mergeActionList, return true");
     return true;
+  }
 
-  if (WALK(query->mergeJoinCondition))
+  if (WALK(query->mergeJoinCondition)) {
+    DBUG_PRINT("info", "after walking through the mergeJoinCondition, return true");
     return true;
+  }
 
-  if (WALK(query->returningList))
+  if (WALK(query->returningList)) {
+    DBUG_PRINT("info", "after walking through the returningList, return true");
     return true;
+  }
 
-  if (WALK(query->jointree))
+  if (WALK(query->jointree)) {
+    DBUG_PRINT("info", "after walking through the jointree, return true");
     return true;
+  }
 
-  if (WALK(query->setOperations))
+  if (WALK(query->setOperations)) {
+    DBUG_PRINT("info", "after walking through the setOperations, return true");
     return true;
+  }
 
-  if (WALK(query->havingQual))
+  if (WALK(query->havingQual)) {
+    DBUG_PRINT("info", "after walking through the havingQual, return true");
     return true;
+  }
 
-  if (WALK(query->limitOffset))
+  if (WALK(query->limitOffset)) {
+    DBUG_PRINT("info", "after walking through the limitOffset, return true");
     return true;
+  }
 
-  if (WALK(query->limitCount))
+  if (WALK(query->limitCount)) {
+    DBUG_PRINT("info", "after walking through the limitCount, return true");
     return true;
+  }
 
   /*
    * Most callers aren't interested in SortGroupClause nodes since those
@@ -3051,17 +3540,25 @@ query_tree_walker_impl(Query *query,
    * may be needed by dependency walkers etc.
    */
   if ((flags & QTW_EXAMINE_SORTGROUP)) {
-    if (WALK(query->groupClause))
+    if (WALK(query->groupClause)) {
+      DBUG_PRINT("info", "after walking through the groupClause, return true");
       return true;
+    }
 
-    if (WALK(query->windowClause))
+    if (WALK(query->windowClause)) {
+      DBUG_PRINT("info", "after walking through the windowClause, return true");
       return true;
+    }
 
-    if (WALK(query->sortClause))
+    if (WALK(query->sortClause)) {
+      DBUG_PRINT("info", "after walking through the sortClause, return true");
       return true;
+    }
 
-    if (WALK(query->distinctClause))
+    if (WALK(query->distinctClause)) {
+      DBUG_PRINT("info", "after walking through the distinctClause, return true");
       return true;
+    }
   } else {
     /*
      * But we need to walk the expressions under WindowClause nodes even
@@ -3072,11 +3569,15 @@ query_tree_walker_impl(Query *query,
     foreach(lc, query->windowClause) {
       WindowClause *wc = lfirst_node(WindowClause, lc);
 
-      if (WALK(wc->startOffset))
+      if (WALK(wc->startOffset)) {
+        DBUG_PRINT("info", "after walking through the startOffset, return true");
         return true;
+      }
 
-      if (WALK(wc->endOffset))
+      if (WALK(wc->endOffset)) {
+        DBUG_PRINT("info", "after walking through the endOffset, return true");
         return true;
+      }
     }
   }
 
@@ -3093,15 +3594,20 @@ query_tree_walker_impl(Query *query,
    */
 
   if (!(flags & QTW_IGNORE_CTE_SUBQUERIES)) {
-    if (WALK(query->cteList))
+    if (WALK(query->cteList)) {
+      DBUG_PRINT("info", "after walking through the cteList, return true");
       return true;
+    }
   }
 
   if (!(flags & QTW_IGNORE_RANGE_TABLE)) {
-    if (range_table_walker(query->rtable, walker, context, flags))
+    if (range_table_walker(query->rtable, walker, context, flags)) {
+      DBUG_PRINT("info", "after walking through the range table, return true");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -3116,15 +3622,21 @@ range_table_walker_impl(List *rtable,
                         void *context,
                         int flags)
 {
+  DBUG_TRACE;
   ListCell   *rt;
+
+  DBUG_PRINT("info", "scan a query's rangetable");
 
   foreach(rt, rtable) {
     RangeTblEntry *rte = lfirst_node(RangeTblEntry, rt);
 
-    if (range_table_entry_walker(rte, walker, context, flags))
+    if (range_table_entry_walker(rte, walker, context, flags)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -3137,6 +3649,8 @@ range_table_entry_walker_impl(RangeTblEntry *rte,
                               void *context,
                               int flags)
 {
+  DBUG_TRACE;
+
   /*
    * Walkers might need to examine the RTE node itself either before or
    * after visiting its contents (or, conceivably, both).  Note that if you
@@ -3277,6 +3791,7 @@ expression_tree_mutator_impl(Node *node,
                              tree_mutator_callback mutator,
                              void *context)
 {
+  DBUG_TRACE;
   /*
    * The mutator has already decided not to modify the current node, but we
    * must call the mutator for any sub-nodes.
@@ -3287,13 +3802,15 @@ expression_tree_mutator_impl(Node *node,
     memcpy((newnode), (node), sizeof(nodetype)) )
 
 #define MUTATE(newfield, oldfield, fieldtype)  \
-    ( (newfield) = (fieldtype) mutator((Node *) (oldfield), context) )
+  ( (newfield) = (fieldtype) mutator((Node *) (oldfield), context) )
 
   if (node == NULL)
     return NULL;
 
   /* Guard against stack overflow due to overly complex expressions */
   check_stack_depth();
+
+  trace_node_type(nodeTag(node));
 
   switch (nodeTag(node)) {
     /*
@@ -4109,6 +4626,7 @@ query_tree_mutator_impl(Query *query,
                         void *context,
                         int flags)
 {
+  DBUG_TRACE;
   Assert(query != NULL && IsA(query, Query));
 
   if (!(flags & QTW_DONT_COPY_QUERY)) {
@@ -4198,6 +4716,7 @@ range_table_mutator_impl(List *rtable,
                          void *context,
                          int flags)
 {
+  DBUG_TRACE;
   List     *newrt = NIL;
   ListCell   *rt;
 
@@ -4284,6 +4803,8 @@ query_or_expression_tree_walker_impl(Node *node,
                                      void *context,
                                      int flags)
 {
+  DBUG_TRACE;
+
   if (node && IsA(node, Query))
     return query_tree_walker((Query *) node,
                              walker,
@@ -4337,48 +4858,98 @@ raw_expression_tree_walker_impl(Node *node,
                                 tree_walker_callback walker,
                                 void *context)
 {
+  DBUG_TRACE;
+  int node_tag;
   ListCell   *temp;
 
   /*
    * The walker has already visited the current node, and so we need only
    * recurse into any sub-nodes it has.
    */
-  if (node == NULL)
+  if (node == NULL) {
+    DBUG_PRINT("info", "The walker has already visited the current node.");
     return false;
+  }
 
   /* Guard against stack overflow due to overly complex expressions */
   check_stack_depth();
 
-  switch (nodeTag(node)) {
+  node_tag = nodeTag(node);
+
+  switch (node_tag) {
     case T_JsonFormat:
+      DBUG_PRINT("info", "json format type.");
+      break;
+
     case T_SetToDefault:
+      DBUG_PRINT("info", "set to default type.");
+      break;
+
     case T_CurrentOfExpr:
+      DBUG_PRINT("info", "current of expr type.");
+      break;
+
     case T_SQLValueFunction:
+      DBUG_PRINT("info", "sql value function type.");
+      break;
+
     case T_Integer:
+      DBUG_PRINT("info", "integer type.");
+      break;
+
     case T_Float:
+      DBUG_PRINT("info", "float type.");
+      break;
+
     case T_Boolean:
+      DBUG_PRINT("info", "boolean type.");
+      break;
+
     case T_String:
+      DBUG_PRINT("info", "string type.");
+      break;
+
     case T_BitString:
+      DBUG_PRINT("info", "bit string type.");
+      break;
+
     case T_ParamRef:
+      DBUG_PRINT("info", "param ref type.");
+      break;
+
     case T_A_Const:
+      DBUG_PRINT("info", "a const type.");
+      break;
+
     case T_A_Star:
+      DBUG_PRINT("info", "a star type.");
+      break;
+
     case T_MergeSupportFunc:
+      DBUG_PRINT("info", "primitive merge support func type.");
+      break;
+
     case T_ReturningOption:
       /* primitive node types with no subnodes */
       break;
 
     case T_Alias:
+      DBUG_PRINT("info", "alias type.");
       /* we assume the colnames list isn't interesting */
       break;
 
     case T_RangeVar:
+      DBUG_PRINT("info", "range var type.");
       return WALK(((RangeVar *) node)->alias);
 
     case T_GroupingFunc:
+      DBUG_PRINT("info", "grouping func type.");
       return WALK(((GroupingFunc *) node)->args);
 
     case T_SubLink: {
       SubLink    *sublink = (SubLink *) node;
+
+      DBUG_PRINT("info", "sublink type.");
 
       if (WALK(sublink->testexpr))
         return true;
@@ -4391,6 +4962,8 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_CaseExpr: {
       CaseExpr   *caseexpr = (CaseExpr *) node;
+
+      DBUG_PRINT("info", "case expr type.");
 
       if (WALK(caseexpr->arg))
         return true;
@@ -4412,17 +4985,22 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_RowExpr:
+      DBUG_PRINT("info", "row expr type.");
       /* Assume colnames isn't interesting */
       return WALK(((RowExpr *) node)->args);
 
     case T_CoalesceExpr:
+      DBUG_PRINT("info", "coalesce expr type.");
       return WALK(((CoalesceExpr *) node)->args);
 
     case T_MinMaxExpr:
+      DBUG_PRINT("info", "min max expr type.");
       return WALK(((MinMaxExpr *) node)->args);
 
     case T_XmlExpr: {
       XmlExpr    *xexpr = (XmlExpr *) node;
+
+      DBUG_PRINT("info", "xml expr type.");
 
       if (WALK(xexpr->named_args))
         return true;
@@ -4434,10 +5012,12 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_JsonReturning:
+      DBUG_PRINT("info", "json returning type.");
       return WALK(((JsonReturning *) node)->format);
 
     case T_JsonValueExpr: {
       JsonValueExpr *jve = (JsonValueExpr *) node;
+      DBUG_PRINT("info", "json value expr type.");
 
       if (WALK(jve->raw_expr))
         return true;
@@ -4452,6 +5032,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonParseExpr: {
       JsonParseExpr *jpe = (JsonParseExpr *) node;
+      DBUG_PRINT("info", "json parse expr type.");
 
       if (WALK(jpe->expr))
         return true;
@@ -4463,6 +5044,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonScalarExpr: {
       JsonScalarExpr *jse = (JsonScalarExpr *) node;
+      DBUG_PRINT("info", "json parse scalar type.");
 
       if (WALK(jse->expr))
         return true;
@@ -4474,6 +5056,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonSerializeExpr: {
       JsonSerializeExpr *jse = (JsonSerializeExpr *) node;
+      DBUG_PRINT("info", "json serialize type.");
 
       if (WALK(jse->expr))
         return true;
@@ -4485,6 +5068,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonConstructorExpr: {
       JsonConstructorExpr *ctor = (JsonConstructorExpr *) node;
+      DBUG_PRINT("info", "json constructor expr type.");
 
       if (WALK(ctor->args))
         return true;
@@ -4501,13 +5085,16 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_JsonIsPredicate:
+      DBUG_PRINT("info", "json is predicate type.");
       return WALK(((JsonIsPredicate *) node)->expr);
 
     case T_JsonArgument:
+      DBUG_PRINT("info", "json argument type.");
       return WALK(((JsonArgument *) node)->val);
 
     case T_JsonFuncExpr: {
       JsonFuncExpr *jfe = (JsonFuncExpr *) node;
+      DBUG_PRINT("info", "json func expr type.");
 
       if (WALK(jfe->context_item))
         return true;
@@ -4531,6 +5118,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonBehavior: {
       JsonBehavior *jb = (JsonBehavior *) node;
+      DBUG_PRINT("info", "json behavior type.");
 
       if (WALK(jb->expr))
         return true;
@@ -4539,6 +5127,8 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonTable: {
       JsonTable  *jt = (JsonTable *) node;
+
+      DBUG_PRINT("info", "json table type.");
 
       if (WALK(jt->context_item))
         return true;
@@ -4559,6 +5149,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonTableColumn: {
       JsonTableColumn *jtc = (JsonTableColumn *) node;
+      DBUG_PRINT("info", "json table column type.");
 
       if (WALK(jtc->typeName))
         return true;
@@ -4575,16 +5166,20 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_JsonTablePathSpec:
+      DBUG_PRINT("info", "json table path spec type.");
       return WALK(((JsonTablePathSpec *) node)->string);
 
     case T_NullTest:
+      DBUG_PRINT("info", "null test type.");
       return WALK(((NullTest *) node)->arg);
 
     case T_BooleanTest:
+      DBUG_PRINT("info", "boolean test type.");
       return WALK(((BooleanTest *) node)->arg);
 
     case T_JoinExpr: {
       JoinExpr   *join = (JoinExpr *) node;
+      DBUG_PRINT("info", "join expr type.");
 
       if (WALK(join->larg))
         return true;
@@ -4604,6 +5199,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_IntoClause: {
       IntoClause *into = (IntoClause *) node;
+      DBUG_PRINT("info", "into clause type.");
 
       if (WALK(into->rel))
         return true;
@@ -4616,6 +5212,8 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_List:
+      DBUG_PRINT("info", "list type.");
+
       foreach(temp, (List *) node) {
         if (WALK((Node *) lfirst(temp)))
           return true;
@@ -4625,6 +5223,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_InsertStmt: {
       InsertStmt *stmt = (InsertStmt *) node;
+      DBUG_PRINT("info", "insert stmt type.");
 
       if (WALK(stmt->relation))
         return true;
@@ -4649,6 +5248,8 @@ raw_expression_tree_walker_impl(Node *node,
     case T_DeleteStmt: {
       DeleteStmt *stmt = (DeleteStmt *) node;
 
+      DBUG_PRINT("info", "delete stmt type.");
+
       if (WALK(stmt->relation))
         return true;
 
@@ -4668,6 +5269,8 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_UpdateStmt: {
       UpdateStmt *stmt = (UpdateStmt *) node;
+
+      DBUG_PRINT("info", "update stmt type.");
 
       if (WALK(stmt->relation))
         return true;
@@ -4692,6 +5295,8 @@ raw_expression_tree_walker_impl(Node *node,
     case T_MergeStmt: {
       MergeStmt  *stmt = (MergeStmt *) node;
 
+      DBUG_PRINT("info", "merge stmt type.");
+
       if (WALK(stmt->relation))
         return true;
 
@@ -4714,6 +5319,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_MergeWhenClause: {
       MergeWhenClause *mergeWhenClause = (MergeWhenClause *) node;
+      DBUG_PRINT("info", "merge when clause type.");
 
       if (WALK(mergeWhenClause->condition))
         return true;
@@ -4739,6 +5345,8 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_SelectStmt: {
       SelectStmt *stmt = (SelectStmt *) node;
+
+      DBUG_PRINT("info", "select stmt type.");
 
       if (WALK(stmt->distinctClause))
         return true;
@@ -4792,6 +5400,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_PLAssignStmt: {
       PLAssignStmt *stmt = (PLAssignStmt *) node;
+      DBUG_PRINT("info", "pl assign stmt type.");
 
       if (WALK(stmt->indirection))
         return true;
@@ -4803,6 +5412,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_A_Expr: {
       A_Expr     *expr = (A_Expr *) node;
+      DBUG_PRINT("info", "a expr type.");
 
       if (WALK(expr->lexpr))
         return true;
@@ -4816,6 +5426,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_BoolExpr: {
       BoolExpr   *expr = (BoolExpr *) node;
+      DBUG_PRINT("info", "bool expr type.");
 
       if (WALK(expr->args))
         return true;
@@ -4823,11 +5434,13 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_ColumnRef:
+      DBUG_PRINT("info", "column ref type.");
       /* we assume the fields contain nothing interesting */
       break;
 
     case T_FuncCall: {
       FuncCall   *fcall = (FuncCall *) node;
+      DBUG_PRINT("info", "func call type.");
 
       if (WALK(fcall->args))
         return true;
@@ -4846,10 +5459,12 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_NamedArgExpr:
+      DBUG_PRINT("info", "named arg expr type.");
       return WALK(((NamedArgExpr *) node)->arg);
 
     case T_A_Indices: {
       A_Indices  *indices = (A_Indices *) node;
+      DBUG_PRINT("info", "a indices type.");
 
       if (WALK(indices->lidx))
         return true;
@@ -4861,6 +5476,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_A_Indirection: {
       A_Indirection *indir = (A_Indirection *) node;
+      DBUG_PRINT("info", "a indirection type.");
 
       if (WALK(indir->arg))
         return true;
@@ -4871,10 +5487,12 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_A_ArrayExpr:
+      DBUG_PRINT("info", "a array expr type.");
       return WALK(((A_ArrayExpr *) node)->elements);
 
     case T_ResTarget: {
       ResTarget  *rt = (ResTarget *) node;
+      DBUG_PRINT("info", "a res target type.");
 
       if (WALK(rt->indirection))
         return true;
@@ -4885,10 +5503,12 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_MultiAssignRef:
+      DBUG_PRINT("info", "multi assign ref type.");
       return WALK(((MultiAssignRef *) node)->source);
 
     case T_TypeCast: {
       TypeCast   *tc = (TypeCast *) node;
+      DBUG_PRINT("info", "type cast type.");
 
       if (WALK(tc->arg))
         return true;
@@ -4899,13 +5519,17 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_CollateClause:
+      DBUG_PRINT("info", "collate clause type.");
       return WALK(((CollateClause *) node)->arg);
 
     case T_SortBy:
+      DBUG_PRINT("info", "sort by type.");
       return WALK(((SortBy *) node)->node);
 
     case T_WindowDef: {
       WindowDef  *wd = (WindowDef *) node;
+
+      DBUG_PRINT("info", "window def type.");
 
       if (WALK(wd->partitionClause))
         return true;
@@ -4923,6 +5547,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_RangeSubselect: {
       RangeSubselect *rs = (RangeSubselect *) node;
+      DBUG_PRINT("info", "range sub select type.");
 
       if (WALK(rs->subquery))
         return true;
@@ -4934,6 +5559,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_RangeFunction: {
       RangeFunction *rf = (RangeFunction *) node;
+      DBUG_PRINT("info", "range function type.");
 
       if (WALK(rf->functions))
         return true;
@@ -4948,6 +5574,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_RangeTableSample: {
       RangeTableSample *rts = (RangeTableSample *) node;
+      DBUG_PRINT("info", "range tablee sample type.");
 
       if (WALK(rts->relation))
         return true;
@@ -4963,6 +5590,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_RangeTableFunc: {
       RangeTableFunc *rtf = (RangeTableFunc *) node;
+      DBUG_PRINT("info", "range table func type.");
 
       if (WALK(rtf->docexpr))
         return true;
@@ -4983,6 +5611,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_RangeTableFuncCol: {
       RangeTableFuncCol *rtfc = (RangeTableFuncCol *) node;
+      DBUG_PRINT("info", "range table fun col type.");
 
       if (WALK(rtfc->colexpr))
         return true;
@@ -4994,6 +5623,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_TypeName: {
       TypeName   *tn = (TypeName *) node;
+      DBUG_PRINT("info", "type name type.");
 
       if (WALK(tn->typmods))
         return true;
@@ -5007,6 +5637,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_ColumnDef: {
       ColumnDef  *coldef = (ColumnDef *) node;
+      DBUG_PRINT("info", "column def type.");
 
       if (WALK(coldef->typeName))
         return true;
@@ -5023,6 +5654,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_IndexElem: {
       IndexElem  *indelem = (IndexElem *) node;
+      DBUG_PRINT("info", "index elem type.");
 
       if (WALK(indelem->expr))
         return true;
@@ -5032,13 +5664,16 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_GroupingSet:
+      DBUG_PRINT("info", "grouping set type.");
       return WALK(((GroupingSet *) node)->content);
 
     case T_LockingClause:
+      DBUG_PRINT("info", "locking clause type.");
       return WALK(((LockingClause *) node)->lockedRels);
 
     case T_XmlSerialize: {
       XmlSerialize *xs = (XmlSerialize *) node;
+      DBUG_PRINT("info", "xml serialize type.");
 
       if (WALK(xs->expr))
         return true;
@@ -5049,10 +5684,12 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_WithClause:
+      DBUG_PRINT("info", "with clause type.");
       return WALK(((WithClause *) node)->ctes);
 
     case T_InferClause: {
       InferClause *stmt = (InferClause *) node;
+      DBUG_PRINT("info", "infer clause type.");
 
       if (WALK(stmt->indexElems))
         return true;
@@ -5064,6 +5701,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_OnConflictClause: {
       OnConflictClause *stmt = (OnConflictClause *) node;
+      DBUG_PRINT("info", "on conflict clause type.");
 
       if (WALK(stmt->infer))
         return true;
@@ -5077,11 +5715,13 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     case T_CommonTableExpr:
+      DBUG_PRINT("info", "common table expr type.");
       /* search_clause and cycle_clause are not interesting here */
       return WALK(((CommonTableExpr *) node)->ctequery);
 
     case T_JsonOutput: {
       JsonOutput *out = (JsonOutput *) node;
+      DBUG_PRINT("info", "json output type.");
 
       if (WALK(out->typeName))
         return true;
@@ -5093,6 +5733,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonKeyValue: {
       JsonKeyValue *jkv = (JsonKeyValue *) node;
+      DBUG_PRINT("info", "json key value type.");
 
       if (WALK(jkv->key))
         return true;
@@ -5104,6 +5745,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonObjectConstructor: {
       JsonObjectConstructor *joc = (JsonObjectConstructor *) node;
+      DBUG_PRINT("info", "json object constructor type.");
 
       if (WALK(joc->output))
         return true;
@@ -5115,6 +5757,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonArrayConstructor: {
       JsonArrayConstructor *jac = (JsonArrayConstructor *) node;
+      DBUG_PRINT("info", "json array constructor type.");
 
       if (WALK(jac->output))
         return true;
@@ -5126,6 +5769,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonAggConstructor: {
       JsonAggConstructor *ctor = (JsonAggConstructor *) node;
+      DBUG_PRINT("info", "json agg constructor type.");
 
       if (WALK(ctor->output))
         return true;
@@ -5143,6 +5787,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonObjectAgg: {
       JsonObjectAgg *joa = (JsonObjectAgg *) node;
+      DBUG_PRINT("info", "json object agg type.");
 
       if (WALK(joa->constructor))
         return true;
@@ -5154,6 +5799,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonArrayAgg: {
       JsonArrayAgg *jaa = (JsonArrayAgg *) node;
+      DBUG_PRINT("info", "json array agg type.");
 
       if (WALK(jaa->constructor))
         return true;
@@ -5165,6 +5811,7 @@ raw_expression_tree_walker_impl(Node *node,
 
     case T_JsonArrayQueryConstructor: {
       JsonArrayQueryConstructor *jaqc = (JsonArrayQueryConstructor *) node;
+      DBUG_PRINT("info", "json array query constructor type.");
 
       if (WALK(jaqc->output))
         return true;
@@ -5175,8 +5822,8 @@ raw_expression_tree_walker_impl(Node *node,
     break;
 
     default:
-      elog(ERROR, "unrecognized node type: %d",
-           (int) nodeTag(node));
+      DBUG_PRINT("info", "unrecognized node type:%d", node_tag);
+      elog(ERROR, "unrecognized node type: %d", (int) node_tag);
       break;
   }
 
@@ -5194,6 +5841,7 @@ planstate_tree_walker_impl(PlanState *planstate,
                            planstate_tree_walker_callback walker,
                            void *context)
 {
+  DBUG_TRACE;
   Plan     *plan = planstate->plan;
   ListCell   *lc;
 

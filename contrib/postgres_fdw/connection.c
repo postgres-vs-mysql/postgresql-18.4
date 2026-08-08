@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #if HAVE_POLL_H
 #include <poll.h>
@@ -200,6 +201,7 @@ static bool pgfdw_has_required_scram_options(const char **keywords, const char *
 PGconn *
 GetConnection(UserMapping *user, bool will_prep_stmt, PgFdwConnState **state)
 {
+  DBUG_TRACE;
   bool    found;
   bool    retry = false;
   ConnCacheEntry *entry;
@@ -224,6 +226,7 @@ GetConnection(UserMapping *user, bool will_prep_stmt, PgFdwConnState **state)
      * Register some callback functions that manage connection cleanup.
      * This should be done just once in each backend.
      */
+    DBUG_PRINT("fdw", "register some callback functions that manage connection cleanup");
     RegisterXactCallback(pgfdw_xact_callback, NULL);
     RegisterSubXactCallback(pgfdw_subxact_callback, NULL);
     CacheRegisterSyscacheCallback(FOREIGNSERVEROID,
@@ -360,6 +363,7 @@ GetConnection(UserMapping *user, bool will_prep_stmt, PgFdwConnState **state)
 static void
 make_new_connection(ConnCacheEntry *entry, UserMapping *user)
 {
+  DBUG_TRACE;
   ForeignServer *server = GetForeignServer(user->serverid);
   ListCell   *lc;
 
@@ -426,6 +430,8 @@ make_new_connection(ConnCacheEntry *entry, UserMapping *user)
 static void
 pgfdw_security_check(const char **keywords, const char **values, UserMapping *user, PGconn *conn)
 {
+  DBUG_TRACE;
+
   /* Superusers bypass the check */
   if (superuser_arg(user->userid))
     return;
@@ -473,6 +479,7 @@ pgfdw_security_check(const char **keywords, const char **values, UserMapping *us
 static PGconn *
 connect_pg_server(ForeignServer *server, UserMapping *user)
 {
+  DBUG_TRACE;
   PGconn     *volatile conn = NULL;
 
   /*
@@ -648,6 +655,8 @@ connect_pg_server(ForeignServer *server, UserMapping *user)
 static void
 disconnect_pg_server(ConnCacheEntry *entry)
 {
+  DBUG_TRACE;
+
   if (entry->conn != NULL) {
     libpqsrv_disconnect(entry->conn);
     entry->conn = NULL;
@@ -662,6 +671,7 @@ disconnect_pg_server(ConnCacheEntry *entry)
 static bool
 UserMappingPasswordRequired(UserMapping *user)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   foreach(cell, user->options) {
@@ -707,6 +717,7 @@ UseScramPassthrough(ForeignServer *server, UserMapping *user)
 static void
 check_conn_params(const char **keywords, const char **values, UserMapping *user)
 {
+  DBUG_TRACE;
   int     i;
 
   /* no check required if superuser */
@@ -760,6 +771,7 @@ check_conn_params(const char **keywords, const char **values, UserMapping *user)
 static void
 configure_remote_session(PGconn *conn)
 {
+  DBUG_TRACE;
   int     remoteversion = PQserverVersion(conn);
 
   /* Force the search path to contain only pg_catalog (see deparse.c) */
@@ -800,6 +812,7 @@ configure_remote_session(PGconn *conn)
 void
 do_sql_command(PGconn *conn, const char *sql)
 {
+  DBUG_TRACE;
   do_sql_command_begin(conn, sql);
   do_sql_command_end(conn, sql, false);
 }
@@ -807,6 +820,9 @@ do_sql_command(PGconn *conn, const char *sql)
 static void
 do_sql_command_begin(PGconn *conn, const char *sql)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("fdw", "send query:%s to the backend", sql);
+
   if (!PQsendQuery(conn, sql))
     pgfdw_report_error(ERROR, NULL, conn, false, sql);
 }
@@ -814,6 +830,7 @@ do_sql_command_begin(PGconn *conn, const char *sql)
 static void
 do_sql_command_end(PGconn *conn, const char *sql, bool consume_input)
 {
+  DBUG_TRACE;
   PGresult   *res;
 
   /*
@@ -846,6 +863,7 @@ do_sql_command_end(PGconn *conn, const char *sql, bool consume_input)
 static void
 begin_remote_xact(ConnCacheEntry *entry)
 {
+  DBUG_TRACE;
   int     curlevel = GetCurrentTransactionNestLevel();
 
   /* Start main transaction if we haven't yet */
@@ -861,6 +879,8 @@ begin_remote_xact(ConnCacheEntry *entry)
       sql = "START TRANSACTION ISOLATION LEVEL REPEATABLE READ";
 
     entry->changing_xact_state = true;
+    DBUG_PRINT("fdw", "start remote transaction");
+    DBUG_PRINT("fdw", "sql:%s", sql);
     do_sql_command(entry->conn, sql);
     entry->xact_depth = 1;
     entry->changing_xact_state = false;
@@ -874,6 +894,7 @@ begin_remote_xact(ConnCacheEntry *entry)
   while (entry->xact_depth < curlevel) {
     char    sql[64];
 
+    DBUG_PRINT("fdw", "we're in a subtransaction and stack up savepoints to match our level:%d", entry->xact_depth);
     snprintf(sql, sizeof(sql), "SAVEPOINT s%d", entry->xact_depth + 1);
     entry->changing_xact_state = true;
     do_sql_command(entry->conn, sql);
@@ -888,11 +909,15 @@ begin_remote_xact(ConnCacheEntry *entry)
 void
 ReleaseConnection(PGconn *conn)
 {
+  DBUG_TRACE;
   /*
    * Currently, we don't actually track connection references because all
    * cleanup is managed on a transaction or subtransaction basis instead. So
    * there's nothing to do here.
    */
+  DBUG_PRINT("fdw", "currently, we don't actually track connection references");
+  DBUG_PRINT("fdw", "because all cleanup is managed on a transaction or subtransaction basis instead");
+  DBUG_PRINT("fdw", "so there's nothing to do here");
 }
 
 /*
@@ -909,6 +934,7 @@ ReleaseConnection(PGconn *conn)
 unsigned int
 GetCursorNumber(PGconn *conn)
 {
+  DBUG_TRACE;
   return ++cursor_number;
 }
 
@@ -923,6 +949,7 @@ GetCursorNumber(PGconn *conn)
 unsigned int
 GetPrepStmtNumber(PGconn *conn)
 {
+  DBUG_TRACE;
   return ++prep_stmt_number;
 }
 
@@ -938,6 +965,8 @@ GetPrepStmtNumber(PGconn *conn)
 PGresult *
 pgfdw_exec_query(PGconn *conn, const char *query, PgFdwConnState *state)
 {
+  DBUG_TRACE;
+
   /* First, process a pending asynchronous request, if any. */
   if (state && state->pendingAreq)
     process_pending_request(state->pendingAreq);
@@ -956,6 +985,8 @@ pgfdw_exec_query(PGconn *conn, const char *query, PgFdwConnState *state)
 PGresult *
 pgfdw_get_result(PGconn *conn)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("fdw", "wrap libpqsrv_get_result_last(), adding wait event");
   return libpqsrv_get_result_last(conn, pgfdw_we_get_result);
 }
 
@@ -976,6 +1007,7 @@ void
 pgfdw_report_error(int elevel, PGresult *res, PGconn *conn,
                    bool clear, const char *sql)
 {
+  DBUG_TRACE;
   /* If requested, PGresult must be released before leaving this function. */
   PG_TRY();
   {
@@ -1031,6 +1063,7 @@ pgfdw_report_error(int elevel, PGresult *res, PGconn *conn,
 static void
 pgfdw_xact_callback(XactEvent event, void *arg)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS scan;
   ConnCacheEntry *entry;
   List     *pending_entries = NIL;
@@ -1180,6 +1213,7 @@ static void
 pgfdw_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
                        SubTransactionId parentSubid, void *arg)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS scan;
   ConnCacheEntry *entry;
   int     curlevel;
@@ -1284,6 +1318,7 @@ pgfdw_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
 static void
 pgfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS scan;
   ConnCacheEntry *entry;
 
@@ -1336,6 +1371,7 @@ pgfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 pgfdw_reject_incomplete_xact_state_change(ConnCacheEntry *entry)
 {
+  DBUG_TRACE;
   ForeignServer *server;
 
   /* nothing to do for inactive entries and entries of sane state */
@@ -1357,6 +1393,8 @@ pgfdw_reject_incomplete_xact_state_change(ConnCacheEntry *entry)
 static void
 pgfdw_reset_xact_state(ConnCacheEntry *entry, bool toplevel)
 {
+  DBUG_TRACE;
+
   if (toplevel) {
     /* Reset state to show we're out of a transaction */
     entry->xact_depth = 0;
@@ -1398,6 +1436,7 @@ pgfdw_reset_xact_state(ConnCacheEntry *entry, bool toplevel)
 static bool
 pgfdw_cancel_query(PGconn *conn)
 {
+  DBUG_TRACE;
   TimestampTz now = GetCurrentTimestamp();
   TimestampTz endtime;
   TimestampTz retrycanceltime;
@@ -1432,6 +1471,7 @@ pgfdw_cancel_query(PGconn *conn)
 static bool
 pgfdw_cancel_query_begin(PGconn *conn, TimestampTz endtime)
 {
+  DBUG_TRACE;
   const char *errormsg = libpqsrv_cancel(conn, endtime);
 
   if (errormsg != NULL)
@@ -1446,6 +1486,7 @@ static bool
 pgfdw_cancel_query_end(PGconn *conn, TimestampTz endtime,
                        TimestampTz retrycanceltime, bool consume_input)
 {
+  DBUG_TRACE;
   PGresult   *result;
   bool    timed_out;
 
@@ -1498,6 +1539,7 @@ pgfdw_cancel_query_end(PGconn *conn, TimestampTz endtime,
 static bool
 pgfdw_exec_cleanup_query(PGconn *conn, const char *query, bool ignore_errors)
 {
+  DBUG_TRACE;
   TimestampTz endtime;
 
   /*
@@ -1519,6 +1561,7 @@ pgfdw_exec_cleanup_query(PGconn *conn, const char *query, bool ignore_errors)
 static bool
 pgfdw_exec_cleanup_query_begin(PGconn *conn, const char *query)
 {
+  DBUG_TRACE;
   Assert(query != NULL);
 
   /*
@@ -1538,6 +1581,7 @@ pgfdw_exec_cleanup_query_end(PGconn *conn, const char *query,
                              TimestampTz endtime, bool consume_input,
                              bool ignore_errors)
 {
+  DBUG_TRACE;
   PGresult   *result;
   bool    timed_out;
 
@@ -1597,6 +1641,7 @@ pgfdw_get_cleanup_result(PGconn *conn, TimestampTz endtime,
                          PGresult **result,
                          bool *timed_out)
 {
+  DBUG_TRACE;
   volatile bool failed = false;
   PGresult   *volatile last_res = NULL;
 
@@ -1710,6 +1755,7 @@ exit:
 static void
 pgfdw_abort_cleanup(ConnCacheEntry *entry, bool toplevel)
 {
+  DBUG_TRACE;
   char    sql[100];
 
   /*
@@ -1785,6 +1831,8 @@ static bool
 pgfdw_abort_cleanup_begin(ConnCacheEntry *entry, bool toplevel,
                           List **pending_entries, List **cancel_requested)
 {
+  DBUG_TRACE;
+
   /*
    * Don't try to clean up the connection if we're already in error
    * recursion trouble.
@@ -1843,6 +1891,7 @@ pgfdw_abort_cleanup_begin(ConnCacheEntry *entry, bool toplevel,
 static void
 pgfdw_finish_pre_commit_cleanup(List *pending_entries)
 {
+  DBUG_TRACE;
   ConnCacheEntry *entry;
   List     *pending_deallocs = NIL;
   ListCell   *lc;
@@ -1915,6 +1964,7 @@ pgfdw_finish_pre_commit_cleanup(List *pending_entries)
 static void
 pgfdw_finish_pre_subcommit_cleanup(List *pending_entries, int curlevel)
 {
+  DBUG_TRACE;
   ConnCacheEntry *entry;
   char    sql[100];
   ListCell   *lc;
@@ -1950,6 +2000,7 @@ static void
 pgfdw_finish_abort_cleanup(List *pending_entries, List *cancel_requested,
                            bool toplevel)
 {
+  DBUG_TRACE;
   List     *pending_deallocs = NIL;
   ListCell   *lc;
 
@@ -2137,6 +2188,7 @@ static void
 postgres_fdw_get_connections_internal(FunctionCallInfo fcinfo,
                                       enum pgfdwVersion api_version)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   HASH_SEQ_STATUS scan;
   ConnCacheEntry *entry;
@@ -2284,6 +2336,7 @@ postgres_fdw_get_connections_internal(FunctionCallInfo fcinfo,
 Datum
 postgres_fdw_get_connections_1_2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   postgres_fdw_get_connections_internal(fcinfo, PGFDW_V1_2);
 
   PG_RETURN_VOID();
@@ -2292,6 +2345,7 @@ postgres_fdw_get_connections_1_2(PG_FUNCTION_ARGS)
 Datum
 postgres_fdw_get_connections(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   postgres_fdw_get_connections_internal(fcinfo, PGFDW_V1_1);
 
   PG_RETURN_VOID();
@@ -2312,6 +2366,7 @@ postgres_fdw_get_connections(PG_FUNCTION_ARGS)
 Datum
 postgres_fdw_disconnect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ForeignServer *server;
   char     *servername;
 
@@ -2333,6 +2388,7 @@ postgres_fdw_disconnect(PG_FUNCTION_ARGS)
 Datum
 postgres_fdw_disconnect_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(disconnect_cached_connections(InvalidOid));
 }
 
@@ -2361,6 +2417,7 @@ postgres_fdw_disconnect_all(PG_FUNCTION_ARGS)
 static bool
 disconnect_cached_connections(Oid serverid)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS scan;
   ConnCacheEntry *entry;
   bool    all = !OidIsValid(serverid);

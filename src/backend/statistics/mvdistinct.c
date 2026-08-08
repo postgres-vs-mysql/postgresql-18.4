@@ -21,6 +21,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -337,6 +338,7 @@ statext_ndistinct_deserialize(bytea *data)
 Datum
 pg_ndistinct_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "pg_ndistinct")));
@@ -353,6 +355,7 @@ pg_ndistinct_in(PG_FUNCTION_ARGS)
 Datum
 pg_ndistinct_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data = PG_GETARG_BYTEA_PP(0);
   MVNDistinct *ndist = statext_ndistinct_deserialize(data);
   int     i;
@@ -389,6 +392,7 @@ pg_ndistinct_out(PG_FUNCTION_ARGS)
 Datum
 pg_ndistinct_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "pg_ndistinct")));
@@ -405,6 +409,7 @@ pg_ndistinct_recv(PG_FUNCTION_ARGS)
 Datum
 pg_ndistinct_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteasend(fcinfo);
 }
 

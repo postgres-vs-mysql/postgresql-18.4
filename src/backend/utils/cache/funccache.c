@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_proc.h"
 #include "commands/event_trigger.h"
@@ -57,6 +58,7 @@ static int  cfunc_match(const void *key1, const void *key2, Size keysize);
 static void
 cfunc_hashtable_init(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   /* don't allow double-initialization */
@@ -83,6 +85,7 @@ cfunc_hashtable_init(void)
 static uint32
 cfunc_hash(const void *key, Size keysize)
 {
+  DBUG_TRACE;
   const CachedFunctionHashKey *k = (const CachedFunctionHashKey *) key;
   uint32    h;
 
@@ -110,6 +113,7 @@ cfunc_hash(const void *key, Size keysize)
 static int
 cfunc_match(const void *key1, const void *key2, Size keysize)
 {
+  DBUG_TRACE;
   const CachedFunctionHashKey *k1 = (const CachedFunctionHashKey *) key1;
   const CachedFunctionHashKey *k2 = (const CachedFunctionHashKey *) key2;
 
@@ -146,6 +150,7 @@ cfunc_match(const void *key1, const void *key2, Size keysize)
 static CachedFunction *
 cfunc_hashtable_lookup(CachedFunctionHashKey *func_key)
 {
+  DBUG_TRACE;
   CachedFunctionHashEntry *hentry;
 
   if (cfunc_hashtable == NULL)
@@ -169,6 +174,7 @@ static void
 cfunc_hashtable_insert(CachedFunction *function,
                        CachedFunctionHashKey *func_key)
 {
+  DBUG_TRACE;
   CachedFunctionHashEntry *hentry;
   bool    found;
 
@@ -208,6 +214,7 @@ cfunc_hashtable_insert(CachedFunction *function,
 static void
 cfunc_hashtable_delete(CachedFunction *function)
 {
+  DBUG_TRACE;
   CachedFunctionHashEntry *hentry;
   TupleDesc tupdesc;
 
@@ -254,6 +261,7 @@ compute_function_hashkey(FunctionCallInfo fcinfo,
                          bool includeResultType,
                          bool forValidator)
 {
+  DBUG_TRACE;
   /* Make sure pad bytes within fixed part of the struct are zero */
   memset(hashkey, 0, offsetof(CachedFunctionHashKey, argtypes));
 
@@ -350,6 +358,7 @@ cfunc_resolve_polymorphic_argtypes(int numargs,
                                    Node *call_expr, bool forValidator,
                                    const char *proname)
 {
+  DBUG_TRACE;
   int     i;
 
   if (!forValidator) {
@@ -433,6 +442,7 @@ cfunc_resolve_polymorphic_argtypes(int numargs,
 static void
 delete_function(CachedFunction *func)
 {
+  DBUG_TRACE;
   /* remove function from hash table (might be done already) */
   cfunc_hashtable_delete(func);
 
@@ -485,6 +495,7 @@ cached_function_compile(FunctionCallInfo fcinfo,
                         bool includeResultType,
                         bool forValidator)
 {
+  DBUG_TRACE;
   Oid     funcOid = fcinfo->flinfo->fn_oid;
   HeapTuple procTup;
   Form_pg_proc procStruct;
@@ -523,13 +534,16 @@ recheck:
   if (function) {
     /* We have a compiled function, but is it still valid? */
     if (function->fn_xmin == HeapTupleHeaderGetRawXmin(procTup->t_data) &&
-        ItemPointerEquals(&function->fn_tid, &procTup->t_self))
+        ItemPointerEquals(&function->fn_tid, &procTup->t_self)) {
       function_valid = true;
-    else {
+      DBUG_PRINT("info", "we have a compiled function and it is still valid");
+    } else {
       /*
        * Nope, so remove it from hashtable and try to drop associated
        * storage (if not done already).
        */
+      DBUG_PRINT("info", "we have a compiled function, but is it still valid? No");
+      DBUG_PRINT("info", "remove it from hashtable and try to drop associated storage");
       delete_function(function);
 
       /*

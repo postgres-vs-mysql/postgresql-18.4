@@ -69,6 +69,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "miscadmin.h"
@@ -161,6 +162,7 @@ block_range_read_stream_cb(ReadStream *stream,
                            void *callback_private_data,
                            void *per_buffer_data)
 {
+  DBUG_TRACE;
   BlockRangeReadStreamPrivate *p = callback_private_data;
 
   if (p->current_blocknum < p->last_exclusive)
@@ -176,6 +178,7 @@ block_range_read_stream_cb(ReadStream *stream,
 static inline BlockNumber
 read_stream_get_block(ReadStream *stream, void *per_buffer_data)
 {
+  DBUG_TRACE;
   BlockNumber blocknum;
 
   blocknum = stream->buffered_blocknum;
@@ -227,6 +230,7 @@ read_stream_unget_block(ReadStream *stream, BlockNumber blocknum)
 static bool
 read_stream_start_pending_read(ReadStream *stream)
 {
+  DBUG_TRACE;
   bool    need_wait;
   int     requested_nblocks;
   int     nblocks;
@@ -434,14 +438,18 @@ read_stream_start_pending_read(ReadStream *stream)
 static void
 read_stream_look_ahead(ReadStream *stream)
 {
+  DBUG_TRACE;
+
   /*
    * Allow amortizing the cost of submitting IO over multiple IOs. This
    * requires that we don't do any operations that could lead to a deadlock
    * with staged-but-unsubmitted IO. The callback needs to opt-in to being
    * careful.
    */
-  if (stream->batch_mode)
+  if (stream->batch_mode) {
+    DBUG_PRINT("info", "allow amortizing the cost of submitting IO over multiple IOs");
     pgaio_enter_batchmode();
+  }
 
   while (stream->ios_in_progress < stream->max_ios &&
          stream->pinned_buffers + stream->pending_read_nblocks < stream->distance) {
@@ -470,6 +478,7 @@ read_stream_look_ahead(ReadStream *stream)
 
     if (blocknum == InvalidBlockNumber) {
       /* End of stream. */
+      DBUG_PRINT("info", "end of stream");
       stream->distance = 0;
       break;
     }
@@ -486,6 +495,7 @@ read_stream_look_ahead(ReadStream *stream)
       if (!read_stream_start_pending_read(stream) ||
           stream->ios_in_progress == stream->max_ios) {
         /* We've hit the buffer or I/O limit.  Rewind and stop here. */
+        DBUG_PRINT("info", "we've hit the buffer or I/O limit.  Rewind and stop here.");
         read_stream_unget_block(stream, blocknum);
 
         if (stream->batch_mode)
@@ -496,6 +506,7 @@ read_stream_look_ahead(ReadStream *stream)
     }
 
     /* This is the start of a new pending read. */
+    DBUG_PRINT("info", "this is the start of a new pending read(blkno:%u)", blocknum);
     stream->pending_read_blocknum = blocknum;
     stream->pending_read_nblocks = 1;
   }
@@ -550,6 +561,7 @@ read_stream_begin_impl(int flags,
                        void *callback_private_data,
                        size_t per_buffer_data_size)
 {
+  DBUG_TRACE;
   ReadStream *stream;
   size_t    size;
   int16   queue_size;
@@ -746,6 +758,7 @@ read_stream_begin_relation(int flags,
                            void *callback_private_data,
                            size_t per_buffer_data_size)
 {
+  DBUG_TRACE;
   return read_stream_begin_impl(flags,
                                 strategy,
                                 rel,
@@ -794,6 +807,7 @@ read_stream_begin_smgr_relation(int flags,
 Buffer
 read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
 {
+  DBUG_TRACE;
   Buffer    buffer;
   int16   oldest_buffer_index;
 
@@ -826,6 +840,7 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
 
     /* Choose the next block to pin. */
     next_blocknum = read_stream_get_block(stream, NULL);
+    DBUG_PRINT("info", "choose the next block(blkno:%u) to pin", next_blocknum);
 
     if (likely(next_blocknum != InvalidBlockNumber)) {
       int     flags = stream->read_buffers_flags;
@@ -850,6 +865,7 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
                                   next_blocknum,
                                   flags))) {
         /* Fast return. */
+        DBUG_PRINT("info", "fast return");
         return buffer;
       }
 
@@ -861,6 +877,7 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
       stream->seq_blocknum = next_blocknum + 1;
     } else {
       /* No more blocks, end of stream. */
+      DBUG_PRINT("info", "no more blocks, end of stream");
       stream->distance = 0;
       stream->oldest_buffer_index = stream->next_buffer_index;
       stream->pinned_buffers = 0;
@@ -1032,6 +1049,7 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
 BlockNumber
 read_stream_next_block(ReadStream *stream, BufferAccessStrategy *strategy)
 {
+  DBUG_TRACE;
   *strategy = stream->ios[0].op.strategy;
   return read_stream_get_block(stream, NULL);
 }
@@ -1045,6 +1063,7 @@ read_stream_next_block(ReadStream *stream, BufferAccessStrategy *strategy)
 void
 read_stream_reset(ReadStream *stream)
 {
+  DBUG_TRACE;
   int16   index;
   Buffer    buffer;
 
@@ -1091,6 +1110,7 @@ read_stream_reset(ReadStream *stream)
 void
 read_stream_end(ReadStream *stream)
 {
+  DBUG_TRACE;
   read_stream_reset(stream);
   pfree(stream);
 }

@@ -2,6 +2,7 @@
  * contrib/pg_trgm/trgm_gin.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin.h"
 #include "access/stratnum.h"
@@ -23,6 +24,8 @@ PG_FUNCTION_INFO_V1(gin_trgm_triconsistent);
 Datum
 gin_extract_trgm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_NARGS() == 3)
     return gin_extract_value_trgm(fcinfo);
 
@@ -36,6 +39,7 @@ gin_extract_trgm(PG_FUNCTION_ARGS)
 Datum
 gin_extract_value_trgm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *val = (text *) PG_GETARG_TEXT_PP(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   Datum    *entries = NULL;
@@ -70,6 +74,7 @@ gin_extract_value_trgm(PG_FUNCTION_ARGS)
 Datum
 gin_extract_query_trgm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *val = (text *) PG_GETARG_TEXT_PP(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
@@ -91,6 +96,16 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
     case WordSimilarityStrategyNumber:
     case StrictWordSimilarityStrategyNumber:
     case EqualStrategyNumber:
+      if (strategy == SimilarityStrategyNumber) {
+        DBUG_PRINT("trgm", "strategy: SimilarityStrategyNumber");
+      } else if (strategy == WordSimilarityStrategyNumber) {
+        DBUG_PRINT("trgm", "strategy: WordSimilarityStrategyNumber");
+      } else if (strategy == StrictWordSimilarityStrategyNumber) {
+        DBUG_PRINT("trgm", "strategy: StrictWordSimilarityStrategyNumber");
+      } else {
+        DBUG_PRINT("trgm", "strategy: EqualStrategyNumber");
+      }
+
       trg = generate_trgm(VARDATA_ANY(val), VARSIZE_ANY_EXHDR(val));
       break;
 
@@ -106,6 +121,8 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
        * For wildcard search we extract all the trigrams that every
        * potentially-matching string must include.
        */
+      DBUG_PRINT("trgm", "for wildcard search we extract all the trigrams");
+      DBUG_PRINT("trgm", "that every potentially-matching string must include");
       trg = generate_wildcard_trgm(VARDATA_ANY(val),
                                    VARSIZE_ANY_EXHDR(val));
       break;
@@ -121,6 +138,7 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
                           &graph, CurrentMemoryContext);
 
       if (trg && ARRNELEM(trg) > 0) {
+        DBUG_PRINT("trgm", "successful regex processing");
         /*
          * Successful regex processing: store NFA-like graph as
          * extra_data.  GIN API requires an array of nentries
@@ -133,6 +151,7 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
           (*extra_data)[i] = (Pointer) graph;
       } else {
         /* No result: have to do full index scan. */
+        DBUG_PRINT("trgm", "no result: have to do full index scan");
         *nentries = 0;
         *searchMode = GIN_SEARCH_MODE_ALL;
         PG_RETURN_POINTER(entries);
@@ -164,8 +183,12 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
   /*
    * If no trigram was extracted then we have to scan all the index.
    */
-  if (trglen == 0)
+  if (trglen == 0) {
+    DBUG_PRINT("trgm", "no trigram was extracted and we have to scan all the index");
     *searchMode = GIN_SEARCH_MODE_ALL;
+  } else {
+    DBUG_PRINT("trgm", "extracted %d trigrams", trglen);
+  }
 
   PG_RETURN_POINTER(entries);
 }
@@ -173,6 +196,7 @@ gin_extract_query_trgm(PG_FUNCTION_ARGS)
 Datum
 gin_trgm_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -201,6 +225,8 @@ gin_trgm_consistent(PG_FUNCTION_ARGS)
         if (check[i])
           ntrue++;
       }
+
+      DBUG_PRINT("trgm", "count the matches:%d", ntrue);
 
       /*--------------------
        * If DIVUNION is defined then similarity formula is:
@@ -234,9 +260,14 @@ gin_trgm_consistent(PG_FUNCTION_ARGS)
 
       for (i = 0; i < nkeys; i++) {
         if (!check[i]) {
+          DBUG_PRINT("trgm", "not all extracted trigrams are presented");
           res = false;
           break;
         }
+      }
+
+      if (res) {
+        DBUG_PRINT("trgm", "all extracted trigrams are presented");
       }
 
       break;
@@ -249,6 +280,7 @@ gin_trgm_consistent(PG_FUNCTION_ARGS)
     /* FALL THRU */
     case RegExpStrategyNumber:
       if (nkeys < 1) {
+        DBUG_PRINT("trgm", "regex processing gave no result: do full index scan");
         /* Regex processing gave no result: do full index scan */
         res = true;
       } else
@@ -263,6 +295,12 @@ gin_trgm_consistent(PG_FUNCTION_ARGS)
       break;
   }
 
+  if (res) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
@@ -275,6 +313,7 @@ gin_trgm_consistent(PG_FUNCTION_ARGS)
 Datum
 gin_trgm_triconsistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -301,6 +340,8 @@ gin_trgm_triconsistent(PG_FUNCTION_ARGS)
           ntrue++;
       }
 
+      DBUG_PRINT("trgm", "count the matches:%d", ntrue);
+
       /*
        * See comment in gin_trgm_consistent() about * upper bound
        * formula
@@ -323,9 +364,14 @@ gin_trgm_triconsistent(PG_FUNCTION_ARGS)
 
       for (i = 0; i < nkeys; i++) {
         if (check[i] == GIN_FALSE) {
+          DBUG_PRINT("trgm", "not all extracted trigrams are presented");
           res = GIN_FALSE;
           break;
         }
+      }
+
+      if (res == GIN_MAYBE) {
+        DBUG_PRINT("trgm", "all extracted trigrams are presented");
       }
 
       break;
@@ -338,6 +384,7 @@ gin_trgm_triconsistent(PG_FUNCTION_ARGS)
     /* FALL THRU */
     case RegExpStrategyNumber:
       if (nkeys < 1) {
+        DBUG_PRINT("trgm", "regex processing gave no result: do full index scan");
         /* Regex processing gave no result: do full index scan */
         res = GIN_MAYBE;
       } else {
@@ -346,14 +393,18 @@ gin_trgm_triconsistent(PG_FUNCTION_ARGS)
          * function, promoting all GIN_MAYBE keys to GIN_TRUE will
          * give a conservative result.
          */
+        DBUG_PRINT("trgm", "as trigramsMatchGraph implements a monotonic boolean function,");
+        DBUG_PRINT("trgm", "promoting all GIN_MAYBE keys to GIN_TRUE will give a conservative result");
         boolcheck = (bool *) palloc(sizeof(bool) * nkeys);
 
         for (i = 0; i < nkeys; i++)
           boolcheck[i] = (check[i] != GIN_FALSE);
 
         if (!trigramsMatchGraph((TrgmPackedGraph *) extra_data[0],
-                                boolcheck))
+                                boolcheck)) {
+          DBUG_PRINT("trgm", "return false");
           res = GIN_FALSE;
+        }
 
         pfree(boolcheck);
       }

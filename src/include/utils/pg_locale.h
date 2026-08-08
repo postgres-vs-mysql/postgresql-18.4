@@ -122,17 +122,16 @@ struct pg_locale_struct
 
   const struct collate_methods *collate;  /* NULL if collate_is_c */
 
-  union
-  {
-    struct
-    {
+  union {
+struct
+{
       const char *locale;
       bool    casemap_full;
     }     builtin;
     locale_t  lt;
 #ifdef USE_ICU
-    struct
-    {
+struct
+{
       const char *locale;
       UCollator  *ucol;
     }     icu;

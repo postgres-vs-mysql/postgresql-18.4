@@ -10,6 +10,7 @@
  *    src/backend/postmaster/auxprocess.c
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -38,6 +39,7 @@ static void ShutdownAuxiliaryProcess(int code, Datum arg);
 void
 AuxiliaryProcessMainCommon(void)
 {
+  DBUG_TRACE;
   Assert(IsUnderPostmaster);
 
   /* Release postmaster's working memory context */
@@ -96,6 +98,7 @@ AuxiliaryProcessMainCommon(void)
 static void
 ShutdownAuxiliaryProcess(int code, Datum arg)
 {
+  DBUG_TRACE;
   LWLockReleaseAll();
   ConditionVariableCancelSleep();
   pgstat_report_wait_end();

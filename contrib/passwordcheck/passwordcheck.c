@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -60,6 +61,8 @@ check_password(const char *username,
                Datum validuntil_time,
                bool validuntil_null)
 {
+  DBUG_TRACE;
+
   if (prev_check_password_hook)
     prev_check_password_hook(username, shadow_pass,
                              password_type, validuntil_time,
@@ -148,6 +151,7 @@ check_password(const char *username,
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Define custom GUC variables. */
   DefineCustomIntVariable("passwordcheck.min_password_length",
                           "Minimum allowed password length.",

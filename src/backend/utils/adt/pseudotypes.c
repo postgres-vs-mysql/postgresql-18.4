@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "libpq/pqformat.h"
 #include "utils/fmgrprotos.h"
@@ -106,6 +107,7 @@ extern int no_such_variable
 Datum
 cstring_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 
   PG_RETURN_CSTRING(pstrdup(str));
@@ -114,6 +116,7 @@ cstring_in(PG_FUNCTION_ARGS)
 Datum
 cstring_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 
   PG_RETURN_CSTRING(pstrdup(str));
@@ -122,6 +125,7 @@ cstring_out(PG_FUNCTION_ARGS)
 Datum
 cstring_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   char     *str;
   int     nbytes;
@@ -133,6 +137,7 @@ cstring_recv(PG_FUNCTION_ARGS)
 Datum
 cstring_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   StringInfoData buf;
 
@@ -157,12 +162,14 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(anyarray);
 Datum
 anyarray_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return array_out(fcinfo);
 }
 
 Datum
 anyarray_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return array_send(fcinfo);
 }
 
@@ -177,12 +184,14 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(anycompatiblearray);
 Datum
 anycompatiblearray_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return array_out(fcinfo);
 }
 
 Datum
 anycompatiblearray_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return array_send(fcinfo);
 }
 
@@ -196,6 +205,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anyenum);
 Datum
 anyenum_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return enum_out(fcinfo);
 }
 
@@ -209,6 +219,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anyrange);
 Datum
 anyrange_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return range_out(fcinfo);
 }
 
@@ -222,6 +233,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anycompatiblerange);
 Datum
 anycompatiblerange_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return range_out(fcinfo);
 }
 
@@ -235,6 +247,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anymultirange);
 Datum
 anymultirange_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return multirange_out(fcinfo);
 }
 
@@ -248,6 +261,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anycompatiblemultirange);
 Datum
 anycompatiblemultirange_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return multirange_out(fcinfo);
 }
 
@@ -262,18 +276,21 @@ anycompatiblemultirange_out(PG_FUNCTION_ARGS)
 Datum
 void_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_VOID();     /* you were expecting something different? */
 }
 
 Datum
 void_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_CSTRING(pstrdup(""));
 }
 
 Datum
 void_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * Note that since we consume no bytes, an attempt to send anything but an
    * empty string will result in an "invalid message format" error.
@@ -284,6 +301,7 @@ void_recv(PG_FUNCTION_ARGS)
 Datum
 void_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfoData buf;
 
   /* send an empty string */
@@ -302,6 +320,7 @@ void_send(PG_FUNCTION_ARGS)
 Datum
 shell_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of a shell type")));
@@ -312,6 +331,7 @@ shell_in(PG_FUNCTION_ARGS)
 Datum
 shell_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot display a value of a shell type")));
@@ -337,12 +357,14 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(pg_node_tree);
 Datum
 pg_node_tree_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return textout(fcinfo);
 }
 
 Datum
 pg_node_tree_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return textsend(fcinfo);
 }
 

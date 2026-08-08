@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_cast.h"
 #include "catalog/pg_class.h"
@@ -81,8 +82,11 @@ coerce_to_target_type(ParseState *pstate, Node *expr, Oid exprtype,
                       CoercionForm cformat,
                       int location)
 {
+  DBUG_TRACE;
   Node     *result;
   Node     *origexpr;
+
+  DBUG_PRINT("info", "convert an expression to a target type and typmod");
 
   if (!can_coerce_type(1, &exprtype, &targettype, ccontext))
     return NULL;
@@ -158,13 +162,17 @@ coerce_type(ParseState *pstate, Node *node,
             Oid inputTypeId, Oid targetTypeId, int32 targetTypeMod,
             CoercionContext ccontext, CoercionForm cformat, int location)
 {
+  DBUG_TRACE;
   Node     *result;
   CoercionPathType pathtype;
   Oid     funcId;
 
+  DBUG_PRINT("info", "convert an expression to a different type");
+
   if (targetTypeId == inputTypeId ||
       node == NULL) {
     /* no conversion needed */
+    DBUG_PRINT("info", "no conversion needed");
     return node;
   }
 
@@ -185,6 +193,7 @@ coerce_type(ParseState *pstate, Node *node,
      * function argument must be its actual type, not the polymorphic
      * pseudotype.
      */
+    DBUG_PRINT("info", "assume can_coerce_type verified that implicit coercion is okay");
     return node;
   }
 
@@ -210,6 +219,8 @@ coerce_type(ParseState *pstate, Node *node,
      * since the other functions in this file will not match such a
      * parameter to ANYENUM.  But that should get changed eventually.
      */
+    DBUG_PRINT("info", "assume can_coerce_type verified that implicit coercion is okay");
+
     if (inputTypeId != UNKNOWNOID) {
       Oid     baseTypeId = getBaseType(inputTypeId);
 
@@ -223,6 +234,7 @@ coerce_type(ParseState *pstate, Node *node,
         return (Node *) r;
       }
 
+      DBUG_PRINT("info", "not a domain type, so return it as-is");
       /* Not a domain type, so return it as-is */
       return node;
     }
@@ -358,12 +370,14 @@ coerce_type(ParseState *pstate, Node *node,
     result = (Node *) newcon;
 
     /* If target is a domain, apply constraints. */
-    if (baseTypeId != targetTypeId)
+    if (baseTypeId != targetTypeId) {
+      DBUG_PRINT("info", "when target is a domain, apply constraints");
       result = coerce_to_domain(result,
                                 baseTypeId, baseTypeMod,
                                 targetTypeId,
                                 ccontext, cformat, location,
                                 false);
+    }
 
     ReleaseSysCache(baseType);
 
@@ -377,6 +391,7 @@ coerce_type(ParseState *pstate, Node *node,
      * transformed node (very possibly the same Param node), or return
      * NULL to indicate we should proceed with normal coercion.
      */
+    DBUG_PRINT("info", "allow the CoerceParamHook to decide what happens");
     result = pstate->p_coerce_param_hook(pstate,
                                          (Param *) node,
                                          targetTypeId,
@@ -561,6 +576,7 @@ bool
 can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
                 CoercionContext ccontext)
 {
+  DBUG_TRACE;
   bool    have_generics = false;
   int     i;
 
@@ -646,16 +662,22 @@ can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
     /*
      * Else, cannot coerce at this argument position
      */
+    DBUG_PRINT("info", "cannot coerce at this argument position");
     return false;
   }
 
   /* If we found any generic argument types, cross-check them */
   if (have_generics) {
+    DBUG_PRINT("info", "when we found any generic argument types, cross-check them");
+
     if (!check_generic_type_consistency(input_typeids, target_typeids,
-                                        nargs))
+                                        nargs)) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "nput_typeids can be coerced to target_typeids");
   return true;
 }
 
@@ -679,6 +701,7 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
                  CoercionContext ccontext, CoercionForm cformat, int location,
                  bool hideInputCoercion)
 {
+  DBUG_TRACE;
   CoerceToDomain *result;
 
   /* We now require the caller to supply correct baseTypeId/baseTypeMod */
@@ -756,8 +779,11 @@ coerce_type_typmod(Node *node, Oid targetTypeId, int32 targetTypMod,
                    int location,
                    bool hideInputCoercion)
 {
+  DBUG_TRACE;
   CoercionPathType pathtype;
   Oid     funcId;
+
+  DBUG_PRINT("info", "force a value to a particular typmod, if meaningful and possible");
 
   /* Skip coercion if already done */
   if (targetTypMod == exprTypmod(node))
@@ -841,7 +867,10 @@ build_coercion_expression(Node *node,
                           CoercionContext ccontext, CoercionForm cformat,
                           int location)
 {
+  DBUG_TRACE;
   int     nargs = 0;
+
+  DBUG_PRINT("info", "construct an expression tree for applying a pg_cast entry");
 
   if (OidIsValid(funcId)) {
     HeapTuple tp;
@@ -878,11 +907,13 @@ build_coercion_expression(Node *node,
     List     *args;
     Const    *cons;
 
+    DBUG_PRINT("info", "we build an ordinary FuncExpr with special arguments");
     Assert(OidIsValid(funcId));
 
     args = list_make1(node);
 
     if (nargs >= 2) {
+      DBUG_PRINT("info", "pass target typmod as an int4 constant");
       /* Pass target typmod as an int4 constant */
       cons = makeConst(INT4OID,
                        -1,
@@ -896,6 +927,7 @@ build_coercion_expression(Node *node,
     }
 
     if (nargs == 3) {
+      DBUG_PRINT("info", "pass it a boolean isExplicit parameter, too");
       /* Pass it a boolean isExplicit parameter, too */
       cons = makeConst(BOOLOID,
                        -1,
@@ -921,6 +953,7 @@ build_coercion_expression(Node *node,
     Oid     targetElementType;
     Node     *elemexpr;
 
+    DBUG_PRINT("info", "we need to build an ArrayCoerceExpr");
     /*
      * Look through any domain over the source array type.  Note we don't
      * expect that the target type is a domain; it must be a plain array.
@@ -975,6 +1008,7 @@ build_coercion_expression(Node *node,
     /* We need to build a CoerceViaIO node */
     CoerceViaIO *iocoerce = makeNode(CoerceViaIO);
 
+    DBUG_PRINT("info", "we need to build a CoerceViaIO node");
     Assert(!OidIsValid(funcId));
 
     iocoerce->arg = (Expr *) node;
@@ -1006,6 +1040,7 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
                          CoercionForm cformat,
                          int location)
 {
+  DBUG_TRACE;
   RowExpr    *rowexpr;
   Oid     baseTypeId;
   int32   baseTypeMod = -1;
@@ -1015,6 +1050,8 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
   int     i;
   int     ucolno;
   ListCell   *arg;
+
+  DBUG_PRINT("info", "coerce a RECORD to a specific composite type");
 
   if (node && IsA(node, RowExpr)) {
     /*
@@ -1031,13 +1068,17 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
 
     nsitem = GetNSItemByRangeTablePosn(pstate, rtindex, sublevels_up);
     args = expandNSItemVars(pstate, nsitem, sublevels_up, vlocation, NULL);
-  } else
+  } else {
+    char *format1 = format_type_be(RECORDOID);
+    char *format2 = format_type_be(targetTypeId);
+    DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_CANNOT_COERCE),
              errmsg("cannot cast type %s to %s",
-                    format_type_be(RECORDOID),
-                    format_type_be(targetTypeId)),
+                    format1,
+                    format2),
              parser_coercion_errposition(pstate, location, node)));
+  }
 
   /*
    * Look up the composite type, accounting for possibility that what we are
@@ -1068,14 +1109,19 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
       continue;
     }
 
-    if (arg == NULL)
+    if (arg == NULL) {
+      char *format1 = format_type_be(RECORDOID);
+      char *format2 = format_type_be(targetTypeId);
+
+      DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_CANNOT_COERCE),
                errmsg("cannot cast type %s to %s",
-                      format_type_be(RECORDOID),
-                      format_type_be(targetTypeId)),
+                      format1,
+                      format2),
                errdetail("Input has too few columns."),
                parser_coercion_errposition(pstate, location, node)));
+    }
 
     expr = (Node *) lfirst(arg);
     exprtype = exprType(expr);
@@ -1088,31 +1134,40 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
                                   COERCE_IMPLICIT_CAST,
                                   -1);
 
-    if (cexpr == NULL)
+    if (cexpr == NULL) {
+      char *format1 = format_type_be(RECORDOID);
+      char *format2 = format_type_be(targetTypeId);
+
+      DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_CANNOT_COERCE),
                errmsg("cannot cast type %s to %s",
-                      format_type_be(RECORDOID),
-                      format_type_be(targetTypeId)),
+                      format1,
+                      format2),
                errdetail("Cannot cast type %s to %s in column %d.",
                          format_type_be(exprtype),
                          format_type_be(attr->atttypid),
                          ucolno),
                parser_coercion_errposition(pstate, location, expr)));
+    }
 
     newargs = lappend(newargs, cexpr);
     ucolno++;
     arg = lnext(args, arg);
   }
 
-  if (arg != NULL)
+  if (arg != NULL) {
+    char *format1 = format_type_be(RECORDOID);
+    char *format2 = format_type_be(targetTypeId);
+    DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_CANNOT_COERCE),
              errmsg("cannot cast type %s to %s",
-                    format_type_be(RECORDOID),
-                    format_type_be(targetTypeId)),
+                    format1,
+                    format2),
              errdetail("Input has too many columns."),
              parser_coercion_errposition(pstate, location, node)));
+  }
 
   ReleaseTupleDesc(tupdesc);
 
@@ -1150,6 +1205,7 @@ Node *
 coerce_to_boolean(ParseState *pstate, Node *node,
                   const char *constructName)
 {
+  DBUG_TRACE;
   Oid     inputTypeId = exprType(node);
 
   if (inputTypeId != BOOLOID) {
@@ -1161,25 +1217,30 @@ coerce_to_boolean(ParseState *pstate, Node *node,
                                     COERCE_IMPLICIT_CAST,
                                     -1);
 
-    if (newnode == NULL)
+    if (newnode == NULL) {
+      char *format1 = format_type_be(inputTypeId);
+      DBUG_INSTANT_PRINT("info", "argument of %s must be type %s, not type %s", constructName, "boolean", format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                /* translator: first %s is name of a SQL construct, eg WHERE */
                errmsg("argument of %s must be type %s, not type %s",
                       constructName, "boolean",
-                      format_type_be(inputTypeId)),
+                      format1),
                parser_errposition(pstate, exprLocation(node))));
+    }
 
     node = newnode;
   }
 
-  if (expression_returns_set(node))
+  if (expression_returns_set(node)) {
+    DBUG_INSTANT_PRINT("info", "argument of %s must not return a set", constructName);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg WHERE */
              errmsg("argument of %s must not return a set",
                     constructName),
              parser_errposition(pstate, exprLocation(node))));
+  }
 
   return node;
 }
@@ -1199,6 +1260,7 @@ coerce_to_specific_type_typmod(ParseState *pstate, Node *node,
                                Oid targetTypeId, int32 targetTypmod,
                                const char *constructName)
 {
+  DBUG_TRACE;
   Oid     inputTypeId = exprType(node);
 
   if (inputTypeId != targetTypeId) {
@@ -1210,26 +1272,32 @@ coerce_to_specific_type_typmod(ParseState *pstate, Node *node,
                                     COERCE_IMPLICIT_CAST,
                                     -1);
 
-    if (newnode == NULL)
+    if (newnode == NULL) {
+      char *format1 = format_type_be(targetTypeId);
+      char *format2 = format_type_be(inputTypeId);
+      DBUG_INSTANT_PRINT("info", "argument of %s must be type %s, not type %s", constructName, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                /* translator: first %s is name of a SQL construct, eg LIMIT */
                errmsg("argument of %s must be type %s, not type %s",
                       constructName,
-                      format_type_be(targetTypeId),
-                      format_type_be(inputTypeId)),
+                      format1,
+                      format2),
                parser_errposition(pstate, exprLocation(node))));
+    }
 
     node = newnode;
   }
 
-  if (expression_returns_set(node))
+  if (expression_returns_set(node)) {
+    DBUG_INSTANT_PRINT("info", "argument of %s must not return a set", constructName);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg LIMIT */
              errmsg("argument of %s must not return a set",
                     constructName),
              parser_errposition(pstate, exprLocation(node))));
+  }
 
   return node;
 }
@@ -1249,6 +1317,7 @@ coerce_to_specific_type(ParseState *pstate, Node *node,
                         Oid targetTypeId,
                         const char *constructName)
 {
+  DBUG_TRACE;
   return coerce_to_specific_type_typmod(pstate, node,
                                         targetTypeId, -1,
                                         constructName);
@@ -1337,6 +1406,7 @@ Oid
 select_common_type(ParseState *pstate, List *exprs, const char *context,
                    Node **which_expr)
 {
+  DBUG_TRACE;
   Node     *pexpr;
   Oid     ptype;
   TYPCATEGORY pcategory;
@@ -1386,6 +1456,8 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
     if (ntype != UNKNOWNOID && ntype != ptype) {
       TYPCATEGORY ncategory;
       bool    nispreferred;
+      char *format1;
+      char *format2;
 
       get_type_category_preferred(ntype, &ncategory, &nispreferred);
 
@@ -1402,14 +1474,17 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
         if (context == NULL)
           return InvalidOid;
 
+        format1 = format_type_be(ptype);
+        format2 = format_type_be(ntype);
+        DBUG_INSTANT_PRINT("info", "%s types %s and %s cannot be matched", context, format1, format2);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  /*------
                    translator: first %s is name of a SQL construct, eg CASE */
                  errmsg("%s types %s and %s cannot be matched",
                         context,
-                        format_type_be(ptype),
-                        format_type_be(ntype)),
+                        format1,
+                        format2),
                  parser_errposition(pstate, exprLocation(nexpr))));
       } else if (!pispreferred &&
                  can_coerce_type(1, &ptype, &ntype, COERCION_IMPLICIT) &&
@@ -1467,6 +1542,7 @@ select_common_type(ParseState *pstate, List *exprs, const char *context,
 static Oid
 select_common_type_from_oids(int nargs, const Oid *typeids, bool noerror)
 {
+  DBUG_TRACE;
   Oid     ptype;
   TYPCATEGORY pcategory;
   bool    pispreferred;
@@ -1500,6 +1576,7 @@ select_common_type_from_oids(int nargs, const Oid *typeids, bool noerror)
     if (ntype != UNKNOWNOID && ntype != ptype) {
       TYPCATEGORY ncategory;
       bool    nispreferred;
+      char *format1, *format2;
 
       get_type_category_preferred(ntype, &ncategory, &nispreferred);
 
@@ -1515,11 +1592,14 @@ select_common_type_from_oids(int nargs, const Oid *typeids, bool noerror)
         if (noerror)
           return InvalidOid;
 
+        format1 = format_type_be(ptype);
+        format2 = format_type_be(ntype);
+        DBUG_INSTANT_PRINT("info", "argument types %s and %s cannot be matched", format1, format2);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument types %s and %s cannot be matched",
-                        format_type_be(ptype),
-                        format_type_be(ntype))));
+                        format1,
+                        format2)));
       } else if (!pispreferred &&
                  can_coerce_type(1, &ptype, &ntype, COERCION_IMPLICIT) &&
                  !can_coerce_type(1, &ntype, &ptype, COERCION_IMPLICIT)) {
@@ -1556,6 +1636,7 @@ Node *
 coerce_to_common_type(ParseState *pstate, Node *node,
                       Oid targetTypeId, const char *context)
 {
+  DBUG_TRACE;
   Oid     inputTypeId = exprType(node);
 
   if (inputTypeId == targetTypeId)
@@ -1564,15 +1645,20 @@ coerce_to_common_type(ParseState *pstate, Node *node,
   if (can_coerce_type(1, &inputTypeId, &targetTypeId, COERCION_IMPLICIT))
     node = coerce_type(pstate, node, inputTypeId, targetTypeId, -1,
                        COERCION_IMPLICIT, COERCE_IMPLICIT_CAST, -1);
-  else
+  else {
+    char *format1 = format_type_be(inputTypeId);
+    char *format2 = format_type_be(targetTypeId);
+    DBUG_INSTANT_PRINT("info", "%s could not convert type %s to %s",
+                       context, format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_CANNOT_COERCE),
              /* translator: first %s is name of a SQL construct, eg CASE */
              errmsg("%s could not convert type %s to %s",
                     context,
-                    format_type_be(inputTypeId),
-                    format_type_be(targetTypeId)),
+                    format1,
+                    format2),
              parser_errposition(pstate, exprLocation(node))));
+  }
 
   return node;
 }
@@ -1591,16 +1677,20 @@ coerce_to_common_type(ParseState *pstate, Node *node,
 bool
 verify_common_type(Oid common_type, List *exprs)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, exprs) {
     Node     *nexpr = (Node *) lfirst(lc);
     Oid     ntype = exprType(nexpr);
 
-    if (!can_coerce_type(1, &ntype, &common_type, COERCION_IMPLICIT))
+    if (!can_coerce_type(1, &ntype, &common_type, COERCION_IMPLICIT)) {
+      DBUG_PRINT("info", "return false when not all coercions are possible");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true when all input types can be coerced to a proposed common type");
   return true;
 }
 
@@ -1611,11 +1701,16 @@ verify_common_type(Oid common_type, List *exprs)
 static bool
 verify_common_type_from_oids(Oid common_type, int nargs, const Oid *typeids)
 {
+  DBUG_TRACE;
+
   for (int i = 0; i < nargs; i++) {
-    if (!can_coerce_type(1, &typeids[i], &common_type, COERCION_IMPLICIT))
+    if (!can_coerce_type(1, &typeids[i], &common_type, COERCION_IMPLICIT)) {
+      DBUG_PRINT("info", "return false when not all coercions are possible from an array of type OIDs");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true when all input types can be coerced to a proposed common type from an array of type OIDs");
   return true;
 }
 
@@ -1629,6 +1724,7 @@ verify_common_type_from_oids(Oid common_type, int nargs, const Oid *typeids)
 int32
 select_common_typmod(ParseState *pstate, List *exprs, Oid common_type)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   bool    first = true;
   int32   result = -1;
@@ -1720,6 +1816,7 @@ check_generic_type_consistency(const Oid *actual_arg_types,
                                const Oid *declared_arg_types,
                                int nargs)
 {
+  DBUG_TRACE;
   Oid     elem_typeid = InvalidOid;
   Oid     array_typeid = InvalidOid;
   Oid     range_typeid = InvalidOid;
@@ -2103,6 +2200,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
                                  Oid rettype,
                                  bool allow_poly)
 {
+  DBUG_TRACE;
   bool    have_poly_anycompatible = false;
   bool    have_poly_unknowns = false;
   Oid     elem_typeid = InvalidOid;
@@ -2154,13 +2252,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
       if (allow_poly && decl_type == actual_type)
         continue;   /* no new information here */
 
-      if (OidIsValid(elem_typeid) && actual_type != elem_typeid)
+      if (OidIsValid(elem_typeid) && actual_type != elem_typeid) {
+        DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anyelement");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("arguments declared \"%s\" are not all alike", "anyelement"),
                  errdetail("%s versus %s",
                            format_type_be(elem_typeid),
                            format_type_be(actual_type))));
+      }
 
       elem_typeid = actual_type;
     } else if (decl_type == ANYARRAYOID) {
@@ -2176,13 +2276,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       actual_type = getBaseType(actual_type); /* flatten domains */
 
-      if (OidIsValid(array_typeid) && actual_type != array_typeid)
+      if (OidIsValid(array_typeid) && actual_type != array_typeid) {
+        DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anyarray");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("arguments declared \"%s\" are not all alike", "anyarray"),
                  errdetail("%s versus %s",
                            format_type_be(array_typeid),
                            format_type_be(actual_type))));
+      }
 
       array_typeid = actual_type;
     } else if (decl_type == ANYRANGEOID) {
@@ -2198,13 +2300,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       actual_type = getBaseType(actual_type); /* flatten domains */
 
-      if (OidIsValid(range_typeid) && actual_type != range_typeid)
+      if (OidIsValid(range_typeid) && actual_type != range_typeid) {
+        DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anyrange");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("arguments declared \"%s\" are not all alike", "anyrange"),
                  errdetail("%s versus %s",
                            format_type_be(range_typeid),
                            format_type_be(actual_type))));
+      }
 
       range_typeid = actual_type;
     } else if (decl_type == ANYMULTIRANGEOID) {
@@ -2221,13 +2325,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       actual_type = getBaseType(actual_type); /* flatten domains */
 
-      if (OidIsValid(multirange_typeid) && actual_type != multirange_typeid)
+      if (OidIsValid(multirange_typeid) && actual_type != multirange_typeid) {
+        DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anymultirange");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("arguments declared \"%s\" are not all alike", "anymultirange"),
                  errdetail("%s versus %s",
                            format_type_be(multirange_typeid),
                            format_type_be(actual_type))));
+      }
 
       multirange_typeid = actual_type;
     } else if (decl_type == ANYCOMPATIBLEOID ||
@@ -2260,12 +2366,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
       actual_type = getBaseType(actual_type); /* flatten domains */
       anycompatible_elem_type = get_element_type(actual_type);
 
-      if (!OidIsValid(anycompatible_elem_type))
+      if (!OidIsValid(anycompatible_elem_type)) {
+        char *format1 = format_type_be(actual_type);
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not an array but type %s", "anycompatiblearray", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not an array but type %s",
                         "anycompatiblearray",
-                        format_type_be(actual_type))));
+                        format1)));
+      }
 
       /* collect the element type for common-supertype choice */
       anycompatible_actual_types[n_anycompatible_args++] = anycompatible_elem_type;
@@ -2283,23 +2392,28 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       if (OidIsValid(anycompatible_range_typeid)) {
         /* All ANYCOMPATIBLERANGE arguments must be the same type */
-        if (anycompatible_range_typeid != actual_type)
+        if (anycompatible_range_typeid != actual_type) {
+          DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anycompatiblerange");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("arguments declared \"%s\" are not all alike", "anycompatiblerange"),
                    errdetail("%s versus %s",
                              format_type_be(anycompatible_range_typeid),
                              format_type_be(actual_type))));
+        }
       } else {
         anycompatible_range_typeid = actual_type;
         anycompatible_range_typelem = get_range_subtype(actual_type);
 
-        if (!OidIsValid(anycompatible_range_typelem))
+        if (!OidIsValid(anycompatible_range_typelem)) {
+          char *format1 = format_type_be(actual_type);
+          DBUG_INSTANT_PRINT("info", "argument declared %s is not a range type but type %s", "anycompatiblerange", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("argument declared %s is not a range type but type %s",
                           "anycompatiblerange",
-                          format_type_be(actual_type))));
+                          format1)));
+        }
 
         /* collect the subtype for common-supertype choice */
         anycompatible_actual_types[n_anycompatible_args++] = anycompatible_range_typelem;
@@ -2318,23 +2432,28 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       if (OidIsValid(anycompatible_multirange_typeid)) {
         /* All ANYCOMPATIBLEMULTIRANGE arguments must be the same type */
-        if (anycompatible_multirange_typeid != actual_type)
+        if (anycompatible_multirange_typeid != actual_type) {
+          DBUG_INSTANT_PRINT("info", "arguments declared \"%s\" are not all alike", "anycompatiblemultirange");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("arguments declared \"%s\" are not all alike", "anycompatiblemultirange"),
                    errdetail("%s versus %s",
                              format_type_be(anycompatible_multirange_typeid),
                              format_type_be(actual_type))));
+        }
       } else {
         anycompatible_multirange_typeid = actual_type;
         anycompatible_multirange_typelem = get_multirange_range(actual_type);
 
-        if (!OidIsValid(anycompatible_multirange_typelem))
+        if (!OidIsValid(anycompatible_multirange_typelem)) {
+          char *format1 = format_type_be(actual_type);
+          DBUG_INSTANT_PRINT("info", "argument declared %s is not a multirange type but type %s", "anycompatiblemultirange", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("argument declared %s is not a multirange type but type %s",
                           "anycompatiblemultirange",
-                          format_type_be(actual_type))));
+                          format1)));
+        }
 
         /* we'll consider the subtype below */
       }
@@ -2364,20 +2483,25 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
          */
         if (n_poly_args != 1 ||
             (rettype != ANYARRAYOID &&
-             IsPolymorphicTypeFamily1(rettype)))
+             IsPolymorphicTypeFamily1(rettype))) {
+          DBUG_INSTANT_PRINT("info", "cannot determine element type of \"anyarray\" argument");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("cannot determine element type of \"anyarray\" argument")));
+        }
 
         array_typelem = ANYELEMENTOID;
       } else {
         array_typelem = get_element_type(array_typeid);
 
-        if (!OidIsValid(array_typelem))
+        if (!OidIsValid(array_typelem)) {
+          char *format1 = format_type_be(array_typeid);
+          DBUG_INSTANT_PRINT("info", "argument declared %s is not an array but type %s", "anyarray", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("argument declared %s is not an array but type %s",
-                          "anyarray", format_type_be(array_typeid))));
+                          "anyarray", format1)));
+        }
       }
 
       if (!OidIsValid(elem_typeid)) {
@@ -2388,6 +2512,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
         elem_typeid = array_typelem;
       } else if (array_typelem != elem_typeid) {
         /* otherwise, they better match */
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not consistent with argument declared %s", "anyarray", "anyelement");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not consistent with argument declared %s",
@@ -2404,18 +2529,22 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       multirange_typelem = get_multirange_range(multirange_typeid);
 
-      if (!OidIsValid(multirange_typelem))
+      if (!OidIsValid(multirange_typelem)) {
+        char *format1 = format_type_be(multirange_typeid);
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not a multirange type but type %s", "anymultirange", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not a multirange type but type %s",
                         "anymultirange",
-                        format_type_be(multirange_typeid))));
+                        format1)));
+      }
 
       if (!OidIsValid(range_typeid)) {
         /* if we don't have a range type yet, use the one we just got */
         range_typeid = multirange_typelem;
       } else if (multirange_typelem != range_typeid) {
         /* otherwise, they better match */
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not consistent with argument declared %s", "anymultirange", "anyrange");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not consistent with argument declared %s",
@@ -2435,12 +2564,15 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 
       range_typelem = get_range_subtype(range_typeid);
 
-      if (!OidIsValid(range_typelem))
+      if (!OidIsValid(range_typelem)) {
+        char *format1 = format_type_be(range_typeid);
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not a range type but type %s", "anyrange", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not a range type but type %s",
                         "anyrange",
-                        format_type_be(range_typeid))));
+                        format1)));
+      }
 
       if (!OidIsValid(elem_typeid)) {
         /*
@@ -2450,6 +2582,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
         elem_typeid = range_typelem;
       } else if (range_typelem != elem_typeid) {
         /* otherwise, they better match */
+        DBUG_INSTANT_PRINT("info", "argument declared %s is not consistent with argument declared %s", "anyrange", "anyelement");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("argument declared %s is not consistent with argument declared %s",
@@ -2471,6 +2604,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
          * Only way to get here is if all the family-1 polymorphic
          * arguments have UNKNOWN inputs.
          */
+        DBUG_INSTANT_PRINT("info", "could not determine polymorphic type because input has type %s", "unknown");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("could not determine polymorphic type because input has type %s",
@@ -2483,20 +2617,26 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
        * require the element type to not be an array or domain over
        * array
        */
-      if (type_is_array_domain(elem_typeid))
+      if (type_is_array_domain(elem_typeid)) {
+        char *format1 = format_type_be(elem_typeid);
+        DBUG_INSTANT_PRINT("info", "type matched to anynonarray is an array type: %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("type matched to anynonarray is an array type: %s",
-                        format_type_be(elem_typeid))));
+                        format1)));
+      }
     }
 
     if (have_anyenum && elem_typeid != ANYELEMENTOID) {
       /* require the element type to be an enum */
-      if (!type_is_enum(elem_typeid))
+      if (!type_is_enum(elem_typeid)) {
+        char *format1 = format_type_be(elem_typeid);
+        DBUG_INSTANT_PRINT("info", "type matched to anyenum is not an enum type: %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("type matched to anyenum is not an enum type: %s",
-                        format_type_be(elem_typeid))));
+                        format1)));
+      }
     }
   }
 
@@ -2506,7 +2646,9 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
     if (OidIsValid(anycompatible_multirange_typeid)) {
       if (OidIsValid(anycompatible_range_typeid)) {
         if (anycompatible_multirange_typelem !=
-            anycompatible_range_typeid)
+            anycompatible_range_typeid) {
+          DBUG_INSTANT_PRINT("info", "argument declared %s is not consistent with argument declared %s",
+                             "anycompatiblemultirange", "anycompatiblerange");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("argument declared %s is not consistent with argument declared %s",
@@ -2515,16 +2657,21 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
                    errdetail("%s versus %s",
                              format_type_be(anycompatible_multirange_typeid),
                              format_type_be(anycompatible_range_typeid))));
+        }
       } else {
         anycompatible_range_typeid = anycompatible_multirange_typelem;
         anycompatible_range_typelem = get_range_subtype(anycompatible_range_typeid);
 
-        if (!OidIsValid(anycompatible_range_typelem))
+        if (!OidIsValid(anycompatible_range_typelem)) {
+          char *format1 = format_type_be(anycompatible_multirange_typeid);
+          DBUG_INSTANT_PRINT("info", "argument declared %s is not a multirange type but type %s",
+                             "anycompatiblemultirange", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("argument declared %s is not a multirange type but type %s",
                           "anycompatiblemultirange",
-                          format_type_be(anycompatible_multirange_typeid))));
+                          format1)));
+        }
 
         /* this enables element type matching check below */
         have_anycompatible_range = true;
@@ -2547,59 +2694,77 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
       /* We have to verify that the selected type actually works */
       if (!verify_common_type_from_oids(anycompatible_typeid,
                                         n_anycompatible_args,
-                                        anycompatible_actual_types))
+                                        anycompatible_actual_types)) {
+        DBUG_INSTANT_PRINT("info", "arguments of anycompatible family cannot be cast to a common type");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("arguments of anycompatible family cannot be cast to a common type")));
+      }
 
       if (have_anycompatible_array) {
         anycompatible_array_typeid = get_array_type(anycompatible_typeid);
 
-        if (!OidIsValid(anycompatible_array_typeid))
+        if (!OidIsValid(anycompatible_array_typeid)) {
+          char *format1 = format_type_be(anycompatible_typeid);
+          DBUG_INSTANT_PRINT("info", "could not find array type for data type %s", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_OBJECT),
                    errmsg("could not find array type for data type %s",
-                          format_type_be(anycompatible_typeid))));
+                          format1)));
+        }
       }
 
       if (have_anycompatible_range) {
         /* we can't infer a range type from the others */
-        if (!OidIsValid(anycompatible_range_typeid))
+        if (!OidIsValid(anycompatible_range_typeid)) {
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anycompatiblerange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
                           "anycompatiblerange", "unknown")));
+        }
 
         /*
          * the anycompatible type must exactly match the range element
          * type
          */
-        if (anycompatible_range_typelem != anycompatible_typeid)
+        if (anycompatible_range_typelem != anycompatible_typeid) {
+          char *format1 = format_type_be(anycompatible_range_typeid);
+          char *format2 = format_type_be(anycompatible_typeid);
+          DBUG_INSTANT_PRINT("info", "anycompatiblerange type %s does not match anycompatible type %s", format1, format2);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("anycompatiblerange type %s does not match anycompatible type %s",
-                          format_type_be(anycompatible_range_typeid),
-                          format_type_be(anycompatible_typeid))));
+                          format1,
+                          format2)));
+        }
       }
 
       if (have_anycompatible_multirange) {
         /* we can't infer a multirange type from the others */
-        if (!OidIsValid(anycompatible_multirange_typeid))
+        if (!OidIsValid(anycompatible_multirange_typeid)) {
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anycompatiblemultirange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
                           "anycompatiblemultirange", "unknown")));
+        }
 
         /*
          * the anycompatible type must exactly match the multirange
          * element type
          */
-        if (anycompatible_range_typelem != anycompatible_typeid)
+        if (anycompatible_range_typelem != anycompatible_typeid) {
+          char *format1 = format_type_be(anycompatible_multirange_typeid);
+          char *format2 = format_type_be(anycompatible_typeid);
+
+          DBUG_INSTANT_PRINT("info", "anycompatiblemultirange type %s does not match anycompatible type %s", format1, format2);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("anycompatiblemultirange type %s does not match anycompatible type %s",
-                          format_type_be(anycompatible_multirange_typeid),
-                          format_type_be(anycompatible_typeid))));
+                          format1,
+                          format2)));
+        }
       }
 
       if (have_anycompatible_nonarray) {
@@ -2607,11 +2772,14 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
          * require the element type to not be an array or domain over
          * array
          */
-        if (type_is_array_domain(anycompatible_typeid))
+        if (type_is_array_domain(anycompatible_typeid)) {
+          char *format1 = format_type_be(anycompatible_typeid);
+          DBUG_INSTANT_PRINT("info", "type matched to anycompatiblenonarray is an array type: %s", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("type matched to anycompatiblenonarray is an array type: %s",
-                          format_type_be(anycompatible_typeid))));
+                          format1)));
+        }
       }
     } else {
       if (allow_poly) {
@@ -2629,17 +2797,23 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
         anycompatible_typeid = TEXTOID;
         anycompatible_array_typeid = TEXTARRAYOID;
 
-        if (have_anycompatible_range)
+        if (have_anycompatible_range) {
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s",
+                             "anycompatiblerange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
                           "anycompatiblerange", "unknown")));
+        }
 
-        if (have_anycompatible_multirange)
+        if (have_anycompatible_multirange) {
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s",
+                             "anycompatiblemultirange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
                           "anycompatiblemultirange", "unknown")));
+        }
       }
     }
 
@@ -2683,17 +2857,21 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
         if (!OidIsValid(array_typeid)) {
           array_typeid = get_array_type(elem_typeid);
 
-          if (!OidIsValid(array_typeid))
+          if (!OidIsValid(array_typeid)) {
+            char *format1 = format_type_be(elem_typeid);
+            DBUG_INSTANT_PRINT("info", "could not find array type for data type %s", format1);
             ereport(ERROR,
                     (errcode(ERRCODE_UNDEFINED_OBJECT),
                      errmsg("could not find array type for data type %s",
-                            format_type_be(elem_typeid))));
+                            format1)));
+          }
         }
 
         declared_arg_types[j] = array_typeid;
       } else if (decl_type == ANYRANGEOID) {
         if (!OidIsValid(range_typeid)) {
           /* we can't infer a range type from the others */
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anyrange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
@@ -2704,6 +2882,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
       } else if (decl_type == ANYMULTIRANGEOID) {
         if (!OidIsValid(multirange_typeid)) {
           /* we can't infer a multirange type from the others */
+          DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anymultirange", "unknown");
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine polymorphic type %s because input has type %s",
@@ -2726,11 +2905,14 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
     if (!OidIsValid(array_typeid)) {
       array_typeid = get_array_type(elem_typeid);
 
-      if (!OidIsValid(array_typeid))
+      if (!OidIsValid(array_typeid)) {
+        char *format1 = format_type_be(elem_typeid);
+        DBUG_INSTANT_PRINT("info", "could not find array type for data type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("could not find array type for data type %s",
-                        format_type_be(elem_typeid))));
+                        format1)));
+      }
     }
 
     return array_typeid;
@@ -2739,11 +2921,13 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   /* if we return ANYRANGE use the appropriate argument type */
   if (rettype == ANYRANGEOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(range_typeid))
+    if (!OidIsValid(range_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anyrange", "unknown");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not determine polymorphic type %s because input has type %s",
                                "anyrange", "unknown")));
+    }
 
     return range_typeid;
   }
@@ -2751,11 +2935,13 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   /* if we return ANYMULTIRANGE use the appropriate argument type */
   if (rettype == ANYMULTIRANGEOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(multirange_typeid))
+    if (!OidIsValid(multirange_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not determine polymorphic type %s because input has type %s", "anymultirange", "unknown");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not determine polymorphic type %s because input has type %s",
                                "anymultirange", "unknown")));
+    }
 
     return multirange_typeid;
   }
@@ -2764,10 +2950,12 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   if (rettype == ANYCOMPATIBLEOID ||
       rettype == ANYCOMPATIBLENONARRAYOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(anycompatible_typeid))
+    if (!OidIsValid(anycompatible_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not identify anycompatible type");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not identify anycompatible type")));
+    }
 
     return anycompatible_typeid;
   }
@@ -2775,10 +2963,12 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   /* if we return ANYCOMPATIBLEARRAY use the appropriate type */
   if (rettype == ANYCOMPATIBLEARRAYOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(anycompatible_array_typeid))
+    if (!OidIsValid(anycompatible_array_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not identify anycompatiblearray type");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not identify anycompatiblearray type")));
+    }
 
     return anycompatible_array_typeid;
   }
@@ -2786,10 +2976,12 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   /* if we return ANYCOMPATIBLERANGE use the appropriate argument type */
   if (rettype == ANYCOMPATIBLERANGEOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(anycompatible_range_typeid))
+    if (!OidIsValid(anycompatible_range_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not identify anycompatiblerange type");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not identify anycompatiblerange type")));
+    }
 
     return anycompatible_range_typeid;
   }
@@ -2797,10 +2989,12 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
   /* if we return ANYCOMPATIBLEMULTIRANGE use the appropriate argument type */
   if (rettype == ANYCOMPATIBLEMULTIRANGEOID) {
     /* this error is unreachable if the function signature is valid: */
-    if (!OidIsValid(anycompatible_multirange_typeid))
+    if (!OidIsValid(anycompatible_multirange_typeid)) {
+      DBUG_INSTANT_PRINT("info", "could not identify anycompatiblemultirange type");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg_internal("could not identify anycompatiblemultirange type")));
+    }
 
     return anycompatible_multirange_typeid;
   }
@@ -2822,6 +3016,8 @@ check_valid_polymorphic_signature(Oid ret_type,
                                   const Oid *declared_arg_types,
                                   int nargs)
 {
+  DBUG_TRACE;
+
   if (ret_type == ANYRANGEOID || ret_type == ANYMULTIRANGEOID) {
     /*
      * ANYRANGE and ANYMULTIRANGE require an ANYRANGE or ANYMULTIRANGE
@@ -2891,6 +3087,8 @@ check_valid_internal_signature(Oid ret_type,
                                const Oid *declared_arg_types,
                                int nargs)
 {
+  DBUG_TRACE;
+
   if (ret_type == INTERNALOID) {
     for (int i = 0; i < nargs; i++) {
       if (declared_arg_types[i] == ret_type)
@@ -3093,9 +3291,11 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
                       CoercionContext ccontext,
                       Oid *funcid)
 {
+  DBUG_TRACE;
   CoercionPathType result = COERCION_PATH_NONE;
   HeapTuple tuple;
 
+  DBUG_PRINT("info", "look for a coercion pathway between two types");
   *funcid = InvalidOid;
 
   /* Perhaps the types are domains; if so, look at their base types */
@@ -3253,6 +3453,7 @@ CoercionPathType
 find_typmod_coercion_function(Oid typeId,
                               Oid *funcid)
 {
+  DBUG_TRACE;
   CoercionPathType result;
   Type    targetType;
   Form_pg_type typeForm;

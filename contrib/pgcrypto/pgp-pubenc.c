@@ -32,6 +32,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 /*
  * padded msg: 02 || non-zero pad bytes || 00 || msg
@@ -39,6 +40,7 @@
 static int
 pad_eme_pkcs1_v15(uint8 *data, int data_len, int res_len, uint8 **res_p)
 {
+  DBUG_TRACE;
   uint8    *buf,
            *p;
   int     pad_len = res_len - 2 - data_len;
@@ -80,6 +82,7 @@ pad_eme_pkcs1_v15(uint8 *data, int data_len, int res_len, uint8 **res_p)
 static int
 create_secmsg(PGP_Context *ctx, PGP_MPI **msg_p, int full_bytes)
 {
+  DBUG_TRACE;
   uint8    *secmsg;
   int     res,
           i;
@@ -130,6 +133,7 @@ create_secmsg(PGP_Context *ctx, PGP_MPI **msg_p, int full_bytes)
 static int
 encrypt_and_write_elgamal(PGP_Context *ctx, PGP_PubKey *pk, PushFilter *pkt)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *m = NULL,
               *c1 = NULL,
@@ -165,6 +169,7 @@ err:
 static int
 encrypt_and_write_rsa(PGP_Context *ctx, PGP_PubKey *pk, PushFilter *pkt)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *m = NULL,
               *c = NULL;
@@ -193,6 +198,7 @@ err:
 int
 pgp_write_pubenc_sesskey(PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   int     res;
   PGP_PubKey *pk = ctx->pub_key;
   uint8   ver = 3;

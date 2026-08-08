@@ -45,6 +45,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <signal.h>
 #include <unistd.h>
@@ -3610,6 +3611,7 @@ WalSndShmemSize(void)
 void
 WalSndShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
   int     i;
 
@@ -3849,6 +3851,7 @@ offset_to_interval(TimeOffset offset)
 Datum
 pg_stat_get_wal_senders(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_STAT_GET_WAL_SENDERS_COLS  12
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   SyncRepStandbyData *sync_standbys;

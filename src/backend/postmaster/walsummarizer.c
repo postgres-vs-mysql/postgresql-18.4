@@ -20,6 +20,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/timeline.h"
@@ -180,6 +181,7 @@ WalSummarizerShmemSize(void)
 void
 WalSummarizerShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   WalSummarizerCtl = (WalSummarizerData *)
@@ -210,6 +212,7 @@ WalSummarizerShmemInit(void)
 void
 WalSummarizerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   MemoryContext context;
 
@@ -445,6 +448,7 @@ void
 GetWalSummarizerState(TimeLineID *summarized_tli, XLogRecPtr *summarized_lsn,
                       XLogRecPtr *pending_lsn, int *summarizer_pid)
 {
+  DBUG_TRACE;
   LWLockAcquire(WALSummarizerLock, LW_SHARED);
 
   if (!WalSummarizerCtl->initialized) {
@@ -500,6 +504,7 @@ GetWalSummarizerState(TimeLineID *summarized_tli, XLogRecPtr *summarized_lsn,
 XLogRecPtr
 GetOldestUnsummarizedLSN(TimeLineID *tli, bool *lsn_is_exact)
 {
+  DBUG_TRACE;
   TimeLineID  latest_tli;
   int     n;
   List     *tles;
@@ -619,6 +624,7 @@ GetOldestUnsummarizedLSN(TimeLineID *tli, bool *lsn_is_exact)
 
   LWLockRelease(WALSummarizerLock);
 
+  DBUG_PRINT("info", "unsummarized_lsn:%lu", unsummarized_lsn);
   return unsummarized_lsn;
 }
 
@@ -633,6 +639,7 @@ GetOldestUnsummarizedLSN(TimeLineID *tli, bool *lsn_is_exact)
 void
 WakeupWalSummarizer(void)
 {
+  DBUG_TRACE;
   ProcNumber  pgprocno;
 
   if (WalSummarizerCtl == NULL)
@@ -656,6 +663,7 @@ WakeupWalSummarizer(void)
 void
 WaitForWalSummarization(XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   TimestampTz initial_time,
               cycle_time,
               current_time;
@@ -780,6 +788,7 @@ WaitForWalSummarization(XLogRecPtr lsn)
 static void
 WalSummarizerShutdown(int code, Datum arg)
 {
+  DBUG_TRACE;
   LWLockAcquire(WALSummarizerLock, LW_EXCLUSIVE);
   WalSummarizerCtl->summarizer_pgprocno = INVALID_PROC_NUMBER;
   LWLockRelease(WALSummarizerLock);
@@ -792,9 +801,14 @@ WalSummarizerShutdown(int code, Datum arg)
 static XLogRecPtr
 GetLatestLSN(TimeLineID *tli)
 {
+  DBUG_TRACE;
+  XLogRecPtr result;
+
   if (!RecoveryInProgress()) {
     /* Don't summarize WAL before it's flushed. */
-    return GetFlushRecPtr(tli);
+    result = GetFlushRecPtr(tli);
+    DBUG_PRINT("info", "get the latest LSN:%lu", result);
+    return result;
   } else {
     XLogRecPtr  flush_lsn;
     TimeLineID  flush_tli;
@@ -813,7 +827,10 @@ GetLatestLSN(TimeLineID *tli)
      */
     if ((insert_tli = GetWALInsertionTimeLineIfSet()) != 0) {
       *tli = insert_tli;
-      return GetXLogReplayRecPtr(NULL);
+
+      result = GetXLogReplayRecPtr(NULL);
+      DBUG_PRINT("info", "get the latest LSN:%lu", result);
+      return result;
     }
 
     /*
@@ -830,9 +847,11 @@ GetLatestLSN(TimeLineID *tli)
 
     if (flush_lsn > replay_lsn) {
       *tli = flush_tli;
+      DBUG_PRINT("info", "get the latest LSN:%lu", flush_lsn);
       return flush_lsn;
     } else {
       *tli = replay_tli;
+      DBUG_PRINT("info", "get the latest LSN:%lu", replay_lsn);
       return replay_lsn;
     }
   }
@@ -844,6 +863,8 @@ GetLatestLSN(TimeLineID *tli)
 static void
 ProcessWalSummarizerInterrupts(void)
 {
+  DBUG_TRACE;
+
   if (ProcSignalBarrierPending)
     ProcessProcSignalBarrier();
 
@@ -891,6 +912,7 @@ static XLogRecPtr
 SummarizeWAL(TimeLineID tli, XLogRecPtr start_lsn, bool exact,
              XLogRecPtr switch_lsn, XLogRecPtr maximum_lsn)
 {
+  DBUG_TRACE;
   SummarizerReadLocalXLogPrivate *private_data;
   XLogReaderState *xlogreader;
   XLogRecPtr  summary_start_lsn;
@@ -1218,6 +1240,7 @@ SummarizeWAL(TimeLineID tli, XLogRecPtr start_lsn, bool exact,
 static void
 SummarizeDbaseRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
 
   /*
@@ -1282,6 +1305,7 @@ SummarizeDbaseRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 static void
 SummarizeSmgrRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
 
   if (info == XLOG_SMGR_CREATE) {
@@ -1330,6 +1354,7 @@ SummarizeSmgrRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 static void
 SummarizeXactRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
   uint8   xact_info = info & XLOG_XACT_OPMASK;
 
@@ -1387,6 +1412,7 @@ SummarizeXactRecord(XLogReaderState *xlogreader, BlockRefTable *brtab)
 static bool
 SummarizeXlogRecord(XLogReaderState *xlogreader, bool *new_fast_forward)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
   int     record_wal_level;
 
@@ -1453,6 +1479,7 @@ summarizer_read_local_xlog_page(XLogReaderState *state,
                                 XLogRecPtr targetPagePtr, int reqLen,
                                 XLogRecPtr targetRecPtr, char *cur_page)
 {
+  DBUG_TRACE;
   int     count;
   WALReadError errinfo;
   SummarizerReadLocalXLogPrivate *private_data;
@@ -1554,6 +1581,8 @@ summarizer_read_local_xlog_page(XLogReaderState *state,
 static void
 summarizer_wait_for_wal(void)
 {
+  DBUG_TRACE;
+
   if (pages_read_since_last_sleep == 0) {
     /*
      * No pages were read since the last sleep, so double the sleep time,
@@ -1597,6 +1626,7 @@ summarizer_wait_for_wal(void)
 static void
 MaybeRemoveOldWalSummaries(void)
 {
+  DBUG_TRACE;
   XLogRecPtr  redo_pointer = GetRedoRecPtr();
   List     *wslist;
   time_t    cutoff_time;

@@ -21,6 +21,7 @@
  *    ExecEndForeignScan    releases any resources allocated.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeForeignscan.h"
@@ -40,6 +41,7 @@ static bool ForeignRecheck(ForeignScanState *node, TupleTableSlot *slot);
 static TupleTableSlot *
 ForeignNext(ForeignScanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
   ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
   ExprContext *econtext = node->ss.ps.ps_ExprContext;
@@ -55,9 +57,12 @@ ForeignNext(ForeignScanState *node)
      */
     Assert(node->ss.ps.state->es_epq_active == NULL);
 
+    DBUG_PRINT("info", "execute a direct foreign table modification");
     slot = node->fdwroutine->IterateDirectModify(node);
-  } else
+  } else {
+    DBUG_PRINT("info", "execute a SELECT statement on a foreign table");
     slot = node->fdwroutine->IterateForeignScan(node);
+  }
 
   MemoryContextSwitchTo(oldcontext);
 
@@ -117,6 +122,7 @@ ForeignRecheck(ForeignScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecForeignScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   ForeignScanState *node = castNode(ForeignScanState, pstate);
   ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
   EState     *estate = node->ss.ps.state;
@@ -141,6 +147,7 @@ ExecForeignScan(PlanState *pstate)
 ForeignScanState *
 ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   ForeignScanState *scanstate;
   Relation  currentRelation = NULL;
   Index   scanrelid = node->scan.scanrelid;
@@ -287,6 +294,7 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 void
 ExecEndForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
   EState     *estate = node->ss.ps.state;
 
@@ -311,6 +319,7 @@ ExecEndForeignScan(ForeignScanState *node)
 void
 ExecReScanForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
   EState     *estate = node->ss.ps.state;
   PlanState  *outerPlan = outerPlanState(node);
@@ -344,6 +353,7 @@ ExecReScanForeignScan(ForeignScanState *node)
 void
 ExecForeignScanEstimate(ForeignScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
   if (fdwroutine->EstimateDSMForeignScan) {
@@ -362,6 +372,7 @@ ExecForeignScanEstimate(ForeignScanState *node, ParallelContext *pcxt)
 void
 ExecForeignScanInitializeDSM(ForeignScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
   if (fdwroutine->InitializeDSMForeignScan) {
@@ -383,6 +394,7 @@ ExecForeignScanInitializeDSM(ForeignScanState *node, ParallelContext *pcxt)
 void
 ExecForeignScanReInitializeDSM(ForeignScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
   if (fdwroutine->ReInitializeDSMForeignScan) {
@@ -404,6 +416,7 @@ void
 ExecForeignScanInitializeWorker(ForeignScanState *node,
                                 ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
   if (fdwroutine->InitializeWorkerForeignScan) {
@@ -425,6 +438,7 @@ ExecForeignScanInitializeWorker(ForeignScanState *node,
 void
 ExecShutdownForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
   if (fdwroutine->ShutdownForeignScan)
@@ -440,6 +454,7 @@ ExecShutdownForeignScan(ForeignScanState *node)
 void
 ExecAsyncForeignScanRequest(AsyncRequest *areq)
 {
+  DBUG_TRACE;
   ForeignScanState *node = (ForeignScanState *) areq->requestee;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
@@ -456,6 +471,7 @@ ExecAsyncForeignScanRequest(AsyncRequest *areq)
 void
 ExecAsyncForeignScanConfigureWait(AsyncRequest *areq)
 {
+  DBUG_TRACE;
   ForeignScanState *node = (ForeignScanState *) areq->requestee;
   FdwRoutine *fdwroutine = node->fdwroutine;
 
@@ -472,6 +488,7 @@ ExecAsyncForeignScanConfigureWait(AsyncRequest *areq)
 void
 ExecAsyncForeignScanNotify(AsyncRequest *areq)
 {
+  DBUG_TRACE;
   ForeignScanState *node = (ForeignScanState *) areq->requestee;
   FdwRoutine *fdwroutine = node->fdwroutine;
 

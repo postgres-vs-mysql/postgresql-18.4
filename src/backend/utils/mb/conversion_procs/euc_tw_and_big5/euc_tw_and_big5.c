@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "mb/pg_wchar.h"
 
@@ -51,6 +52,7 @@ static int  mic2euc_tw(const unsigned char *mic, unsigned char *p, int len, bool
 Datum
 euc_tw_to_big5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -67,6 +69,7 @@ euc_tw_to_big5(PG_FUNCTION_ARGS)
 Datum
 big5_to_euc_tw(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -83,6 +86,7 @@ big5_to_euc_tw(PG_FUNCTION_ARGS)
 Datum
 euc_tw_to_mic(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -99,6 +103,7 @@ euc_tw_to_mic(PG_FUNCTION_ARGS)
 Datum
 mic_to_euc_tw(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -115,6 +120,7 @@ mic_to_euc_tw(PG_FUNCTION_ARGS)
 Datum
 big5_to_mic(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -131,6 +137,7 @@ big5_to_mic(PG_FUNCTION_ARGS)
 Datum
 mic_to_big5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);

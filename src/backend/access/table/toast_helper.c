@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/toast_helper.h"
@@ -40,11 +41,15 @@
 void
 toast_tuple_init(ToastTupleContext *ttc)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc = ttc->ttc_rel->rd_att;
   int     numAttrs = tupleDesc->natts;
   int     i;
 
+  DBUG_PRINT("info", "prepare to TOAST a tuple");
   ttc->ttc_flags = 0;
+
+  DBUG_PRINT("info", "number of attributes:%d", numAttrs);
 
   for (i = 0; i < numAttrs; i++) {
     Form_pg_attribute att = TupleDescAttr(tupleDesc, i);
@@ -56,6 +61,7 @@ toast_tuple_init(ToastTupleContext *ttc)
     ttc->ttc_attr[i].tai_compression = att->attcompression;
 
     if (ttc->ttc_oldvalues != NULL) {
+      DBUG_PRINT("info", "for UPDATE get the old and new values of this attribute:%d", i);
       /*
        * For UPDATE get the old and new values of this attribute
        */
@@ -94,6 +100,7 @@ toast_tuple_init(ToastTupleContext *ttc)
       /*
        * For INSERT simply get the new value
        */
+      DBUG_PRINT("info", "for INSERT simply get the new value for index:%d", i);
       new_value = (struct varlena *) DatumGetPointer(ttc->ttc_values[i]);
     }
 
@@ -101,6 +108,7 @@ toast_tuple_init(ToastTupleContext *ttc)
      * Handle NULL attributes
      */
     if (ttc->ttc_isnull[i]) {
+      DBUG_PRINT("info", "handle NULL attributes for index:%d", i);
       ttc->ttc_attr[i].tai_colflags |= TOASTCOL_IGNORE;
       ttc->ttc_flags |= TOAST_HAS_NULLS;
       continue;
@@ -110,6 +118,8 @@ toast_tuple_init(ToastTupleContext *ttc)
      * Now look at varlena attributes
      */
     if (att->attlen == -1) {
+      DBUG_PRINT("info", "look at variable length array attributes for index:%d", i);
+
       /*
        * If the table's attribute says PLAIN always, force it so.
        */
@@ -145,6 +155,7 @@ toast_tuple_init(ToastTupleContext *ttc)
       /*
        * Not a varlena attribute, plain storage always
        */
+      DBUG_PRINT("info", "not a variable length array attributes, plain storage always for index:%d", i);
       ttc->ttc_attr[i].tai_colflags |= TOASTCOL_IGNORE;
     }
   }
@@ -170,6 +181,7 @@ int
 toast_tuple_find_biggest_attribute(ToastTupleContext *ttc,
                                    bool for_compression, bool check_main)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc = ttc->ttc_rel->rd_att;
   int     numAttrs = tupleDesc->natts;
   int     biggest_attno = -1;
@@ -177,8 +189,12 @@ toast_tuple_find_biggest_attribute(ToastTupleContext *ttc,
   int32   skip_colflags = TOASTCOL_IGNORE;
   int     i;
 
+  DBUG_PRINT("info", "find the largest varlena attribute that satisfies certain criteria");
+
   if (for_compression)
     skip_colflags |= TOASTCOL_INCOMPRESSIBLE;
+
+  DBUG_PRINT("info", "number of attributes:%d", numAttrs);
 
   for (i = 0; i < numAttrs; i++) {
     Form_pg_attribute att = TupleDescAttr(tupleDesc, i);
@@ -202,6 +218,7 @@ toast_tuple_find_biggest_attribute(ToastTupleContext *ttc,
 
     if (ttc->ttc_attr[i].tai_size > biggest_size) {
       biggest_attno = i;
+      DBUG_PRINT("info", "the index of the biggest suitable column is found:%d", i);
       biggest_size = ttc->ttc_attr[i].tai_size;
     }
   }
@@ -217,13 +234,17 @@ toast_tuple_find_biggest_attribute(ToastTupleContext *ttc,
 void
 toast_tuple_try_compression(ToastTupleContext *ttc, int attribute)
 {
+  DBUG_TRACE;
   Datum    *value = &ttc->ttc_values[attribute];
   Datum   new_value;
   ToastAttrInfo *attr = &ttc->ttc_attr[attribute];
 
+  DBUG_PRINT("info", "try compression for an attribute");
   new_value = toast_compress_datum(*value, attr->tai_compression);
 
   if (DatumGetPointer(new_value) != NULL) {
+    DBUG_PRINT("info", "successful compression");
+
     /* successful compression */
     if ((attr->tai_colflags & TOASTCOL_NEEDS_FREE) != 0)
       pfree(DatumGetPointer(*value));
@@ -233,6 +254,7 @@ toast_tuple_try_compression(ToastTupleContext *ttc, int attribute)
     attr->tai_size = VARSIZE(DatumGetPointer(*value));
     ttc->ttc_flags |= (TOAST_NEEDS_CHANGE | TOAST_NEEDS_FREE);
   } else {
+    DBUG_PRINT("info", "incompressible, ignore on subsequent compression passes");
     /* incompressible, ignore on subsequent compression passes */
     attr->tai_colflags |= TOASTCOL_INCOMPRESSIBLE;
   }
@@ -244,10 +266,12 @@ toast_tuple_try_compression(ToastTupleContext *ttc, int attribute)
 void
 toast_tuple_externalize(ToastTupleContext *ttc, int attribute, int options)
 {
+  DBUG_TRACE;
   Datum    *value = &ttc->ttc_values[attribute];
   Datum   old_value = *value;
   ToastAttrInfo *attr = &ttc->ttc_attr[attribute];
 
+  DBUG_PRINT("info", "move an attribute to external storage");
   attr->tai_colflags |= TOASTCOL_IGNORE;
   *value = toast_save_datum(ttc->ttc_rel, old_value, attr->tai_oldexternal,
                             options);
@@ -265,6 +289,7 @@ toast_tuple_externalize(ToastTupleContext *ttc, int attribute, int options)
 void
 toast_tuple_cleanup(ToastTupleContext *ttc)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc = ttc->ttc_rel->rd_att;
   int     numAttrs = tupleDesc->natts;
 
@@ -305,9 +330,12 @@ void
 toast_delete_external(Relation rel, const Datum *values, const bool *isnull,
                       bool is_speculative)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc = rel->rd_att;
   int     numAttrs = tupleDesc->natts;
   int     i;
+
+  DBUG_PRINT("info", "check for external stored attributes(%d) and delete them from the secondary relation", numAttrs);
 
   for (i = 0; i < numAttrs; i++) {
     if (TupleDescCompactAttr(tupleDesc, i)->attlen == -1) {

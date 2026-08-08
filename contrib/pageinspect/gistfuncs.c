@@ -8,6 +8,7 @@
  *    contrib/pageinspect/gistfuncs.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist.h"
 #include "access/htup.h"
@@ -40,6 +41,7 @@ static Page verify_gist_page(bytea *raw_page);
 static Page
 verify_gist_page(bytea *raw_page)
 {
+  DBUG_TRACE;
   Page    page = get_page_from_raw(raw_page);
   GISTPageOpaque opaq;
 
@@ -71,6 +73,7 @@ verify_gist_page(bytea *raw_page)
 Datum
 gist_page_opaque_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   TupleDesc tupdesc;
   Page    page;
@@ -136,6 +139,7 @@ gist_page_opaque_info(PG_FUNCTION_ARGS)
 Datum
 gist_page_items_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Page    page;
@@ -199,6 +203,7 @@ gist_page_items_bytea(PG_FUNCTION_ARGS)
 Datum
 gist_page_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Oid     indexRelid = PG_GETARG_OID(1);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;

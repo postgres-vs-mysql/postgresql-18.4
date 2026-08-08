@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -45,6 +46,7 @@ void
 PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo params,
                   bool isTopLevel)
 {
+  DBUG_TRACE;
   Query    *query = castNode(Query, cstmt->query);
   JumbleState *jstate = NULL;
   List     *rewritten;
@@ -53,14 +55,18 @@ PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo pa
   MemoryContext oldContext;
   char     *queryString;
 
+  DBUG_PRINT("info", "execute SQL DECLARE CURSOR command");
+
   /*
    * Disallow empty-string cursor name (conflicts with protocol-level
    * unnamed portal).
    */
-  if (!cstmt->portalname || cstmt->portalname[0] == '\0')
+  if (!cstmt->portalname || cstmt->portalname[0] == '\0') {
+    DBUG_INSTANT_PRINT("info", "invalid cursor name: must not be empty");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_NAME),
              errmsg("invalid cursor name: must not be empty")));
+  }
 
   /*
    * If this is a non-holdable cursor, we require that this statement has
@@ -69,10 +75,12 @@ PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo pa
    */
   if (!(cstmt->options & CURSOR_OPT_HOLD))
     RequireTransactionBlock(isTopLevel, "DECLARE CURSOR");
-  else if (InSecurityRestrictedOperation())
+  else if (InSecurityRestrictedOperation()) {
+    DBUG_INSTANT_PRINT("info", "cannot create a cursor WITH HOLD within security-restricted operation");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("cannot create a cursor WITH HOLD within security-restricted operation")));
+  }
 
   /* Query contained by DeclareCursor needs to be jumbled if requested */
   if (IsQueryIdEnabled())
@@ -178,22 +186,28 @@ PerformPortalFetch(FetchStmt *stmt,
                    DestReceiver *dest,
                    QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Portal    portal;
   uint64    nprocessed;
+
+  DBUG_PRINT("info", "execute SQL FETCH or MOVE command");
 
   /*
    * Disallow empty-string cursor name (conflicts with protocol-level
    * unnamed portal).
    */
-  if (!stmt->portalname || stmt->portalname[0] == '\0')
+  if (!stmt->portalname || stmt->portalname[0] == '\0') {
+    DBUG_INSTANT_PRINT("info", "invalid cursor name: must not be empty");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_NAME),
              errmsg("invalid cursor name: must not be empty")));
+  }
 
   /* get the portal from the portal name */
   portal = GetPortalByName(stmt->portalname);
 
   if (!PortalIsValid(portal)) {
+    DBUG_INSTANT_PRINT("info", "cursor \"%s\" does not exist", stmt->portalname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_CURSOR),
              errmsg("cursor \"%s\" does not exist", stmt->portalname)));
@@ -223,7 +237,10 @@ PerformPortalFetch(FetchStmt *stmt,
 void
 PerformPortalClose(const char *name)
 {
+  DBUG_TRACE;
   Portal    portal;
+
+  DBUG_PRINT("info", "close a cursor");
 
   /* NULL means CLOSE ALL */
   if (name == NULL) {
@@ -235,10 +252,12 @@ PerformPortalClose(const char *name)
    * Disallow empty-string cursor name (conflicts with protocol-level
    * unnamed portal).
    */
-  if (name[0] == '\0')
+  if (name[0] == '\0') {
+    DBUG_INSTANT_PRINT("info", "invalid cursor name: must not be empty");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_NAME),
              errmsg("invalid cursor name: must not be empty")));
+  }
 
   /*
    * get the portal from the portal name
@@ -246,6 +265,7 @@ PerformPortalClose(const char *name)
   portal = GetPortalByName(name);
 
   if (!PortalIsValid(portal)) {
+    DBUG_INSTANT_PRINT("info", "cursor \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_CURSOR),
              errmsg("cursor \"%s\" does not exist", name)));
@@ -271,8 +291,10 @@ PerformPortalClose(const char *name)
 void
 PortalCleanup(Portal portal)
 {
+  DBUG_TRACE;
   QueryDesc  *queryDesc;
 
+  DBUG_PRINT("info", "clean up a portal when it's dropped");
   /*
    * sanity checks
    */
@@ -324,12 +346,14 @@ PortalCleanup(Portal portal)
 void
 PersistHoldablePortal(Portal portal)
 {
+  DBUG_TRACE;
   QueryDesc  *queryDesc = portal->queryDesc;
   Portal    saveActivePortal;
   ResourceOwner saveResourceOwner;
   MemoryContext savePortalContext;
   MemoryContext oldcxt;
 
+  DBUG_PRINT("info", "prepare the specified Portal for access outside of the current transaction");
   /*
    * If we're preserving a holdable portal, we had better be inside the
    * transaction that originally created it.

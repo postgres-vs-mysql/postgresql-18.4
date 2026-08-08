@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/tidstore.h"
 #include "miscadmin.h"
@@ -155,6 +156,7 @@ struct TidStoreIter {
 TidStore *
 TidStoreCreateLocal(size_t max_bytes, bool insert_only)
 {
+  DBUG_TRACE;
   TidStore   *ts;
   size_t    initBlockSize = ALLOCSET_DEFAULT_INITSIZE;
   size_t    minContextSize = ALLOCSET_DEFAULT_MINSIZE;
@@ -198,6 +200,7 @@ TidStoreCreateLocal(size_t max_bytes, bool insert_only)
 TidStore *
 TidStoreCreateShared(size_t max_bytes, int tranche_id)
 {
+  DBUG_TRACE;
   TidStore   *ts;
   dsa_area   *area;
   size_t    dsa_init_size = DSA_DEFAULT_INIT_SEGMENT_SIZE;
@@ -234,6 +237,7 @@ TidStoreCreateShared(size_t max_bytes, int tranche_id)
 TidStore *
 TidStoreAttach(dsa_handle area_handle, dsa_pointer handle)
 {
+  DBUG_TRACE;
   TidStore   *ts;
   dsa_area   *area;
 
@@ -259,6 +263,7 @@ TidStoreAttach(dsa_handle area_handle, dsa_pointer handle)
 void
 TidStoreDetach(TidStore *ts)
 {
+  DBUG_TRACE;
   Assert(TidStoreIsShared(ts));
 
   shared_ts_detach(ts->tree.shared);
@@ -307,6 +312,8 @@ TidStoreUnlock(TidStore *ts)
 void
 TidStoreDestroy(TidStore *ts)
 {
+  DBUG_TRACE;
+
   /* Destroy underlying radix tree */
   if (TidStoreIsShared(ts)) {
     shared_ts_free(ts->tree.shared);
@@ -333,6 +340,7 @@ void
 TidStoreSetBlockOffsets(TidStore *ts, BlockNumber blkno, OffsetNumber *offsets,
                         int num_offsets)
 {
+  DBUG_TRACE;
   union {
     char    data[MaxBlocktableEntrySize];
     BlocktableEntry force_align_entry;
@@ -448,6 +456,7 @@ TidStoreIsMember(TidStore *ts, ItemPointer tid)
 TidStoreIter *
 TidStoreBeginIterate(TidStore *ts)
 {
+  DBUG_TRACE;
   TidStoreIter *iter;
 
   iter = palloc0(sizeof(TidStoreIter));
@@ -470,6 +479,7 @@ TidStoreBeginIterate(TidStore *ts)
 TidStoreIterResult *
 TidStoreIterateNext(TidStoreIter *iter)
 {
+  DBUG_TRACE;
   uint64    key;
   BlocktableEntry *page;
 
@@ -495,6 +505,8 @@ TidStoreIterateNext(TidStoreIter *iter)
 void
 TidStoreEndIterate(TidStoreIter *iter)
 {
+  DBUG_TRACE;
+
   if (TidStoreIsShared(iter->ts))
     shared_ts_end_iterate(iter->tree_iter.shared);
   else
@@ -509,6 +521,8 @@ TidStoreEndIterate(TidStoreIter *iter)
 size_t
 TidStoreMemoryUsage(TidStore *ts)
 {
+  DBUG_TRACE;
+
   if (TidStoreIsShared(ts))
     return shared_ts_memory_usage(ts->tree.shared);
   else
@@ -521,6 +535,7 @@ TidStoreMemoryUsage(TidStore *ts)
 dsa_area *
 TidStoreGetDSA(TidStore *ts)
 {
+  DBUG_TRACE;
   Assert(TidStoreIsShared(ts));
 
   return ts->area;
@@ -529,6 +544,7 @@ TidStoreGetDSA(TidStore *ts)
 dsa_pointer
 TidStoreGetHandle(TidStore *ts)
 {
+  DBUG_TRACE;
   Assert(TidStoreIsShared(ts));
 
   return (dsa_pointer) shared_ts_get_handle(ts->tree.shared);

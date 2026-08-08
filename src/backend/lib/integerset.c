@@ -69,6 +69,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "lib/integerset.h"
@@ -277,6 +278,7 @@ static bool simple8b_contains(uint64 codeword, uint64 key, uint64 base);
 IntegerSet *
 intset_create(void)
 {
+  DBUG_TRACE;
   IntegerSet *intset;
 
   intset = (IntegerSet *) palloc(sizeof(IntegerSet));
@@ -309,6 +311,7 @@ intset_create(void)
 static intset_internal_node *
 intset_new_internal_node(IntegerSet *intset)
 {
+  DBUG_TRACE;
   intset_internal_node *n;
 
   n = (intset_internal_node *) MemoryContextAlloc(intset->context,
@@ -324,6 +327,7 @@ intset_new_internal_node(IntegerSet *intset)
 static intset_leaf_node *
 intset_new_leaf_node(IntegerSet *intset)
 {
+  DBUG_TRACE;
   intset_leaf_node *n;
 
   n = (intset_leaf_node *) MemoryContextAlloc(intset->context,
@@ -363,6 +367,8 @@ intset_memory_usage(IntegerSet *intset)
 void
 intset_add_member(IntegerSet *intset, uint64 x)
 {
+  DBUG_TRACE;
+
   if (intset->iter_active)
     elog(ERROR, "cannot add new values to integer set while iteration is in progress");
 
@@ -388,6 +394,7 @@ intset_add_member(IntegerSet *intset, uint64 x)
 static void
 intset_flush_buffered_values(IntegerSet *intset)
 {
+  DBUG_TRACE;
   uint64     *values = intset->buffered_values;
   uint64    num_values = intset->num_buffered_values;
   int     num_packed = 0;
@@ -472,6 +479,7 @@ static void
 intset_update_upper(IntegerSet *intset, int level, intset_node *child,
                     uint64 child_key)
 {
+  DBUG_TRACE;
   intset_internal_node *parent;
 
   Assert(level > 0);
@@ -541,6 +549,7 @@ intset_update_upper(IntegerSet *intset, int level, intset_node *child,
 bool
 intset_is_member(IntegerSet *intset, uint64 x)
 {
+  DBUG_TRACE;
   intset_node *node;
   intset_leaf_node *leaf;
   int     level;
@@ -618,6 +627,7 @@ intset_is_member(IntegerSet *intset, uint64 x)
 void
 intset_begin_iterate(IntegerSet *intset)
 {
+  DBUG_TRACE;
   /* Note that we allow an iteration to be abandoned midway */
   intset->iter_active = true;
   intset->iter_node = intset->leftmost_leaf;
@@ -637,6 +647,7 @@ intset_begin_iterate(IntegerSet *intset)
 bool
 intset_iterate_next(IntegerSet *intset, uint64 *next)
 {
+  DBUG_TRACE;
   Assert(intset->iter_active);
 
   for (;;) {
@@ -704,6 +715,7 @@ intset_iterate_next(IntegerSet *intset, uint64 *next)
 static int
 intset_binsrch_uint64(uint64 item, uint64 *arr, int arr_elems, bool nextkey)
 {
+  DBUG_TRACE;
   int     low,
           high,
           mid;
@@ -734,6 +746,7 @@ intset_binsrch_uint64(uint64 item, uint64 *arr, int arr_elems, bool nextkey)
 static int
 intset_binsrch_leaf(uint64 item, leaf_item *arr, int arr_elems, bool nextkey)
 {
+  DBUG_TRACE;
   int     low,
           high,
           mid;

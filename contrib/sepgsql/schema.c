@@ -8,6 +8,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -35,6 +36,7 @@
 void
 sepgsql_schema_post_create(Oid namespaceId)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey;
   SysScanDesc sscan;
@@ -115,6 +117,7 @@ sepgsql_schema_post_create(Oid namespaceId)
 void
 sepgsql_schema_drop(Oid namespaceId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
 
@@ -143,6 +146,7 @@ sepgsql_schema_drop(Oid namespaceId)
 void
 sepgsql_schema_relabel(Oid namespaceId, const char *seclabel)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
 
@@ -180,6 +184,7 @@ sepgsql_schema_relabel(Oid namespaceId, const char *seclabel)
 static bool
 check_schema_perms(Oid namespaceId, uint32 required, bool abort_on_violation)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   bool    result;
@@ -203,6 +208,7 @@ check_schema_perms(Oid namespaceId, uint32 required, bool abort_on_violation)
 void
 sepgsql_schema_setattr(Oid namespaceId)
 {
+  DBUG_TRACE;
   check_schema_perms(namespaceId, SEPG_DB_SCHEMA__SETATTR, true);
 }
 
@@ -210,6 +216,7 @@ sepgsql_schema_setattr(Oid namespaceId)
 bool
 sepgsql_schema_search(Oid namespaceId, bool abort_on_violation)
 {
+  DBUG_TRACE;
   return check_schema_perms(namespaceId,
                             SEPG_DB_SCHEMA__SEARCH,
                             abort_on_violation);
@@ -218,18 +225,21 @@ sepgsql_schema_search(Oid namespaceId, bool abort_on_violation)
 void
 sepgsql_schema_add_name(Oid namespaceId)
 {
+  DBUG_TRACE;
   check_schema_perms(namespaceId, SEPG_DB_SCHEMA__ADD_NAME, true);
 }
 
 void
 sepgsql_schema_remove_name(Oid namespaceId)
 {
+  DBUG_TRACE;
   check_schema_perms(namespaceId, SEPG_DB_SCHEMA__REMOVE_NAME, true);
 }
 
 void
 sepgsql_schema_rename(Oid namespaceId)
 {
+  DBUG_TRACE;
   check_schema_perms(namespaceId,
                      SEPG_DB_SCHEMA__ADD_NAME |
                      SEPG_DB_SCHEMA__REMOVE_NAME,

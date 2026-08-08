@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <float.h>
@@ -628,6 +629,7 @@ static void accum_sum_combine(NumericSumAccum *accum, NumericSumAccum *accum2);
 Datum
 numeric_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -639,6 +641,7 @@ numeric_in(PG_FUNCTION_ARGS)
   const char *numstart;
   int     sign;
 
+  DBUG_PRINT("info", "input function for numeric data type(orig string:'%s'", str);
   /* Skip leading spaces */
   cp = str;
 
@@ -796,6 +799,7 @@ invalid_syntax:
 Datum
 numeric_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  x;
   char     *str;
@@ -1055,6 +1059,7 @@ numeric_normalize(Numeric num)
 Datum
 numeric_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -1139,6 +1144,7 @@ numeric_recv(PG_FUNCTION_ARGS)
 Datum
 numeric_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  x;
   StringInfoData buf;
@@ -1173,6 +1179,7 @@ numeric_send(PG_FUNCTION_ARGS)
 Datum
 numeric_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 
@@ -1221,6 +1228,7 @@ numeric_support(PG_FUNCTION_ARGS)
 Datum
 numeric   (PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   int32   typmod = PG_GETARG_INT32(1);
   Numeric   new;
@@ -1300,6 +1308,7 @@ numeric   (PG_FUNCTION_ARGS)
 Datum
 numerictypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
   int32    *tl;
   int     n;
@@ -1343,6 +1352,7 @@ numerictypmodin(PG_FUNCTION_ARGS)
 Datum
 numerictypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
   char     *res = (char *) palloc(64);
 
@@ -1367,6 +1377,7 @@ numerictypmodout(PG_FUNCTION_ARGS)
 Datum
 numeric_abs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
 
@@ -1392,6 +1403,7 @@ numeric_abs(PG_FUNCTION_ARGS)
 Datum
 numeric_uminus(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
 
@@ -1432,6 +1444,7 @@ numeric_uminus(PG_FUNCTION_ARGS)
 Datum
 numeric_uplus(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
 
   PG_RETURN_NUMERIC(duplicate_numeric(num));
@@ -1480,6 +1493,7 @@ numeric_sign_internal(Numeric num)
 Datum
 numeric_sign(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
 
   /*
@@ -1514,6 +1528,7 @@ numeric_sign(PG_FUNCTION_ARGS)
 Datum
 numeric_round(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   int32   scale = PG_GETARG_INT32(1);
   Numeric   res;
@@ -1568,6 +1583,7 @@ numeric_round(PG_FUNCTION_ARGS)
 Datum
 numeric_trunc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   int32   scale = PG_GETARG_INT32(1);
   Numeric   res;
@@ -1618,6 +1634,7 @@ numeric_trunc(PG_FUNCTION_ARGS)
 Datum
 numeric_ceil(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  result;
@@ -1646,6 +1663,7 @@ numeric_ceil(PG_FUNCTION_ARGS)
 Datum
 numeric_floor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  result;
@@ -1674,12 +1692,14 @@ numeric_floor(PG_FUNCTION_ARGS)
 Datum
 generate_series_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return generate_series_step_numeric(fcinfo);
 }
 
 Datum
 generate_series_step_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   generate_series_numeric_fctx *fctx;
   FuncCallContext *funcctx;
   MemoryContext oldcontext;
@@ -1923,6 +1943,7 @@ generate_series_numeric_support(PG_FUNCTION_ARGS)
 Datum
 width_bucket_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   operand = PG_GETARG_NUMERIC(0);
   Numeric   bound1 = PG_GETARG_NUMERIC(1);
   Numeric   bound2 = PG_GETARG_NUMERIC(2);
@@ -2087,6 +2108,7 @@ compute_bucket(Numeric operand, Numeric bound1, Numeric bound2,
 Datum
 numeric_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = numeric_fast_cmp;
@@ -2455,6 +2477,7 @@ numeric_abbrev_convert_var(const NumericVar *var, NumericSortSupport *nss)
 Datum
 numeric_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   int     result;
@@ -2464,6 +2487,7 @@ numeric_cmp(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
@@ -2471,6 +2495,7 @@ numeric_cmp(PG_FUNCTION_ARGS)
 Datum
 numeric_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2480,12 +2505,19 @@ numeric_eq(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 numeric_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2495,12 +2527,19 @@ numeric_ne(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 numeric_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2510,12 +2549,19 @@ numeric_gt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 numeric_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2525,12 +2571,19 @@ numeric_ge(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 numeric_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2540,12 +2593,19 @@ numeric_lt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 numeric_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   bool    result;
@@ -2554,6 +2614,12 @@ numeric_le(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(num1, 0);
   PG_FREE_IF_COPY(num2, 1);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result);
 }
@@ -2608,6 +2674,7 @@ cmp_numerics(Numeric num1, Numeric num2)
 Datum
 in_range_numeric_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   val = PG_GETARG_NUMERIC(0);
   Numeric   base = PG_GETARG_NUMERIC(1);
   Numeric   offset = PG_GETARG_NUMERIC(2);
@@ -2721,12 +2788,19 @@ in_range_numeric_numeric(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(base, 1);
   PG_FREE_IF_COPY(offset, 2);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 hash_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   key = PG_GETARG_NUMERIC(0);
   Datum   digit_hash;
   Datum   result;
@@ -2806,6 +2880,7 @@ hash_numeric(PG_FUNCTION_ARGS)
 Datum
 hash_numeric_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   key = PG_GETARG_NUMERIC(0);
   uint64    seed = PG_GETARG_INT64(1);
   Datum   digit_hash;
@@ -2876,6 +2951,7 @@ hash_numeric_extended(PG_FUNCTION_ARGS)
 Datum
 numeric_add(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -2954,6 +3030,7 @@ numeric_add_opt_error(Numeric num1, Numeric num2, bool *have_error)
 Datum
 numeric_sub(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -3033,6 +3110,7 @@ numeric_sub_opt_error(Numeric num1, Numeric num2, bool *have_error)
 Datum
 numeric_mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -3163,6 +3241,7 @@ numeric_mul_opt_error(Numeric num1, Numeric num2, bool *have_error)
 Datum
 numeric_div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -3303,6 +3382,7 @@ numeric_div_opt_error(Numeric num1, Numeric num2, bool *have_error)
 Datum
 numeric_div_trunc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   NumericVar  arg1;
@@ -3398,6 +3478,7 @@ numeric_div_trunc(PG_FUNCTION_ARGS)
 Datum
 numeric_mod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -3486,6 +3567,7 @@ numeric_mod_opt_error(Numeric num1, Numeric num2, bool *have_error)
 Datum
 numeric_inc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  arg;
   Numeric   res;
@@ -3519,6 +3601,7 @@ numeric_inc(PG_FUNCTION_ARGS)
 Datum
 numeric_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
 
@@ -3541,6 +3624,7 @@ numeric_smaller(PG_FUNCTION_ARGS)
 Datum
 numeric_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
 
@@ -3570,6 +3654,7 @@ numeric_larger(PG_FUNCTION_ARGS)
 Datum
 numeric_gcd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   NumericVar  arg1;
@@ -3613,6 +3698,7 @@ numeric_gcd(PG_FUNCTION_ARGS)
 Datum
 numeric_lcm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   NumericVar  arg1;
@@ -3672,6 +3758,7 @@ numeric_lcm(PG_FUNCTION_ARGS)
 Datum
 numeric_fac(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   num = PG_GETARG_INT64(0);
   Numeric   res;
   NumericVar  fact;
@@ -3724,6 +3811,7 @@ numeric_fac(PG_FUNCTION_ARGS)
 Datum
 numeric_sqrt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  arg;
@@ -3798,6 +3886,7 @@ numeric_sqrt(PG_FUNCTION_ARGS)
 Datum
 numeric_exp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  arg;
@@ -3865,6 +3954,7 @@ numeric_exp(PG_FUNCTION_ARGS)
 Datum
 numeric_ln(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  arg;
@@ -3914,6 +4004,7 @@ numeric_ln(PG_FUNCTION_ARGS)
 Datum
 numeric_log(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -3989,6 +4080,7 @@ numeric_log(PG_FUNCTION_ARGS)
 Datum
 numeric_power(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num1 = PG_GETARG_NUMERIC(0);
   Numeric   num2 = PG_GETARG_NUMERIC(1);
   Numeric   res;
@@ -4180,6 +4272,7 @@ numeric_power(PG_FUNCTION_ARGS)
 Datum
 numeric_scale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
 
   if (NUMERIC_IS_SPECIAL(num))
@@ -4241,6 +4334,7 @@ get_min_scale(NumericVar *var)
 Datum
 numeric_min_scale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  arg;
   int     min_scale;
@@ -4261,6 +4355,7 @@ numeric_min_scale(PG_FUNCTION_ARGS)
 Datum
 numeric_trim_scale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   Numeric   res;
   NumericVar  result;
@@ -4438,7 +4533,9 @@ int64_div_fast_to_numeric(int64 val1, int log10val2)
 Datum
 int4_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val = PG_GETARG_INT32(0);
+  DBUG_PRINT("info", "val:%d", val);
 
   PG_RETURN_NUMERIC(int64_to_numeric(val));
 }
@@ -4488,6 +4585,7 @@ numeric_int4_opt_error(Numeric num, bool *have_error)
 Datum
 numeric_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
 
   PG_RETURN_INT32(numeric_int4_opt_error(num, NULL));
@@ -4518,8 +4616,10 @@ numericvar_to_int32(const NumericVar *var, int32 *result)
 Datum
 int8_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val = PG_GETARG_INT64(0);
 
+  DBUG_PRINT("info", "val:%ld", val);
   PG_RETURN_NUMERIC(int64_to_numeric(val));
 }
 
@@ -4568,17 +4668,22 @@ numeric_int8_opt_error(Numeric num, bool *have_error)
 Datum
 numeric_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
+  int64 result = numeric_int8_opt_error(num, NULL);
 
-  PG_RETURN_INT64(numeric_int8_opt_error(num, NULL));
+  DBUG_PRINT("info", "result:%ld", result);
+  PG_RETURN_INT64(result);
 }
 
 
 Datum
 int2_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val = PG_GETARG_INT16(0);
 
+  DBUG_PRINT("info", "val:%d", val);
   PG_RETURN_NUMERIC(int64_to_numeric(val));
 }
 
@@ -4586,6 +4691,7 @@ int2_numeric(PG_FUNCTION_ARGS)
 Datum
 numeric_int2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  x;
   int64   val;
@@ -4625,6 +4731,7 @@ numeric_int2(PG_FUNCTION_ARGS)
 Datum
 float8_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    val = PG_GETARG_FLOAT8(0);
   Numeric   res;
   NumericVar  result;
@@ -4659,6 +4766,7 @@ float8_numeric(PG_FUNCTION_ARGS)
 Datum
 numeric_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   char     *tmp;
   Datum   result;
@@ -4691,6 +4799,7 @@ numeric_float8(PG_FUNCTION_ARGS)
 Datum
 numeric_float8_no_overflow(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   double    val;
 
@@ -4714,6 +4823,7 @@ numeric_float8_no_overflow(PG_FUNCTION_ARGS)
 Datum
 float4_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    val = PG_GETARG_FLOAT4(0);
   Numeric   res;
   NumericVar  result;
@@ -4748,6 +4858,7 @@ float4_numeric(PG_FUNCTION_ARGS)
 Datum
 numeric_float4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   char     *tmp;
   Datum   result;
@@ -4775,6 +4886,7 @@ numeric_float4(PG_FUNCTION_ARGS)
 Datum
 numeric_pg_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   num = PG_GETARG_NUMERIC(0);
   NumericVar  x;
   XLogRecPtr  result;
@@ -4840,6 +4952,7 @@ typedef struct NumericAggState {
 static NumericAggState *
 makeNumericAggState(FunctionCallInfo fcinfo, bool calcSumX2)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   MemoryContext agg_context;
   MemoryContext old_context;
@@ -4880,6 +4993,7 @@ makeNumericAggStateCurrentContext(bool calcSumX2)
 static void
 do_numeric_accum(NumericAggState *state, Numeric newval)
 {
+  DBUG_TRACE;
   NumericVar  X;
   NumericVar  X2;
   MemoryContext old_context;
@@ -4923,8 +5037,9 @@ do_numeric_accum(NumericAggState *state, Numeric newval)
   /* Accumulate sums */
   accum_sum_add(&(state->sumX), &X);
 
-  if (state->calcSumX2)
+  if (state->calcSumX2) {
     accum_sum_add(&(state->sumX2), &X2);
+  }
 
   MemoryContextSwitchTo(old_context);
 }
@@ -5030,6 +5145,7 @@ do_numeric_discard(NumericAggState *state, Numeric newval)
 Datum
 numeric_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (NumericAggState *) PG_GETARG_POINTER(0);
@@ -5050,6 +5166,7 @@ numeric_accum(PG_FUNCTION_ARGS)
 Datum
 numeric_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state1;
   NumericAggState *state2;
   MemoryContext agg_context;
@@ -5119,6 +5236,7 @@ numeric_combine(PG_FUNCTION_ARGS)
 Datum
 numeric_avg_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (NumericAggState *) PG_GETARG_POINTER(0);
@@ -5139,6 +5257,7 @@ numeric_avg_accum(PG_FUNCTION_ARGS)
 Datum
 numeric_avg_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state1;
   NumericAggState *state2;
   MemoryContext agg_context;
@@ -5169,6 +5288,7 @@ numeric_avg_combine(PG_FUNCTION_ARGS)
 
     MemoryContextSwitchTo(old_context);
 
+    DBUG_PRINT("info", "count of processed numbers:%ld", state1->N);
     PG_RETURN_POINTER(state1);
   }
 
@@ -5197,6 +5317,7 @@ numeric_avg_combine(PG_FUNCTION_ARGS)
     MemoryContextSwitchTo(old_context);
   }
 
+  DBUG_PRINT("info", "count of processed numbers:%ld", state1->N);
   PG_RETURN_POINTER(state1);
 }
 
@@ -5208,6 +5329,7 @@ numeric_avg_combine(PG_FUNCTION_ARGS)
 Datum
 numeric_avg_serialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   StringInfoData buf;
   bytea    *result;
@@ -5260,6 +5382,7 @@ numeric_avg_serialize(PG_FUNCTION_ARGS)
 Datum
 numeric_avg_deserialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *sstate;
   NumericAggState *result;
   StringInfoData buf;
@@ -5318,6 +5441,7 @@ numeric_avg_deserialize(PG_FUNCTION_ARGS)
 Datum
 numeric_serialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   StringInfoData buf;
   bytea    *result;
@@ -5374,6 +5498,7 @@ numeric_serialize(PG_FUNCTION_ARGS)
 Datum
 numeric_deserialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *sstate;
   NumericAggState *result;
   StringInfoData buf;
@@ -5435,6 +5560,7 @@ numeric_deserialize(PG_FUNCTION_ARGS)
 Datum
 numeric_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (NumericAggState *) PG_GETARG_POINTER(0);
@@ -5482,6 +5608,7 @@ typedef struct Int128AggState {
 static Int128AggState *
 makeInt128AggState(FunctionCallInfo fcinfo, bool calcSumX2)
 {
+  DBUG_TRACE;
   Int128AggState *state;
   MemoryContext agg_context;
   MemoryContext old_context;
@@ -5552,6 +5679,7 @@ typedef NumericAggState PolyNumAggState;
 Datum
 int2_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -5574,6 +5702,7 @@ int2_accum(PG_FUNCTION_ARGS)
 Datum
 int4_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -5596,6 +5725,7 @@ int4_accum(PG_FUNCTION_ARGS)
 Datum
 int8_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (NumericAggState *) PG_GETARG_POINTER(0);
@@ -5616,6 +5746,7 @@ int8_accum(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state1;
   PolyNumAggState *state2;
   MemoryContext agg_context;
@@ -5680,6 +5811,7 @@ numeric_poly_combine(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_serialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
   StringInfoData buf;
   bytea    *result;
@@ -5738,6 +5870,7 @@ numeric_poly_serialize(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_deserialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *sstate;
   PolyNumAggState *result;
   StringInfoData buf;
@@ -5791,6 +5924,7 @@ numeric_poly_deserialize(PG_FUNCTION_ARGS)
 Datum
 int8_avg_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -5817,6 +5951,7 @@ int8_avg_accum(PG_FUNCTION_ARGS)
 Datum
 int8_avg_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state1;
   PolyNumAggState *state2;
   MemoryContext agg_context;
@@ -5876,6 +6011,7 @@ int8_avg_combine(PG_FUNCTION_ARGS)
 Datum
 int8_avg_serialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
   StringInfoData buf;
   bytea    *result;
@@ -5925,6 +6061,7 @@ int8_avg_serialize(PG_FUNCTION_ARGS)
 Datum
 int8_avg_deserialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *sstate;
   PolyNumAggState *result;
   StringInfoData buf;
@@ -5971,6 +6108,7 @@ int8_avg_deserialize(PG_FUNCTION_ARGS)
 Datum
 int2_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -5997,6 +6135,7 @@ int2_accum_inv(PG_FUNCTION_ARGS)
 Datum
 int4_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -6023,6 +6162,7 @@ int4_accum_inv(PG_FUNCTION_ARGS)
 Datum
 int8_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (NumericAggState *) PG_GETARG_POINTER(0);
@@ -6043,6 +6183,7 @@ int8_accum_inv(PG_FUNCTION_ARGS)
 Datum
 int8_avg_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PolyNumAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (PolyNumAggState *) PG_GETARG_POINTER(0);
@@ -6069,6 +6210,7 @@ int8_avg_accum_inv(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   Numeric   res;
@@ -6097,6 +6239,7 @@ numeric_poly_sum(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_avg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   NumericVar  result;
@@ -6127,6 +6270,7 @@ numeric_poly_avg(PG_FUNCTION_ARGS)
 Datum
 numeric_avg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   Datum   N_datum;
   Datum   sumX_datum;
@@ -6164,6 +6308,7 @@ numeric_avg(PG_FUNCTION_ARGS)
 Datum
 numeric_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   NumericVar  sumX_var;
   Numeric   result;
@@ -6290,6 +6435,7 @@ numeric_stddev_internal(NumericAggState *state,
 Datum
 numeric_var_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   Numeric   res;
   bool    is_null;
@@ -6307,6 +6453,7 @@ numeric_var_samp(PG_FUNCTION_ARGS)
 Datum
 numeric_stddev_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   Numeric   res;
   bool    is_null;
@@ -6324,6 +6471,7 @@ numeric_stddev_samp(PG_FUNCTION_ARGS)
 Datum
 numeric_var_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   Numeric   res;
   bool    is_null;
@@ -6341,6 +6489,7 @@ numeric_var_pop(PG_FUNCTION_ARGS)
 Datum
 numeric_stddev_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   NumericAggState *state;
   Numeric   res;
   bool    is_null;
@@ -6402,6 +6551,7 @@ numeric_poly_stddev_internal(Int128AggState *state,
 Datum
 numeric_poly_var_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   Numeric   res;
@@ -6424,6 +6574,7 @@ numeric_poly_var_samp(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_stddev_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   Numeric   res;
@@ -6446,6 +6597,7 @@ numeric_poly_stddev_samp(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_var_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   Numeric   res;
@@ -6468,6 +6620,7 @@ numeric_poly_var_pop(PG_FUNCTION_ARGS)
 Datum
 numeric_poly_stddev_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_INT128
   PolyNumAggState *state;
   Numeric   res;
@@ -6510,6 +6663,7 @@ numeric_poly_stddev_pop(PG_FUNCTION_ARGS)
 Datum
 int2_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   newval;
 
   if (PG_ARGISNULL(0)) {
@@ -6558,6 +6712,7 @@ int2_sum(PG_FUNCTION_ARGS)
 Datum
 int4_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   newval;
 
   if (PG_ARGISNULL(0)) {
@@ -6567,6 +6722,7 @@ int4_sum(PG_FUNCTION_ARGS)
 
     /* This is the first non-null input. */
     newval = (int64) PG_GETARG_INT32(1);
+    DBUG_PRINT("info", "this is the first non-null input and newsum:%ld", newval);
     PG_RETURN_INT64(newval);
   }
 
@@ -6586,6 +6742,7 @@ int4_sum(PG_FUNCTION_ARGS)
     if (!PG_ARGISNULL(1))
       *oldsum = *oldsum + (int64) PG_GETARG_INT32(1);
 
+    DBUG_PRINT("info", "oldsum:%ld, newsum:%ld", oldsum, newval);
     PG_RETURN_POINTER(oldsum);
   } else
 #endif
@@ -6599,6 +6756,7 @@ int4_sum(PG_FUNCTION_ARGS)
     /* OK to do the addition. */
     newval = oldsum + (int64) PG_GETARG_INT32(1);
 
+    DBUG_PRINT("info", "oldsum:%ld, newsum:%ld", oldsum, newval);
     PG_RETURN_INT64(newval);
   }
 }
@@ -6609,6 +6767,7 @@ int4_sum(PG_FUNCTION_ARGS)
 Datum
 int8_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   oldsum;
 
   if (PG_ARGISNULL(0)) {
@@ -6656,6 +6815,7 @@ typedef struct Int8TransTypeData {
 Datum
 int2_avg_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray;
   int16   newval = PG_GETARG_INT16(1);
   Int8TransTypeData *transdata;
@@ -6684,6 +6844,7 @@ int2_avg_accum(PG_FUNCTION_ARGS)
 Datum
 int4_avg_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray;
   int32   newval = PG_GETARG_INT32(1);
   Int8TransTypeData *transdata;
@@ -6712,6 +6873,7 @@ int4_avg_accum(PG_FUNCTION_ARGS)
 Datum
 int4_avg_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray1;
   ArrayType  *transarray2;
   Int8TransTypeData *state1;
@@ -6743,6 +6905,7 @@ int4_avg_combine(PG_FUNCTION_ARGS)
 Datum
 int2_avg_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray;
   int16   newval = PG_GETARG_INT16(1);
   Int8TransTypeData *transdata;
@@ -6771,6 +6934,7 @@ int2_avg_accum_inv(PG_FUNCTION_ARGS)
 Datum
 int4_avg_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray;
   int32   newval = PG_GETARG_INT32(1);
   Int8TransTypeData *transdata;
@@ -6799,6 +6963,7 @@ int4_avg_accum_inv(PG_FUNCTION_ARGS)
 Datum
 int8_avg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   Int8TransTypeData *transdata;
   Datum   countd,
@@ -6817,6 +6982,8 @@ int8_avg(PG_FUNCTION_ARGS)
   countd = NumericGetDatum(int64_to_numeric(transdata->count));
   sumd = NumericGetDatum(int64_to_numeric(transdata->sum));
 
+  DBUG_PRINT("info", "sum:%ld, count:%ld", transdata->sum, transdata->count);
+
   PG_RETURN_DATUM(DirectFunctionCall2(numeric_div, sumd, countd));
 }
 
@@ -6827,6 +6994,7 @@ int8_avg(PG_FUNCTION_ARGS)
 Datum
 int2int4_sum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   Int8TransTypeData *transdata;
 

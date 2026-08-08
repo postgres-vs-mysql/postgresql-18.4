@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "optimizer/appendinfo.h"
 #include "optimizer/clauses.h"
@@ -54,10 +55,12 @@ RelOptInfo *
 query_planner(PlannerInfo *root,
               query_pathkeys_callback qp_callback, void *qp_extra)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   List     *joinlist;
   RelOptInfo *final_rel;
 
+  DBUG_PRINT("info", "generate a path for a basic query");
   /*
    * Init planner lists to empty.
    *
@@ -82,6 +85,7 @@ query_planner(PlannerInfo *root,
   /*
    * Set up arrays for accessing base relations and AppendRelInfos.
    */
+  DBUG_PRINT("info", "set up arrays for accessing base relations and AppendRelInfos");
   setup_simple_rel_arrays(root);
 
   /*
@@ -102,6 +106,7 @@ query_planner(PlannerInfo *root,
       Assert(rte != NULL);
 
       if (rte->rtekind == RTE_RESULT) {
+        DBUG_PRINT("info", "bypass all the rest of this function and just make a RelOptInfo and its one access path");
         /* Make the RelOptInfo for it directly */
         final_rel = build_simple_rel(root, varno, NULL);
 
@@ -132,13 +137,13 @@ query_planner(PlannerInfo *root,
          * SELECT is a kind of degenerate-grouping case, so it's not
          * that much of a cheat.)
          */
-        add_path(final_rel, (Path *)
+        add_path(root, final_rel, (Path *)
                  create_group_result_path(root, final_rel,
                                           final_rel->reltarget,
                                           (List *) parse->jointree->quals));
 
         /* Select cheapest path (pretty easy in this case...) */
-        set_cheapest(final_rel);
+        set_cheapest(root, final_rel);
 
         /*
          * We don't need to run generate_base_implied_equalities, but
@@ -150,6 +155,7 @@ query_planner(PlannerInfo *root,
          * We still are required to call qp_callback, in case it's
          * something like "SELECT 2+2 ORDER BY 1".
          */
+        DBUG_PRINT("info", "we still are required to call qp_callback");
         (*qp_callback) (root, qp_extra);
 
         return final_rel;
@@ -166,6 +172,7 @@ query_planner(PlannerInfo *root,
    * for rels not actively part of the query, for example views.  We don't
    * want to make RelOptInfos for them.
    */
+  DBUG_PRINT("info", "construct RelOptInfo nodes for all base relations used in the query");
   add_base_rels_to_query(root, (Node *) parse->jointree);
 
   /* Remove any redundant GROUP BY columns */
@@ -188,12 +195,14 @@ query_planner(PlannerInfo *root,
   find_lateral_references(root);
 
   joinlist = deconstruct_jointree(root);
+  DBUG_PRINT("info", "after deconstruct_jointree, joinlist length:%d", joinlist->length);
 
   /*
    * Reconsider any postponed outer-join quals now that we have built up
    * equivalence classes.  (This could result in further additions or
    * mergings of classes.)
    */
+  DBUG_PRINT("info", "reconsider any postponed outer-join quals now that we have built up equivalence classes");
   reconsider_outer_join_clauses(root);
 
   /*
@@ -203,6 +212,7 @@ query_planner(PlannerInfo *root,
    */
   generate_base_implied_equalities(root);
 
+  DBUG_PRINT("info", "it's now possible to generate pathkeys in canonical form");
   /*
    * We have completed merging equivalence sets, so it's now possible to
    * generate pathkeys in canonical form; so compute query_pathkeys and
@@ -224,12 +234,15 @@ query_planner(PlannerInfo *root,
    * jointree preprocessing, but the necessary information isn't available
    * until we've built baserel data structures and classified qual clauses.
    */
+  DBUG_PRINT("info", "remove any useless outer joins");
   joinlist = remove_useless_joins(root, joinlist);
+  DBUG_PRINT("info", "after removing any useless outer joins, joinlist length:%d", joinlist->length);
 
   /*
    * Also, reduce any semijoins with unique inner rels to plain inner joins.
    * Likewise, this can't be done until now for lack of needed info.
    */
+  DBUG_PRINT("info", "reduce any semijoins with unique inner rels to plain inner joins");
   reduce_unique_semijoins(root);
 
   /*
@@ -256,6 +269,7 @@ query_planner(PlannerInfo *root,
    * after join removal so that we can skip processing foreign keys
    * involving removed relations.
    */
+  DBUG_PRINT("info", "match foreign keys to equivalence classes and join quals");
   match_foreign_keys_to_quals(root);
 
   /*
@@ -272,6 +286,7 @@ query_planner(PlannerInfo *root,
    * Also note that some information such as lateral_relids is propagated
    * from baserels to otherrels here, so we must have computed it already.
    */
+  DBUG_PRINT("info", "adding otherrels for their children");
   add_other_rels_to_query(root);
 
   /*
@@ -279,17 +294,22 @@ query_planner(PlannerInfo *root,
    * relations.  This can't be done till we've finished expansion of
    * appendrels.
    */
+  DBUG_PRINT("info", "distribute any UPDATE/DELETE/MERGE row identity variables to the target relations");
   distribute_row_identity_vars(root);
 
   /*
    * Ready to do the primary planning.
    */
+  DBUG_PRINT("info", "ready to do the primary planning");
   final_rel = make_one_rel(root, joinlist);
 
   /* Check that we got at least one usable path */
   if (!final_rel || !final_rel->cheapest_total_path ||
-      final_rel->cheapest_total_path->param_info != NULL)
+      final_rel->cheapest_total_path->param_info != NULL) {
     elog(ERROR, "failed to construct the join relation");
+  } else {
+
+  }
 
   return final_rel;
 }

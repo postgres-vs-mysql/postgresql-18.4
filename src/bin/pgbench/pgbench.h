@@ -44,8 +44,7 @@ typedef enum
 typedef struct
 {
   PgBenchValueType type;
-  union
-  {
+  union {
     int64   ival;
     double    dval;
     bool    bval;
@@ -110,15 +109,14 @@ typedef struct PgBenchExprList PgBenchExprList;
 struct PgBenchExpr
 {
   PgBenchExprType etype;
-  union
-  {
+  union {
     PgBenchValue constant;
-    struct
-    {
+struct
+{
       char     *varname;
     }     variable;
-    struct
-    {
+struct
+{
       PgBenchFunction function;
       PgBenchExprLink *args;
     }     function;

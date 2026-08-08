@@ -6,6 +6,7 @@
  * Teodor Sigaev <teodor@stack.net>
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -37,6 +38,7 @@ typedef Datum (*PGCALL2) (PG_FUNCTION_ARGS);
 static bool
 array_iterator(ArrayType *la, PGCALL2 callback, void *param, ltree **found)
 {
+  DBUG_TRACE;
   int     num = ArrayGetNItems(ARR_NDIM(la), ARR_DIMS(la));
   ltree    *item = (ltree *) ARR_DATA_PTR(la);
 
@@ -60,6 +62,7 @@ array_iterator(ArrayType *la, PGCALL2 callback, void *param, ltree **found)
       if (found)
         *found = item;
 
+      DBUG_PRINT("ltree", "return true");
       return true;
     }
 
@@ -67,24 +70,34 @@ array_iterator(ArrayType *la, PGCALL2 callback, void *param, ltree **found)
     item = NEXTVAL(item);
   }
 
+  DBUG_PRINT("ltree", "return false");
   return false;
 }
 
 Datum
 _ltree_isparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltree    *query = PG_GETARG_LTREE_P(1);
   bool    res = array_iterator(la, ltree_isparent, query, NULL);
 
   PG_FREE_IF_COPY(la, 0);
   PG_FREE_IF_COPY(query, 1);
+
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+  
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _ltree_r_isparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(_ltree_isparent,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -94,18 +107,26 @@ _ltree_r_isparent(PG_FUNCTION_ARGS)
 Datum
 _ltree_risparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltree    *query = PG_GETARG_LTREE_P(1);
   bool    res = array_iterator(la, ltree_risparent, query, NULL);
 
   PG_FREE_IF_COPY(la, 0);
   PG_FREE_IF_COPY(query, 1);
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _ltree_r_risparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(_ltree_risparent,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -115,18 +136,26 @@ _ltree_r_risparent(PG_FUNCTION_ARGS)
 Datum
 _ltq_regex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   lquery     *query = PG_GETARG_LQUERY_P(1);
   bool    res = array_iterator(la, ltq_regex, query, NULL);
 
   PG_FREE_IF_COPY(la, 0);
   PG_FREE_IF_COPY(query, 1);
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _ltq_rregex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(_ltq_regex,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -136,6 +165,7 @@ _ltq_rregex(PG_FUNCTION_ARGS)
 Datum
 _lt_q_regex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *_tree = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *_query = PG_GETARG_ARRAYTYPE_P(1);
   lquery     *query = (lquery *) ARR_DATA_PTR(_query);
@@ -164,12 +194,20 @@ _lt_q_regex(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(_tree, 0);
   PG_FREE_IF_COPY(_query, 1);
+
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _lt_q_rregex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(_lt_q_regex,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -180,12 +218,19 @@ _lt_q_rregex(PG_FUNCTION_ARGS)
 Datum
 _ltxtq_exec(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltxtquery  *query = PG_GETARG_LTXTQUERY_P(1);
   bool    res = array_iterator(la, ltxtq_exec, query, NULL);
 
   PG_FREE_IF_COPY(la, 0);
   PG_FREE_IF_COPY(query, 1);
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
@@ -202,6 +247,7 @@ _ltxtq_rexec(PG_FUNCTION_ARGS)
 Datum
 _ltree_extract_isparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltree    *query = PG_GETARG_LTREE_P(1);
   ltree    *found,
@@ -224,6 +270,7 @@ _ltree_extract_isparent(PG_FUNCTION_ARGS)
 Datum
 _ltree_extract_risparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltree    *query = PG_GETARG_LTREE_P(1);
   ltree    *found,
@@ -246,6 +293,7 @@ _ltree_extract_risparent(PG_FUNCTION_ARGS)
 Datum
 _ltq_extract_regex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   lquery     *query = PG_GETARG_LQUERY_P(1);
   ltree    *found,
@@ -268,6 +316,7 @@ _ltq_extract_regex(PG_FUNCTION_ARGS)
 Datum
 _ltxtq_extract_exec(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   ltxtquery  *query = PG_GETARG_LTXTQUERY_P(1);
   ltree    *found,
@@ -290,6 +339,7 @@ _ltxtq_extract_exec(PG_FUNCTION_ARGS)
 Datum
 _lca(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *la = PG_GETARG_ARRAYTYPE_P(0);
   int     num = ArrayGetNItems(ARR_NDIM(la), ARR_DIMS(la));
   ltree    *item = (ltree *) ARR_DATA_PTR(la);

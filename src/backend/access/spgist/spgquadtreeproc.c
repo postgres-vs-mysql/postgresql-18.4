@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/spgist.h"
 #include "access/spgist_private.h"
@@ -26,6 +27,7 @@
 Datum
 spg_quad_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
@@ -54,25 +56,39 @@ spg_quad_config(PG_FUNCTION_ARGS)
 static int16
 getQuadrant(Point *centroid, Point *tst)
 {
+  DBUG_TRACE;
+
   if ((SPTEST(point_above, tst, centroid) ||
        SPTEST(point_horiz, tst, centroid)) &&
       (SPTEST(point_right, tst, centroid) ||
-       SPTEST(point_vert, tst, centroid)))
+       SPTEST(point_vert, tst, centroid))) {
+    DBUG_PRINT("info", "determine which quadrant(1) a point(x:%g, y:%g) falls into, relative to the centroid(x:%g, y:%g)",
+               tst->x, tst->y, centroid->x, centroid->y);
     return 1;
+  }
 
   if (SPTEST(point_below, tst, centroid) &&
       (SPTEST(point_right, tst, centroid) ||
-       SPTEST(point_vert, tst, centroid)))
+       SPTEST(point_vert, tst, centroid))) {
+    DBUG_PRINT("info", "determine which quadrant(2) a point(x:%g, y:%g) falls into, relative to the centroid(x:%g, y:%g)",
+               tst->x, tst->y, centroid->x, centroid->y);
     return 2;
+  }
 
   if ((SPTEST(point_below, tst, centroid) ||
        SPTEST(point_horiz, tst, centroid)) &&
-      SPTEST(point_left, tst, centroid))
+      SPTEST(point_left, tst, centroid)) {
+    DBUG_PRINT("info", "determine which quadrant(3) a point(x:%g, y:%g) falls into, relative to the centroid(x:%g, y:%g)",
+               tst->x, tst->y, centroid->x, centroid->y);
     return 3;
+  }
 
   if (SPTEST(point_above, tst, centroid) &&
-      SPTEST(point_left, tst, centroid))
+      SPTEST(point_left, tst, centroid)) {
+    DBUG_PRINT("info", "determine which quadrant(4) a point(x:%g, y:%g) falls into, relative to the centroid(x:%g, y:%g)",
+               tst->x, tst->y, centroid->x, centroid->y);
     return 4;
+  }
 
   elog(ERROR, "getQuadrant: impossible case");
   return 0;
@@ -82,7 +98,10 @@ getQuadrant(Point *centroid, Point *tst)
 static BOX *
 getQuadrantArea(BOX *bbox, Point *centroid, int quadrant)
 {
+  DBUG_TRACE;
   BOX      *result = (BOX *) palloc(sizeof(BOX));
+
+  DBUG_PRINT("info", "return bounding box of a given quadrant inside given bounding box(quadrant:%d)", quadrant);
 
   switch (quadrant) {
     case 1:
@@ -110,12 +129,14 @@ getQuadrantArea(BOX *bbox, Point *centroid, int quadrant)
       break;
   }
 
+  DBUG_PRINT("info", "high(x:%g, y:%g), low(x:%g, y:%g)", result->high.x, result->high.y, result->low.x, result->low.y);
   return result;
 }
 
 Datum
 spg_quad_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   Point    *inPoint = DatumGetPointP(in->datum),
@@ -131,6 +152,7 @@ spg_quad_choose(PG_FUNCTION_ARGS)
 
   Assert(in->hasPrefix);
   centroid = DatumGetPointP(in->prefixDatum);
+  DBUG_PRINT("info", "centroid(x:%g, y:%g), inPoint(x:%g, y:%g)", centroid->x, centroid->y, inPoint->x, inPoint->y);
 
   Assert(in->nNodes == 4);
 
@@ -171,6 +193,7 @@ y_cmp(const void *a, const void *b, void *arg)
 Datum
 spg_quad_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   int     i;
@@ -228,6 +251,7 @@ spg_quad_picksplit(PG_FUNCTION_ARGS)
 Datum
 spg_quad_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   Point    *centroid;
@@ -268,6 +292,7 @@ spg_quad_inner_consistent(PG_FUNCTION_ARGS)
     /* Report that all nodes should be visited */
     out->nNodes = in->nNodes;
     out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
+    DBUG_PRINT("info", "report that all nodes should be visited");
 
     for (i = 0; i < in->nNodes; i++) {
       out->nodeNumbers[i] = i;
@@ -376,6 +401,7 @@ spg_quad_inner_consistent(PG_FUNCTION_ARGS)
   for (i = 0; i < 4; ++i)
     out->levelAdds[i] = 1;
 
+  DBUG_PRINT("info", "we must descend into the quadrant(s) identified by which:%d", which);
   /* We must descend into the quadrant(s) identified by which */
   out->nodeNumbers = (int *) palloc(sizeof(int) * 4);
   out->nNodes = 0;
@@ -397,16 +423,117 @@ spg_quad_inner_consistent(PG_FUNCTION_ARGS)
       }
 
       out->nNodes++;
+      DBUG_PRINT("info", "quadrant:%d", i);
     }
   }
 
   PG_RETURN_VOID();
 }
 
+static const char *
+strategy_desc(StrategyNumber strategy)
+{
+  switch (strategy) {
+    case RTLeftStrategyNumber:
+      return "<< (strictly left)";
+
+    case RTOverLeftStrategyNumber:
+      return "&< (overlaps or left)";
+
+    case RTOverlapStrategyNumber:
+      return "&& (overlap)";
+
+    case RTOverRightStrategyNumber:
+      return "&> (overlaps or right)";
+
+    case RTRightStrategyNumber:
+      return ">> (strictly right)";
+
+    case RTSameStrategyNumber:
+      return "~= (same)";
+
+    case RTContainsStrategyNumber:
+      return "@> (contains)";
+
+    case RTContainedByStrategyNumber:
+      return "<@ (contained by)";
+
+    case RTOverBelowStrategyNumber:
+      return "&<| (overlaps or below)";
+
+    case RTBelowStrategyNumber:
+      return "<<| (strictly below)";
+
+    case RTAboveStrategyNumber:
+      return "|>> (strictly above)";
+
+    case RTOverAboveStrategyNumber:
+      return "|&> (overlaps or above)";
+
+    case RTOldContainsStrategyNumber:
+      return "old @> (contains)";
+
+    case RTOldContainedByStrategyNumber:
+      return "old <@ (contained by)";
+
+    case RTKNNSearchStrategyNumber:
+      return "<-> (distance search)";
+
+    case RTContainsElemStrategyNumber:
+      return "@> elem (contains element)";
+
+    case RTAdjacentStrategyNumber:
+      return "-|- (adjacent)";
+
+    case RTEqualStrategyNumber:
+      return "= (equal)";
+
+    case RTNotEqualStrategyNumber:
+      return "!= (not equal)";
+
+    case RTLessStrategyNumber:
+      return "< (less than)";
+
+    case RTLessEqualStrategyNumber:
+      return "<= (less than or equal)";
+
+    case RTGreaterStrategyNumber:
+      return "> (greater than)";
+
+    case RTGreaterEqualStrategyNumber:
+      return ">= (greater than or equal)";
+
+    case RTSubStrategyNumber:
+      return ">> (inet subnet)";
+
+    case RTSubEqualStrategyNumber:
+      return "<<= (inet subnet or equal)";
+
+    case RTSuperStrategyNumber:
+      return "<< (inet supernet)";
+
+    case RTSuperEqualStrategyNumber:
+      return ">>= (inet supernet or equal)";
+
+    case RTPrefixStrategyNumber:
+      return "^@ (text prefix match)";
+
+    case RTOldBelowStrategyNumber:
+      return "old <<| (below)";
+
+    case RTOldAboveStrategyNumber:
+      return "old |>> (above)";
+
+    default:
+      return "UNKNOWN";
+  }
+}
+
 
 Datum
 spg_quad_leaf_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
   spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
   Point    *datum = DatumGetPointP(in->leafDatum);
@@ -464,6 +591,9 @@ spg_quad_leaf_consistent(PG_FUNCTION_ARGS)
         break;
     }
 
+    DBUG_PRINT("info", "[SPGIST][leaf] datum=(%g, %g), query=(%g, %g),strategy='%s',result=%s",
+               datum->x, datum->y, query->x, query->y, strategy_desc(in->scankeys[i].sk_strategy), res ? "MATCH" : "MISS");
+
     if (!res)
       break;
   }
@@ -472,6 +602,12 @@ spg_quad_leaf_consistent(PG_FUNCTION_ARGS)
     /* ok, it passes -> let's compute the distances */
     out->distances = spg_key_orderbys_distances(in->leafDatum, true,
                      in->orderbys, in->norderbys);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(res);
 }

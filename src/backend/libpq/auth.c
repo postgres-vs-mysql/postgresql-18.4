@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/param.h>
 #include <sys/select.h>
@@ -112,9 +113,9 @@ static struct pam_conv pam_passw_conv = {
 };
 
 static const char *pam_passwd = NULL; /* Workaround for Solaris 2.6
-                     * brokenness */
+                                       * brokenness */
 static Port *pam_port_cludge; /* Workaround for passing "Port *port" into
-                 * pam_passwd_conv_proc */
+                               * pam_passwd_conv_proc */
 static bool pam_no_password;  /* For detecting no-password-given */
 #endif              /* USE_PAM */
 
@@ -389,6 +390,7 @@ set_authn_id(Port *port, const char *id)
 void
 ClientAuthentication(Port *port)
 {
+  DBUG_TRACE;
   int     status = STATUS_ERROR;
   const char *logdetail = NULL;
 
@@ -508,25 +510,25 @@ ClientAuthentication(Port *port)
         _("no encryption");
 
 #define HOSTNAME_LOOKUP_DETAIL(port) \
-      (port->remote_hostname ? \
-       (port->remote_hostname_resolv == +1 ? \
-        errdetail_log("Client IP address resolved to \"%s\", forward lookup matches.", \
-              port->remote_hostname) : \
-        port->remote_hostname_resolv == 0 ? \
-        errdetail_log("Client IP address resolved to \"%s\", forward lookup not checked.", \
-              port->remote_hostname) : \
-        port->remote_hostname_resolv == -1 ? \
-        errdetail_log("Client IP address resolved to \"%s\", forward lookup does not match.", \
-              port->remote_hostname) : \
-        port->remote_hostname_resolv == -2 ? \
-        errdetail_log("Could not translate client host name \"%s\" to IP address: %s.", \
-              port->remote_hostname, \
-              gai_strerror(port->remote_hostname_errcode)) : \
-        0) \
-       : (port->remote_hostname_resolv == -2 ? \
-        errdetail_log("Could not resolve client IP address to a host name: %s.", \
-                gai_strerror(port->remote_hostname_errcode)) : \
-        0))
+(port->remote_hostname ? \
+ (port->remote_hostname_resolv == +1 ? \
+errdetail_log("Client IP address resolved to \"%s\", forward lookup matches.", \
+port->remote_hostname) : \
+port->remote_hostname_resolv == 0 ? \
+errdetail_log("Client IP address resolved to \"%s\", forward lookup not checked.", \
+port->remote_hostname) : \
+port->remote_hostname_resolv == -1 ? \
+errdetail_log("Client IP address resolved to \"%s\", forward lookup does not match.", \
+port->remote_hostname) : \
+port->remote_hostname_resolv == -2 ? \
+errdetail_log("Could not translate client host name \"%s\" to IP address: %s.", \
+port->remote_hostname, \
+gai_strerror(port->remote_hostname_errcode)) : \
+0) \
+ : (port->remote_hostname_resolv == -2 ? \
+ errdetail_log("Could not resolve client IP address to a host name: %s.", \
+ gai_strerror(port->remote_hostname_errcode)) : \
+ 0))
 
       if (am_walsender && !am_db_walsender)
         ereport(FATAL,
@@ -675,6 +677,9 @@ ClientAuthentication(Port *port)
                    port->user_name, hba_authname(port->hba->auth_method),
                    port->hba->sourcefile, port->hba->linenumber));
   }
+
+  DBUG_PRINT("info", "connection authenticated: user=\"%s\" method=%s (%s:%d)",
+             port->user_name, hba_authname(port->hba->auth_method), port->hba->sourcefile, port->hba->linenumber);
 
   if (ClientAuthentication_hook)
     (*ClientAuthentication_hook) (port, status);
@@ -2054,7 +2059,7 @@ CheckPAMAuth(Port *port, const char *user, const char *password)
    * authentication module.
    */
   pam_passw_conv.appdata_ptr = unconstify(char *, password);  /* from password above,
-                                 * not allocated */
+                                                               * not allocated */
 
   /* Optionally, one can set the service name in pg_hba.conf */
   if (port->hba->pamservice && port->hba->pamservice[0] != '\0')

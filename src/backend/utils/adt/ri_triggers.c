@@ -22,6 +22,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/sysattr.h"
@@ -244,6 +245,7 @@ pg_noreturn static void ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 static Datum
 RI_FKey_check(TriggerData *trigdata)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   Relation  fk_rel;
   Relation  pk_rel;
@@ -251,6 +253,7 @@ RI_FKey_check(TriggerData *trigdata)
   RI_QueryKey qkey;
   SPIPlanPtr  qplan;
 
+  DBUG_PRINT("info", "check foreign key existence");
   riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
                                   trigdata->tg_relation, false);
 
@@ -270,6 +273,7 @@ RI_FKey_check(TriggerData *trigdata)
   if (!table_tuple_satisfies_snapshot(trigdata->tg_relation, newslot, SnapshotSelf))
     return PointerGetDatum(NULL);
 
+  DBUG_PRINT("info", "get the relation descriptors of the FK and PK tables");
   /*
    * Get the relation descriptors of the FK and PK tables.
    *
@@ -286,6 +290,7 @@ RI_FKey_check(TriggerData *trigdata)
        * No further check needed - an all-NULL key passes every type of
        * foreign key constraint.
        */
+      DBUG_PRINT("info", "no further check needed - an all-NULL key passes every type of foreign key constraint");
       table_close(pk_rel, RowShareLock);
       return PointerGetDatum(NULL);
 
@@ -302,6 +307,8 @@ RI_FKey_check(TriggerData *trigdata)
            * Not allowed - MATCH FULL says either all or none of the
            * attributes can be NULLs
            */
+          DBUG_INSTANT_PRINT("info", "insert or update on table \"%s\" violates foreign key constraint \"%s\"",
+                             RelationGetRelationName(fk_rel), NameStr(riinfo->conname));
           ereport(ERROR,
                   (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
                    errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
@@ -319,6 +326,7 @@ RI_FKey_check(TriggerData *trigdata)
            * MATCH SIMPLE - if ANY column is null, the key passes
            * the constraint.
            */
+          DBUG_PRINT("info", "if ANY column is null, the key passes the constraint");
           table_close(pk_rel, RowShareLock);
           return PointerGetDatum(NULL);
 
@@ -348,6 +356,7 @@ RI_FKey_check(TriggerData *trigdata)
   SPI_connect();
 
   /* Fetch or prepare a saved plan for the real check */
+  DBUG_PRINT("info", "fetch or prepare a saved plan for the real check");
   ri_BuildQueryKey(&qkey, riinfo, RI_PLAN_CHECK_LOOKUPPK);
 
   if ((qplan = ri_FetchPreparedPlan(&qkey)) == NULL) {
@@ -606,6 +615,7 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
   /*
    * We have a plan now. Run it.
    */
+  DBUG_PRINT("info", "we have a plan now and run it");
   result = ri_PerformCheck(riinfo, &qkey, qplan,
                            fk_rel, pk_rel,
                            oldslot, NULL,
@@ -630,6 +640,7 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 Datum
 RI_FKey_noaction_del(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_noaction_del", RI_TRIGTYPE_DELETE);
 
@@ -650,6 +661,7 @@ RI_FKey_noaction_del(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_restrict_del(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_restrict_del", RI_TRIGTYPE_DELETE);
 
@@ -667,6 +679,7 @@ RI_FKey_restrict_del(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_noaction_upd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_noaction_upd", RI_TRIGTYPE_UPDATE);
 
@@ -687,6 +700,7 @@ RI_FKey_noaction_upd(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_restrict_upd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_restrict_upd", RI_TRIGTYPE_UPDATE);
 
@@ -703,6 +717,7 @@ RI_FKey_restrict_upd(PG_FUNCTION_ARGS)
 static Datum
 ri_restrict(TriggerData *trigdata, bool is_no_action)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   Relation  fk_rel;
   Relation  pk_rel;
@@ -873,6 +888,7 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
     appendStringInfoString(&querybuf, " FOR KEY SHARE OF x");
 
     /* Prepare and save the plan */
+    DBUG_PRINT("info", "prepare and save the plan");
     qplan = ri_PlanCheck(querybuf.data, riinfo->nkeys, queryoids,
                          &qkey, fk_rel, pk_rel);
   }
@@ -880,6 +896,7 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
   /*
    * We have a plan now. Run it to check for existing references.
    */
+  DBUG_PRINT("info", "now check that foreign key exists in PK table");
   ri_PerformCheck(riinfo, &qkey, qplan,
                   fk_rel, pk_rel,
                   oldslot, NULL,
@@ -904,6 +921,7 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 Datum
 RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   const RI_ConstraintInfo *riinfo;
   Relation  fk_rel;
@@ -1005,6 +1023,7 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   const RI_ConstraintInfo *riinfo;
   Relation  fk_rel;
@@ -1098,6 +1117,8 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
   /*
    * We have a plan now. Run it to update the existing references.
    */
+  DBUG_PRINT("info", "we have a plan now");
+  DBUG_PRINT("info", "run it to update the existing references");
   ri_PerformCheck(riinfo, &qkey, qplan,
                   fk_rel, pk_rel,
                   oldslot, newslot,
@@ -1122,6 +1143,7 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_setnull_del(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_setnull_del", RI_TRIGTYPE_DELETE);
 
@@ -1137,6 +1159,7 @@ RI_FKey_setnull_del(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_setnull_upd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_setnull_upd", RI_TRIGTYPE_UPDATE);
 
@@ -1167,6 +1190,7 @@ RI_FKey_setdefault_del(PG_FUNCTION_ARGS)
 Datum
 RI_FKey_setdefault_upd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Check that this is a valid trigger call on the right time and event. */
   ri_CheckTrigger(fcinfo, "RI_FKey_setdefault_upd", RI_TRIGTYPE_UPDATE);
 
@@ -1183,6 +1207,7 @@ RI_FKey_setdefault_upd(PG_FUNCTION_ARGS)
 static Datum
 ri_set(TriggerData *trigdata, bool is_set_null, int tgkind)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   Relation  fk_rel;
   Relation  pk_rel;
@@ -1373,6 +1398,7 @@ bool
 RI_FKey_pk_upd_check_required(Trigger *trigger, Relation pk_rel,
                               TupleTableSlot *oldslot, TupleTableSlot *newslot)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
 
   riinfo = ri_FetchConstraintInfo(trigger, pk_rel, true);
@@ -1405,6 +1431,7 @@ bool
 RI_FKey_fk_upd_check_required(Trigger *trigger, Relation fk_rel,
                               TupleTableSlot *oldslot, TupleTableSlot *newslot)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   int     ri_nullcheck;
 
@@ -1503,6 +1530,7 @@ RI_FKey_fk_upd_check_required(Trigger *trigger, Relation fk_rel,
 bool
 RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   StringInfoData querybuf;
   char    pkrelname[MAX_QUOTED_REL_NAME_LEN];
@@ -1721,8 +1749,10 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
                                     true, false, 1);
 
   /* Check result */
-  if (spi_result != SPI_OK_SELECT)
+  if (spi_result != SPI_OK_SELECT) {
+    DBUG_INSTANT_PRINT("info", "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
     elog(ERROR, "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
+  }
 
   /* Did we find a tuple violating the constraint? */
   if (SPI_processed > 0) {
@@ -1757,7 +1787,9 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
      * disallows partially-null FK rows.
      */
     if (fake_riinfo.confmatchtype == FKCONSTR_MATCH_FULL &&
-        ri_NullCheck(tupdesc, slot, &fake_riinfo, false) != RI_KEYS_NONE_NULL)
+        ri_NullCheck(tupdesc, slot, &fake_riinfo, false) != RI_KEYS_NONE_NULL) {
+      DBUG_INSTANT_PRINT("info", "insert or update on table \"%s\" violates foreign key constraint \"%s\"",
+                         RelationGetRelationName(fk_rel), NameStr(fake_riinfo.conname));
       ereport(ERROR,
               (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
                errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
@@ -1766,6 +1798,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
                errdetail("MATCH FULL does not allow mixing of null and nonnull key values."),
                errtableconstraint(fk_rel,
                                   NameStr(fake_riinfo.conname))));
+    }
 
     /*
      * We tell ri_ReportViolation we were doing the RI_PLAN_CHECK_LOOKUPPK
@@ -1800,6 +1833,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 void
 RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 {
+  DBUG_TRACE;
   const RI_ConstraintInfo *riinfo;
   StringInfoData querybuf;
   char     *constraintDef;
@@ -1947,9 +1981,11 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
    */
   qplan = SPI_prepare(querybuf.data, 0, NULL);
 
-  if (qplan == NULL)
+  if (qplan == NULL) {
+    DBUG_INSTANT_PRINT("info", "SPI_prepare returned %s for %s", SPI_result_code_string(SPI_result), querybuf.data);
     elog(ERROR, "SPI_prepare returned %s for %s",
          SPI_result_code_string(SPI_result), querybuf.data);
+  }
 
   /*
    * Run the plan.  For safety we force a current snapshot to be used. (In
@@ -1965,8 +2001,10 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
                                     true, false, 1);
 
   /* Check result */
-  if (spi_result != SPI_OK_SELECT)
+  if (spi_result != SPI_OK_SELECT) {
+    DBUG_INSTANT_PRINT("info", "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
     elog(ERROR, "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
+  }
 
   /* Did we find a tuple that would violate the constraint? */
   if (SPI_processed > 0) {
@@ -1999,8 +2037,10 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
                        slot, tupdesc, 0, false, true);
   }
 
-  if (SPI_finish() != SPI_OK_FINISH)
+  if (SPI_finish() != SPI_OK_FINISH) {
+    DBUG_INSTANT_PRINT("info", "SPI_finish failed");
     elog(ERROR, "SPI_finish failed");
+  }
 
   /*
    * Restore work_mem and hash_mem_multiplier.
@@ -2165,44 +2205,55 @@ ri_BuildQueryKey(RI_QueryKey *key, const RI_ConstraintInfo *riinfo,
 static void
 ri_CheckTrigger(FunctionCallInfo fcinfo, const char *funcname, int tgkind)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
 
-  if (!CALLED_AS_TRIGGER(fcinfo))
+  if (!CALLED_AS_TRIGGER(fcinfo)) {
+    DBUG_INSTANT_PRINT("info", "function \"%s\" was not called by trigger manager", funcname);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("function \"%s\" was not called by trigger manager", funcname)));
+  }
 
   /*
    * Check proper event
    */
   if (!TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
-      !TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
+      !TRIGGER_FIRED_FOR_ROW(trigdata->tg_event)) {
+    DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired AFTER ROW", funcname);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("function \"%s\" must be fired AFTER ROW", funcname)));
+  }
 
   switch (tgkind) {
     case RI_TRIGTYPE_INSERT:
-      if (!TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
+      if (!TRIGGER_FIRED_BY_INSERT(trigdata->tg_event)) {
+        DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired for INSERT", funcname);
         ereport(ERROR,
                 (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                  errmsg("function \"%s\" must be fired for INSERT", funcname)));
+      }
 
       break;
 
     case RI_TRIGTYPE_UPDATE:
-      if (!TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
+      if (!TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event)) {
+        DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired for UPDATE", funcname);
         ereport(ERROR,
                 (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                  errmsg("function \"%s\" must be fired for UPDATE", funcname)));
+      }
 
       break;
 
     case RI_TRIGTYPE_DELETE:
-      if (!TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
+      if (!TRIGGER_FIRED_BY_DELETE(trigdata->tg_event)) {
+        DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired for DELETE", funcname);
         ereport(ERROR,
                 (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                  errmsg("function \"%s\" must be fired for DELETE", funcname)));
+      }
 
       break;
   }
@@ -2215,6 +2266,7 @@ ri_CheckTrigger(FunctionCallInfo fcinfo, const char *funcname, int tgkind)
 static const RI_ConstraintInfo *
 ri_FetchConstraintInfo(Trigger *trigger, Relation trig_rel, bool rel_is_pk)
 {
+  DBUG_TRACE;
   Oid     constraintOid = trigger->tgconstraint;
   const RI_ConstraintInfo *riinfo;
 
@@ -2223,27 +2275,34 @@ ri_FetchConstraintInfo(Trigger *trigger, Relation trig_rel, bool rel_is_pk)
    * we've been invoked via an ordinary trigger or an old-style "constraint
    * trigger".
    */
-  if (!OidIsValid(constraintOid))
+  if (!OidIsValid(constraintOid)) {
+    DBUG_INSTANT_PRINT("info", "no pg_constraint entry for trigger \"%s\" on table \"%s\"", trigger->tgname, RelationGetRelationName(trig_rel));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("no pg_constraint entry for trigger \"%s\" on table \"%s\"",
                     trigger->tgname, RelationGetRelationName(trig_rel)),
              errhint("Remove this referential integrity trigger and its mates, then do ALTER TABLE ADD CONSTRAINT.")));
+  }
 
   /* Find or create a hashtable entry for the constraint */
+  DBUG_PRINT("info", "find or create a hashtable entry for the constraint (constraintOid:%u)", constraintOid);
   riinfo = ri_LoadConstraintInfo(constraintOid);
 
   /* Do some easy cross-checks against the trigger call data */
   if (rel_is_pk) {
     if (riinfo->fk_relid != trigger->tgconstrrelid ||
-        riinfo->pk_relid != RelationGetRelid(trig_rel))
+        riinfo->pk_relid != RelationGetRelid(trig_rel)) {
+      DBUG_INSTANT_PRINT("info", "wrong pg_constraint entry for trigger \"%s\" on table \"%s\"", trigger->tgname, RelationGetRelationName(trig_rel));
       elog(ERROR, "wrong pg_constraint entry for trigger \"%s\" on table \"%s\"",
            trigger->tgname, RelationGetRelationName(trig_rel));
+    }
   } else {
     if (riinfo->fk_relid != RelationGetRelid(trig_rel) ||
-        riinfo->pk_relid != trigger->tgconstrrelid)
+        riinfo->pk_relid != trigger->tgconstrrelid) {
+      DBUG_INSTANT_PRINT("info", "wrong pg_constraint entry for trigger \"%s\" on table \"%s\"", trigger->tgname, RelationGetRelationName(trig_rel));
       elog(ERROR, "wrong pg_constraint entry for trigger \"%s\" on table \"%s\"",
            trigger->tgname, RelationGetRelationName(trig_rel));
+    }
   }
 
   if (riinfo->confmatchtype != FKCONSTR_MATCH_FULL &&
@@ -2252,10 +2311,12 @@ ri_FetchConstraintInfo(Trigger *trigger, Relation trig_rel, bool rel_is_pk)
     elog(ERROR, "unrecognized confmatchtype: %d",
          riinfo->confmatchtype);
 
-  if (riinfo->confmatchtype == FKCONSTR_MATCH_PARTIAL)
+  if (riinfo->confmatchtype == FKCONSTR_MATCH_PARTIAL) {
+    DBUG_INSTANT_PRINT("info", "MATCH PARTIAL not yet implemented");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("MATCH PARTIAL not yet implemented")));
+  }
 
   return riinfo;
 }
@@ -2266,6 +2327,7 @@ ri_FetchConstraintInfo(Trigger *trigger, Relation trig_rel, bool rel_is_pk)
 static const RI_ConstraintInfo *
 ri_LoadConstraintInfo(Oid constraintOid)
 {
+  DBUG_TRACE;
   RI_ConstraintInfo *riinfo;
   bool    found;
   HeapTuple tup;
@@ -2368,6 +2430,8 @@ ri_LoadConstraintInfo(Oid constraintOid)
 static Oid
 get_ri_constraint_root(Oid constrOid)
 {
+  DBUG_TRACE;
+
   for (;;) {
     HeapTuple tuple;
     Oid     constrParentOid;
@@ -2406,6 +2470,7 @@ get_ri_constraint_root(Oid constrOid)
 static void
 InvalidateConstraintCacheCallBack(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   Assert(ri_constraint_cache != NULL);
@@ -2446,6 +2511,7 @@ static SPIPlanPtr
 ri_PlanCheck(const char *querystr, int nargs, Oid *argtypes,
              RI_QueryKey *qkey, Relation fk_rel, Relation pk_rel)
 {
+  DBUG_TRACE;
   SPIPlanPtr  qplan;
   Relation  query_rel;
   Oid     save_userid;
@@ -2493,6 +2559,7 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
                 bool is_restrict,
                 bool detectNewRows, int expect_OK)
 {
+  DBUG_TRACE;
   Relation  query_rel,
             source_rel;
   bool    source_is_pk;
@@ -2578,6 +2645,7 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
                          SECURITY_NOFORCE_RLS);
 
   /* Finally we can run the query. */
+  DBUG_PRINT("info", "finally we can run the query(expect_OK:%d)", expect_OK);
   spi_result = SPI_execute_snapshot(qplan,
                                     vals, nulls,
                                     test_snapshot, crosscheck_snapshot,
@@ -2587,10 +2655,14 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
   SetUserIdAndSecContext(save_userid, save_sec_context);
 
   /* Check result */
-  if (spi_result < 0)
+  if (spi_result < 0) {
+    DBUG_INSTANT_PRINT("info", "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
     elog(ERROR, "SPI_execute_snapshot returned %s", SPI_result_code_string(spi_result));
+  }
 
-  if (expect_OK >= 0 && spi_result != expect_OK)
+  if (expect_OK >= 0 && spi_result != expect_OK) {
+    DBUG_INSTANT_PRINT("info", "referential integrity query on \"%s\" from constraint \"%s\" on \"%s\" gave unexpected result",
+                       RelationGetRelationName(pk_rel), NameStr(riinfo->conname), RelationGetRelationName(fk_rel));
     ereport(ERROR,
             (errcode(ERRCODE_INTERNAL_ERROR),
              errmsg("referential integrity query on \"%s\" from constraint \"%s\" on \"%s\" gave unexpected result",
@@ -2598,16 +2670,19 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
                     NameStr(riinfo->conname),
                     RelationGetRelationName(fk_rel)),
              errhint("This is most likely due to a rule having rewritten the query.")));
+  }
 
   /* XXX wouldn't it be clearer to do this part at the caller? */
   if (qkey->constr_queryno != RI_PLAN_CHECK_LOOKUPPK_FROM_PK &&
       expect_OK == SPI_OK_SELECT &&
-      (SPI_processed == 0) == (qkey->constr_queryno == RI_PLAN_CHECK_LOOKUPPK))
+      (SPI_processed == 0) == (qkey->constr_queryno == RI_PLAN_CHECK_LOOKUPPK)) {
+    DBUG_PRINT("info", "produce an error report");
     ri_ReportViolation(riinfo,
                        pk_rel, fk_rel,
                        newslot ? newslot : oldslot,
                        NULL,
                        qkey->constr_queryno, is_restrict, false);
+  }
 
   return SPI_processed != 0;
 }
@@ -2616,9 +2691,9 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
  * Extract fields from a tuple into Datum/nulls arrays
  */
 static void
-ri_ExtractValues(Relation rel, TupleTableSlot *slot,
-                 const RI_ConstraintInfo *riinfo, bool rel_is_pk,
-                 Datum *vals, char *nulls)
+ri_ExtractValues(Relation rel, TupleTableSlot * slot,
+                 const RI_ConstraintInfo * riinfo, bool rel_is_pk,
+                 Datum * vals, char *nulls)
 {
   const int16 *attnums;
   bool    isnull;
@@ -2644,11 +2719,12 @@ ri_ExtractValues(Relation rel, TupleTableSlot *slot,
  * message looks like 'key blah is still referenced from FK'.
  */
 static void
-ri_ReportViolation(const RI_ConstraintInfo *riinfo,
+ri_ReportViolation(const RI_ConstraintInfo * riinfo,
                    Relation pk_rel, Relation fk_rel,
-                   TupleTableSlot *violatorslot, TupleDesc tupdesc,
+                   TupleTableSlot * violatorslot, TupleDesc tupdesc,
                    int queryno, bool is_restrict, bool partgone)
 {
+  DBUG_TRACE;
   StringInfoData key_names;
   StringInfoData key_values;
   bool    onfk;
@@ -2748,7 +2824,9 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
     }
   }
 
-  if (partgone)
+  if (partgone) {
+    DBUG_INSTANT_PRINT("info", "removing partition \"%s\" violates foreign key constraint \"%s\"",
+                       RelationGetRelationName(pk_rel), NameStr(riinfo->conname));
     ereport(ERROR,
             (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
              errmsg("removing partition \"%s\" violates foreign key constraint \"%s\"",
@@ -2758,7 +2836,10 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
                        key_names.data, key_values.data,
                        RelationGetRelationName(fk_rel)),
              errtableconstraint(fk_rel, NameStr(riinfo->conname))));
-  else if (onfk)
+  } else if (onfk) {
+    DBUG_INSTANT_PRINT("info", "insert or update on table \"%s\" violates foreign key constraint \"%s\"",
+                       RelationGetRelationName(pk_rel), NameStr(riinfo->conname));
+
     ereport(ERROR,
             (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
              errmsg("insert or update on table \"%s\" violates foreign key constraint \"%s\"",
@@ -2771,7 +2852,7 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
              errdetail("Key is not present in table \"%s\".",
                        RelationGetRelationName(pk_rel)),
              errtableconstraint(fk_rel, NameStr(riinfo->conname))));
-  else if (is_restrict)
+  } else if (is_restrict) {
     ereport(ERROR,
             (errcode(ERRCODE_RESTRICT_VIOLATION),
              errmsg("update or delete on table \"%s\" violates RESTRICT setting of foreign key constraint \"%s\" on table \"%s\"",
@@ -2785,7 +2866,10 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
              errdetail("Key is referenced from table \"%s\".",
                        RelationGetRelationName(fk_rel)),
              errtableconstraint(fk_rel, NameStr(riinfo->conname))));
-  else
+  } else {
+    DBUG_INSTANT_PRINT("info", "update or delete on table \"%s\" violates foreign key constraint \"%s\" on table \"%s\"",
+                       RelationGetRelationName(pk_rel), NameStr(riinfo->conname), RelationGetRelationName(fk_rel));
+
     ereport(ERROR,
             (errcode(ERRCODE_FOREIGN_KEY_VIOLATION),
              errmsg("update or delete on table \"%s\" violates foreign key constraint \"%s\" on table \"%s\"",
@@ -2799,6 +2883,7 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
              errdetail("Key is still referenced from table \"%s\".",
                        RelationGetRelationName(fk_rel)),
              errtableconstraint(fk_rel, NameStr(riinfo->conname))));
+  }
 }
 
 
@@ -2811,9 +2896,10 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
  */
 static int
 ri_NullCheck(TupleDesc tupDesc,
-             TupleTableSlot *slot,
-             const RI_ConstraintInfo *riinfo, bool rel_is_pk)
+             TupleTableSlot * slot,
+             const RI_ConstraintInfo * riinfo, bool rel_is_pk)
 {
+  DBUG_TRACE;
   const int16 *attnums;
   bool    allnull = true;
   bool    nonenull = true;
@@ -2848,6 +2934,7 @@ ri_NullCheck(TupleDesc tupDesc,
 static void
 ri_InitHashTables(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   ctl.keysize = sizeof(Oid);
@@ -2882,8 +2969,9 @@ ri_InitHashTables(void)
  * and saved SPI execution plans. Return the plan if found or NULL.
  */
 static SPIPlanPtr
-ri_FetchPreparedPlan(RI_QueryKey *key)
+ri_FetchPreparedPlan(RI_QueryKey * key)
 {
+  DBUG_TRACE;
   RI_QueryHashEntry *entry;
   SPIPlanPtr  plan;
 
@@ -2937,8 +3025,9 @@ ri_FetchPreparedPlan(RI_QueryKey *key)
  * Add another plan to our private SPI query plan hashtable.
  */
 static void
-ri_HashPreparedPlan(RI_QueryKey *key, SPIPlanPtr plan)
+ri_HashPreparedPlan(RI_QueryKey * key, SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   RI_QueryHashEntry *entry;
   bool    found;
 
@@ -2974,8 +3063,8 @@ ri_HashPreparedPlan(RI_QueryKey *key, SPIPlanPtr plan)
  * previously found at least one of the rows to contain no nulls.
  */
 static bool
-ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
-             const RI_ConstraintInfo *riinfo, bool rel_is_pk)
+ri_KeysEqual(Relation rel, TupleTableSlot * oldslot, TupleTableSlot * newslot,
+             const RI_ConstraintInfo * riinfo, bool rel_is_pk)
 {
   const int16 *attnums;
 
@@ -3061,6 +3150,7 @@ static bool
 ri_CompareWithCast(Oid eq_opr, Oid typeid, Oid collid,
                    Datum lhs, Datum rhs)
 {
+  DBUG_TRACE;
   RI_CompareHashEntry *entry = ri_HashCompareOp(eq_opr, typeid);
 
   /* Do we need to cast the values? */

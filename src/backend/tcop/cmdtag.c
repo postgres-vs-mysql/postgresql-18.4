@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "tcop/cmdtag.h"
@@ -38,6 +39,7 @@ static const CommandTagBehavior tag_behavior[] = {
 void
 InitializeQueryCompletion(QueryCompletion *qc)
 {
+  DBUG_TRACE;
   qc->commandTag = CMDTAG_UNKNOWN;
   qc->nprocessed = 0;
 }
@@ -122,6 +124,7 @@ Size
 BuildQueryCompletionString(char *buff, const QueryCompletion *qc,
                            bool nameonly)
 {
+  DBUG_TRACE;
   CommandTag  tag = qc->commandTag;
   Size    taglen;
   const char *tagname = GetCommandTagNameAndLen(tag, &taglen);

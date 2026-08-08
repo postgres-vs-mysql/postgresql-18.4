@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/namespace.h"
 #include "commands/defrem.h"
@@ -45,6 +46,7 @@ static void
 tt_setup_firstcall(FuncCallContext *funcctx, FunctionCallInfo fcinfo,
                    Oid prsid)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   MemoryContext oldcontext;
   TSTokenTypeStorage *st;
@@ -105,6 +107,7 @@ tt_process_call(FuncCallContext *funcctx)
 Datum
 ts_token_type_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -124,6 +127,7 @@ ts_token_type_byid(PG_FUNCTION_ARGS)
 Datum
 ts_token_type_byname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -160,6 +164,7 @@ static void
 prs_setup_firstcall(FuncCallContext *funcctx, FunctionCallInfo fcinfo,
                     Oid prsid, text *txt)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   MemoryContext oldcontext;
   PrsStorage *st;
@@ -241,6 +246,7 @@ prs_process_call(FuncCallContext *funcctx)
 Datum
 ts_parse_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -263,6 +269,7 @@ ts_parse_byid(PG_FUNCTION_ARGS)
 Datum
 ts_parse_byname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -287,6 +294,7 @@ ts_parse_byname(PG_FUNCTION_ARGS)
 Datum
 ts_headline_byid_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tsconfig = PG_GETARG_OID(0);
   text     *in = PG_GETARG_TEXT_PP(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -340,6 +348,7 @@ ts_headline_byid_opt(PG_FUNCTION_ARGS)
 Datum
 ts_headline_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_byid_opt,
                                       PG_GETARG_DATUM(0),
                                       PG_GETARG_DATUM(1),
@@ -349,6 +358,7 @@ ts_headline_byid(PG_FUNCTION_ARGS)
 Datum
 ts_headline(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -358,6 +368,7 @@ ts_headline(PG_FUNCTION_ARGS)
 Datum
 ts_headline_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(ts_headline_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -368,6 +379,7 @@ ts_headline_opt(PG_FUNCTION_ARGS)
 Datum
 ts_headline_jsonb_byid_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tsconfig = PG_GETARG_OID(0);
   Jsonb    *jb = PG_GETARG_JSONB_P(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -417,6 +429,7 @@ ts_headline_jsonb_byid_opt(PG_FUNCTION_ARGS)
 Datum
 ts_headline_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_jsonb_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -426,6 +439,7 @@ ts_headline_jsonb(PG_FUNCTION_ARGS)
 Datum
 ts_headline_jsonb_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_jsonb_byid_opt,
                                       PG_GETARG_DATUM(0),
                                       PG_GETARG_DATUM(1),
@@ -435,6 +449,7 @@ ts_headline_jsonb_byid(PG_FUNCTION_ARGS)
 Datum
 ts_headline_jsonb_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(ts_headline_jsonb_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -445,6 +460,7 @@ ts_headline_jsonb_opt(PG_FUNCTION_ARGS)
 Datum
 ts_headline_json_byid_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tsconfig = PG_GETARG_OID(0);
   text     *json = PG_GETARG_TEXT_P(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -495,6 +511,7 @@ ts_headline_json_byid_opt(PG_FUNCTION_ARGS)
 Datum
 ts_headline_json(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_json_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -504,6 +521,7 @@ ts_headline_json(PG_FUNCTION_ARGS)
 Datum
 ts_headline_json_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(ts_headline_json_byid_opt,
                                       PG_GETARG_DATUM(0),
                                       PG_GETARG_DATUM(1),
@@ -513,6 +531,7 @@ ts_headline_json_byid(PG_FUNCTION_ARGS)
 Datum
 ts_headline_json_opt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(ts_headline_json_byid_opt,
                                       ObjectIdGetDatum(getTSCurrentConfig(true)),
                                       PG_GETARG_DATUM(0),
@@ -527,6 +546,7 @@ ts_headline_json_opt(PG_FUNCTION_ARGS)
 static text *
 headline_json_value(void *_state, char *elem_value, int elem_len)
 {
+  DBUG_TRACE;
   HeadlineJsonState *state = (HeadlineJsonState *) _state;
 
   HeadlineParsedText *prs = state->prs;

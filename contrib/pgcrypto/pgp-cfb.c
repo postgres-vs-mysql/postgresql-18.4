@@ -33,6 +33,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 typedef int (*mix_data_t) (PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst);
 
@@ -51,6 +52,7 @@ int
 pgp_cfb_create(PGP_CFB **ctx_p, int algo, const uint8 *key, int key_len,
                int resync, uint8 *iv)
 {
+  DBUG_TRACE;
   int     res;
   PX_Cipher  *ciph;
   PGP_CFB    *ctx;
@@ -82,6 +84,7 @@ pgp_cfb_create(PGP_CFB **ctx_p, int algo, const uint8 *key, int key_len,
 void
 pgp_cfb_free(PGP_CFB *ctx)
 {
+  DBUG_TRACE;
   px_cipher_free(ctx->ciph);
   px_memset(ctx, 0, sizeof(*ctx));
   pfree(ctx);
@@ -93,6 +96,7 @@ pgp_cfb_free(PGP_CFB *ctx)
 static int
 mix_encrypt_normal(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = ctx->pos; i < ctx->pos + len; i++)
@@ -105,6 +109,7 @@ mix_encrypt_normal(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 static int
 mix_decrypt_normal(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = ctx->pos; i < ctx->pos + len; i++) {
@@ -125,6 +130,7 @@ mix_decrypt_normal(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 static int
 mix_encrypt_resync(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   int     i,
           n;
 
@@ -159,6 +165,7 @@ mix_encrypt_resync(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 static int
 mix_decrypt_resync(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   int     i,
           n;
 
@@ -201,6 +208,7 @@ static int
 cfb_process(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst,
             mix_data_t mix_data)
 {
+  DBUG_TRACE;
   int     n;
   int     res;
 
@@ -255,6 +263,7 @@ cfb_process(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst,
 int
 pgp_cfb_encrypt(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   mix_data_t  mix = ctx->resync ? mix_encrypt_resync : mix_encrypt_normal;
 
   return cfb_process(ctx, data, len, dst, mix);
@@ -263,6 +272,7 @@ pgp_cfb_encrypt(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 int
 pgp_cfb_decrypt(PGP_CFB *ctx, const uint8 *data, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   mix_data_t  mix = ctx->resync ? mix_decrypt_resync : mix_decrypt_normal;
 
   return cfb_process(ctx, data, len, dst, mix);

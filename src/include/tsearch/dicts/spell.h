@@ -60,16 +60,15 @@ typedef struct SPNode
  */
 typedef struct spell_struct
 {
-  union
-  {
+  union {
     /*
      * flag is filled in by NIImportDictionary(). After
      * NISortDictionary(), d is used instead of flag.
      */
     const char *flag;
     /* d is used in mkSPNode() */
-    struct
-    {
+struct
+{
       /* Reference to an entry of the AffixData field */
       int     affix;
       /* Length of the word */
@@ -95,8 +94,7 @@ typedef struct aff_struct
             replen: 14;
   const char *find;
   const char *repl;
-  union
-  {
+  union {
     /*
      * Arrays of AFFIX are moved and sorted.  We'll use a pointer to
      * regex_t to keep this struct small, and avoid assuming that regex_t
@@ -167,8 +165,7 @@ typedef enum
  */
 typedef struct CompoundAffixFlag
 {
-  union
-  {
+  union {
     /* Flag name if flagMode is FM_CHAR or FM_LONG */
     const char *s;
     /* Flag name if flagMode is FM_NUM */

@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/attmap.h"
@@ -39,6 +40,7 @@ static bool check_attrmap_match(TupleDesc indesc,
 AttrMap *
 make_attrmap(int maplen)
 {
+  DBUG_TRACE;
   AttrMap    *res;
 
   res = (AttrMap *) palloc0(sizeof(AttrMap));
@@ -55,6 +57,7 @@ make_attrmap(int maplen)
 void
 free_attrmap(AttrMap *map)
 {
+  DBUG_TRACE;
   pfree(map->attnums);
   pfree(map);
 }
@@ -76,6 +79,7 @@ build_attrmap_by_position(TupleDesc indesc,
                           TupleDesc outdesc,
                           const char *msg)
 {
+  DBUG_TRACE;
   AttrMap    *attrMap;
   int     nincols;
   int     noutcols;
@@ -179,6 +183,7 @@ build_attrmap_by_name(TupleDesc indesc,
                       TupleDesc outdesc,
                       bool missing_ok)
 {
+  DBUG_TRACE;
   AttrMap    *attrMap;
   int     outnatts;
   int     innatts;
@@ -270,6 +275,7 @@ build_attrmap_by_name_if_req(TupleDesc indesc,
                              TupleDesc outdesc,
                              bool missing_ok)
 {
+  DBUG_TRACE;
   AttrMap    *attrMap;
 
   /* Verify compatibility and prepare attribute-number map */
@@ -296,6 +302,7 @@ check_attrmap_match(TupleDesc indesc,
                     TupleDesc outdesc,
                     AttrMap *attrMap)
 {
+  DBUG_TRACE;
   int     i;
 
   /* no match if attribute numbers are not the same */

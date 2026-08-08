@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -59,6 +60,7 @@ static char *printTypmod(const char *typname, int32 typmod, Oid typmodout);
 Datum
 format_type(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     type_oid;
   int32   typemod;
   char     *result;
@@ -110,6 +112,7 @@ format_type(PG_FUNCTION_ARGS)
 char *
 format_type_extended(Oid type_oid, int32 typemod, bits16 flags)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_type typeform;
   Oid     array_base_type;
@@ -344,6 +347,7 @@ format_type_extended(Oid type_oid, int32 typemod, bits16 flags)
 char *
 format_type_be(Oid type_oid)
 {
+  DBUG_TRACE;
   return format_type_extended(type_oid, -1, 0);
 }
 
@@ -354,6 +358,7 @@ format_type_be(Oid type_oid)
 char *
 format_type_be_qualified(Oid type_oid)
 {
+  DBUG_TRACE;
   return format_type_extended(type_oid, -1, FORMAT_TYPE_FORCE_QUALIFY);
 }
 
@@ -363,6 +368,7 @@ format_type_be_qualified(Oid type_oid)
 char *
 format_type_with_typemod(Oid type_oid, int32 typemod)
 {
+  DBUG_TRACE;
   return format_type_extended(type_oid, typemod, FORMAT_TYPE_TYPEMOD_GIVEN);
 }
 
@@ -372,6 +378,7 @@ format_type_with_typemod(Oid type_oid, int32 typemod)
 static char *
 printTypmod(const char *typname, int32 typmod, Oid typmodout)
 {
+  DBUG_TRACE;
   char     *res;
 
   /* Shouldn't be called if typmod is -1 */
@@ -444,6 +451,7 @@ type_maximum_size(Oid type_oid, int32 typemod)
 Datum
 oidvectortypes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
   char     *result;
   int     numargs;

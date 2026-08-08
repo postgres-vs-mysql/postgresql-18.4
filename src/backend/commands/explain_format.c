@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "commands/explain.h"
 #include "commands/explain_format.h"
@@ -37,6 +38,7 @@ static void escape_yaml(StringInfo buf, const char *str);
 void
 ExplainPropertyList(const char *qlabel, List *data, ExplainState *es)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   bool    first = true;
 
@@ -112,6 +114,7 @@ ExplainPropertyList(const char *qlabel, List *data, ExplainState *es)
 void
 ExplainPropertyListNested(const char *qlabel, List *data, ExplainState *es)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   bool    first = true;
 
@@ -169,6 +172,8 @@ static void
 ExplainProperty(const char *qlabel, const char *unit, const char *value,
                 bool numeric, ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       ExplainIndentText(es);
@@ -225,6 +230,7 @@ ExplainProperty(const char *qlabel, const char *unit, const char *value,
 void
 ExplainPropertyText(const char *qlabel, const char *value, ExplainState *es)
 {
+  DBUG_TRACE;
   ExplainProperty(qlabel, NULL, value, false, es);
 }
 
@@ -235,6 +241,7 @@ void
 ExplainPropertyInteger(const char *qlabel, const char *unit, int64 value,
                        ExplainState *es)
 {
+  DBUG_TRACE;
   char    buf[32];
 
   snprintf(buf, sizeof(buf), INT64_FORMAT, value);
@@ -248,6 +255,7 @@ void
 ExplainPropertyUInteger(const char *qlabel, const char *unit, uint64 value,
                         ExplainState *es)
 {
+  DBUG_TRACE;
   char    buf[32];
 
   snprintf(buf, sizeof(buf), UINT64_FORMAT, value);
@@ -262,6 +270,7 @@ void
 ExplainPropertyFloat(const char *qlabel, const char *unit, double value,
                      int ndigits, ExplainState *es)
 {
+  DBUG_TRACE;
   char     *buf;
 
   buf = psprintf("%.*f", ndigits, value);
@@ -291,6 +300,8 @@ void
 ExplainOpenGroup(const char *objtype, const char *labelname,
                  bool labeled, ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -353,6 +364,8 @@ void
 ExplainCloseGroup(const char *objtype, const char *labelname,
                   bool labeled, ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -399,6 +412,8 @@ void
 ExplainOpenSetAsideGroup(const char *objtype, const char *labelname,
                          bool labeled, int depth, ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -437,6 +452,8 @@ ExplainOpenSetAsideGroup(const char *objtype, const char *labelname,
 void
 ExplainSaveGroup(ExplainState *es, int depth, int *state_save)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -466,6 +483,8 @@ ExplainSaveGroup(ExplainState *es, int depth, int *state_save)
 void
 ExplainRestoreGroup(ExplainState *es, int depth, int *state_save)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -496,6 +515,8 @@ ExplainRestoreGroup(ExplainState *es, int depth, int *state_save)
 void
 ExplainDummyGroup(const char *objtype, const char *labelname, ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -541,6 +562,8 @@ ExplainDummyGroup(const char *objtype, const char *labelname, ExplainState *es)
 void
 ExplainBeginOutput(ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -571,6 +594,8 @@ ExplainBeginOutput(ExplainState *es)
 void
 ExplainEndOutput(ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* nothing to do */
@@ -599,6 +624,8 @@ ExplainEndOutput(ExplainState *es)
 void
 ExplainSeparatePlans(ExplainState *es)
 {
+  DBUG_TRACE;
+
   switch (es->format) {
     case EXPLAIN_FORMAT_TEXT:
       /* add a blank line */
@@ -627,6 +654,7 @@ ExplainSeparatePlans(ExplainState *es)
 static void
 ExplainXMLTag(const char *tagname, int flags, ExplainState *es)
 {
+  DBUG_TRACE;
   const char *s;
   const char *valid = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
 
@@ -660,6 +688,7 @@ ExplainXMLTag(const char *tagname, int flags, ExplainState *es)
 void
 ExplainIndentText(ExplainState *es)
 {
+  DBUG_TRACE;
   Assert(es->format == EXPLAIN_FORMAT_TEXT);
 
   if (es->str->len == 0 || es->str->data[es->str->len - 1] == '\n')
@@ -676,6 +705,7 @@ ExplainIndentText(ExplainState *es)
 static void
 ExplainJSONLineEnding(ExplainState *es)
 {
+  DBUG_TRACE;
   Assert(es->format == EXPLAIN_FORMAT_JSON);
 
   if (linitial_int(es->grouping_stack) != 0)
@@ -698,6 +728,7 @@ ExplainJSONLineEnding(ExplainState *es)
 static void
 ExplainYAMLLineStarting(ExplainState *es)
 {
+  DBUG_TRACE;
   Assert(es->format == EXPLAIN_FORMAT_YAML);
 
   if (linitial_int(es->grouping_stack) == 0) {
@@ -721,5 +752,6 @@ ExplainYAMLLineStarting(ExplainState *es)
 static void
 escape_yaml(StringInfo buf, const char *str)
 {
+  DBUG_TRACE;
   escape_json(buf, str);
 }

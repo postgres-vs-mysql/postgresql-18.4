@@ -8,6 +8,7 @@
  *    contrib/pageinspect/ginfuncs.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/htup_details.h"
@@ -27,6 +28,7 @@ PG_FUNCTION_INFO_V1(gin_leafpage_items);
 Datum
 gin_metapage_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   TupleDesc tupdesc;
   Page    page;
@@ -36,10 +38,12 @@ gin_metapage_info(PG_FUNCTION_ARGS)
   Datum   values[10];
   bool    nulls[10];
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = get_page_from_raw(raw_page);
 
@@ -95,6 +99,7 @@ gin_metapage_info(PG_FUNCTION_ARGS)
 Datum
 gin_page_opaque_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   TupleDesc tupdesc;
   Page    page;
@@ -106,10 +111,12 @@ gin_page_opaque_info(PG_FUNCTION_ARGS)
   int     nflags = 0;
   uint16    flagbits;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = get_page_from_raw(raw_page);
 
@@ -186,14 +193,17 @@ typedef struct gin_leafpage_items_state {
 Datum
 gin_leafpage_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   FuncCallContext *fctx;
   gin_leafpage_items_state *inter_call_data;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     TupleDesc tupdesc;

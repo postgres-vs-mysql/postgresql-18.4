@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -296,6 +297,7 @@ text_to_cstring_buffer(const text *src, char *dst, size_t dst_len)
 Datum
 byteain(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *inputText = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   char     *tp;
@@ -386,6 +388,7 @@ byteain(PG_FUNCTION_ARGS)
 Datum
 byteaout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *vlena = PG_GETARG_BYTEA_PP(0);
   char     *result;
   char     *rp;
@@ -453,6 +456,7 @@ byteaout(PG_FUNCTION_ARGS)
   }
 
   *rp = '\0';
+  DBUG_PRINT("info", "return '%s'", result);
   PG_RETURN_CSTRING(result);
 }
 
@@ -462,6 +466,7 @@ byteaout(PG_FUNCTION_ARGS)
 Datum
 bytearecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   bytea    *result;
   int     nbytes;
@@ -481,6 +486,7 @@ bytearecv(PG_FUNCTION_ARGS)
 Datum
 byteasend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *vlena = PG_GETARG_BYTEA_P_COPY(0);
 
   PG_RETURN_BYTEA_P(vlena);
@@ -489,6 +495,7 @@ byteasend(PG_FUNCTION_ARGS)
 Datum
 bytea_string_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state;
 
   state = PG_ARGISNULL(0) ? NULL : (StringInfo) PG_GETARG_POINTER(0);
@@ -541,6 +548,7 @@ bytea_string_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 bytea_string_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state;
 
   /* cannot be called directly because of internal-type argument */
@@ -567,8 +575,10 @@ bytea_string_agg_finalfn(PG_FUNCTION_ARGS)
 Datum
 textin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *inputText = PG_GETARG_CSTRING(0);
 
+  DBUG_PRINT("info", "convert '%s' to internal representation", inputText);
   PG_RETURN_TEXT_P(cstring_to_text(inputText));
 }
 
@@ -578,9 +588,12 @@ textin(PG_FUNCTION_ARGS)
 Datum
 textout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   txt = PG_GETARG_DATUM(0);
+  char *result = TextDatumGetCString(txt);
 
-  PG_RETURN_CSTRING(TextDatumGetCString(txt));
+  DBUG_PRINT("info", "converts internal representation to '%s'", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -589,6 +602,7 @@ textout(PG_FUNCTION_ARGS)
 Datum
 textrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   text     *result;
   char     *str;
@@ -607,6 +621,7 @@ textrecv(PG_FUNCTION_ARGS)
 Datum
 textsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t = PG_GETARG_TEXT_PP(0);
   StringInfoData buf;
 
@@ -622,6 +637,7 @@ textsend(PG_FUNCTION_ARGS)
 Datum
 unknownin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 
   /* representation is same as cstring */
@@ -634,6 +650,7 @@ unknownin(PG_FUNCTION_ARGS)
 Datum
 unknownout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* representation is same as cstring */
   char     *str = PG_GETARG_CSTRING(0);
 
@@ -646,6 +663,7 @@ unknownout(PG_FUNCTION_ARGS)
 Datum
 unknownrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   char     *str;
   int     nbytes;
@@ -661,6 +679,7 @@ unknownrecv(PG_FUNCTION_ARGS)
 Datum
 unknownsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* representation is same as cstring */
   char     *str = PG_GETARG_CSTRING(0);
   StringInfoData buf;
@@ -681,6 +700,7 @@ unknownsend(PG_FUNCTION_ARGS)
 Datum
 textlen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   str = PG_GETARG_DATUM(0);
 
   /* try to avoid decompressing argument */
@@ -718,6 +738,7 @@ text_length(Datum str)
 Datum
 textoctetlen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   str = PG_GETARG_DATUM(0);
 
   /* We need not detoast the input at all */
@@ -737,6 +758,7 @@ textoctetlen(PG_FUNCTION_ARGS)
 Datum
 textcat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t1 = PG_GETARG_TEXT_PP(0);
   text     *t2 = PG_GETARG_TEXT_PP(1);
 
@@ -842,6 +864,7 @@ charlen_to_bytelen(const char *p, int n)
 Datum
 text_substr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(text_substring(PG_GETARG_DATUM(0),
                                   PG_GETARG_INT32(1),
                                   PG_GETARG_INT32(2),
@@ -856,6 +879,7 @@ text_substr(PG_FUNCTION_ARGS)
 Datum
 text_substr_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(text_substring(PG_GETARG_DATUM(0),
                                   PG_GETARG_INT32(1),
                                   -1, true));
@@ -1112,6 +1136,7 @@ pg_mbcharcliplen_chars(const char *mbstr, int len, int limit)
 Datum
 textoverlay(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t1 = PG_GETARG_TEXT_PP(0);
   text     *t2 = PG_GETARG_TEXT_PP(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -1123,6 +1148,7 @@ textoverlay(PG_FUNCTION_ARGS)
 Datum
 textoverlay_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t1 = PG_GETARG_TEXT_PP(0);
   text     *t2 = PG_GETARG_TEXT_PP(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -1173,6 +1199,7 @@ text_overlay(text *t1, text *t2, int sp, int sl)
 Datum
 textpos(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *search_str = PG_GETARG_TEXT_PP(1);
 
@@ -1630,6 +1657,7 @@ check_collation_set(Oid collid)
 int
 varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, Oid collid)
 {
+  DBUG_TRACE;
   int     result;
   pg_locale_t mylocale;
 
@@ -1639,6 +1667,7 @@ varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, Oid collid)
 
   if (mylocale->collate_is_c) {
     result = memcmp(arg1, arg2, Min(len1, len2));
+    DBUG_PRINT("info", "memcmp returns result:%d", result);
 
     if ((result == 0) && (len1 != len2))
       result = (len1 < len2) ? -1 : 1;
@@ -1652,10 +1681,13 @@ varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, Oid collid)
      * equal strings in the input - then we win big by avoiding expensive
      * collation-aware comparisons.
      */
-    if (len1 == len2 && memcmp(arg1, arg2, len1) == 0)
+    if (len1 == len2 && memcmp(arg1, arg2, len1) == 0) {
+      DBUG_PRINT("info", "return arg1 == arg2");
       return 0;
+    }
 
     result = pg_strncoll(arg1, len1, arg2, len2, mylocale);
+    DBUG_PRINT("info", "pg_strncoll returns result:%d", result);
 
     /* Break tie if necessary. */
     if (result == 0 && mylocale->deterministic) {
@@ -1664,6 +1696,16 @@ varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, Oid collid)
       if ((result == 0) && (len1 != len2))
         result = (len1 < len2) ? -1 : 1;
     }
+  }
+
+  DBUG_PRINT("info", "compared result:%d", result);
+
+  if (result < 0) {
+    DBUG_PRINT("info", "return arg1 < arg2");
+  } else if (result > 0) {
+    DBUG_PRINT("info", "return arg1 > arg2");
+  } else {
+    DBUG_PRINT("info", "return arg1 == arg2");
   }
 
   return result;
@@ -1676,18 +1718,33 @@ varstr_cmp(const char *arg1, int len1, const char *arg2, int len2, Oid collid)
 static int
 text_cmp(text *arg1, text *arg2, Oid collid)
 {
+  DBUG_TRACE;
   char     *a1p,
            *a2p;
   int     len1,
           len2;
+  int result;
+  char old_p1, old_p2;
 
   a1p = VARDATA_ANY(arg1);
   a2p = VARDATA_ANY(arg2);
 
   len1 = VARSIZE_ANY_EXHDR(arg1);
   len2 = VARSIZE_ANY_EXHDR(arg2);
+  old_p1 = a1p[len1];
+  old_p2 = a2p[len2];
+  a1p[len1] = '\0';
+  a2p[len2] = '\0';
 
-  return varstr_cmp(a1p, len1, a2p, len2, collid);
+
+  DBUG_PRINT("info", "arg1:'%s', len1:%d, arg2:'%s', len2:%d", a1p, len1, a2p, len2);
+  a1p[len1] = old_p1;
+  a2p[len2] = old_p2;
+
+  result = varstr_cmp(a1p, len1, a2p, len2, collid);
+
+  DBUG_PRINT("info", "return %d", result);
+  return result;
 }
 
 /*
@@ -1701,6 +1758,7 @@ text_cmp(text *arg1, text *arg2, Oid collid)
 Datum
 texteq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     collid = PG_GET_COLLATION();
   pg_locale_t mylocale = 0;
   bool    result;
@@ -1725,14 +1783,43 @@ texteq(PG_FUNCTION_ARGS)
     len1 = toast_raw_datum_size(arg1);
     len2 = toast_raw_datum_size(arg2);
 
-    if (len1 != len2)
+    if (len1 != len2) {
+      char *a1p = VARDATA_ANY(arg1);
+      char *a2p = VARDATA_ANY(arg2);
+
+      int s_len1 = VARSIZE_ANY_EXHDR(arg1);
+      int s_len2 = VARSIZE_ANY_EXHDR(arg2);
+      char old_p1 = a1p[s_len1];
+      char old_p2 = a2p[s_len2];
+      a1p[s_len1] = '\0';
+      a2p[s_len2] = '\0';
+      DBUG_PRINT("info", "we can show the lengths of the strings are unequal(len1:%lu, len2:%lu)",
+                 len1, len2);
+      DBUG_PRINT("info", "arg1:'%s', arg1_len:%d, arg2:'%s', arg2_len:%d", a1p, s_len1, a2p, s_len2);
+      a1p[s_len1] = old_p1;
+      a2p[s_len2] = old_p2;
       result = false;
-    else {
+
+    } else {
       text     *targ1 = DatumGetTextPP(arg1);
       text     *targ2 = DatumGetTextPP(arg2);
 
-      result = (memcmp(VARDATA_ANY(targ1), VARDATA_ANY(targ2),
-                       len1 - VARHDRSZ) == 0);
+      char *a1p = VARDATA_ANY(arg1);
+      char *a2p = VARDATA_ANY(arg2);
+
+      int s_len1 = VARSIZE_ANY_EXHDR(arg1);
+      int s_len2 = VARSIZE_ANY_EXHDR(arg2);
+
+      char old_p1 = a1p[s_len1];
+      char old_p2 = a2p[s_len2];
+      a1p[s_len1] = '\0';
+      a2p[s_len2] = '\0';
+
+      DBUG_PRINT("info", "arg1:'%s', len1:%d, arg2:'%s', len2:%d", a1p, s_len1, a2p, s_len2);
+      a1p[s_len1] = old_p1;
+      a2p[s_len2] = old_p2;
+
+      result = (memcmp(a1p, a2p, len1 - VARHDRSZ) == 0);
 
       PG_FREE_IF_COPY(targ1, 0);
       PG_FREE_IF_COPY(targ2, 1);
@@ -1747,12 +1834,19 @@ texteq(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(arg2, 1);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "texteq returns true");
+  } else {
+    DBUG_PRINT("info", "texteq returns false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 textne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     collid = PG_GET_COLLATION();
   pg_locale_t mylocale;
   bool    result;
@@ -1771,11 +1865,27 @@ textne(PG_FUNCTION_ARGS)
     len1 = toast_raw_datum_size(arg1);
     len2 = toast_raw_datum_size(arg2);
 
-    if (len1 != len2)
+    if (len1 != len2) {
       result = true;
-    else {
+    } else {
       text     *targ1 = DatumGetTextPP(arg1);
       text     *targ2 = DatumGetTextPP(arg2);
+
+      char *a1p = VARDATA_ANY(arg1);
+      char *a2p = VARDATA_ANY(arg2);
+
+      int s_len1 = VARSIZE_ANY_EXHDR(arg1);
+      int s_len2 = VARSIZE_ANY_EXHDR(arg2);
+
+      char old_p1 = a1p[s_len1];
+      char old_p2 = a2p[s_len2];
+      a1p[s_len1] = '\0';
+      a2p[s_len2] = '\0';
+
+      DBUG_PRINT("info", "arg1:'%s', len1:%d, arg2:'%s', len2:%d", a1p, s_len1, a2p, s_len2);
+      a1p[s_len1] = old_p1;
+      a2p[s_len2] = old_p2;
+
 
       result = (memcmp(VARDATA_ANY(targ1), VARDATA_ANY(targ2),
                        len1 - VARHDRSZ) != 0);
@@ -1793,12 +1903,19 @@ textne(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(arg2, 1);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 text_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -1808,12 +1925,19 @@ text_lt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 text_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -1823,12 +1947,19 @@ text_le(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 text_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -1838,12 +1969,19 @@ text_gt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 text_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -1853,12 +1991,19 @@ text_ge(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 text_starts_with(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   arg1 = PG_GETARG_DATUM(0);
   Datum   arg2 = PG_GETARG_DATUM(1);
   Oid     collid = PG_GET_COLLATION();
@@ -1892,12 +2037,19 @@ text_starts_with(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(targ2, 1);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 bttextcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int32   result;
@@ -1907,12 +2059,14 @@ bttextcmp(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
 Datum
 bttextsortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   Oid     collid = ssup->ssup_collation;
   MemoryContext oldcontext;
@@ -1920,6 +2074,7 @@ bttextsortsupport(PG_FUNCTION_ARGS)
   oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
   /* Use generic string SortSupport */
+  DBUG_PRINT("info", "use generic string SortSupport");
   varstr_sortsupport(ssup, TEXTOID, collid);
 
   MemoryContextSwitchTo(oldcontext);
@@ -2598,25 +2753,42 @@ varstr_abbrev_abort(int memtupcount, SortSupport ssup)
 Datum
 btvarstrequalimage(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Oid    opcintype = PG_GETARG_OID(0); */
   Oid     collid = PG_GET_COLLATION();
   pg_locale_t locale;
+  bool result;
 
   check_collation_set(collid);
 
   locale = pg_newlocale_from_collation(collid);
 
-  PG_RETURN_BOOL(locale->deterministic);
+  result = (locale->deterministic);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 text_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   text     *result;
 
   result = ((text_cmp(arg1, arg2, PG_GET_COLLATION()) > 0) ? arg1 : arg2);
+
+  if (result == arg1) {
+    DBUG_PRINT("info", "return arg1");
+  } else {
+    DBUG_PRINT("info", "return arg2");
+  }
 
   PG_RETURN_TEXT_P(result);
 }
@@ -2624,11 +2796,18 @@ text_larger(PG_FUNCTION_ARGS)
 Datum
 text_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   text     *result;
 
   result = ((text_cmp(arg1, arg2, PG_GET_COLLATION()) < 0) ? arg1 : arg2);
+
+  if (result == arg1) {
+    DBUG_PRINT("info", "return arg1");
+  } else {
+    DBUG_PRINT("info", "return arg2");
+  }
 
   PG_RETURN_TEXT_P(result);
 }
@@ -2641,6 +2820,7 @@ text_smaller(PG_FUNCTION_ARGS)
 Datum
 nameeqtext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   size_t    len1 = strlen(NameStr(*arg1));
@@ -2660,12 +2840,19 @@ nameeqtext(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 texteqname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   Name    arg2 = PG_GETARG_NAME(1);
   size_t    len1 = VARSIZE_ANY_EXHDR(arg1);
@@ -2685,12 +2872,19 @@ texteqname(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 namenetext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   size_t    len1 = strlen(NameStr(*arg1));
@@ -2710,12 +2904,19 @@ namenetext(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg2, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 textnename(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   Name    arg2 = PG_GETARG_NAME(1);
   size_t    len1 = VARSIZE_ANY_EXHDR(arg1);
@@ -2735,12 +2936,19 @@ textnename(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 btnametextcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int32   result;
@@ -2751,12 +2959,14 @@ btnametextcmp(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg2, 1);
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
 Datum
 bttextnamecmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   Name    arg2 = PG_GETARG_NAME(1);
   int32   result;
@@ -2767,6 +2977,7 @@ bttextnamecmp(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
@@ -2779,49 +2990,136 @@ bttextnamecmp(PG_FUNCTION_ARGS)
 Datum
 namelttext(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(btnametextcmp) < 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(btnametextcmp) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 nameletext(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(btnametextcmp) <= 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(btnametextcmp) <= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 namegttext(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(btnametextcmp) > 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(btnametextcmp) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 namegetext(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(btnametextcmp) >= 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(btnametextcmp) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 textltname(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(bttextnamecmp) < 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(bttextnamecmp) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 textlename(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(bttextnamecmp) <= 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(bttextnamecmp) <= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 textgtname(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(bttextnamecmp) > 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(bttextnamecmp) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 textgename(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(CmpCall(bttextnamecmp) >= 0);
+  DBUG_TRACE;
+
+  bool result = (CmpCall(bttextnamecmp) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 #undef CmpCall
@@ -2861,6 +3159,7 @@ internal_text_pattern_compare(text *arg1, text *arg2)
 Datum
 text_pattern_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int     result;
@@ -2869,6 +3168,12 @@ text_pattern_lt(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
+
+  if (result < 0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result < 0);
 }
@@ -2877,6 +3182,7 @@ text_pattern_lt(PG_FUNCTION_ARGS)
 Datum
 text_pattern_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int     result;
@@ -2885,6 +3191,12 @@ text_pattern_le(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
+
+  if (result <= 0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result <= 0);
 }
@@ -2893,6 +3205,7 @@ text_pattern_le(PG_FUNCTION_ARGS)
 Datum
 text_pattern_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int     result;
@@ -2901,6 +3214,12 @@ text_pattern_ge(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
+
+  if (result >= 0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result >= 0);
 }
@@ -2909,6 +3228,7 @@ text_pattern_ge(PG_FUNCTION_ARGS)
 Datum
 text_pattern_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int     result;
@@ -2917,6 +3237,12 @@ text_pattern_gt(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
+
+  if (result > 0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result > 0);
 }
@@ -2925,6 +3251,7 @@ text_pattern_gt(PG_FUNCTION_ARGS)
 Datum
 bttext_pattern_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int     result;
@@ -2934,6 +3261,7 @@ bttext_pattern_cmp(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
@@ -2941,12 +3269,14 @@ bttext_pattern_cmp(PG_FUNCTION_ARGS)
 Datum
 bttext_pattern_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   MemoryContext oldcontext;
 
   oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
   /* Use generic string SortSupport, forcing "C" collation */
+  DBUG_PRINT("info", "use generic string SortSupport, forcing 'C' collation");
   varstr_sortsupport(ssup, TEXTOID, C_COLLATION_OID);
 
   MemoryContextSwitchTo(oldcontext);
@@ -2964,10 +3294,13 @@ bttext_pattern_sortsupport(PG_FUNCTION_ARGS)
 Datum
 byteaoctetlen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   str = PG_GETARG_DATUM(0);
+  int32 result = (toast_raw_datum_size(str) - VARHDRSZ);
 
+  DBUG_PRINT("info", "result:%d", result);
   /* We need not detoast the input at all */
-  PG_RETURN_INT32(toast_raw_datum_size(str) - VARHDRSZ);
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -2980,6 +3313,7 @@ byteaoctetlen(PG_FUNCTION_ARGS)
 Datum
 byteacat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *t1 = PG_GETARG_BYTEA_PP(0);
   bytea    *t2 = PG_GETARG_BYTEA_PP(1);
 
@@ -3050,6 +3384,7 @@ bytea_catenate(bytea *t1, bytea *t2)
 Datum
 bytea_substr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BYTEA_P(bytea_substring(PG_GETARG_DATUM(0),
                                     PG_GETARG_INT32(1),
                                     PG_GETARG_INT32(2),
@@ -3064,6 +3399,7 @@ bytea_substr(PG_FUNCTION_ARGS)
 Datum
 bytea_substr_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BYTEA_P(bytea_substring(PG_GETARG_DATUM(0),
                                     PG_GETARG_INT32(1),
                                     -1,
@@ -3076,6 +3412,7 @@ bytea_substring(Datum str,
                 int L,
                 bool length_not_specified)
 {
+  DBUG_TRACE;
   int32   S1;       /* adjusted start position */
   int32   L1;       /* adjusted substring length */
   int32   E;        /* end position */
@@ -3133,6 +3470,7 @@ bytea_substring(Datum str,
 Datum
 byteaoverlay(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *t1 = PG_GETARG_BYTEA_PP(0);
   bytea    *t2 = PG_GETARG_BYTEA_PP(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -3144,6 +3482,7 @@ byteaoverlay(PG_FUNCTION_ARGS)
 Datum
 byteaoverlay_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *t1 = PG_GETARG_BYTEA_PP(0);
   bytea    *t2 = PG_GETARG_BYTEA_PP(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -3190,6 +3529,7 @@ bytea_overlay(bytea *t1, bytea *t2, int sp, int sl)
 Datum
 bytea_bit_count(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *t1 = PG_GETARG_BYTEA_PP(0);
 
   PG_RETURN_INT64(pg_popcount(VARDATA_ANY(t1), VARSIZE_ANY_EXHDR(t1)));
@@ -3204,6 +3544,7 @@ bytea_bit_count(PG_FUNCTION_ARGS)
 Datum
 byteapos(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *t1 = PG_GETARG_BYTEA_PP(0);
   bytea    *t2 = PG_GETARG_BYTEA_PP(1);
   int     pos;
@@ -3248,6 +3589,7 @@ byteapos(PG_FUNCTION_ARGS)
 Datum
 byteaGetByte(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *v = PG_GETARG_BYTEA_PP(0);
   int32   n = PG_GETARG_INT32(1);
   int     len;
@@ -3277,6 +3619,7 @@ byteaGetByte(PG_FUNCTION_ARGS)
 Datum
 byteaGetBit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *v = PG_GETARG_BYTEA_PP(0);
   int64   n = PG_GETARG_INT64(1);
   int     byteNo,
@@ -3315,6 +3658,7 @@ byteaGetBit(PG_FUNCTION_ARGS)
 Datum
 byteaSetByte(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *res = PG_GETARG_BYTEA_P_COPY(0);
   int32   n = PG_GETARG_INT32(1);
   int32   newByte = PG_GETARG_INT32(2);
@@ -3347,6 +3691,7 @@ byteaSetByte(PG_FUNCTION_ARGS)
 Datum
 byteaSetBit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *res = PG_GETARG_BYTEA_P_COPY(0);
   int64   n = PG_GETARG_INT64(1);
   int32   newBit = PG_GETARG_INT32(2);
@@ -3419,6 +3764,7 @@ bytea_reverse(PG_FUNCTION_ARGS)
 Datum
 text_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   Name    result;
   int     len;
@@ -3442,6 +3788,7 @@ text_name(PG_FUNCTION_ARGS)
 Datum
 name_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    s = PG_GETARG_NAME(0);
 
   PG_RETURN_TEXT_P(cstring_to_text(NameStr(*s)));
@@ -3861,6 +4208,7 @@ SplitGUCList(char *rawstring, char separator,
 Datum
 byteaeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   arg1 = PG_GETARG_DATUM(0);
   Datum   arg2 = PG_GETARG_DATUM(1);
   bool    result;
@@ -3887,12 +4235,19 @@ byteaeq(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(barg2, 1);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 byteane(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   arg1 = PG_GETARG_DATUM(0);
   Datum   arg2 = PG_GETARG_DATUM(1);
   bool    result;
@@ -3919,17 +4274,25 @@ byteane(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(barg2, 1);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 bytealt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg1 = PG_GETARG_BYTEA_PP(0);
   bytea    *arg2 = PG_GETARG_BYTEA_PP(1);
   int     len1,
           len2;
   int     cmp;
+  bool result;
 
   len1 = VARSIZE_ANY_EXHDR(arg1);
   len2 = VARSIZE_ANY_EXHDR(arg2);
@@ -3939,17 +4302,27 @@ bytealt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
-  PG_RETURN_BOOL((cmp < 0) || ((cmp == 0) && (len1 < len2)));
+  result = ((cmp < 0) || ((cmp == 0) && (len1 < len2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 byteale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg1 = PG_GETARG_BYTEA_PP(0);
   bytea    *arg2 = PG_GETARG_BYTEA_PP(1);
   int     len1,
           len2;
   int     cmp;
+  bool result;
 
   len1 = VARSIZE_ANY_EXHDR(arg1);
   len2 = VARSIZE_ANY_EXHDR(arg2);
@@ -3959,17 +4332,28 @@ byteale(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
-  PG_RETURN_BOOL((cmp < 0) || ((cmp == 0) && (len1 <= len2)));
+  result = ((cmp < 0) || ((cmp == 0) && (len1 <= len2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 byteagt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg1 = PG_GETARG_BYTEA_PP(0);
   bytea    *arg2 = PG_GETARG_BYTEA_PP(1);
   int     len1,
           len2;
   int     cmp;
+  bool result;
 
   len1 = VARSIZE_ANY_EXHDR(arg1);
   len2 = VARSIZE_ANY_EXHDR(arg2);
@@ -3979,17 +4363,28 @@ byteagt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
-  PG_RETURN_BOOL((cmp > 0) || ((cmp == 0) && (len1 > len2)));
+  result = ((cmp > 0) || ((cmp == 0) && (len1 > len2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 byteage(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg1 = PG_GETARG_BYTEA_PP(0);
   bytea    *arg2 = PG_GETARG_BYTEA_PP(1);
   int     len1,
           len2;
   int     cmp;
+  bool       result;
 
   len1 = VARSIZE_ANY_EXHDR(arg1);
   len2 = VARSIZE_ANY_EXHDR(arg2);
@@ -3999,12 +4394,22 @@ byteage(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
-  PG_RETURN_BOOL((cmp > 0) || ((cmp == 0) && (len1 >= len2)));
+  result = ((cmp > 0) || ((cmp == 0) && (len1 >= len2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 byteacmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg1 = PG_GETARG_BYTEA_PP(0);
   bytea    *arg2 = PG_GETARG_BYTEA_PP(1);
   int     len1,
@@ -4066,12 +4471,14 @@ bytea_smaller(PG_FUNCTION_ARGS)
 Datum
 bytea_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   MemoryContext oldcontext;
 
   oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
   /* Use generic string SortSupport, forcing "C" collation */
+  DBUG_PRINT("info", "use generic string SortSupport, forcing 'C' collation");
   varstr_sortsupport(ssup, BYTEAOID, C_COLLATION_OID);
 
   MemoryContextSwitchTo(oldcontext);
@@ -4198,6 +4605,7 @@ appendStringInfoText(StringInfo str, const text *t)
 Datum
 replace_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *src_text = PG_GETARG_TEXT_PP(0);
   text     *from_sub_text = PG_GETARG_TEXT_PP(1);
   text     *to_sub_text = PG_GETARG_TEXT_PP(2);
@@ -4561,6 +4969,7 @@ replace_text_regexp(text *src_text, text *pattern_text,
 Datum
 split_part(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *inputstring = PG_GETARG_TEXT_PP(0);
   text     *fldsep = PG_GETARG_TEXT_PP(1);
   int     fldnum = PG_GETARG_INT32(2);
@@ -4684,10 +5093,19 @@ split_part(PG_FUNCTION_ARGS)
 static bool
 text_isequal(text *txt1, text *txt2, Oid collid)
 {
-  return DatumGetBool(DirectFunctionCall2Coll(texteq,
-                      collid,
-                      PointerGetDatum(txt1),
-                      PointerGetDatum(txt2)));
+  DBUG_TRACE;
+  bool result = DatumGetBool(DirectFunctionCall2Coll(texteq,
+                             collid,
+                             PointerGetDatum(txt1),
+                             PointerGetDatum(txt2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -4698,6 +5116,7 @@ text_isequal(text *txt1, text *txt2, Oid collid)
 Datum
 text_to_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SplitTextOutputData tstate;
 
   /* For array output, tstate should start as all zeroes */
@@ -4724,6 +5143,7 @@ text_to_array(PG_FUNCTION_ARGS)
 Datum
 text_to_array_null(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return text_to_array(fcinfo);
 }
 
@@ -4735,6 +5155,7 @@ text_to_array_null(PG_FUNCTION_ARGS)
 Datum
 text_to_table(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi = (ReturnSetInfo *) fcinfo->resultinfo;
   SplitTextOutputData tstate;
 
@@ -4759,6 +5180,7 @@ text_to_table(PG_FUNCTION_ARGS)
 Datum
 text_to_table_null(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return text_to_table(fcinfo);
 }
 
@@ -4775,6 +5197,7 @@ text_to_table_null(PG_FUNCTION_ARGS)
 static bool
 split_text(FunctionCallInfo fcinfo, SplitTextOutputData *tstate)
 {
+  DBUG_TRACE;
   text     *inputstring;
   text     *fldsep;
   text     *null_string;
@@ -4909,6 +5332,7 @@ split_text_accum_result(SplitTextOutputData *tstate,
                         text *null_string,
                         Oid collation)
 {
+  DBUG_TRACE;
   bool    is_null = false;
 
   if (null_string && text_isequal(field_value, null_string, collation))
@@ -4942,6 +5366,7 @@ split_text_accum_result(SplitTextOutputData *tstate,
 Datum
 array_to_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *v = PG_GETARG_ARRAYTYPE_P(0);
   char     *fldsep = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
@@ -4958,6 +5383,7 @@ array_to_text(PG_FUNCTION_ARGS)
 Datum
 array_to_text_null(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *v;
   char     *fldsep;
   char     *null_string;
@@ -4985,6 +5411,7 @@ static text *
 array_to_text_internal(FunctionCallInfo fcinfo, ArrayType *v,
                        const char *fldsep, const char *null_string)
 {
+  DBUG_TRACE;
   text     *result;
   int     nitems,
           *dims,
@@ -5127,6 +5554,7 @@ convert_to_base(uint64 value, int base)
 Datum
 to_bin32(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint32) PG_GETARG_INT32(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 2));
@@ -5134,6 +5562,7 @@ to_bin32(PG_FUNCTION_ARGS)
 Datum
 to_bin64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint64) PG_GETARG_INT64(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 2));
@@ -5146,6 +5575,7 @@ to_bin64(PG_FUNCTION_ARGS)
 Datum
 to_oct32(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint32) PG_GETARG_INT32(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 8));
@@ -5153,6 +5583,7 @@ to_oct32(PG_FUNCTION_ARGS)
 Datum
 to_oct64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint64) PG_GETARG_INT64(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 8));
@@ -5165,6 +5596,7 @@ to_oct64(PG_FUNCTION_ARGS)
 Datum
 to_hex32(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint32) PG_GETARG_INT32(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 16));
@@ -5172,6 +5604,7 @@ to_hex32(PG_FUNCTION_ARGS)
 Datum
 to_hex64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   uint64    value = (uint64) PG_GETARG_INT64(0);
 
   PG_RETURN_TEXT_P(convert_to_base(value, 16));
@@ -5185,6 +5618,7 @@ to_hex64(PG_FUNCTION_ARGS)
 Datum
 pg_column_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   value = PG_GETARG_DATUM(0);
   int32   result;
   int     typlen;
@@ -5216,6 +5650,7 @@ pg_column_size(PG_FUNCTION_ARGS)
     result = typlen;
   }
 
+  DBUG_PRINT("info", "return the size of a datum, possibly compressed:%d", result);
   PG_RETURN_INT32(result);
 }
 
@@ -5226,6 +5661,7 @@ pg_column_size(PG_FUNCTION_ARGS)
 Datum
 pg_column_compression(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     typlen;
   char     *result;
   ToastCompressionId cmid;
@@ -5280,6 +5716,7 @@ pg_column_compression(PG_FUNCTION_ARGS)
 Datum
 pg_column_toast_chunk_id(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     typlen;
   struct varlena *attr;
   struct varatt_external toast_pointer;
@@ -5327,6 +5764,7 @@ pg_column_toast_chunk_id(PG_FUNCTION_ARGS)
 static StringInfo
 makeStringAggState(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   StringInfo  state;
   MemoryContext aggcontext;
   MemoryContext oldcontext;
@@ -5350,6 +5788,7 @@ makeStringAggState(FunctionCallInfo fcinfo)
 Datum
 string_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state;
 
   state = PG_ARGISNULL(0) ? NULL : (StringInfo) PG_GETARG_POINTER(0);
@@ -5404,6 +5843,7 @@ string_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 string_agg_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state1;
   StringInfo  state2;
   MemoryContext agg_context;
@@ -5451,6 +5891,7 @@ string_agg_combine(PG_FUNCTION_ARGS)
 Datum
 string_agg_serialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state;
   StringInfoData buf;
   bytea    *result;
@@ -5482,6 +5923,7 @@ string_agg_serialize(PG_FUNCTION_ARGS)
 Datum
 string_agg_deserialize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *sstate;
   StringInfo  result;
   StringInfoData buf;
@@ -5518,6 +5960,7 @@ string_agg_deserialize(PG_FUNCTION_ARGS)
 Datum
 string_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  state;
 
   /* cannot be called directly because of internal-type argument */
@@ -5542,6 +5985,7 @@ string_agg_finalfn(PG_FUNCTION_ARGS)
 static FmgrInfo *
 build_concat_foutcache(FunctionCallInfo fcinfo, int argidx)
 {
+  DBUG_TRACE;
   FmgrInfo   *foutcache;
   int     i;
 
@@ -5581,6 +6025,7 @@ static text *
 concat_internal(const char *sepstr, int argidx,
                 FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   text     *result;
   StringInfoData str;
   FmgrInfo   *foutcache;
@@ -5658,6 +6103,7 @@ concat_internal(const char *sepstr, int argidx,
 Datum
 text_concat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *result;
 
   result = concat_internal("", 0, fcinfo);
@@ -5675,6 +6121,7 @@ text_concat(PG_FUNCTION_ARGS)
 Datum
 text_concat_ws(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *sep;
   text     *result;
 
@@ -5699,6 +6146,7 @@ text_concat_ws(PG_FUNCTION_ARGS)
 Datum
 text_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     n = PG_GETARG_INT32(1);
 
   if (n < 0) {
@@ -5721,6 +6169,7 @@ text_left(PG_FUNCTION_ARGS)
 Datum
 text_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   const char *p = VARDATA_ANY(str);
   int     len = VARSIZE_ANY_EXHDR(str);
@@ -5743,6 +6192,7 @@ text_right(PG_FUNCTION_ARGS)
 Datum
 text_reverse(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   const char *p = VARDATA_ANY(str);
   int     len = VARSIZE_ANY_EXHDR(str);
@@ -5794,6 +6244,7 @@ text_reverse(PG_FUNCTION_ARGS)
 Datum
 text_format(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *fmt;
   StringInfoData str;
   const char *cp;
@@ -6187,6 +6638,7 @@ text_format_string_conversion(StringInfo buf, char conversion,
                               Datum value, bool isNull,
                               int flags, int width)
 {
+  DBUG_TRACE;
   char     *str;
 
   /* Handle NULL arguments before trying to stringify the value. */
@@ -6280,6 +6732,7 @@ text_format_append_string(StringInfo buf, const char *str,
 Datum
 text_format_nv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return text_format(fcinfo);
 }
 
@@ -6432,6 +6885,7 @@ unicode_norm_form_from_string(const char *formstr)
 Datum
 unicode_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(cstring_to_text(PG_UNICODE_VERSION));
 }
 
@@ -6441,6 +6895,7 @@ unicode_version(PG_FUNCTION_ARGS)
 Datum
 icu_unicode_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_ICU
   PG_RETURN_TEXT_P(cstring_to_text(U_UNICODE_VERSION));
 #else
@@ -6455,6 +6910,7 @@ icu_unicode_version(PG_FUNCTION_ARGS)
 Datum
 unicode_assigned(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *input = PG_GETARG_TEXT_PP(0);
   unsigned char *p;
   int     size;
@@ -6471,18 +6927,22 @@ unicode_assigned(PG_FUNCTION_ARGS)
     pg_wchar  uchar = utf8_to_unicode(p);
     int     category = unicode_category(uchar);
 
-    if (category == PG_U_UNASSIGNED)
+    if (category == PG_U_UNASSIGNED) {
+      DBUG_PRINT("info", "return false");
       PG_RETURN_BOOL(false);
+    }
 
     p += pg_utf_mblen(p);
   }
 
+  DBUG_PRINT("info", "return true");
   PG_RETURN_BOOL(true);
 }
 
 Datum
 unicode_normalize_func(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *input = PG_GETARG_TEXT_PP(0);
   char     *formstr = text_to_cstring(PG_GETARG_TEXT_PP(1));
   UnicodeNormalizationForm form;
@@ -6551,6 +7011,7 @@ unicode_normalize_func(PG_FUNCTION_ARGS)
 Datum
 unicode_is_normalized(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *input = PG_GETARG_TEXT_PP(0);
   char     *formstr = text_to_cstring(PG_GETARG_TEXT_PP(1));
   UnicodeNormalizationForm form;
@@ -6581,10 +7042,13 @@ unicode_is_normalized(PG_FUNCTION_ARGS)
   /* quick check (see UAX #15) */
   quickcheck = unicode_is_normalized_quickcheck(form, input_chars);
 
-  if (quickcheck == UNICODE_NORM_QC_YES)
+  if (quickcheck == UNICODE_NORM_QC_YES) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
-  else if (quickcheck == UNICODE_NORM_QC_NO)
+  } else if (quickcheck == UNICODE_NORM_QC_NO) {
+    DBUG_PRINT("info", "return false");
     PG_RETURN_BOOL(false);
+  }
 
   /* normalize and compare with original */
   output_chars = unicode_normalize(form, input_chars);
@@ -6596,6 +7060,12 @@ unicode_is_normalized(PG_FUNCTION_ARGS)
 
   result = (size == output_size) &&
            (memcmp(input_chars, output_chars, size * sizeof(pg_wchar)) == 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(result);
 }
@@ -6649,6 +7119,7 @@ hexval_n(const char *instr, size_t n)
 Datum
 unistr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *input_text = PG_GETARG_TEXT_PP(0);
   char     *instr;
   int     len;

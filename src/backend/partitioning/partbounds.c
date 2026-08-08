@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/table.h"
@@ -660,6 +661,7 @@ static PartitionBoundInfo
 create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
                     PartitionKey key, int **mapping)
 {
+  DBUG_TRACE;
   PartitionBoundInfo boundinfo;
   PartitionRangeBound **rbounds = NULL;
   PartitionRangeBound **all_bounds,
@@ -1165,6 +1167,7 @@ merge_list_bounds(FmgrInfo *partsupfunc, Oid *partcollation,
                   JoinType jointype,
                   List **outer_parts, List **inner_parts)
 {
+  DBUG_TRACE;
   PartitionBoundInfo merged_bounds = NULL;
   PartitionBoundInfo outer_bi = outer_rel->boundinfo;
   PartitionBoundInfo inner_bi = inner_rel->boundinfo;
@@ -3244,12 +3247,15 @@ check_default_partition_contents(Relation parent, Relation default_rel,
      * scanned.
      */
     if (part_rel->rd_rel->relkind != RELKIND_RELATION) {
-      if (part_rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+      if (part_rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE) {
+        DBUG_INSTANT_PRINT("info", "skipped scanning foreign table \"%s\" which is a partition of default partition \"%s\"",
+                           RelationGetRelationName(part_rel), RelationGetRelationName(default_rel));
         ereport(WARNING,
                 (errcode(ERRCODE_CHECK_VIOLATION),
                  errmsg("skipped scanning foreign table \"%s\" which is a partition of default partition \"%s\"",
                         RelationGetRelationName(part_rel),
                         RelationGetRelationName(default_rel))));
+      }
 
       if (RelationGetRelid(default_rel) != RelationGetRelid(part_rel))
         table_close(part_rel, NoLock);
@@ -3276,12 +3282,15 @@ check_default_partition_contents(Relation parent, Relation default_rel,
     while (table_scan_getnextslot(scan, ForwardScanDirection, tupslot)) {
       econtext->ecxt_scantuple = tupslot;
 
-      if (!ExecCheck(partqualstate, econtext))
+      if (!ExecCheck(partqualstate, econtext)) {
+        DBUG_INSTANT_PRINT("info", "updated partition constraint for default partition \"%s\" would be violated by some row",
+                           RelationGetRelationName(default_rel));
         ereport(ERROR,
                 (errcode(ERRCODE_CHECK_VIOLATION),
                  errmsg("updated partition constraint for default partition \"%s\" would be violated by some row",
                         RelationGetRelationName(default_rel)),
                  errtable(default_rel)));
+      }
 
       ResetExprContext(econtext);
       CHECK_FOR_INTERRUPTS();
@@ -3451,6 +3460,7 @@ partition_rbound_datum_cmp(FmgrInfo *partsupfunc, Oid *partcollation,
                            Datum *rb_datums, PartitionRangeDatumKind *rb_kind,
                            Datum *tuple_datums, int n_tuple_datums)
 {
+  DBUG_TRACE;
   int     i;
   int32   cmpval = -1;
 
@@ -3469,6 +3479,7 @@ partition_rbound_datum_cmp(FmgrInfo *partsupfunc, Oid *partcollation,
       break;
   }
 
+  DBUG_PRINT("info", "result:%d", cmpval);
   return cmpval;
 }
 
@@ -3505,6 +3516,7 @@ partition_list_bsearch(FmgrInfo *partsupfunc, Oid *partcollation,
                        PartitionBoundInfo boundinfo,
                        Datum value, bool *is_equal)
 {
+  DBUG_TRACE;
   int     lo,
           hi,
           mid;
@@ -3531,6 +3543,7 @@ partition_list_bsearch(FmgrInfo *partsupfunc, Oid *partcollation,
       hi = mid - 1;
   }
 
+  DBUG_PRINT("info", "result:%d", lo);
   return lo;
 }
 
@@ -3687,13 +3700,17 @@ qsort_partition_hbound_cmp(const void *a, const void *b)
 static int32
 qsort_partition_list_value_cmp(const void *a, const void *b, void *arg)
 {
+  DBUG_TRACE;
+  int result;
   Datum   val1 = ((const PartitionListValue *) a)->value,
           val2 = ((const PartitionListValue *) b)->value;
   PartitionKey key = (PartitionKey) arg;
 
-  return DatumGetInt32(FunctionCall2Coll(&key->partsupfunc[0],
-                                         key->partcollation[0],
-                                         val1, val2));
+  result = DatumGetInt32(FunctionCall2Coll(&key->partsupfunc[0],
+                         key->partcollation[0],
+                         val1, val2));
+  DBUG_PRINT("info", "result:%d", result);
+  return result;
 }
 
 /*
@@ -4592,6 +4609,7 @@ uint64
 compute_partition_hash_value(int partnatts, FmgrInfo *partsupfunc, const Oid *partcollation,
                              const Datum *values, const bool *isnull)
 {
+  DBUG_TRACE;
   int     i;
   uint64    rowHash = 0;
   Datum   seed = UInt64GetDatum(HASH_PARTITION_SEED);
@@ -4638,6 +4656,7 @@ compute_partition_hash_value(int partnatts, FmgrInfo *partsupfunc, const Oid *pa
 Datum
 satisfies_hash_partition(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   typedef struct ColumnsHashData {
     Oid     relid;
     int     nkeys;

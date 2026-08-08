@@ -41,6 +41,7 @@
 */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "mb/pg_wchar.h"
@@ -120,6 +121,7 @@ PG_FUNCTION_INFO_V1(daitch_mokotoff);
 Datum
 daitch_mokotoff(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg = PG_GETARG_TEXT_PP(0);
   Datum   retval;
   char     *string;

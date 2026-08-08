@@ -64,6 +64,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 #include <signal.h>
@@ -370,7 +371,7 @@ static time_t AbortStartTime = 0;
 static bool ReachedNormalRunning = false; /* T if we've reached PM_RUN */
 
 bool    ClientAuthInProgress = false; /* T during new-client
-                       * authentication */
+                                       * authentication */
 
 bool    redirection_done = false; /* stderr redirected for syslogger? */
 
@@ -491,6 +492,7 @@ HANDLE    PostmasterHandle;
 void
 PostmasterMain(int argc, char *argv[])
 {
+  DBUG_TRACE;
   int     opt;
   int     status;
   char     *userDoption = NULL;
@@ -575,16 +577,19 @@ PostmasterMain(int argc, char *argv[])
 #endif
 
   /* ignore SIGXFSZ, so that ulimit violations work like disk full */
+  DBUG_PRINT("info", "ignore some signals");
 #ifdef SIGXFSZ
   pqsignal(SIGXFSZ, SIG_IGN); /* ignored */
 #endif
 
+  DBUG_PRINT("info", "begin accepting signals");
   /* Begin accepting signals. */
   sigprocmask(SIG_SETMASK, &UnBlockSig, NULL);
 
   /*
    * Options setup
    */
+  DBUG_PRINT("info", "options setup");
   InitializeGUCOptions();
 
   opterr = 1;
@@ -594,6 +599,8 @@ PostmasterMain(int argc, char *argv[])
    * tcop/postgres.c (the option sets should not conflict) and with the
    * common help() function in main/main.c.
    */
+  DBUG_PRINT("info", "parse command-line options");
+
   while ((opt = getopt(argc, argv, "B:bC:c:D:d:EeFf:h:ijk:lN:OPp:r:S:sTt:W:-:")) != -1) {
     switch (opt) {
       case 'B':
@@ -824,6 +831,8 @@ PostmasterMain(int argc, char *argv[])
   /* And switch working directory into it */
   ChangeToDataDir();
 
+  DBUG_PRINT("info", "and switch working directory into it");
+
   /*
    * Check for invalid combinations of GUC settings.
    */
@@ -856,6 +865,7 @@ PostmasterMain(int argc, char *argv[])
     ExitPostmaster(1);
   }
 
+  DBUG_PRINT("info", "now that we are done processing the postmaster arguments");
   /*
    * Now that we are done processing the postmaster arguments, reset
    * getopt(3) library so that it will work correctly in subprocesses.
@@ -898,6 +908,7 @@ PostmasterMain(int argc, char *argv[])
    * so it must happen before opening sockets so that at exit, the socket
    * lockfiles go away after CloseServerPorts runs.
    */
+  DBUG_PRINT("info", "create lockfile for data directory");
   CreateDataDirLockFile(true);
 
   /*
@@ -909,12 +920,14 @@ PostmasterMain(int argc, char *argv[])
    * processes will inherit the correct function pointer and not need to
    * repeat the test.
    */
+  DBUG_PRINT("info", "read the control file (for error checking and config info)");
   LocalProcessControlFile(false);
 
   /*
    * Register the apply launcher.  It's probably a good idea to call this
    * before any modules had a chance to take the background worker slots.
    */
+  DBUG_PRINT("info", "register the apply launcher");
   ApplyLauncherRegister();
 
   /*
@@ -928,6 +941,7 @@ PostmasterMain(int argc, char *argv[])
 #ifdef USE_SSL
 
   if (EnableSSL) {
+    DBUG_PRINT("info", "initialize SSL library");
     (void) secure_initialize(true);
     LoadedSSL = true;
   }
@@ -991,6 +1005,7 @@ PostmasterMain(int argc, char *argv[])
    * normally choose the same IPC keys.  This helps ensure that we will
    * clean up dead IPC objects if the postmaster crashes and is restarted.
    */
+  DBUG_PRINT("info", "set up shared memory and semaphores");
   CreateSharedMemoryAndSemaphores();
 
   /*
@@ -1279,6 +1294,8 @@ PostmasterMain(int argc, char *argv[])
   if (external_pid_file) {
     FILE     *fpidfile = fopen(external_pid_file, "w");
 
+    DBUG_PRINT("info", "write the external PID file if requested");
+
     if (fpidfile) {
       fprintf(fpidfile, "%d\n", MyProcPid);
       fclose(fpidfile);
@@ -1303,6 +1320,7 @@ PostmasterMain(int argc, char *argv[])
   /*
    * Initialize the autovacuum subsystem (again, no process start yet)
    */
+  DBUG_PRINT("info", "initialize the autovacuum subsystem");
   autovac_init();
 
   /*
@@ -1351,6 +1369,7 @@ PostmasterMain(int argc, char *argv[])
   /*
    * Remember postmaster startup time
    */
+  DBUG_PRINT("info", "remember postmaster startup time");
   PgStartTime = GetCurrentTimestamp();
 
   /*
@@ -1365,19 +1384,30 @@ PostmasterMain(int argc, char *argv[])
   maybe_adjust_io_workers();
 
   /* Start bgwriter and checkpointer so they can help with recovery */
-  if (CheckpointerPMChild == NULL)
+  if (CheckpointerPMChild == NULL) {
+    DBUG_PRINT("info", "start checkpointer so they can help with recovery");
     CheckpointerPMChild = StartChildProcess(B_CHECKPOINTER);
+  }
 
-  if (BgWriterPMChild == NULL)
+  if (BgWriterPMChild == NULL) {
+    DBUG_PRINT("info", "start bgwriter so they can help with recovery");
     BgWriterPMChild = StartChildProcess(B_BG_WRITER);
+  }
+
+  if (!enable_global_trace) {
+    DBUG_INSTANT_PRINT("info", "disable global tracing");
+    set_trace_disabled();
+  }
 
   /*
    * We're ready to rock and roll...
    */
+  DBUG_PRINT("info", "we're ready to rock and roll...");
   StartupPMChild = StartChildProcess(B_STARTUP);
   Assert(StartupPMChild != NULL);
   StartupStatus = STARTUP_RUNNING;
 
+  DBUG_PRINT("info", "some workers may be scheduled to start now");
   /* Some workers may be scheduled to start now */
   maybe_start_bgworkers();
 
@@ -1398,6 +1428,7 @@ PostmasterMain(int argc, char *argv[])
 static void
 CloseServerPorts(int status, Datum arg)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -1432,6 +1463,8 @@ CloseServerPorts(int status, Datum arg)
 static void
 unlink_external_pid_file(int status, Datum arg)
 {
+  DBUG_TRACE;
+
   if (external_pid_file)
     unlink(external_pid_file);
 }
@@ -1444,6 +1477,7 @@ unlink_external_pid_file(int status, Datum arg)
 static void
 getInstallationPaths(const char *argv0)
 {
+  DBUG_TRACE;
   DIR      *pdir;
 
   /* Locate the postgres executable itself */
@@ -1502,14 +1536,20 @@ getInstallationPaths(const char *argv0)
 static void
 checkControlFile(void)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   FILE     *fp;
 
+  DBUG_PRINT("info", "check that pg_control exists in the correct location in the data directory");
   snprintf(path, sizeof(path), "%s/%s", DataDir, XLOG_CONTROL_FILE);
 
   fp = AllocateFile(path, PG_BINARY_R);
 
   if (fp == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s: could not find the database system", progname);
+    DBUG_INSTANT_PRINT("info", "expected to find it in the directory \"%s\"", DataDir);
+    DBUG_INSTANT_PRINT("info", "but could not open file \"%s\"", path);
+
     write_stderr("%s: could not find the database system\n"
                  "Expected to find it in the directory \"%s\",\n"
                  "but could not open file \"%s\": %m\n",
@@ -1532,6 +1572,7 @@ checkControlFile(void)
 static int
 DetermineSleepTime(void)
 {
+  DBUG_TRACE;
   TimestampTz next_wakeup = 0;
 
   /*
@@ -1611,6 +1652,8 @@ DetermineSleepTime(void)
 static void
 ConfigurePostmasterWaitSet(bool accept_connections)
 {
+  DBUG_TRACE;
+
   if (pm_wait_set)
     FreeWaitEventSet(pm_wait_set);
 
@@ -1634,11 +1677,13 @@ ConfigurePostmasterWaitSet(bool accept_connections)
 static int
 ServerLoop(void)
 {
+  DBUG_TRACE;
   time_t    last_lockfile_recheck_time,
             last_touch_time;
   WaitEvent events[MAXLISTEN];
   int     nevents;
 
+  DBUG_PRINT("info", "main idle loop of postmaster");
   ConfigurePostmasterWaitSet(true);
   last_lockfile_recheck_time = last_touch_time = time(NULL);
 
@@ -1789,6 +1834,7 @@ ServerLoop(void)
 static CAC_state
 canAcceptConnections(BackendType backend_type)
 {
+  DBUG_TRACE;
   CAC_state result = CAC_OK;
 
   Assert(backend_type == B_BACKEND || backend_type == B_AUTOVAC_WORKER);
@@ -1832,6 +1878,8 @@ canAcceptConnections(BackendType backend_type)
 void
 ClosePostmasterPorts(bool am_syslogger)
 {
+  DBUG_TRACE;
+
   /* Release resources held by the postmaster's WaitEventSet. */
   if (pm_wait_set) {
     FreeWaitEventSetAfterFork(pm_wait_set);
@@ -1915,6 +1963,7 @@ ClosePostmasterPorts(bool am_syslogger)
 void
 InitProcessGlobals(void)
 {
+  DBUG_TRACE;
   MyStartTimestamp = GetCurrentTimestamp();
   MyStartTime = timestamptz_to_time_t(MyStartTimestamp);
 
@@ -1976,6 +2025,7 @@ handle_pm_reload_request_signal(SIGNAL_ARGS)
 static void
 process_pm_reload_request(void)
 {
+  DBUG_TRACE;
   pending_pm_reload_request = false;
 
   ereport(DEBUG2,
@@ -2053,8 +2103,10 @@ handle_pm_shutdown_request_signal(SIGNAL_ARGS)
 static void
 process_pm_shutdown_request(void)
 {
+  DBUG_TRACE;
   int     mode;
 
+  DBUG_PRINT("info", "postmaster received shutdown request signal");
   ereport(DEBUG2,
           (errmsg_internal("postmaster received shutdown request signal")));
 
@@ -2087,6 +2139,7 @@ process_pm_shutdown_request(void)
         break;
 
       Shutdown = SmartShutdown;
+      DBUG_PRINT("info", "received smart shutdown request");
       ereport(LOG,
               (errmsg("received smart shutdown request")));
 
@@ -2130,6 +2183,7 @@ process_pm_shutdown_request(void)
       Shutdown = FastShutdown;
       ereport(LOG,
               (errmsg("received fast shutdown request")));
+      DBUG_PRINT("info", "received fast shutdown request");
 
       /* Report status */
       AddToDataDirLockFile(LOCK_FILE_LINE_PM_STATUS, PM_STATUS_STOPPING);
@@ -2168,6 +2222,7 @@ process_pm_shutdown_request(void)
         break;
 
       Shutdown = ImmediateShutdown;
+      DBUG_PRINT("info", "received immediate shutdown request");
       ereport(LOG,
               (errmsg("received immediate shutdown request")));
 
@@ -2208,11 +2263,13 @@ handle_pm_child_exit_signal(SIGNAL_ARGS)
 static void
 process_pm_child_exit(void)
 {
+  DBUG_TRACE;
   int     pid;      /* process id of dead child process */
   int     exitstatus;   /* its exit status */
 
   pending_pm_child_exit = false;
 
+  DBUG_INSTANT_PRINT("info", "reaping dead processes");
   ereport(DEBUG4,
           (errmsg_internal("reaping dead processes")));
 
@@ -2301,6 +2358,7 @@ process_pm_child_exit(void)
       /* at this point we are really open for business */
       ereport(LOG,
               (errmsg("database system is ready to accept connections")));
+      DBUG_PRINT("info", "database system is ready to accept connections");
 
       /* Report status */
       AddToDataDirLockFile(LOCK_FILE_LINE_PM_STATUS, PM_STATUS_READY);
@@ -2523,6 +2581,7 @@ static void
 CleanupBackend(PMChild *bp,
                int exitstatus)  /* child's exit status. */
 {
+  DBUG_TRACE;
   char    namebuf[MAXPGPATH];
   const char *procname;
   bool    crashed = false;
@@ -2763,6 +2822,7 @@ HandleChildCrash(int pid, int exitstatus, const char *procname)
 static void
 LogChildExit(int lev, const char *procname, int pid, int exitstatus)
 {
+  DBUG_TRACE;
   /*
    * size of activity_buffer is arbitrary, but set equal to default
    * track_activity_query_size
@@ -2827,6 +2887,8 @@ LogChildExit(int lev, const char *procname, int pid, int exitstatus)
 static void
 PostmasterStateMachine(void)
 {
+  DBUG_TRACE;
+
   /* If we're doing a smart shutdown, try to advance that state. */
   if (pmState == PM_RUN || pmState == PM_HOT_STANDBY) {
     if (!connsAllowed) {
@@ -3086,9 +3148,11 @@ PostmasterStateMachine(void)
    */
   if (Shutdown > NoShutdown && pmState == PM_NO_CHILDREN) {
     if (FatalError) {
+      DBUG_INSTANT_PRINT("info", "abnormal database system shutdown");
       ereport(LOG, (errmsg("abnormal database system shutdown")));
       ExitPostmaster(1);
     } else {
+      DBUG_INSTANT_PRINT("info", "normal exit from the postmaster is here");
       /*
        * Normal exit from the postmaster is here.  We don't need to log
        * anything here, since the UnlinkLockFiles proc_exit callback
@@ -3107,12 +3171,14 @@ PostmasterStateMachine(void)
    */
   if (pmState == PM_NO_CHILDREN) {
     if (StartupStatus == STARTUP_CRASHED) {
+      DBUG_INSTANT_PRINT("info", "shutting down due to startup process failure");
       ereport(LOG,
               (errmsg("shutting down due to startup process failure")));
       ExitPostmaster(1);
     }
 
     if (!restart_after_crash) {
+      DBUG_INSTANT_PRINT("info", "shutting down because \"restart_after_crash\" is off");
       ereport(LOG,
               (errmsg("shutting down because \"restart_after_crash\" is off")));
       ExitPostmaster(1);
@@ -3124,6 +3190,7 @@ PostmasterStateMachine(void)
    * to exit, then reset shmem and start the startup process.
    */
   if (FatalError && pmState == PM_NO_CHILDREN) {
+    DBUG_INSTANT_PRINT("info", "all server processes terminated; reinitializing");
     ereport(LOG,
             (errmsg("all server processes terminated; reinitializing")));
 
@@ -3156,6 +3223,8 @@ PostmasterStateMachine(void)
     /* start accepting server socket connection events again */
     ConfigurePostmasterWaitSet(true);
   }
+
+  DBUG_INSTANT_PRINT("info", "PostmasterStateMachine is called over");
 }
 
 static const char *
@@ -3411,6 +3480,7 @@ signal_child(PMChild *pmchild, int signal)
 static bool
 SignalChildren(int signal, BackendTypeMask targetMask)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   bool    signaled = false;
 
@@ -3491,6 +3561,7 @@ BackendStartup(ClientSocket *client_sock)
        * process instead.
        */
       cac = CAC_TOOMANY;
+      DBUG_PRINT("info", "too many children");
     }
   }
 
@@ -3498,6 +3569,7 @@ BackendStartup(ClientSocket *client_sock)
     bn = AllocDeadEndChild();
 
     if (!bn) {
+      DBUG_INSTANT_PRINT("info", "out of memory");
       ereport(LOG,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of memory")));
@@ -3522,6 +3594,7 @@ BackendStartup(ClientSocket *client_sock)
 
     (void) ReleasePostmasterChildSlot(bn);
     errno = save_errno;
+    DBUG_INSTANT_PRINT("info", "could not fork new process for connection");
     ereport(LOG,
             (errmsg("could not fork new process for connection: %m")));
     report_fork_failure_to_client(client_sock, save_errno);
@@ -3529,6 +3602,7 @@ BackendStartup(ClientSocket *client_sock)
   }
 
   /* in parent, successful fork */
+  DBUG_PRINT("info", "forked new backend, pid=%d socket=%d", (int) pid, (int) client_sock->sock);
   ereport(DEBUG2,
           (errmsg_internal("forked new %s, pid=%d socket=%d",
                            GetBackendTypeDesc(bn->bkend_type),
@@ -3553,6 +3627,7 @@ BackendStartup(ClientSocket *client_sock)
 static void
 report_fork_failure_to_client(ClientSocket *client_sock, int errnum)
 {
+  DBUG_TRACE;
   char    buffer[1000];
   int     rc;
 
@@ -3579,6 +3654,7 @@ report_fork_failure_to_client(ClientSocket *client_sock, int errnum)
 static void
 ExitPostmaster(int status)
 {
+  DBUG_TRACE;
 #ifdef HAVE_PTHREAD_IS_THREADED_NP
 
   /*
@@ -3825,6 +3901,7 @@ dummy_handler(SIGNAL_ARGS)
 static int
 CountChildren(BackendTypeMask targetMask)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   int     cnt = 0;
 
@@ -3851,6 +3928,8 @@ CountChildren(BackendTypeMask targetMask)
 
     cnt++;
   }
+
+  DBUG_PRINT("info", "count up number of child processes of specified types:%d", cnt);
   return cnt;
 }
 
@@ -3987,6 +4066,7 @@ StartAutovacuumWorker(void)
 static bool
 CreateOptsFile(int argc, char *argv[], char *fullprogname)
 {
+  DBUG_TRACE;
   FILE     *fp;
   int     i;
 
@@ -4029,6 +4109,7 @@ CreateOptsFile(int argc, char *argv[], char *fullprogname)
 static bool
 StartBackgroundWorker(RegisteredBgWorker *rw)
 {
+  DBUG_TRACE;
   PMChild    *bn;
   pid_t   worker_pid;
 
@@ -4047,6 +4128,7 @@ StartBackgroundWorker(RegisteredBgWorker *rw)
   bn = AssignPostmasterChildSlot(B_BG_WORKER);
 
   if (bn == NULL) {
+    DBUG_INSTANT_PRINT("info", "no slot available for new background worker process");
     ereport(LOG,
             (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
              errmsg("no slot available for new background worker process")));
@@ -4058,14 +4140,19 @@ StartBackgroundWorker(RegisteredBgWorker *rw)
   bn->bkend_type = B_BG_WORKER;
   bn->bgworker_notify = false;
 
+  DBUG_PRINT("info", "starting background worker process \"%s\"", rw->rw_worker.bgw_name);
   ereport(DEBUG1,
           (errmsg_internal("starting background worker process \"%s\"",
                            rw->rw_worker.bgw_name)));
 
-  worker_pid = postmaster_child_launch(B_BG_WORKER, bn->child_slot,
-                                       &rw->rw_worker, sizeof(BackgroundWorker), NULL);
+  if (rw->rw_worker.bgw_debug_traced) {
+    worker_pid = postmaster_child_launch_with_traced(B_BG_WORKER, bn->child_slot, &rw->rw_worker, sizeof(BackgroundWorker), NULL, true);
+  } else {
+    worker_pid = postmaster_child_launch(B_BG_WORKER, bn->child_slot, &rw->rw_worker, sizeof(BackgroundWorker), NULL);
+  }
 
   if (worker_pid == -1) {
+    DBUG_INSTANT_PRINT("info", "could not fork background worker process");
     /* in postmaster, fork failed ... */
     ereport(LOG,
             (errmsg("could not fork background worker process: %m")));
@@ -4091,6 +4178,8 @@ StartBackgroundWorker(RegisteredBgWorker *rw)
 static bool
 bgworker_should_start_now(BgWorkerStartTime start_time)
 {
+  DBUG_TRACE;
+
   switch (pmState) {
     case PM_NO_CHILDREN:
     case PM_WAIT_CHECKPOINTER:
@@ -4103,26 +4192,34 @@ bgworker_should_start_now(BgWorkerStartTime start_time)
       break;
 
     case PM_RUN:
-      if (start_time == BgWorkerStart_RecoveryFinished)
+      if (start_time == BgWorkerStart_RecoveryFinished) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
     /* fall through */
 
     case PM_HOT_STANDBY:
-      if (start_time == BgWorkerStart_ConsistentState)
+      if (start_time == BgWorkerStart_ConsistentState) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
     /* fall through */
 
     case PM_RECOVERY:
     case PM_STARTUP:
     case PM_INIT:
-      if (start_time == BgWorkerStart_PostmasterStart)
+      if (start_time == BgWorkerStart_PostmasterStart) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
       /* fall through */
   }
 
+
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -4140,6 +4237,7 @@ bgworker_should_start_now(BgWorkerStartTime start_time)
 static void
 maybe_start_bgworkers(void)
 {
+  DBUG_TRACE;
 #define MAX_BGWORKERS_TO_LAUNCH 100
   int     num_launched = 0;
   TimestampTz now = 0;
@@ -4165,11 +4263,14 @@ maybe_start_bgworkers(void)
     rw = dlist_container(RegisteredBgWorker, rw_lnode, iter.cur);
 
     /* ignore if already running */
-    if (rw->rw_pid != 0)
+    if (rw->rw_pid != 0) {
+      DBUG_PRINT("info", "ignore if already running");
       continue;
+    }
 
     /* if marked for death, clean up and remove from list */
     if (rw->rw_terminate) {
+      DBUG_PRINT("info", "if marked for death, clean up and remove from list");
       ForgetBackgroundWorker(rw);
       continue;
     }
@@ -4223,6 +4324,17 @@ maybe_start_bgworkers(void)
        * crashed, but there's no need because the next run of this
        * function will do that.
        */
+
+      if (rw->rw_worker.bgw_debug_traced) {
+        DBUG_PRINT("info", "bgw_debug_traced is set");
+        DBUG_PRINT("info", "worker info(bgw_name:%s, bgw_type:%s, bgw_notify_pid:%d", rw->rw_worker.bgw_name,
+                   rw->rw_worker.bgw_type, rw->rw_worker.bgw_notify_pid);
+      } else {
+        DBUG_PRINT("info", "bgw_debug_traced is not set");
+        DBUG_PRINT("info", "worker info(bgw_name:%s, bgw_type:%s, bgw_notify_pid:%d", rw->rw_worker.bgw_name,
+                   rw->rw_worker.bgw_type, rw->rw_worker.bgw_notify_pid);
+      }
+
       if (!StartBackgroundWorker(rw)) {
         StartWorkerNeeded = true;
         return;
@@ -4337,6 +4449,7 @@ maybe_adjust_io_workers(void)
 bool
 PostmasterMarkPIDForWorkerNotify(int pid)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   PMChild    *bp;
 
@@ -4360,6 +4473,7 @@ PostmasterMarkPIDForWorkerNotify(int pid)
 static pid_t
 waitpid(pid_t pid, int *exitstatus, int options)
 {
+  DBUG_TRACE;
   win32_deadchild_waitinfo *childinfo;
   DWORD   exitcode;
   DWORD   dwd;
@@ -4412,6 +4526,7 @@ waitpid(pid_t pid, int *exitstatus, int options)
  */
 static void WINAPI
 pgwin32_deadchild_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+DBUG_TRACE;
 {
   /* Should never happen, since we use INFINITE as timeout value. */
   if (TimerOrWaitFired)
@@ -4442,6 +4557,7 @@ pgwin32_deadchild_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 void
 pgwin32_register_deadchild_callback(HANDLE procHandle, DWORD procId)
 {
+  DBUG_TRACE;
   win32_deadchild_waitinfo *childinfo;
 
   childinfo = palloc(sizeof(win32_deadchild_waitinfo));
@@ -4470,6 +4586,8 @@ pgwin32_register_deadchild_callback(HANDLE procHandle, DWORD procId)
 static void
 InitPostmasterDeathWatchHandle(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "initialize one and only handle for monitoring postmaster death");
 #ifndef WIN32
 
   /*

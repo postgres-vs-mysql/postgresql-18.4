@@ -50,8 +50,7 @@ typedef struct
   char    data[FLEXIBLE_ARRAY_MEMBER];  /* data payload starts here */
 } PipeProtoHeader;
 
-typedef union
-{
+typedef union {
   PipeProtoHeader proto;
   char    filler[PIPE_CHUNK_SIZE];
 } PipeProtoChunk;

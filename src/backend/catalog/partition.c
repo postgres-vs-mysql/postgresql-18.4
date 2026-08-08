@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
 */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/attmap.h"
 #include "access/genam.h"
@@ -52,6 +53,7 @@ static void get_partition_ancestors_worker(Relation inhRel, Oid relid,
 Oid
 get_partition_parent(Oid relid, bool even_if_detached)
 {
+  DBUG_TRACE;
   Relation  catalogRelation;
   Oid     result;
   bool    detach_pending;
@@ -70,6 +72,7 @@ get_partition_parent(Oid relid, bool even_if_detached)
 
   table_close(catalogRelation, AccessShareLock);
 
+  DBUG_PRINT("info", "obtain direct parent:%u of given relation:%u", result, relid);
   return result;
 }
 
@@ -84,6 +87,7 @@ get_partition_parent(Oid relid, bool even_if_detached)
 static Oid
 get_partition_parent_worker(Relation inhRel, Oid relid, bool *detach_pending)
 {
+  DBUG_TRACE;
   SysScanDesc scan;
   ScanKeyData key[2];
   Oid     result = InvalidOid;
@@ -116,6 +120,7 @@ get_partition_parent_worker(Relation inhRel, Oid relid, bool *detach_pending)
 
   systable_endscan(scan);
 
+  DBUG_PRINT("info", "scan the pg_inherits relation to return the OID of the parent:%u of the given relation:%u", result, relid);
   return result;
 }
 
@@ -134,6 +139,7 @@ get_partition_parent_worker(Relation inhRel, Oid relid, bool *detach_pending)
 List *
 get_partition_ancestors(Oid relid)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relation  inhRel;
 
@@ -153,6 +159,7 @@ get_partition_ancestors(Oid relid)
 static void
 get_partition_ancestors_worker(Relation inhRel, Oid relid, List **ancestors)
 {
+  DBUG_TRACE;
   Oid     parentOid;
   bool    detach_pending;
 
@@ -177,6 +184,7 @@ get_partition_ancestors_worker(Relation inhRel, Oid relid, List **ancestors)
 Oid
 index_get_partition(Relation partition, Oid indexId)
 {
+  DBUG_TRACE;
   List     *idxlist = RelationGetIndexList(partition);
   ListCell   *l;
 
@@ -226,6 +234,8 @@ List *
 map_partition_varattnos(List *expr, int fromrel_varno,
                         Relation to_rel, Relation from_rel)
 {
+  DBUG_TRACE;
+
   if (expr != NIL) {
     AttrMap    *part_attmap;
     bool    found_whole_row;
@@ -257,6 +267,7 @@ map_partition_varattnos(List *expr, int fromrel_varno,
 bool
 has_partition_attrs(Relation rel, Bitmapset *attnums, bool *used_in_expr)
 {
+  DBUG_TRACE;
   PartitionKey key;
   int     partnatts;
   List     *partexprs;
@@ -314,6 +325,7 @@ has_partition_attrs(Relation rel, Bitmapset *attnums, bool *used_in_expr)
 Oid
 get_default_partition_oid(Oid parentId)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Oid     defaultPartId = InvalidOid;
 
@@ -338,6 +350,7 @@ get_default_partition_oid(Oid parentId)
 void
 update_default_partition_oid(Oid parentId, Oid defaultPartId)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Relation  pg_partitioned_table;
   Form_pg_partitioned_table part_table_form;
@@ -368,6 +381,7 @@ update_default_partition_oid(Oid parentId, Oid defaultPartId)
 List *
 get_proposed_default_constraint(List *new_part_constraints)
 {
+  DBUG_TRACE;
   Expr     *defPartConstraint;
 
   defPartConstraint = make_ands_explicit(new_part_constraints);

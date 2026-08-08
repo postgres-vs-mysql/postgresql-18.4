@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/parsenodes.h"
 #include "nodes/supportnodes.h"
@@ -46,6 +47,7 @@ static Datum leadlag_common(FunctionCallInfo fcinfo,
 static bool
 rank_up(WindowObject winobj)
 {
+  DBUG_TRACE;
   bool    up = false;   /* should rank increase? */
   int64   curpos = WinGetCurrentPosition(winobj);
   rank_context *context;
@@ -68,6 +70,12 @@ rank_up(WindowObject winobj)
   /* We can advance the mark, but only *after* access to prior row */
   WinSetMarkPosition(winobj, curpos);
 
+  if (up) {
+    DBUG_PRINT("info", "current and prior tuples do match by ORDER BY clause");
+  } else {
+    DBUG_PRINT("info", "rank should not increase");
+  }
+
   return up;
 }
 
@@ -79,10 +87,12 @@ rank_up(WindowObject winobj)
 Datum
 window_row_number(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   int64   curpos = WinGetCurrentPosition(winobj);
 
   WinSetMarkPosition(winobj, curpos);
+  DBUG_PRINT("info", "just increment up from 1 until current partition finishes:%ld", curpos + 1);
   PG_RETURN_INT64(curpos + 1);
 }
 
@@ -93,6 +103,7 @@ window_row_number(PG_FUNCTION_ARGS)
 Datum
 window_row_number_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
@@ -100,12 +111,14 @@ window_row_number_support(PG_FUNCTION_ARGS)
 
     /* row_number() is monotonically increasing */
     req->monotonic = MONOTONICFUNC_INCREASING;
+    DBUG_PRINT("info", "row_number() is monotonically increasing");
     PG_RETURN_POINTER(req);
   }
 
   if (IsA(rawreq, SupportRequestOptimizeWindowClause)) {
     SupportRequestOptimizeWindowClause *req = (SupportRequestOptimizeWindowClause *) rawreq;
 
+    DBUG_PRINT("info", "row_number() always just increments by 1 with each row in the partition");
     /*
      * The frame options can always become "ROWS BETWEEN UNBOUNDED
      * PRECEDING AND CURRENT ROW".  row_number() always just increments by
@@ -131,6 +144,7 @@ window_row_number_support(PG_FUNCTION_ARGS)
 Datum
 window_rank(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   rank_context *context;
   bool    up;
@@ -142,6 +156,7 @@ window_rank(PG_FUNCTION_ARGS)
   if (up)
     context->rank = WinGetCurrentPosition(winobj) + 1;
 
+  DBUG_PRINT("info", "the new rank number is the current row number:%ld", context->rank);
   PG_RETURN_INT64(context->rank);
 }
 
@@ -152,11 +167,13 @@ window_rank(PG_FUNCTION_ARGS)
 Datum
 window_rank_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
     SupportRequestWFuncMonotonic *req = (SupportRequestWFuncMonotonic *) rawreq;
 
+    DBUG_PRINT("info", "rank() is monotonically increasing");
     /* rank() is monotonically increasing */
     req->monotonic = MONOTONICFUNC_INCREASING;
     PG_RETURN_POINTER(req);
@@ -174,6 +191,7 @@ window_rank_support(PG_FUNCTION_ARGS)
      * frame options to be.  Using ROWS instead of RANGE saves from doing
      * peer row checks during execution.
      */
+    DBUG_PRINT("info", "we'll set the frame options to 'ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'");
     req->frameOptions = (FRAMEOPTION_NONDEFAULT |
                          FRAMEOPTION_ROWS |
                          FRAMEOPTION_START_UNBOUNDED_PRECEDING |
@@ -192,6 +210,7 @@ window_rank_support(PG_FUNCTION_ARGS)
 Datum
 window_dense_rank(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   rank_context *context;
   bool    up;
@@ -203,6 +222,7 @@ window_dense_rank(PG_FUNCTION_ARGS)
   if (up)
     context->rank++;
 
+  DBUG_PRINT("info", "rank increases by 1 when key columns change:%ld", context->rank);
   PG_RETURN_INT64(context->rank);
 }
 
@@ -213,11 +233,13 @@ window_dense_rank(PG_FUNCTION_ARGS)
 Datum
 window_dense_rank_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
     SupportRequestWFuncMonotonic *req = (SupportRequestWFuncMonotonic *) rawreq;
 
+    DBUG_PRINT("info", "dense_rank() is monotonically increasing");
     /* dense_rank() is monotonically increasing */
     req->monotonic = MONOTONICFUNC_INCREASING;
     PG_RETURN_POINTER(req);
@@ -232,6 +254,7 @@ window_dense_rank_support(PG_FUNCTION_ARGS)
      * function.  Using ROWS instead of RANGE (the default) saves the
      * executor from having to check for peer rows.
      */
+    DBUG_PRINT("info", "we set the frame options to match what's done in row_number's support function");
     req->frameOptions = (FRAMEOPTION_NONDEFAULT |
                          FRAMEOPTION_ROWS |
                          FRAMEOPTION_START_UNBOUNDED_PRECEDING |
@@ -252,6 +275,7 @@ window_dense_rank_support(PG_FUNCTION_ARGS)
 Datum
 window_percent_rank(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   rank_context *context;
   bool    up;
@@ -263,13 +287,20 @@ window_percent_rank(PG_FUNCTION_ARGS)
   context = (rank_context *)
             WinGetPartitionLocalMemory(winobj, sizeof(rank_context));
 
-  if (up)
+  if (up) {
     context->rank = WinGetCurrentPosition(winobj) + 1;
+    DBUG_PRINT("info", "total rows:%ld and up is true", totalrows);
+  } else {
+    DBUG_PRINT("info", "total rows:%ld", totalrows);
+  }
 
   /* return zero if there's only one row, per spec */
-  if (totalrows <= 1)
+  if (totalrows <= 1) {
+    DBUG_PRINT("info", "return zero when there's only one row, per spec");
     PG_RETURN_FLOAT8(0.0);
+  }
 
+  DBUG_PRINT("info", "return fraction between 0 and 1 inclusive:%g", (float8) (context->rank - 1) / (float8) (totalrows - 1));
   PG_RETURN_FLOAT8((float8) (context->rank - 1) / (float8) (totalrows - 1));
 }
 
@@ -280,11 +311,13 @@ window_percent_rank(PG_FUNCTION_ARGS)
 Datum
 window_percent_rank_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
     SupportRequestWFuncMonotonic *req = (SupportRequestWFuncMonotonic *) rawreq;
 
+    DBUG_PRINT("info", "percent_rank() is monotonically increasing");
     /* percent_rank() is monotonically increasing */
     req->monotonic = MONOTONICFUNC_INCREASING;
     PG_RETURN_POINTER(req);
@@ -299,6 +332,7 @@ window_percent_rank_support(PG_FUNCTION_ARGS)
      * function.  Using ROWS instead of RANGE (the default) saves the
      * executor from having to check for peer rows.
      */
+    DBUG_PRINT("info", "we set the frame options to match what's done in row_number's support function");
     req->frameOptions = (FRAMEOPTION_NONDEFAULT |
                          FRAMEOPTION_ROWS |
                          FRAMEOPTION_START_UNBOUNDED_PRECEDING |
@@ -320,6 +354,7 @@ window_percent_rank_support(PG_FUNCTION_ARGS)
 Datum
 window_cume_dist(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   rank_context *context;
   bool    up;
@@ -351,6 +386,7 @@ window_cume_dist(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("info", "total rows:%ld and return %g", totalrows, (float8) context->rank / (float8) totalrows);
   PG_RETURN_FLOAT8((float8) context->rank / (float8) totalrows);
 }
 
@@ -361,12 +397,14 @@ window_cume_dist(PG_FUNCTION_ARGS)
 Datum
 window_cume_dist_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
     SupportRequestWFuncMonotonic *req = (SupportRequestWFuncMonotonic *) rawreq;
 
     /* cume_dist() is monotonically increasing */
+    DBUG_PRINT("info", "cume_dist() is monotonically increasing");
     req->monotonic = MONOTONICFUNC_INCREASING;
     PG_RETURN_POINTER(req);
   }
@@ -380,6 +418,7 @@ window_cume_dist_support(PG_FUNCTION_ARGS)
      * function.  Using ROWS instead of RANGE (the default) saves the
      * executor from having to check for peer rows.
      */
+    DBUG_PRINT("info", "we set the frame options to match what's done in row_number's support function");
     req->frameOptions = (FRAMEOPTION_NONDEFAULT |
                          FRAMEOPTION_ROWS |
                          FRAMEOPTION_START_UNBOUNDED_PRECEDING |
@@ -399,6 +438,7 @@ window_cume_dist_support(PG_FUNCTION_ARGS)
 Datum
 window_ntile(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   ntile_context *context;
 
@@ -461,6 +501,7 @@ window_ntile(PG_FUNCTION_ARGS)
     context->rows_per_bucket = 1;
   }
 
+  DBUG_PRINT("info", "compute an exact numeric value with scale 0, ranging from 1 (one) to n, per spec:%d", context->ntile);
   PG_RETURN_INT32(context->ntile);
 }
 
@@ -471,6 +512,7 @@ window_ntile(PG_FUNCTION_ARGS)
 Datum
 window_ntile_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
@@ -480,6 +522,7 @@ window_ntile_support(PG_FUNCTION_ARGS)
      * ntile() is monotonically increasing as the number of buckets cannot
      * change after the first call
      */
+    DBUG_PRINT("info", "ntile() is monotonically increasing as the number of buckets cannot change after the first call");
     req->monotonic = MONOTONICFUNC_INCREASING;
     PG_RETURN_POINTER(req);
   }
@@ -493,6 +536,7 @@ window_ntile_support(PG_FUNCTION_ARGS)
      * Using ROWS instead of RANGE (the default) saves the executor from
      * having to check for peer rows.
      */
+    DBUG_PRINT("info", "we set the frame options to match what's done in row_number's support function");
     req->frameOptions = (FRAMEOPTION_NONDEFAULT |
                          FRAMEOPTION_ROWS |
                          FRAMEOPTION_START_UNBOUNDED_PRECEDING |
@@ -515,6 +559,7 @@ static Datum
 leadlag_common(FunctionCallInfo fcinfo,
                bool forward, bool withoffset, bool withdefault)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   int32   offset;
   bool    const_offset;
@@ -564,6 +609,7 @@ leadlag_common(FunctionCallInfo fcinfo,
 Datum
 window_lag(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, false, false, false);
 }
 
@@ -576,6 +622,7 @@ window_lag(PG_FUNCTION_ARGS)
 Datum
 window_lag_with_offset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, false, true, false);
 }
 
@@ -587,6 +634,7 @@ window_lag_with_offset(PG_FUNCTION_ARGS)
 Datum
 window_lag_with_offset_and_default(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, false, true, true);
 }
 
@@ -599,6 +647,7 @@ window_lag_with_offset_and_default(PG_FUNCTION_ARGS)
 Datum
 window_lead(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, true, false, false);
 }
 
@@ -611,6 +660,7 @@ window_lead(PG_FUNCTION_ARGS)
 Datum
 window_lead_with_offset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, true, true, false);
 }
 
@@ -622,6 +672,7 @@ window_lead_with_offset(PG_FUNCTION_ARGS)
 Datum
 window_lead_with_offset_and_default(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return leadlag_common(fcinfo, true, true, true);
 }
 
@@ -633,6 +684,7 @@ window_lead_with_offset_and_default(PG_FUNCTION_ARGS)
 Datum
 window_first_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   Datum   result;
   bool    isnull;
@@ -655,6 +707,7 @@ window_first_value(PG_FUNCTION_ARGS)
 Datum
 window_last_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   Datum   result;
   bool    isnull;
@@ -677,6 +730,7 @@ window_last_value(PG_FUNCTION_ARGS)
 Datum
 window_nth_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WindowObject winobj = PG_WINDOW_OBJECT();
   bool    const_offset;
   Datum   result;

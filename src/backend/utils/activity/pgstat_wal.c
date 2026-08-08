@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/instrument.h"
 #include "utils/pgstat_internal.h"
@@ -45,6 +46,7 @@ static WalUsage prevWalUsage;
 void
 pgstat_report_wal(bool force)
 {
+  DBUG_TRACE;
   bool    nowait;
 
   /* like in pgstat.c, don't wait for lock acquisition when !force */
@@ -90,6 +92,7 @@ pgstat_wal_have_pending(void)
 bool
 pgstat_wal_flush_cb(bool nowait)
 {
+  DBUG_TRACE;
   PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
   WalUsage  wal_usage_diff = {0};
 
@@ -101,8 +104,10 @@ pgstat_wal_flush_cb(bool nowait)
    * This function can be called even if nothing at all has happened. Avoid
    * taking lock for nothing in that case.
    */
-  if (!pgstat_wal_have_pending())
+  if (!pgstat_wal_have_pending()) {
+    DBUG_PRINT("info", "avoid taking lock for nothing and return false");
     return false;
+  }
 
   /*
    * We don't update the WAL usage portion of the local WalStats elsewhere.
@@ -113,8 +118,10 @@ pgstat_wal_flush_cb(bool nowait)
 
   if (!nowait)
     LWLockAcquire(&stats_shmem->lock, LW_EXCLUSIVE);
-  else if (!LWLockConditionalAcquire(&stats_shmem->lock, LW_EXCLUSIVE))
+  else if (!LWLockConditionalAcquire(&stats_shmem->lock, LW_EXCLUSIVE)) {
+    DBUG_PRINT("info", "the lock is not available and return true");
     return true;
+  }
 
 #define WALSTAT_ACC(fld, var_to_add) \
   (stats_shmem->stats.wal_counters.fld += var_to_add.fld)
@@ -131,6 +138,7 @@ pgstat_wal_flush_cb(bool nowait)
    */
   prevWalUsage = pgWalUsage;
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -150,7 +158,7 @@ pgstat_wal_init_shmem_cb(void *stats)
 {
   PgStatShared_Wal *stats_shmem = (PgStatShared_Wal *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 void

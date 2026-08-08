@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -75,7 +76,14 @@ static bool validate_log_connections_options(List *elemlist, uint32 *flags);
 void
 BackendMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   const BackendStartupData *bsdata = startup_data;
+
+  if (enable_session_trace) {
+    set_trace_enabled();
+  } else {
+    set_trace_disabled();
+  }
 
   Assert(startup_data_len == sizeof(BackendStartupData));
   Assert(MyClientSocket != NULL);
@@ -141,6 +149,7 @@ BackendMain(const void *startup_data, size_t startup_data_len)
 static void
 BackendInitialize(ClientSocket *client_sock, CAC_state cac)
 {
+  DBUG_TRACE;
   int     status;
   int     ret;
   Port     *port;
@@ -248,6 +257,8 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
   }
 
 #endif
+
+  DBUG_PRINT("info", "connection received: host=:%s", remote_host);
 
   /*
    * If we did a reverse lookup to name, we might as well save the results
@@ -410,6 +421,7 @@ BackendInitialize(ClientSocket *client_sock, CAC_state cac)
 static int
 ProcessSSLStartup(Port *port)
 {
+  DBUG_TRACE;
   int     firstbyte;
 
   Assert(!port->ssl_in_use);
@@ -502,6 +514,7 @@ reject:
 static int
 ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 {
+  DBUG_TRACE;
   int32   len;
   char     *buf;
   ProtocolVersion proto;
@@ -943,6 +956,7 @@ ProcessCancelRequestPacket(Port *port, void *pkt, int pktlen)
 static void
 SendNegotiateProtocolVersion(List *unrecognized_protocol_options)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   ListCell   *lc;
 

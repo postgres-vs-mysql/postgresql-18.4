@@ -121,8 +121,7 @@ typedef struct
                  * RelationSyncCache */
 } SharedInvalRelSyncMsg;
 
-typedef union
-{
+typedef union {
   int8    id;       /* type field --- must be first */
   SharedInvalCatcacheMsg cc;
   SharedInvalCatalogMsg cat;

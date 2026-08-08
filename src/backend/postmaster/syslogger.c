@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <limits.h>
@@ -162,6 +163,7 @@ typedef struct {
 void
 SysLoggerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
 #ifndef WIN32
   char    logbuffer[READ_BUF_SIZE];
   int     bytes_in_logbuffer = 0;
@@ -583,6 +585,7 @@ SysLoggerMain(const void *startup_data, size_t startup_data_len)
 int
 SysLogger_Start(int child_slot)
 {
+  DBUG_TRACE;
   pid_t   sysloggerPid;
   char     *filename;
 #ifdef EXEC_BACKEND
@@ -796,6 +799,7 @@ SysLogger_Start(int child_slot)
 static int
 syslogger_fdget(FILE *file)
 {
+  DBUG_TRACE;
 #ifndef WIN32
 
   if (file != NULL)
@@ -822,6 +826,7 @@ syslogger_fdget(FILE *file)
 static FILE *
 syslogger_fdopen(int fd)
 {
+  DBUG_TRACE;
   FILE     *file = NULL;
 
 #ifndef WIN32
@@ -880,6 +885,7 @@ syslogger_fdopen(int fd)
 static void
 process_pipe_input(char *logbuffer, int *bytes_in_logbuffer)
 {
+  DBUG_TRACE;
   char     *cursor = logbuffer;
   int     count = *bytes_in_logbuffer;
   int     dest = LOG_DESTINATION_STDERR;
@@ -1080,6 +1086,7 @@ flush_pipe_input(char *logbuffer, int *bytes_in_logbuffer)
 void
 write_syslogger_file(const char *buffer, int count, int destination)
 {
+  DBUG_TRACE;
   int     rc;
   FILE     *logfile;
 
@@ -1127,6 +1134,7 @@ write_syslogger_file(const char *buffer, int count, int destination)
 static unsigned int __stdcall
 pipeThread(void *arg)
 {
+  DBUG_TRACE;
   char    logbuffer[READ_BUF_SIZE];
   int     bytes_in_logbuffer = 0;
 
@@ -1204,6 +1212,7 @@ pipeThread(void *arg)
 static FILE *
 logfile_open(const char *filename, const char *mode, bool allow_errors)
 {
+  DBUG_TRACE;
   FILE     *fh;
   mode_t    oumask;
 
@@ -1248,6 +1257,7 @@ logfile_rotate_dest(bool time_based_rotation, int size_rotation_for,
                     pg_time_t fntime, int target_dest,
                     char **last_file_name, FILE **logFile)
 {
+  DBUG_TRACE;
   char     *logFileExt = NULL;
   char     *filename;
   FILE     *fh;
@@ -1347,6 +1357,7 @@ logfile_rotate_dest(bool time_based_rotation, int size_rotation_for,
 static void
 logfile_rotate(bool time_based_rotation, int size_rotation_for)
 {
+  DBUG_TRACE;
   pg_time_t fntime;
 
   rotation_requested = false;
@@ -1396,6 +1407,7 @@ logfile_rotate(bool time_based_rotation, int size_rotation_for)
 static char *
 logfile_getname(pg_time_t timestamp, const char *suffix)
 {
+  DBUG_TRACE;
   char     *filename;
   int     len;
 
@@ -1427,6 +1439,7 @@ logfile_getname(pg_time_t timestamp, const char *suffix)
 static void
 set_next_rotation_time(void)
 {
+  DBUG_TRACE;
   pg_time_t now;
   struct pg_tm *tm;
   int     rotinterval;
@@ -1462,6 +1475,7 @@ set_next_rotation_time(void)
 static void
 update_metainfo_datafile(void)
 {
+  DBUG_TRACE;
   FILE     *fh;
   mode_t    oumask;
 

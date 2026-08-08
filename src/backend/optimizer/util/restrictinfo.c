@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -60,6 +61,8 @@ make_restrictinfo(PlannerInfo *root,
                   Relids incompatible_relids,
                   Relids outer_relids)
 {
+  DBUG_TRACE;
+
   /*
    * If it's an OR clause, build a modified copy with RestrictInfos inserted
    * above each subclause of the top-level AND/OR structure.
@@ -112,6 +115,7 @@ make_plain_restrictinfo(PlannerInfo *root,
                         Relids incompatible_relids,
                         Relids outer_relids)
 {
+  DBUG_TRACE;
   RestrictInfo *restrictinfo = makeNode(RestrictInfo);
   Relids    baserels;
 
@@ -164,9 +168,12 @@ make_plain_restrictinfo(PlannerInfo *root,
         !bms_is_empty(restrictinfo->right_relids) &&
         !bms_overlap(restrictinfo->left_relids,
                      restrictinfo->right_relids)) {
+      DBUG_PRINT("info", "the can_join flag is set to true");
       restrictinfo->can_join = true;
       /* pseudoconstant should certainly not be true */
       Assert(!restrictinfo->pseudoconstant);
+    } else {
+      DBUG_PRINT("info", "the can_join flag is not set to true");
     }
   } else {
     /* Not a binary opclause, so mark left/right relid sets as empty */
@@ -266,6 +273,8 @@ make_sub_restrictinfos(PlannerInfo *root,
                        Relids incompatible_relids,
                        Relids outer_relids)
 {
+  DBUG_TRACE;
+
   if (is_orclause(clause)) {
     List     *orlist = NIL;
     ListCell   *temp;
@@ -343,6 +352,7 @@ make_sub_restrictinfos(PlannerInfo *root,
 RestrictInfo *
 commute_restrictinfo(RestrictInfo *rinfo, Oid comm_op)
 {
+  DBUG_TRACE;
   RestrictInfo *result;
   OpExpr     *newclause;
   OpExpr     *clause = castNode(OpExpr, rinfo->clause);
@@ -402,10 +412,13 @@ commute_restrictinfo(RestrictInfo *rinfo, Oid comm_op)
 bool
 restriction_is_or_clause(RestrictInfo *restrictinfo)
 {
-  if (restrictinfo->orclause != NULL)
+  if (restrictinfo->orclause != NULL) {
+    DBUG_PRINT("info", "the restrictinfo node contains an 'or' clause");
     return true;
-  else
+  } else {
+    DBUG_PRINT("info", "the restrictinfo node does not contain an 'or' clause");
     return false;
+  }
 }
 
 /*
@@ -418,15 +431,20 @@ bool
 restriction_is_securely_promotable(RestrictInfo *restrictinfo,
                                    RelOptInfo *rel)
 {
+  DBUG_TRACE;
+
   /*
    * It's okay if there are no baserestrictinfo clauses for the rel that
    * would need to go before this one, *or* if this one is leakproof.
    */
   if (restrictinfo->security_level <= rel->baserestrict_min_security ||
-      restrictinfo->leakproof)
+      restrictinfo->leakproof) {
+    DBUG_PRINT("info", "return true");
     return true;
-  else
+  } else {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 }
 
 /*
@@ -511,6 +529,7 @@ extract_actual_join_clauses(List *restrictinfo_list,
                             List **joinquals,
                             List **otherquals)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   *joinquals = NIL;
@@ -567,13 +586,21 @@ extract_actual_join_clauses(List *restrictinfo_list,
 bool
 join_clause_is_movable_to(RestrictInfo *rinfo, RelOptInfo *baserel)
 {
+  DBUG_TRACE;
+
   /* Clause must physically reference target rel */
-  if (!bms_is_member(baserel->relid, rinfo->clause_relids))
+  if (!bms_is_member(baserel->relid, rinfo->clause_relids)) {
+    DBUG_PRINT("info", "clause must physically reference target rel");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Cannot move an outer-join clause into the join's outer side */
-  if (bms_is_member(baserel->relid, rinfo->outer_relids))
+  if (bms_is_member(baserel->relid, rinfo->outer_relids)) {
+    DBUG_PRINT("info", "cannot move an outer-join clause into the join's outer side");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * Target rel's Vars must not be nulled by any outer join.  We can check
@@ -585,17 +612,27 @@ join_clause_is_movable_to(RestrictInfo *rinfo, RelOptInfo *baserel)
    * came from above that outer join and shouldn't be pushed down; so there
    * should be no false positives.
    */
-  if (bms_overlap(rinfo->clause_relids, baserel->nulling_relids))
+  if (bms_overlap(rinfo->clause_relids, baserel->nulling_relids)) {
+    DBUG_PRINT("info", "target rel's Vars must not be nulled by any outer join");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Clause must not use any rels with LATERAL references to this rel */
-  if (bms_overlap(baserel->lateral_referencers, rinfo->clause_relids))
+  if (bms_overlap(baserel->lateral_referencers, rinfo->clause_relids)) {
+    DBUG_PRINT("info", "clause must not use any rels with LATERAL references to this rel");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Ignore clones, too */
-  if (rinfo->is_clone)
+  if (rinfo->is_clone) {
+    DBUG_PRINT("info", "ignore clones, too");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -655,17 +692,29 @@ join_clause_is_movable_into(RestrictInfo *rinfo,
                             Relids currentrelids,
                             Relids current_and_outer)
 {
+  DBUG_TRACE;
+
   /* Clause must be evaluable given available context */
-  if (!bms_is_subset(rinfo->clause_relids, current_and_outer))
+  if (!bms_is_subset(rinfo->clause_relids, current_and_outer)) {
+    DBUG_PRINT("info", "clause must be evaluable given available context");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Clause must physically reference at least one target rel */
-  if (!bms_overlap(currentrelids, rinfo->clause_relids))
+  if (!bms_overlap(currentrelids, rinfo->clause_relids)) {
+    DBUG_PRINT("info", "clause must physically reference at least one target rel");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Cannot move an outer-join clause into the join's outer side */
-  if (bms_overlap(currentrelids, rinfo->outer_relids))
+  if (bms_overlap(currentrelids, rinfo->outer_relids)) {
+    DBUG_PRINT("info", "cannot move an outer-join clause into the join's outer side");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }

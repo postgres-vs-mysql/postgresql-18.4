@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "access/tableam.h"
@@ -215,6 +216,7 @@ static void find_matching_subplans_recurse(PartitionPruningData *prunedata,
 PartitionTupleRouting *
 ExecSetupPartitionTupleRouting(EState *estate, Relation rel)
 {
+  DBUG_TRACE;
   PartitionTupleRouting *proute;
 
   /*
@@ -265,6 +267,7 @@ ExecFindPartition(ModifyTableState *mtstate,
                   PartitionTupleRouting *proute,
                   TupleTableSlot *slot, EState *estate)
 {
+  DBUG_TRACE;
   PartitionDispatch *pd = proute->partition_dispatch_info;
   Datum   values[PARTITION_MAX_KEYS];
   bool    isnull[PARTITION_MAX_KEYS];
@@ -322,6 +325,7 @@ ExecFindPartition(ModifyTableState *mtstate,
       val_desc = ExecBuildSlotPartitionKeyDescription(rel,
                  values, isnull, 64);
       Assert(OidIsValid(RelationGetRelid(rel)));
+      DBUG_INSTANT_PRINT("info", "no partition of relation \"%s\" found for row", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_CHECK_VIOLATION),
                errmsg("no partition of relation \"%s\" found for row",
@@ -332,6 +336,7 @@ ExecFindPartition(ModifyTableState *mtstate,
                errtable(rel)));
     }
 
+    DBUG_PRINT("info", "finds partition:%d of relation which accepts the partition key", partidx);
     is_leaf = partdesc->is_leaf[partidx];
 
     if (is_leaf) {
@@ -491,6 +496,7 @@ ExecInitPartitionInfo(ModifyTableState *mtstate, EState *estate,
                       ResultRelInfo *rootResultRelInfo,
                       int partidx)
 {
+  DBUG_TRACE;
   ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
   Oid     partOid = dispatch->partdesc->oids[partidx];
   Relation  partrel;
@@ -980,6 +986,7 @@ ExecInitRoutingInfo(ModifyTableState *mtstate,
                     int partidx,
                     bool is_borrowed_rel)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   int     rri_index;
 
@@ -1079,6 +1086,7 @@ ExecInitPartitionDispatchInfo(EState *estate,
                               PartitionDispatch parent_pd, int partidx,
                               ResultRelInfo *rootResultRelInfo)
 {
+  DBUG_TRACE;
   Relation  rel;
   PartitionDesc partdesc;
   PartitionDispatch pd;
@@ -1209,6 +1217,7 @@ void
 ExecCleanupTupleRouting(ModifyTableState *mtstate,
                         PartitionTupleRouting *proute)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -1271,6 +1280,7 @@ FormPartitionKeyDatum(PartitionDispatch pd,
                       Datum *values,
                       bool *isnull)
 {
+  DBUG_TRACE;
   ListCell   *partexpr_item;
   int     i;
 
@@ -1362,6 +1372,7 @@ FormPartitionKeyDatum(PartitionDispatch pd,
 static int
 get_partition_for_tuple(PartitionDispatch pd, Datum *values, bool *isnull)
 {
+  DBUG_TRACE;
   int     bound_offset = -1;
   int     part_index = -1;
   PartitionKey key = pd->key;
@@ -1423,6 +1434,7 @@ get_partition_for_tuple(PartitionDispatch pd, Datum *values, bool *isnull)
           int32   cmpval;
 
           /* does the last found datum index match this datum? */
+          DBUG_PRINT("info", "does the last found datum index match this datum?");
           cmpval = DatumGetInt32(FunctionCall2Coll(&key->partsupfunc[0],
                                  key->partcollation[0],
                                  lastDatum,
@@ -1574,6 +1586,7 @@ ExecBuildSlotPartitionKeyDescription(Relation rel,
                                      bool *isnull,
                                      int maxfieldlen)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   PartitionKey key = RelationGetPartitionKey(rel);
   int     partnatts = get_partition_natts(key);
@@ -1656,6 +1669,7 @@ ExecBuildSlotPartitionKeyDescription(Relation rel,
 static List *
 adjust_partition_colnos(List *colnos, ResultRelInfo *leaf_part_rri)
 {
+  DBUG_TRACE;
   TupleConversionMap *map = ExecGetChildToRootMap(leaf_part_rri);
 
   Assert(map != NULL);
@@ -1673,6 +1687,7 @@ adjust_partition_colnos(List *colnos, ResultRelInfo *leaf_part_rri)
 static List *
 adjust_partition_colnos_using_map(List *colnos, AttrMap *attrMap)
 {
+  DBUG_TRACE;
   List     *new_colnos = NIL;
   ListCell   *lc;
 
@@ -1773,6 +1788,7 @@ adjust_partition_colnos_using_map(List *colnos, AttrMap *attrMap)
 void
 ExecDoInitialPruning(EState *estate)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, estate->es_part_prune_infos) {
@@ -1832,6 +1848,7 @@ ExecInitPartitionExecPruning(PlanState *planstate,
                              Bitmapset *relids,
                              Bitmapset **initially_valid_subplans)
 {
+  DBUG_TRACE;
   PartitionPruneState *prunestate;
   EState     *estate = planstate->state;
   PartitionPruneInfo *pruneinfo;
@@ -1922,6 +1939,7 @@ static PartitionPruneState *
 CreatePartitionPruneState(EState *estate, PartitionPruneInfo *pruneinfo,
                           Bitmapset **all_leafpart_rtis)
 {
+  DBUG_TRACE;
   PartitionPruneState *prunestate;
   int     n_part_hierarchies;
   ListCell   *lc;
@@ -2186,6 +2204,7 @@ InitPartitionPruneContext(PartitionPruneContext *context,
                           PlanState *planstate,
                           ExprContext *econtext)
 {
+  DBUG_TRACE;
   int     n_steps;
   int     partnatts;
   ListCell   *lc;
@@ -2284,6 +2303,7 @@ InitExecPartitionPruneContexts(PartitionPruneState *prunestate,
                                Bitmapset *initially_valid_subplans,
                                int n_total_subplans)
 {
+  DBUG_TRACE;
   EState     *estate;
   int      *new_subplan_indexes = NULL;
   Bitmapset  *new_other_subplans;
@@ -2432,10 +2452,13 @@ ExecFindMatchingSubPlans(PartitionPruneState *prunestate,
                          bool initial_prune,
                          Bitmapset **validsubplan_rtis)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
   MemoryContext oldcontext;
   int     i;
 
+  DBUG_PRINT("info", "determine which subplans match the pruning steps detailed in 'prunestate'");
+  DBUG_PRINT("info", "for the current comparison expression values");
   /*
    * Either we're here on the initial prune done during pruning
    * initialization, or we're at a point where PARAM_EXEC Params can be
@@ -2476,6 +2499,7 @@ ExecFindMatchingSubPlans(PartitionPruneState *prunestate,
       ResetExprContext(pprune->exec_context.exprcontext);
   }
 
+  DBUG_PRINT("info", "add in any subplans that partition pruning didn't account for");
   /* Add in any subplans that partition pruning didn't account for */
   result = bms_add_members(result, prunestate->other_subplans);
 
@@ -2507,6 +2531,7 @@ find_matching_subplans_recurse(PartitionPruningData *prunedata,
                                Bitmapset **validsubplans,
                                Bitmapset **validsubplan_rtis)
 {
+  DBUG_TRACE;
   Bitmapset  *partset;
   int     i;
 

@@ -23,6 +23,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_operator.h"
 #include "commands/vacuum.h"
@@ -45,6 +46,7 @@ static void compute_range_stats(VacAttrStats *stats,
 Datum
 range_typanalyze(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
   TypeCacheEntry *typcache;
 
@@ -71,6 +73,7 @@ range_typanalyze(PG_FUNCTION_ARGS)
 Datum
 multirange_typanalyze(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
   TypeCacheEntry *typcache;
 
@@ -125,6 +128,7 @@ static void
 compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
                     int samplerows, double totalrows)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typcache = (TypeCacheEntry *) stats->extra_data;
   TypeCacheEntry *mltrng_typcache = NULL;
   bool    has_subdiff;

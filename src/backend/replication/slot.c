@@ -200,6 +200,7 @@ ReplicationSlotsShmemSize(void)
 void
 ReplicationSlotsShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   if (max_replication_slots == 0)
@@ -221,7 +222,7 @@ ReplicationSlotsShmemInit(void)
       /* everything else is zeroed by the memset above */
       SpinLockInit(&slot->mutex);
       LWLockInitialize(&slot->io_in_progress_lock,
-                       LWTRANCHE_REPLICATION_SLOT_IO);
+                       LWTRANCHE_REPLICATION_SLOT_IO, i);
       ConditionVariableInit(&slot->active_cv);
     }
   }

@@ -61,6 +61,7 @@
 #define DEBUG_elog_output DEBUG3
 #endif
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -4136,6 +4137,7 @@ datetime_to_char_body(TmToChar *tmtc, text *fmt, bool is_interval, Oid collid)
 Datum
 timestamp_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt = PG_GETARG_TIMESTAMP(0);
   text     *fmt = PG_GETARG_TEXT_PP(1),
             *res;
@@ -4171,6 +4173,7 @@ timestamp_to_char(PG_FUNCTION_ARGS)
 Datum
 timestamptz_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt = PG_GETARG_TIMESTAMP(0);
   text     *fmt = PG_GETARG_TEXT_PP(1),
             *res;
@@ -4212,6 +4215,7 @@ timestamptz_to_char(PG_FUNCTION_ARGS)
 Datum
 interval_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Interval   *it = PG_GETARG_INTERVAL_P(0);
   text     *fmt = PG_GETARG_TEXT_PP(1),
             *res;
@@ -4254,6 +4258,7 @@ interval_to_char(PG_FUNCTION_ARGS)
 Datum
 to_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *date_txt = PG_GETARG_TEXT_PP(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   Oid     collid = PG_GET_COLLATION();
@@ -4293,6 +4298,7 @@ to_timestamp(PG_FUNCTION_ARGS)
 Datum
 to_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *date_txt = PG_GETARG_TEXT_PP(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   Oid     collid = PG_GET_COLLATION();
@@ -6323,6 +6329,7 @@ do { \
 Datum
 numeric_to_number(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *value = PG_GETARG_TEXT_PP(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;
@@ -6381,6 +6388,7 @@ numeric_to_number(PG_FUNCTION_ARGS)
 Datum
 numeric_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   value = PG_GETARG_NUMERIC(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;
@@ -6496,6 +6504,7 @@ numeric_to_char(PG_FUNCTION_ARGS)
 Datum
 int4_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   value = PG_GETARG_INT32(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;
@@ -6579,6 +6588,7 @@ int4_to_char(PG_FUNCTION_ARGS)
 Datum
 int8_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   value = PG_GETARG_INT64(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;
@@ -6678,6 +6688,7 @@ int8_to_char(PG_FUNCTION_ARGS)
 Datum
 float4_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    value = PG_GETARG_FLOAT4(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;
@@ -6782,6 +6793,7 @@ float4_to_char(PG_FUNCTION_ARGS)
 Datum
 float8_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    value = PG_GETARG_FLOAT8(0);
   text     *fmt = PG_GETARG_TEXT_PP(1);
   NUMDesc   Num;

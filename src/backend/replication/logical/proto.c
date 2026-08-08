@@ -792,6 +792,7 @@ logicalrep_write_tuple(StringInfo out, Relation rel, TupleTableSlot *slot,
                        bool binary, Bitmapset *columns,
                        PublishGencolsType include_gencols_type)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   Datum    *values;
   bool     *isnull;

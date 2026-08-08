@@ -42,6 +42,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <sys/stat.h>
@@ -375,6 +376,8 @@ static int  comp_location(const void *a, const void *b);
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
+
   /*
    * In order to create our shared memory area, we have to be loaded via
    * shared_preload_libraries.  If not, fall out without hooking into any of
@@ -458,6 +461,7 @@ _PG_init(void)
   /*
    * Install hooks.
    */
+  DBUG_PRINT("stat_statements", "install hooks");
   prev_shmem_request_hook = shmem_request_hook;
   shmem_request_hook = pgss_shmem_request;
   prev_shmem_startup_hook = shmem_startup_hook;
@@ -485,6 +489,8 @@ _PG_init(void)
 static void
 pgss_shmem_request(void)
 {
+  DBUG_TRACE;
+
   if (prev_shmem_request_hook)
     prev_shmem_request_hook();
 
@@ -501,6 +507,7 @@ pgss_shmem_request(void)
 static void
 pgss_shmem_startup(void)
 {
+  DBUG_TRACE;
   bool    found;
   HASHCTL   info;
   FILE     *file = NULL;
@@ -572,6 +579,7 @@ pgss_shmem_startup(void)
   unlink(PGSS_TEXT_FILE);
 
   /* Allocate new query text temp file */
+  DBUG_PRINT("stat_statements", "allocate new query text temp file");
   qfile = AllocateFile(PGSS_TEXT_FILE, PG_BINARY_W);
 
   if (qfile == NULL)
@@ -590,6 +598,7 @@ pgss_shmem_startup(void)
   /*
    * Attempt to load old statistics from the dump file.
    */
+  DBUG_PRINT("stat_statements", "attempt to load old statistics from the dump file");
   file = AllocateFile(PGSS_DUMP_FILE, PG_BINARY_R);
 
   if (file == NULL) {
@@ -731,6 +740,7 @@ fail:
 static void
 pgss_shmem_shutdown(int code, Datum arg)
 {
+  DBUG_TRACE;
   FILE     *file;
   char     *qbuffer = NULL;
   Size    qbuffer_size = 0;
@@ -750,6 +760,7 @@ pgss_shmem_shutdown(int code, Datum arg)
   if (!pgss_save)
     return;
 
+  DBUG_PRINT("stat_statements", "dump statistics into file");
   file = AllocateFile(PGSS_DUMP_FILE ".tmp", PG_BINARY_W);
 
   if (file == NULL)
@@ -792,6 +803,8 @@ pgss_shmem_shutdown(int code, Datum arg)
       goto error;
     }
   }
+
+  DBUG_PRINT("stat_statements", "dump global statistics for pg_stat_statements");
 
   /* Dump global statistics for pg_stat_statements */
   if (fwrite(&pgss->stats, sizeof(pgssGlobalStats), 1, file) != 1)
@@ -837,12 +850,19 @@ error:
 static void
 pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("stat_statements", "mark query with a queryId");
+
   if (prev_post_parse_analyze_hook)
     prev_post_parse_analyze_hook(pstate, query, jstate);
 
+  DBUG_PRINT("stat_statements", "safety check");
+
   /* Safety check... */
-  if (!pgss || !pgss_hash || !pgss_enabled(nesting_level))
+  if (!pgss || !pgss_hash || !pgss_enabled(nesting_level)) {
+    DBUG_PRINT("stat_statements", "return here");
     return;
+  }
 
   /*
    * If it's EXECUTE, clear the queryId so that stats will accumulate for
@@ -852,6 +872,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
    */
   if (query->utilityStmt) {
     if (pgss_track_utility && IsA(query->utilityStmt, ExecuteStmt)) {
+      DBUG_PRINT("stat_statements", "clear the queryId so that stats will accumulate for the underlying PREPARE");
       query->queryId = INT64CONST(0);
       return;
     }
@@ -864,7 +885,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
    * constants, the normalized string would be the same as the query text
    * anyway, so there's no need for an early entry.
    */
-  if (jstate && jstate->clocations_count > 0)
+  if (jstate && jstate->clocations_count > 0) {
     pgss_store(pstate->p_sourcetext,
                query->queryId,
                query->stmt_location,
@@ -878,6 +899,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
                jstate,
                0,
                0);
+  }
 }
 
 /*
@@ -890,7 +912,10 @@ pgss_planner(Query *parse,
              int cursorOptions,
              ParamListInfo boundParams)
 {
+  DBUG_TRACE;
   PlannedStmt *result;
+
+  DBUG_PRINT("stat_statements", "forward to regular planner, but measure planning time if needed");
 
   /*
    * We can't process the query if no query_string is provided, as
@@ -907,6 +932,7 @@ pgss_planner(Query *parse,
     WalUsage  walusage_start,
               walusage;
 
+    DBUG_PRINT("stat_statements", "we need to track buffer usage as the planner can access them");
     /* We need to track buffer usage as the planner can access them. */
     bufusage_start = pgBufferUsage;
 
@@ -914,6 +940,7 @@ pgss_planner(Query *parse,
      * Similarly the planner could write some WAL records in some cases
      * (e.g. setting a hint bit with those being WAL-logged)
      */
+    DBUG_PRINT("stat_statements", "similarly the planner could write some WAL records in some cases");
     walusage_start = pgWalUsage;
     INSTR_TIME_SET_CURRENT(start);
 
@@ -937,13 +964,16 @@ pgss_planner(Query *parse,
     INSTR_TIME_SUBTRACT(duration, start);
 
     /* calc differences of buffer counters. */
+    DBUG_PRINT("stat_statements", "calc differences of buffer counters");
     memset(&bufusage, 0, sizeof(BufferUsage));
     BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
 
     /* calc differences of WAL counters. */
+    DBUG_PRINT("stat_statements", "calc differences of WAL counters");
     memset(&walusage, 0, sizeof(WalUsage));
     WalUsageAccumDiff(&walusage, &pgWalUsage, &walusage_start);
 
+    DBUG_PRINT("stat_statements", "plan time:%g", INSTR_TIME_GET_MILLISEC(duration));
     pgss_store(query_string,
                parse->queryId,
                parse->stmt_location,
@@ -963,6 +993,7 @@ pgss_planner(Query *parse,
      * must still increment the nesting level, to ensure that functions
      * evaluated during planning are not seen as top-level calls.
      */
+    DBUG_PRINT("stat_statements", "we're not tracking plan time for this statement");
     nesting_level++;
     PG_TRY();
     {
@@ -989,6 +1020,8 @@ pgss_planner(Query *parse,
 static void
 pgss_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+  DBUG_TRACE;
+
   if (prev_ExecutorStart)
     prev_ExecutorStart(queryDesc, eflags);
   else
@@ -1009,9 +1042,12 @@ pgss_ExecutorStart(QueryDesc *queryDesc, int eflags)
       MemoryContext oldcxt;
 
       oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
+      DBUG_PRINT("stat_statements", "set up to track total elapsed time in ExecutorRun");
       queryDesc->totaltime = InstrAlloc(1, INSTRUMENT_ALL, false);
       MemoryContextSwitchTo(oldcxt);
     }
+  } else {
+    DBUG_PRINT("stat_statements", "query has queryId zero and don't track it");
   }
 }
 
@@ -1021,7 +1057,9 @@ pgss_ExecutorStart(QueryDesc *queryDesc, int eflags)
 static void
 pgss_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count)
 {
+  DBUG_TRACE;
   nesting_level++;
+  DBUG_PRINT("stat_statements", "all we need do is track nesting depth:%d", nesting_level);
   PG_TRY();
   {
     if (prev_ExecutorRun)
@@ -1042,7 +1080,9 @@ pgss_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count)
 static void
 pgss_ExecutorFinish(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   nesting_level++;
+  DBUG_PRINT("stat_statements", "all we need do is track nesting depth:%d", nesting_level);
   PG_TRY();
   {
     if (prev_ExecutorFinish)
@@ -1063,10 +1103,13 @@ pgss_ExecutorFinish(QueryDesc *queryDesc)
 static void
 pgss_ExecutorEnd(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   int64   queryId = queryDesc->plannedstmt->queryId;
+
 
   if (queryId != INT64CONST(0) && queryDesc->totaltime &&
       pgss_enabled(nesting_level)) {
+    DBUG_PRINT("stat_statements", "store results if needed");
     /*
      * Make sure stats accumulation is done.  (Note: it's okay if several
      * levels of hook all do this.)
@@ -1104,6 +1147,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
                     ParamListInfo params, QueryEnvironment *queryEnv,
                     DestReceiver *dest, QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Node     *parsetree = pstmt->utilityStmt;
   int64   saved_queryId = pstmt->queryId;
   int     saved_stmt_location = pstmt->stmt_location;
@@ -1196,14 +1240,17 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
                    qc->commandTag == CMDTAG_SELECT ||
                    qc->commandTag == CMDTAG_REFRESH_MATERIALIZED_VIEW)) ?
            qc->nprocessed : 0;
+    DBUG_PRINT("stat_statements", "track the total number of rows retrieved or affected:%ld", rows);
 
     /* calc differences of buffer counters. */
     memset(&bufusage, 0, sizeof(BufferUsage));
     BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
+    DBUG_PRINT("stat_statements", "calc differences of buffer counters");
 
     /* calc differences of WAL counters. */
     memset(&walusage, 0, sizeof(WalUsage));
     WalUsageAccumDiff(&walusage, &pgWalUsage, &walusage_start);
+    DBUG_PRINT("stat_statements", "calc differences of WAL counters");
 
     pgss_store(queryString,
                saved_queryId,
@@ -1234,6 +1281,8 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
     bool    bump_level =
       !IsA(parsetree, ExecuteStmt) &&
       !IsA(parsetree, PrepareStmt);
+
+    DBUG_PRINT("stat_statements", "we're not tracking execution time for this statement");
 
     if (bump_level)
       nesting_level++;
@@ -1281,11 +1330,13 @@ pgss_store(const char *query, int64 queryId,
            int parallel_workers_to_launch,
            int parallel_workers_launched)
 {
+  DBUG_TRACE;
   pgssHashKey key;
   pgssEntry  *entry;
   char     *norm_query = NULL;
   int     encoding = GetDatabaseEncoding();
 
+  DBUG_PRINT("stat_statements", "store some statistics for a statement:%s", query);
   Assert(query != NULL);
 
   /* Safety check... */
@@ -1327,6 +1378,8 @@ pgss_store(const char *query, int64 queryId,
     int     gc_count;
     bool    stored;
     bool    do_gc;
+
+    DBUG_PRINT("stat_statements", "create new entry");
 
     /*
      * Create a new, normalized query string if caller asked.  We don't
@@ -1501,6 +1554,7 @@ done:
 Datum
 pg_stat_statements_reset_1_7(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     userid;
   Oid     dbid;
   int64   queryid;
@@ -1517,6 +1571,7 @@ pg_stat_statements_reset_1_7(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_reset_1_11(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     userid;
   Oid     dbid;
   int64   queryid;
@@ -1536,6 +1591,7 @@ pg_stat_statements_reset_1_11(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_reset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   entry_reset(0, 0, 0, false);
 
   PG_RETURN_VOID();
@@ -1576,6 +1632,7 @@ pg_stat_statements_1_12(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_11(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_11, showtext);
@@ -1586,6 +1643,7 @@ pg_stat_statements_1_11(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_10(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_10, showtext);
@@ -1596,6 +1654,7 @@ pg_stat_statements_1_10(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_9, showtext);
@@ -1606,6 +1665,7 @@ pg_stat_statements_1_9(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_8, showtext);
@@ -1616,6 +1676,7 @@ pg_stat_statements_1_8(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_3(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_3, showtext);
@@ -1626,6 +1687,7 @@ pg_stat_statements_1_3(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements_1_2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    showtext = PG_GETARG_BOOL(0);
 
   pg_stat_statements_internal(fcinfo, PGSS_V1_2, showtext);
@@ -1640,6 +1702,7 @@ pg_stat_statements_1_2(PG_FUNCTION_ARGS)
 Datum
 pg_stat_statements(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* If it's really API 1.1, we'll figure that out below */
   pg_stat_statements_internal(fcinfo, PGSS_V1_0, true);
 
@@ -1652,6 +1715,7 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
                             pgssVersion api_version,
                             bool showtext)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Oid     userid = GetUserId();
   bool    is_allowed_role = false;
@@ -2020,6 +2084,7 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 Datum
 pg_stat_statements_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pgssGlobalStats stats;
   TupleDesc tupdesc;
   Datum   values[PG_STAT_STATEMENTS_INFO_COLS] = {0};
@@ -2051,6 +2116,7 @@ pg_stat_statements_info(PG_FUNCTION_ARGS)
 static Size
 pgss_memsize(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   size = MAXALIGN(sizeof(pgssSharedState));
@@ -2136,6 +2202,7 @@ entry_cmp(const void *lhs, const void *rhs)
 static void
 entry_dealloc(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS hash_seq;
   pgssEntry **entries;
   pgssEntry  *entry;
@@ -2144,6 +2211,7 @@ entry_dealloc(void)
   Size    tottextlen;
   int     nvalidtexts;
 
+  DBUG_PRINT("stat_statements", "deallocate least-used entries");
   /*
    * Sort entries by usage and deallocate USAGE_DEALLOC_PERCENT of them.
    * While we're scanning the table, apply the decay factor to the usage
@@ -2181,6 +2249,7 @@ entry_dealloc(void)
   }
 
   /* Sort into increasing order by usage */
+  DBUG_PRINT("stat_statements", "sort into increasing order by usage");
   qsort(entries, i, sizeof(pgssEntry *), entry_cmp);
 
   /* Record the (approximate) median usage */
@@ -2229,9 +2298,11 @@ static bool
 qtext_store(const char *query, int query_len,
             Size *query_offset, int *gc_count)
 {
+  DBUG_TRACE;
   Size    off;
   int     fd;
 
+  DBUG_PRINT("stat_statements", "given a query string, allocate a new entry in the external query text file and store the string there");
   /*
    * We use a spinlock to protect extent/n_writers/gc_count, so that
    * multiple processes may execute this function concurrently.
@@ -2311,11 +2382,13 @@ error:
 static char *
 qtext_load_file(Size *buffer_size)
 {
+  DBUG_TRACE;
   char     *buf;
   int     fd;
   struct stat stat;
   Size    nread;
 
+  DBUG_PRINT("stat_statements", "read the external query text file into a malloc'd buffer");
   fd = OpenTransientFile(PGSS_TEXT_FILE, O_RDONLY | PG_BINARY);
 
   if (fd < 0) {
@@ -2407,6 +2480,9 @@ static char *
 qtext_fetch(Size query_offset, int query_len,
             char *buffer, Size buffer_size)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("stat_statements", "locate a query text in the file image");
+
   /* File read failed? */
   if (buffer == NULL)
     return NULL;
@@ -2432,8 +2508,10 @@ qtext_fetch(Size query_offset, int query_len,
 static bool
 need_gc_qtexts(void)
 {
+  DBUG_TRACE;
   Size    extent;
 
+  DBUG_PRINT("stat_statements", "do we need to garbage-collect the external query text file?");
   /* Read shared extent pointer */
   SpinLockAcquire(&pgss->mutex);
   extent = pgss->extent;
@@ -2446,8 +2524,10 @@ need_gc_qtexts(void)
    * pgss_max and/or mean_query_len are large.  Force the multiplications
    * and comparisons to be done in uint64 arithmetic to forestall trouble.
    */
-  if ((uint64) extent < (uint64) 512 * pgss_max)
+  if ((uint64) extent < (uint64) 512 * pgss_max) {
+    DBUG_PRINT("stat_statements", "don't proceed if file does not exceed 512 bytes per possible entry");
     return false;
+  }
 
   /*
    * Don't proceed if file is less than about 50% bloat.  Nothing can or
@@ -2456,9 +2536,12 @@ need_gc_qtexts(void)
    * query length in order to prevent garbage collection from thrashing
    * uselessly.
    */
-  if ((uint64) extent < (uint64) pgss->mean_query_len * pgss_max * 2)
+  if ((uint64) extent < (uint64) pgss->mean_query_len * pgss_max * 2) {
+    DBUG_PRINT("stat_statements", "don't proceed if file is less than about 50 percent bloat");
     return false;
+  }
 
+  DBUG_PRINT("stat_statements", "return true");
   return true;
 }
 
@@ -2481,6 +2564,7 @@ need_gc_qtexts(void)
 static void
 gc_qtexts(void)
 {
+  DBUG_TRACE;
   char     *qbuffer;
   Size    qbuffer_size;
   FILE     *qfile = NULL;
@@ -2489,13 +2573,17 @@ gc_qtexts(void)
   Size    extent;
   int     nentries;
 
+  DBUG_PRINT("stat_statements", "garbage-collect orphaned query texts in external file");
+
   /*
    * When called from pgss_store, some other session might have proceeded
    * with garbage collection in the no-lock-held interim of lock strength
    * escalation.  Check once more that this is actually necessary.
    */
-  if (!need_gc_qtexts())
+  if (!need_gc_qtexts()) {
+    DBUG_PRINT("stat_statements", "return here");
     return;
+  }
 
   /*
    * Load the old texts file.  If we fail (out of memory, for instance),
@@ -2604,6 +2692,7 @@ gc_qtexts(void)
    */
   record_gc_qtexts();
 
+  DBUG_PRINT("stat_statements", "OK, count a garbage collection cycle");
   return;
 
 gc_fail:
@@ -2657,6 +2746,7 @@ gc_fail:
    * trust earlier file contents until gc_count is found unchanged after
    * pgss->lock acquired in shared or exclusive mode respectively.)
    */
+  DBUG_PRINT("stat_statements", "Bump the GC count even though we failed");
   record_gc_qtexts();
 }
 
@@ -2685,6 +2775,7 @@ if (e) { \
 static TimestampTz
 entry_reset(Oid userid, Oid dbid, int64 queryid, bool minmax_only)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS hash_seq;
   pgssEntry  *entry;
   FILE     *qfile;
@@ -2814,6 +2905,7 @@ static char *
 generate_normalized_query(JumbleState *jstate, const char *query,
                           int query_loc, int *query_len_p)
 {
+  DBUG_TRACE;
   char     *norm_query;
   int     query_len = *query_len_p;
   int     norm_query_buflen,  /* Space allowed for norm_query */
@@ -2824,6 +2916,7 @@ generate_normalized_query(JumbleState *jstate, const char *query,
           last_tok_len = 0; /* Length (in bytes) of that tok */
   int     num_constants_replaced = 0;
 
+  DBUG_PRINT("stat_statements", "orig query:%s", query);
   /*
    * Get constants' lengths (core system only gives us locations).  Note
    * this also ensures the items are sorted by location.
@@ -2903,6 +2996,7 @@ generate_normalized_query(JumbleState *jstate, const char *query,
   norm_query[n_quer_loc] = '\0';
 
   *query_len_p = n_quer_loc;
+  DBUG_PRINT("stat_statements", "generate a normalized version of the query string:%s", norm_query);
   return norm_query;
 }
 
@@ -2936,11 +3030,14 @@ static void
 fill_in_constant_lengths(JumbleState *jstate, const char *query,
                          int query_loc)
 {
+  DBUG_TRACE;
   LocationLen *locs;
   core_yyscan_t yyscanner;
   core_yy_extra_type yyextra;
   core_YYSTYPE yylval;
   YYLTYPE   yylloc;
+
+  DBUG_PRINT("stat_statements", "fill in the textual lengths of those constants");
 
   /*
    * Sort the records by location so that we can process them in order while

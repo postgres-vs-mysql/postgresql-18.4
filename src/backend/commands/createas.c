@@ -23,6 +23,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/reloptions.h"
@@ -80,6 +81,7 @@ static void intorel_destroy(DestReceiver *self);
 static ObjectAddress
 create_ctas_internal(List *attrList, IntoClause *into)
 {
+  DBUG_TRACE;
   CreateStmt *create = makeNode(CreateStmt);
   bool    is_matview;
   char    relkind;
@@ -152,6 +154,7 @@ create_ctas_internal(List *attrList, IntoClause *into)
 static ObjectAddress
 create_ctas_nodata(List *tlist, IntoClause *into)
 {
+  DBUG_TRACE;
   List     *attrList;
   ListCell   *t,
              *lc;
@@ -189,22 +192,28 @@ create_ctas_nodata(List *tlist, IntoClause *into)
        * default collation rather than complaining.)
        */
       if (!OidIsValid(col->collOid) &&
-          type_is_collatable(col->typeName->typeOid))
+          type_is_collatable(col->typeName->typeOid)) {
+        char *format1 = format_type_be(col->typeName->typeOid);
+        DBUG_INSTANT_PRINT("info", "no collation was derived for column \"%s\" with collatable type %s",
+                           col->colname, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INDETERMINATE_COLLATION),
                  errmsg("no collation was derived for column \"%s\" with collatable type %s",
                         col->colname,
-                        format_type_be(col->typeName->typeOid)),
+                        format1),
                  errhint("Use the COLLATE clause to set the collation explicitly.")));
+      }
 
       attrList = lappend(attrList, col);
     }
   }
 
-  if (lc != NULL)
+  if (lc != NULL) {
+    DBUG_INSTANT_PRINT("info", "too many column names were specified");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("too many column names were specified")));
+  }
 
   /* Create the relation definition using the ColumnDef list */
   return create_ctas_internal(attrList, into);
@@ -219,6 +228,7 @@ ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
                   ParamListInfo params, QueryEnvironment *queryEnv,
                   QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Query    *query = castNode(Query, stmt->query);
   IntoClause *into = stmt->into;
   JumbleState *jstate = NULL;
@@ -384,6 +394,7 @@ GetIntoRelEFlags(IntoClause *intoClause)
 bool
 CreateTableAsRelExists(CreateTableAsStmt *ctas)
 {
+  DBUG_TRACE;
   Oid     nspid;
   Oid     oldrelid;
   ObjectAddress address;
@@ -394,11 +405,13 @@ CreateTableAsRelExists(CreateTableAsStmt *ctas)
   oldrelid = get_relname_relid(into->rel->relname, nspid);
 
   if (OidIsValid(oldrelid)) {
-    if (!ctas->if_not_exists)
+    if (!ctas->if_not_exists) {
+      DBUG_INSTANT_PRINT("info", "relation \"%s\" already exists", into->rel->relname);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_TABLE),
                errmsg("relation \"%s\" already exists",
                       into->rel->relname)));
+    }
 
     /*
      * The relation exists and IF NOT EXISTS has been specified.
@@ -410,6 +423,7 @@ CreateTableAsRelExists(CreateTableAsStmt *ctas)
     checkMembershipInCurrentExtension(&address);
 
     /* OK to skip */
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" already exists, skipping", into->rel->relname);
     ereport(NOTICE,
             (errcode(ERRCODE_DUPLICATE_TABLE),
              errmsg("relation \"%s\" already exists, skipping",
@@ -431,6 +445,7 @@ CreateTableAsRelExists(CreateTableAsStmt *ctas)
 DestReceiver *
 CreateIntoRelDestReceiver(IntoClause *intoClause)
 {
+  DBUG_TRACE;
   DR_intorel *self = (DR_intorel *) palloc0(sizeof(DR_intorel));
 
   self->pub.receiveSlot = intorel_receive;
@@ -450,6 +465,7 @@ CreateIntoRelDestReceiver(IntoClause *intoClause)
 static void
 intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
+  DBUG_TRACE;
   DR_intorel *myState = (DR_intorel *) self;
   IntoClause *into = myState->into;
   bool    is_matview;
@@ -496,21 +512,24 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
      * collation rather than complaining.)
      */
     if (!OidIsValid(col->collOid) &&
-        type_is_collatable(col->typeName->typeOid))
+        type_is_collatable(col->typeName->typeOid)) {
       ereport(ERROR,
               (errcode(ERRCODE_INDETERMINATE_COLLATION),
                errmsg("no collation was derived for column \"%s\" with collatable type %s",
                       col->colname,
                       format_type_be(col->typeName->typeOid)),
                errhint("Use the COLLATE clause to set the collation explicitly.")));
+    }
 
     attrList = lappend(attrList, col);
   }
 
-  if (lc != NULL)
+  if (lc != NULL) {
+    DBUG_INSTANT_PRINT("info", "too many column names were specified");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("too many column names were specified")));
+  }
 
   /*
    * Actually create the target table
@@ -530,10 +549,12 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
    * be enabled here.  We don't actually support that currently, so throw
    * our own ereport(ERROR) if that happens.
    */
-  if (check_enable_rls(intoRelationAddr.objectId, InvalidOid, false) == RLS_ENABLED)
+  if (check_enable_rls(intoRelationAddr.objectId, InvalidOid, false) == RLS_ENABLED) {
+    DBUG_INSTANT_PRINT("info", "policies not yet implemented for this command");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("policies not yet implemented for this command")));
+  }
 
   /*
    * Tentatively mark the target as populated, if it's a matview and we're
@@ -572,6 +593,7 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 static bool
 intorel_receive(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   DR_intorel *myState = (DR_intorel *) self;
 
   /* Nothing to insert if WITH NO DATA is specified. */
@@ -602,6 +624,7 @@ intorel_receive(TupleTableSlot *slot, DestReceiver *self)
 static void
 intorel_shutdown(DestReceiver *self)
 {
+  DBUG_TRACE;
   DR_intorel *myState = (DR_intorel *) self;
   IntoClause *into = myState->into;
 

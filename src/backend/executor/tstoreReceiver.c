@@ -21,6 +21,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/tupconvert.h"
@@ -54,6 +55,7 @@ static bool tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self);
 static void
 tstoreStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
   bool    needtoast = false;
   int     natts = typeinfo->natts;
@@ -113,6 +115,7 @@ tstoreStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 static bool
 tstoreReceiveSlot_notoast(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
 
   tuplestore_puttupleslot(myState->tstore, slot);
@@ -127,6 +130,7 @@ tstoreReceiveSlot_notoast(TupleTableSlot *slot, DestReceiver *self)
 static bool
 tstoreReceiveSlot_detoast(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
   TupleDesc typeinfo = slot->tts_tupleDescriptor;
   int     natts = typeinfo->natts;
@@ -181,6 +185,7 @@ tstoreReceiveSlot_detoast(TupleTableSlot *slot, DestReceiver *self)
 static bool
 tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
 
   execute_attr_map_slot(myState->tupmap->attrMap, slot, myState->mapslot);
@@ -195,6 +200,7 @@ tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self)
 static void
 tstoreShutdownReceiver(DestReceiver *self)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
 
   /* Release workspace if any */
@@ -267,6 +273,7 @@ SetTuplestoreDestReceiverParams(DestReceiver *self,
                                 TupleDesc target_tupdesc,
                                 const char *map_failure_msg)
 {
+  DBUG_TRACE;
   TStoreState *myState = (TStoreState *) self;
 
   Assert(!(detoast && target_tupdesc));

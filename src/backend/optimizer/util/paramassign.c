@@ -49,6 +49,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/nodeFuncs.h"
 #include "nodes/plannodes.h"
@@ -65,6 +66,7 @@
 static int
 assign_param_for_var(PlannerInfo *root, Var *var)
 {
+  DBUG_TRACE;
   ListCell   *ppl;
   PlannerParamItem *pitem;
   Index   levelsup;
@@ -119,6 +121,7 @@ assign_param_for_var(PlannerInfo *root, Var *var)
 Param *
 replace_outer_var(PlannerInfo *root, Var *var)
 {
+  DBUG_TRACE;
   Param    *retval;
   int     i;
 
@@ -148,6 +151,7 @@ replace_outer_var(PlannerInfo *root, Var *var)
 static int
 assign_param_for_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 {
+  DBUG_TRACE;
   ListCell   *ppl;
   PlannerParamItem *pitem;
   Index   levelsup;
@@ -195,6 +199,7 @@ assign_param_for_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 Param *
 replace_outer_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 {
+  DBUG_TRACE;
   Param    *retval;
   int     i;
 
@@ -222,6 +227,7 @@ replace_outer_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 Param *
 replace_outer_agg(PlannerInfo *root, Aggref *agg)
 {
+  DBUG_TRACE;
   Param    *retval;
   PlannerParamItem *pitem;
   Index   levelsup;
@@ -268,6 +274,7 @@ replace_outer_agg(PlannerInfo *root, Aggref *agg)
 Param *
 replace_outer_grouping(PlannerInfo *root, GroupingFunc *grp)
 {
+  DBUG_TRACE;
   Param    *retval;
   PlannerParamItem *pitem;
   Index   levelsup;
@@ -315,6 +322,7 @@ replace_outer_grouping(PlannerInfo *root, GroupingFunc *grp)
 Param *
 replace_outer_merge_support(PlannerInfo *root, MergeSupportFunc *msf)
 {
+  DBUG_TRACE;
   Param    *retval;
   PlannerParamItem *pitem;
   Oid     ptype = exprType((Node *) msf);
@@ -411,6 +419,7 @@ replace_outer_returning(PlannerInfo *root, ReturningExpr *rexpr)
 Param *
 replace_nestloop_param_var(PlannerInfo *root, Var *var)
 {
+  DBUG_TRACE;
   Param    *param;
   NestLoopParam *nlp;
   ListCell   *lc;
@@ -459,6 +468,7 @@ replace_nestloop_param_var(PlannerInfo *root, Var *var)
 Param *
 replace_nestloop_param_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 {
+  DBUG_TRACE;
   Param    *param;
   NestLoopParam *nlp;
   ListCell   *lc;
@@ -522,6 +532,7 @@ replace_nestloop_param_placeholdervar(PlannerInfo *root, PlaceHolderVar *phv)
 void
 process_subquery_nestloop_params(PlannerInfo *root, List *subplan_params)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, subplan_params) {
@@ -612,6 +623,7 @@ identify_current_nestloop_params(PlannerInfo *root,
                                  Relids leftrelids,
                                  Relids outerrelids)
 {
+  DBUG_TRACE;
   List     *result;
   Relids    allleftrelids;
   ListCell   *cell;
@@ -712,6 +724,7 @@ Param *
 generate_new_exec_param(PlannerInfo *root, Oid paramtype, int32 paramtypmod,
                         Oid paramcollation)
 {
+  DBUG_TRACE;
   Param    *retval;
 
   retval = makeNode(Param);
@@ -738,6 +751,7 @@ generate_new_exec_param(PlannerInfo *root, Oid paramtype, int32 paramtypmod,
 int
 assign_special_exec_param(PlannerInfo *root)
 {
+  DBUG_TRACE;
   int     paramId = list_length(root->glob->paramExecTypes);
 
   root->glob->paramExecTypes = lappend_oid(root->glob->paramExecTypes,

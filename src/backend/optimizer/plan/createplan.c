@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -317,6 +318,189 @@ static ModifyTable *make_modifytable(PlannerInfo *root, Plan *subplan,
 static GatherMerge *create_gather_merge_plan(PlannerInfo *root,
     GatherMergePath *best_path);
 
+static const char *get_plan_type_str(char* name, int type)
+{
+  const char *pname = NULL;
+
+  switch (type) {
+    case T_Result:
+      pname = "result";
+      break;
+
+    case T_ProjectSet:
+      pname = "project set";
+      break;
+
+    case T_ModifyTable:
+      pname = "modify table";
+      break;
+
+    case T_Append:
+      pname = "append";
+      break;
+
+    case T_MergeAppend:
+      pname = "merge append";
+      break;
+
+    case T_RecursiveUnion:
+      pname = "recursive union";
+      break;
+
+    case T_BitmapAnd:
+      pname = "bitmap and";
+      break;
+
+    case T_BitmapOr:
+      pname = "bitmap or";
+      break;
+
+    case T_NestLoop:
+      pname = "nested loop";
+      break;
+
+    case T_MergeJoin:
+      pname = "merge join";
+      break;
+
+    case T_HashJoin:
+      pname = "hash join";
+      break;
+
+    case T_SeqScan:
+      pname = "seq scan";
+      break;
+
+    case T_SampleScan:
+      pname = "sample scan";
+      break;
+
+    case T_Gather:
+      pname = "gather";
+      break;
+
+    case T_GatherMerge:
+      pname = "gather merge";
+      break;
+
+    case T_IndexScan:
+      pname = "index scan";
+      break;
+
+    case T_IndexOnlyScan:
+      pname = "index only scan";
+      break;
+
+    case T_BitmapIndexScan:
+      pname = "bitmap index scan";
+      break;
+
+    case T_BitmapHeapScan:
+      pname = "bitmap heap scan";
+      break;
+
+    case T_TidScan:
+      pname = "tid scan";
+      break;
+
+    case T_TidRangeScan:
+      pname = "tid range scan";
+      break;
+
+    case T_SubqueryScan:
+      pname = "subquery scan";
+      break;
+
+    case T_FunctionScan:
+      pname = "function scan";
+      break;
+
+    case T_TableFuncScan:
+      pname = "table function scan";
+      break;
+
+    case T_ValuesScan:
+      pname = "values scan";
+      break;
+
+    case T_CteScan:
+      pname = "cte Scan";
+      break;
+
+    case T_NamedTuplestoreScan:
+      pname = "named tuplestore scan";
+      break;
+
+    case T_WorkTableScan:
+      pname = "work table scan";
+      break;
+
+    case T_ForeignScan:
+      pname = "foreign Scan";
+      break;
+
+    case T_CustomScan:
+      pname = "custom scan";
+      break;
+
+    case T_Material:
+      pname = "materialize";
+      break;
+
+    case T_Memoize:
+      pname = "memoize";
+      break;
+
+    case T_Sort:
+      pname = "sort";
+      break;
+
+    case T_IncrementalSort:
+      pname = "incremental sort";
+      break;
+
+    case T_Group:
+      pname = "group";
+      break;
+
+    case T_Agg: {
+      pname = "aggregate";
+    }
+    break;
+
+    case T_WindowAgg:
+      pname = "window agg";
+      break;
+
+    case T_Unique:
+      pname = "unique";
+      break;
+
+    case T_SetOp:
+      pname = "set op";
+      break;
+
+    case T_LockRows:
+      pname = "lock rows";
+      break;
+
+    case T_Limit:
+      pname = "limit";
+      break;
+
+    case T_Hash:
+      pname = "hash";
+      break;
+
+    default:
+      pname = "???";
+      break;
+  }
+
+  strcpy(name, pname);
+  return name;
+}
+
 
 /*
  * create_plan
@@ -336,7 +520,17 @@ static GatherMerge *create_gather_merge_plan(PlannerInfo *root,
 Plan *
 create_plan(PlannerInfo *root, Path *best_path)
 {
+  DBUG_TRACE;
   Plan     *plan;
+  char name[32];
+
+  if (best_path->parallel_safe) {
+    DBUG_PRINT("info", "parallel safe, best path, pathtype:%s, total cost:%g",
+               get_plan_type_str(name, best_path->pathtype), best_path->total_cost);
+  } else {
+    DBUG_PRINT("info", "parallel unsafe, best path, pathtype:%s, total cost:%g",
+               get_plan_type_str(name, best_path->pathtype), best_path->total_cost);
+  }
 
   /* plan_params should not be in use in current query level */
   Assert(root->plan_params == NIL);
@@ -345,6 +539,7 @@ create_plan(PlannerInfo *root, Path *best_path)
   root->curOuterRels = NULL;
   root->curOuterParams = NIL;
 
+  DBUG_PRINT("info", "recursively process the path tree, demanding the correct tlist result");
   /* Recursively process the path tree, demanding the correct tlist result */
   plan = create_plan_recurse(root, best_path, CP_EXACT_TLIST);
 
@@ -380,6 +575,7 @@ create_plan(PlannerInfo *root, Path *best_path)
   return plan;
 }
 
+
 /*
  * create_plan_recurse
  *    Recursive guts of create_plan().
@@ -387,10 +583,14 @@ create_plan(PlannerInfo *root, Path *best_path)
 static Plan *
 create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
 {
+  DBUG_TRACE;
   Plan     *plan;
+  char name[32];
 
   /* Guard against stack overflow due to overly complex plans */
   check_stack_depth();
+
+  DBUG_PRINT("info", "recursive guts of create_plan() and path type:%s", get_plan_type_str(name, best_path->pathtype));
 
   switch (best_path->pathtype) {
     case T_SeqScan:
@@ -409,23 +609,27 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
     case T_NamedTuplestoreScan:
     case T_ForeignScan:
     case T_CustomScan:
+      DBUG_PRINT("info", "use scan plan");
       plan = create_scan_plan(root, best_path, flags);
       break;
 
     case T_HashJoin:
     case T_MergeJoin:
     case T_NestLoop:
+      DBUG_PRINT("info", "use join plan");
       plan = create_join_plan(root,
                               (JoinPath *) best_path);
       break;
 
     case T_Append:
+      DBUG_PRINT("info", "use append plan");
       plan = create_append_plan(root,
                                 (AppendPath *) best_path,
                                 flags);
       break;
 
     case T_MergeAppend:
+      DBUG_PRINT("info", "use merge append plan");
       plan = create_merge_append_plan(root,
                                       (MergeAppendPath *) best_path,
                                       flags);
@@ -433,35 +637,42 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
 
     case T_Result:
       if (IsA(best_path, ProjectionPath)) {
+        DBUG_PRINT("info", "use projection plan");
         plan = create_projection_plan(root,
                                       (ProjectionPath *) best_path,
                                       flags);
       } else if (IsA(best_path, MinMaxAggPath)) {
+        DBUG_PRINT("info", "use minmax agg plan");
         plan = (Plan *) create_minmaxagg_plan(root,
                                               (MinMaxAggPath *) best_path);
       } else if (IsA(best_path, GroupResultPath)) {
+        DBUG_PRINT("info", "use group result plan");
         plan = (Plan *) create_group_result_plan(root,
                (GroupResultPath *) best_path);
       } else {
         /* Simple RTE_RESULT base relation */
         Assert(IsA(best_path, Path));
+        DBUG_PRINT("info", "use scan plan");
         plan = create_scan_plan(root, best_path, flags);
       }
 
       break;
 
     case T_ProjectSet:
+      DBUG_PRINT("info", "use project plan");
       plan = (Plan *) create_project_set_plan(root,
                                               (ProjectSetPath *) best_path);
       break;
 
     case T_Material:
+      DBUG_PRINT("info", "use material plan");
       plan = (Plan *) create_material_plan(root,
                                            (MaterialPath *) best_path,
                                            flags);
       break;
 
     case T_Memoize:
+      DBUG_PRINT("info", "use memoize plan");
       plan = (Plan *) create_memoize_plan(root,
                                           (MemoizePath *) best_path,
                                           flags);
@@ -469,11 +680,13 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
 
     case T_Unique:
       if (IsA(best_path, UpperUniquePath)) {
+        DBUG_PRINT("info", "use upper unique plan");
         plan = (Plan *) create_upper_unique_plan(root,
                (UpperUniquePath *) best_path,
                flags);
       } else {
         Assert(IsA(best_path, UniquePath));
+        DBUG_PRINT("info", "use unique plan");
         plan = create_unique_plan(root,
                                   (UniquePath *) best_path,
                                   flags);
@@ -482,23 +695,27 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_Gather:
+      DBUG_PRINT("info", "use gather plan");
       plan = (Plan *) create_gather_plan(root,
                                          (GatherPath *) best_path);
       break;
 
     case T_Sort:
+      DBUG_PRINT("info", "use sort plan");
       plan = (Plan *) create_sort_plan(root,
                                        (SortPath *) best_path,
                                        flags);
       break;
 
     case T_IncrementalSort:
+      DBUG_PRINT("info", "use increment sort plan");
       plan = (Plan *) create_incrementalsort_plan(root,
              (IncrementalSortPath *) best_path,
              flags);
       break;
 
     case T_Group:
+      DBUG_PRINT("info", "use group plan");
       plan = (Plan *) create_group_plan(root,
                                         (GroupPath *) best_path);
       break;
@@ -527,28 +744,33 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_RecursiveUnion:
+      DBUG_PRINT("info", "use recursive union plan");
       plan = (Plan *) create_recursiveunion_plan(root,
              (RecursiveUnionPath *) best_path);
       break;
 
     case T_LockRows:
+      DBUG_PRINT("info", "use lock rows plan");
       plan = (Plan *) create_lockrows_plan(root,
                                            (LockRowsPath *) best_path,
                                            flags);
       break;
 
     case T_ModifyTable:
+      DBUG_PRINT("info", "use modify table plan");
       plan = (Plan *) create_modifytable_plan(root,
                                               (ModifyTablePath *) best_path);
       break;
 
     case T_Limit:
+      DBUG_PRINT("info", "use limit plan");
       plan = (Plan *) create_limit_plan(root,
                                         (LimitPath *) best_path,
                                         flags);
       break;
 
     case T_GatherMerge:
+      DBUG_PRINT("info", "use gather merge  plan");
       plan = (Plan *) create_gather_merge_plan(root,
              (GatherMergePath *) best_path);
       break;
@@ -570,6 +792,7 @@ create_plan_recurse(PlannerInfo *root, Path *best_path, int flags)
 static Plan *
 create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = best_path->parent;
   List     *scan_clauses;
   List     *gating_clauses;
@@ -678,6 +901,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
 
   switch (best_path->pathtype) {
     case T_SeqScan:
+      DBUG_PRINT("info", "seq scan");
       plan = (Plan *) create_seqscan_plan(root,
                                           best_path,
                                           tlist,
@@ -692,6 +916,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_IndexScan:
+      DBUG_PRINT("info", "index scan");
       plan = (Plan *) create_indexscan_plan(root,
                                             (IndexPath *) best_path,
                                             tlist,
@@ -700,6 +925,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_IndexOnlyScan:
+      DBUG_PRINT("info", "index only scan");
       plan = (Plan *) create_indexscan_plan(root,
                                             (IndexPath *) best_path,
                                             tlist,
@@ -708,6 +934,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_BitmapHeapScan:
+      DBUG_PRINT("info", "bitmap heap scan");
       plan = (Plan *) create_bitmap_scan_plan(root,
                                               (BitmapHeapPath *) best_path,
                                               tlist,
@@ -715,6 +942,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_TidScan:
+      DBUG_PRINT("info", "tid scan");
       plan = (Plan *) create_tidscan_plan(root,
                                           (TidPath *) best_path,
                                           tlist,
@@ -722,6 +950,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_TidRangeScan:
+      DBUG_PRINT("info", "tid range scan");
       plan = (Plan *) create_tidrangescan_plan(root,
              (TidRangePath *) best_path,
              tlist,
@@ -729,6 +958,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_SubqueryScan:
+      DBUG_PRINT("info", "subquery scan");
       plan = (Plan *) create_subqueryscan_plan(root,
              (SubqueryScanPath *) best_path,
              tlist,
@@ -736,6 +966,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_FunctionScan:
+      DBUG_PRINT("info", "function scan");
       plan = (Plan *) create_functionscan_plan(root,
              best_path,
              tlist,
@@ -743,6 +974,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_TableFuncScan:
+      DBUG_PRINT("info", "table func scan");
       plan = (Plan *) create_tablefuncscan_plan(root,
              best_path,
              tlist,
@@ -750,6 +982,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_ValuesScan:
+      DBUG_PRINT("info", "values scan");
       plan = (Plan *) create_valuesscan_plan(root,
                                              best_path,
                                              tlist,
@@ -757,6 +990,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_CteScan:
+      DBUG_PRINT("info", "cte scan");
       plan = (Plan *) create_ctescan_plan(root,
                                           best_path,
                                           tlist,
@@ -764,6 +998,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_NamedTuplestoreScan:
+      DBUG_PRINT("info", "named tuple store scan");
       plan = (Plan *) create_namedtuplestorescan_plan(root,
              best_path,
              tlist,
@@ -771,6 +1006,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_Result:
+      DBUG_PRINT("info", "result scan");
       plan = (Plan *) create_resultscan_plan(root,
                                              best_path,
                                              tlist,
@@ -778,6 +1014,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_WorkTableScan:
+      DBUG_PRINT("info", "workable scan");
       plan = (Plan *) create_worktablescan_plan(root,
              best_path,
              tlist,
@@ -785,6 +1022,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_ForeignScan:
+      DBUG_PRINT("info", "foreign scan");
       plan = (Plan *) create_foreignscan_plan(root,
                                               (ForeignPath *) best_path,
                                               tlist,
@@ -792,6 +1030,7 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
       break;
 
     case T_CustomScan:
+      DBUG_PRINT("info", "custom scan");
       plan = (Plan *) create_customscan_plan(root,
                                              (CustomPath *) best_path,
                                              tlist,
@@ -825,10 +1064,13 @@ create_scan_plan(PlannerInfo *root, Path *best_path, int flags)
 static List *
 build_path_tlist(PlannerInfo *root, Path *path)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   Index    *sortgrouprefs = path->pathtarget->sortgrouprefs;
   int     resno = 1;
   ListCell   *v;
+
+  DBUG_PRINT("info", "build a target list (ie, a list of TargetEntry) for the Path's output");
 
   foreach(v, path->pathtarget->exprs) {
     Node     *node = (Node *) lfirst(v);
@@ -866,6 +1108,7 @@ build_path_tlist(PlannerInfo *root, Path *path)
 static bool
 use_physical_tlist(PlannerInfo *root, Path *path, int flags)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = path->parent;
   int     i;
   ListCell   *lc;
@@ -998,6 +1241,8 @@ use_physical_tlist(PlannerInfo *root, Path *path, int flags)
 static List *
 get_gating_quals(PlannerInfo *root, List *quals)
 {
+  DBUG_TRACE;
+
   /* No need to look if we know there are no pseudoconstants */
   if (!root->hasPseudoConstantQuals)
     return NIL;
@@ -1019,11 +1264,13 @@ static Plan *
 create_gating_plan(PlannerInfo *root, Path *path, Plan *plan,
                    List *gating_quals)
 {
+  DBUG_TRACE;
   Plan     *gplan;
   Plan     *splan;
 
   Assert(gating_quals);
 
+  DBUG_PRINT("info", "deal with pseudoconstant qual clauses");
   /*
    * We might have a trivial Result plan already.  Stacking one Result atop
    * another is silly, so if that applies, just discard the input plan.
@@ -1077,21 +1324,25 @@ create_gating_plan(PlannerInfo *root, Path *path, Plan *plan,
 static Plan *
 create_join_plan(PlannerInfo *root, JoinPath *best_path)
 {
+  DBUG_TRACE;
   Plan     *plan;
   List     *gating_clauses;
 
   switch (best_path->path.pathtype) {
     case T_MergeJoin:
+      DBUG_PRINT("info", "use merge join plan");
       plan = (Plan *) create_mergejoin_plan(root,
                                             (MergePath *) best_path);
       break;
 
     case T_HashJoin:
+      DBUG_PRINT("info", "use hash join plan");
       plan = (Plan *) create_hashjoin_plan(root,
                                            (HashPath *) best_path);
       break;
 
     case T_NestLoop:
+      DBUG_PRINT("info", "use nestloop plan");
       plan = (Plan *) create_nestloop_plan(root,
                                            (NestPath *) best_path);
       break;
@@ -1140,6 +1391,9 @@ create_join_plan(PlannerInfo *root, JoinPath *best_path)
 static bool
 mark_async_capable_plan(Plan *plan, Path *path)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "check whether the Plan node created from a Path node is async-capable");
+
   switch (nodeTag(path)) {
     case T_SubqueryScanPath: {
       SubqueryScan *scan_plan = (SubqueryScan *) plan;
@@ -1148,8 +1402,11 @@ mark_async_capable_plan(Plan *plan, Path *path)
        * If the generated plan node includes a gating Result node,
        * we can't execute it asynchronously.
        */
-      if (IsA(plan, Result))
+      if (IsA(plan, Result)) {
+        DBUG_PRINT("info", "the generated plan node includes a gating Result node");
+        DBUG_PRINT("info", "we can't execute it asynchronously");
         return false;
+      }
 
       /*
        * If a SubqueryScan node atop of an async-capable plan node
@@ -1157,8 +1414,10 @@ mark_async_capable_plan(Plan *plan, Path *path)
        */
       if (trivial_subqueryscan(scan_plan) &&
           mark_async_capable_plan(scan_plan->subplan,
-                                  ((SubqueryScanPath *) path)->subpath))
+                                  ((SubqueryScanPath *) path)->subpath)) {
+        DBUG_PRINT("info", "a SubqueryScan node atop of an async-capable plan node is deletable");
         break;
+      }
 
       return false;
     }
@@ -1170,14 +1429,18 @@ mark_async_capable_plan(Plan *plan, Path *path)
        * If the generated plan node includes a gating Result node,
        * we can't execute it asynchronously.
        */
-      if (IsA(plan, Result))
+      if (IsA(plan, Result)) {
+        DBUG_PRINT("info", "the generated plan node includes a gating Result node");
+        DBUG_PRINT("info", "we can't execute it asynchronously");
         return false;
+      }
 
       Assert(fdwroutine != NULL);
 
       if (fdwroutine->IsForeignPathAsyncCapable != NULL &&
-          fdwroutine->IsForeignPathAsyncCapable((ForeignPath *) path))
+          fdwroutine->IsForeignPathAsyncCapable((ForeignPath *) path)) {
         break;
+      }
 
       return false;
     }
@@ -1188,16 +1451,21 @@ mark_async_capable_plan(Plan *plan, Path *path)
        * If the generated plan node includes a Result node for the
        * projection, we can't execute it asynchronously.
        */
-      if (IsA(plan, Result))
+      if (IsA(plan, Result)) {
+        DBUG_PRINT("info", "the generated plan node includes a Result node for the projection");
+        DBUG_PRINT("info", "we can't execute it asynchronously");
         return false;
+      }
 
       /*
        * create_projection_plan() would have pulled up the subplan, so
        * check the capability using the subpath.
        */
       if (mark_async_capable_plan(plan,
-                                  ((ProjectionPath *) path)->subpath))
+                                  ((ProjectionPath *) path)->subpath)) {
+        DBUG_PRINT("info", "mark the Plan node as async-capable");
         return true;
+      }
 
       return false;
 
@@ -1206,7 +1474,7 @@ mark_async_capable_plan(Plan *plan, Path *path)
   }
 
   plan->async_capable = true;
-
+  DBUG_PRINT("info", "mark the Plan node as async-capable");
   return true;
 }
 
@@ -1220,6 +1488,7 @@ mark_async_capable_plan(Plan *plan, Path *path)
 static Plan *
 create_append_plan(PlannerInfo *root, AppendPath *best_path, int flags)
 {
+  DBUG_TRACE;
   Append     *plan;
   List     *tlist = build_path_tlist(root, &best_path->path);
   int     orig_tlist_length = list_length(tlist);
@@ -1434,6 +1703,7 @@ static Plan *
 create_merge_append_plan(PlannerInfo *root, MergeAppendPath *best_path,
                          int flags)
 {
+  DBUG_TRACE;
   MergeAppend *node = makeNode(MergeAppend);
   Plan     *plan = &node->plan;
   List     *tlist = build_path_tlist(root, &best_path->path);
@@ -1581,6 +1851,7 @@ create_merge_append_plan(PlannerInfo *root, MergeAppendPath *best_path,
 static Result *
 create_group_result_plan(PlannerInfo *root, GroupResultPath *best_path)
 {
+  DBUG_TRACE;
   Result     *plan;
   List     *tlist;
   List     *quals;
@@ -1606,6 +1877,7 @@ create_group_result_plan(PlannerInfo *root, GroupResultPath *best_path)
 static ProjectSet *
 create_project_set_plan(PlannerInfo *root, ProjectSetPath *best_path)
 {
+  DBUG_TRACE;
   ProjectSet *plan;
   Plan     *subplan;
   List     *tlist;
@@ -1632,6 +1904,7 @@ create_project_set_plan(PlannerInfo *root, ProjectSetPath *best_path)
 static Material *
 create_material_plan(PlannerInfo *root, MaterialPath *best_path, int flags)
 {
+  DBUG_TRACE;
   Material   *plan;
   Plan     *subplan;
 
@@ -1660,6 +1933,7 @@ create_material_plan(PlannerInfo *root, MaterialPath *best_path, int flags)
 static Memoize *
 create_memoize_plan(PlannerInfo *root, MemoizePath *best_path, int flags)
 {
+  DBUG_TRACE;
   Memoize    *plan;
   Bitmapset  *keyparamids;
   Plan     *subplan;
@@ -1713,6 +1987,7 @@ create_memoize_plan(PlannerInfo *root, MemoizePath *best_path, int flags)
 static Plan *
 create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
 {
+  DBUG_TRACE;
   Plan     *plan;
   Plan     *subplan;
   List     *in_operators;
@@ -1915,6 +2190,7 @@ create_unique_plan(PlannerInfo *root, UniquePath *best_path, int flags)
 static Gather *
 create_gather_plan(PlannerInfo *root, GatherPath *best_path)
 {
+  DBUG_TRACE;
   Gather     *gather_plan;
   Plan     *subplan;
   List     *tlist;
@@ -1953,6 +2229,7 @@ create_gather_plan(PlannerInfo *root, GatherPath *best_path)
 static GatherMerge *
 create_gather_merge_plan(PlannerInfo *root, GatherMergePath *best_path)
 {
+  DBUG_TRACE;
   GatherMerge *gm_plan;
   Plan     *subplan;
   List     *pathkeys = best_path->path.pathkeys;
@@ -2009,6 +2286,7 @@ create_gather_merge_plan(PlannerInfo *root, GatherMergePath *best_path)
 static Plan *
 create_projection_plan(PlannerInfo *root, ProjectionPath *best_path, int flags)
 {
+  DBUG_TRACE;
   Plan     *plan;
   Plan     *subplan;
   List     *tlist;
@@ -2104,6 +2382,7 @@ create_projection_plan(PlannerInfo *root, ProjectionPath *best_path, int flags)
 static Plan *
 inject_projection_plan(Plan *subplan, List *tlist, bool parallel_safe)
 {
+  DBUG_TRACE;
   Plan     *plan;
 
   plan = (Plan *) make_result(tlist, NULL, subplan);
@@ -2136,6 +2415,8 @@ inject_projection_plan(Plan *subplan, List *tlist, bool parallel_safe)
 Plan *
 change_plan_targetlist(Plan *subplan, List *tlist, bool tlist_parallel_safe)
 {
+  DBUG_TRACE;
+
   /*
    * If the top plan node can't do projections and its existing target list
    * isn't already what we need, we need to add a Result node to help it
@@ -2164,6 +2445,7 @@ change_plan_targetlist(Plan *subplan, List *tlist, bool tlist_parallel_safe)
 static Sort *
 create_sort_plan(PlannerInfo *root, SortPath *best_path, int flags)
 {
+  DBUG_TRACE;
   Sort     *plan;
   Plan     *subplan;
 
@@ -2199,6 +2481,7 @@ static IncrementalSort *
 create_incrementalsort_plan(PlannerInfo *root, IncrementalSortPath *best_path,
                             int flags)
 {
+  DBUG_TRACE;
   IncrementalSort *plan;
   Plan     *subplan;
 
@@ -2225,6 +2508,7 @@ create_incrementalsort_plan(PlannerInfo *root, IncrementalSortPath *best_path,
 static Group *
 create_group_plan(PlannerInfo *root, GroupPath *best_path)
 {
+  DBUG_TRACE;
   Group    *plan;
   Plan     *subplan;
   List     *tlist;
@@ -2264,6 +2548,7 @@ create_group_plan(PlannerInfo *root, GroupPath *best_path)
 static Unique *
 create_upper_unique_plan(PlannerInfo *root, UpperUniquePath *best_path, int flags)
 {
+  DBUG_TRACE;
   Unique     *plan;
   Plan     *subplan;
 
@@ -2292,6 +2577,7 @@ create_upper_unique_plan(PlannerInfo *root, UpperUniquePath *best_path, int flag
 static Agg *
 create_agg_plan(PlannerInfo *root, AggPath *best_path)
 {
+  DBUG_TRACE;
   Agg      *plan;
   Plan     *subplan;
   List     *tlist;
@@ -2338,6 +2624,7 @@ create_agg_plan(PlannerInfo *root, AggPath *best_path)
 static AttrNumber *
 remap_groupColIdx(PlannerInfo *root, List *groupClause)
 {
+  DBUG_TRACE;
   AttrNumber *grouping_map = root->grouping_map;
   AttrNumber *new_grpColIdx;
   ListCell   *lc;
@@ -2376,6 +2663,7 @@ remap_groupColIdx(PlannerInfo *root, List *groupClause)
 static Plan *
 create_groupingsets_plan(PlannerInfo *root, GroupingSetsPath *best_path)
 {
+  DBUG_TRACE;
   Agg      *plan;
   Plan     *subplan;
   List     *rollups = best_path->rollups;
@@ -2530,6 +2818,7 @@ create_groupingsets_plan(PlannerInfo *root, GroupingSetsPath *best_path)
 static Result *
 create_minmaxagg_plan(PlannerInfo *root, MinMaxAggPath *best_path)
 {
+  DBUG_TRACE;
   Result     *plan;
   List     *tlist;
   ListCell   *lc;
@@ -2596,6 +2885,7 @@ create_minmaxagg_plan(PlannerInfo *root, MinMaxAggPath *best_path)
 static WindowAgg *
 create_windowagg_plan(PlannerInfo *root, WindowAggPath *best_path)
 {
+  DBUG_TRACE;
   WindowAgg  *plan;
   WindowClause *wc = best_path->winclause;
   int     numPart = list_length(wc->partitionClause);
@@ -2691,6 +2981,7 @@ create_windowagg_plan(PlannerInfo *root, WindowAggPath *best_path)
 static SetOp *
 create_setop_plan(PlannerInfo *root, SetOpPath *best_path, int flags)
 {
+  DBUG_TRACE;
   SetOp    *plan;
   List     *tlist = build_path_tlist(root, &best_path->path);
   Plan     *leftplan;
@@ -2731,12 +3022,14 @@ create_setop_plan(PlannerInfo *root, SetOpPath *best_path, int flags)
 static RecursiveUnion *
 create_recursiveunion_plan(PlannerInfo *root, RecursiveUnionPath *best_path)
 {
+  DBUG_TRACE;
   RecursiveUnion *plan;
   Plan     *leftplan;
   Plan     *rightplan;
   List     *tlist;
   long    numGroups;
 
+  DBUG_PRINT("info", "create a RecursiveUnion plan for 'best_path' and (recursively) plans for its subpaths");
   /* Need both children to produce same tlist, so force it */
   leftplan = create_plan_recurse(root, best_path->leftpath, CP_EXACT_TLIST);
   rightplan = create_plan_recurse(root, best_path->rightpath, CP_EXACT_TLIST);
@@ -2768,6 +3061,7 @@ static LockRows *
 create_lockrows_plan(PlannerInfo *root, LockRowsPath *best_path,
                      int flags)
 {
+  DBUG_TRACE;
   LockRows   *plan;
   Plan     *subplan;
 
@@ -2790,6 +3084,7 @@ create_lockrows_plan(PlannerInfo *root, LockRowsPath *best_path,
 static ModifyTable *
 create_modifytable_plan(PlannerInfo *root, ModifyTablePath *best_path)
 {
+  DBUG_TRACE;
   ModifyTable *plan;
   Path     *subpath = best_path->subpath;
   Plan     *subplan;
@@ -2831,6 +3126,7 @@ create_modifytable_plan(PlannerInfo *root, ModifyTablePath *best_path)
 static Limit *
 create_limit_plan(PlannerInfo *root, LimitPath *best_path, int flags)
 {
+  DBUG_TRACE;
   Limit    *plan;
   Plan     *subplan;
   int     numUniqkeys = 0;
@@ -2892,6 +3188,7 @@ static SeqScan *
 create_seqscan_plan(PlannerInfo *root, Path *best_path,
                     List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   SeqScan    *scan_plan;
   Index   scan_relid = best_path->parent->relid;
 
@@ -2900,13 +3197,16 @@ create_seqscan_plan(PlannerInfo *root, Path *best_path,
   Assert(best_path->parent->rtekind == RTE_RELATION);
 
   /* Sort clauses into best execution order */
+  DBUG_PRINT("info", "sort clauses into best execution order");
   scan_clauses = order_qual_clauses(root, scan_clauses);
 
+  DBUG_PRINT("info", "reduce RestrictInfo list to bare expressions; ignore pseudoconstants");
   /* Reduce RestrictInfo list to bare expressions; ignore pseudoconstants */
   scan_clauses = extract_actual_clauses(scan_clauses, false);
 
   /* Replace any outer-relation variables with nestloop params */
   if (best_path->param_info) {
+    DBUG_PRINT("info", "replace any outer-relation variables with nestloop params");
     scan_clauses = (List *)
                    replace_nestloop_params(root, (Node *) scan_clauses);
   }
@@ -2929,6 +3229,7 @@ static SampleScan *
 create_samplescan_plan(PlannerInfo *root, Path *best_path,
                        List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   SampleScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -2982,6 +3283,7 @@ create_indexscan_plan(PlannerInfo *root,
                       List *scan_clauses,
                       bool indexonly)
 {
+  DBUG_TRACE;
   Scan     *scan_plan;
   List     *indexclauses = best_path->indexclauses;
   List     *indexorderbys = best_path->indexorderbys;
@@ -3177,6 +3479,7 @@ create_bitmap_scan_plan(PlannerInfo *root,
                         List *tlist,
                         List *scan_clauses)
 {
+  DBUG_TRACE;
   Index   baserelid = best_path->path.parent->relid;
   Plan     *bitmapqualplan;
   List     *bitmapqualorig;
@@ -3308,6 +3611,7 @@ static Plan *
 create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
                       List **qual, List **indexqual, List **indexECs)
 {
+  DBUG_TRACE;
   Plan     *plan;
 
   if (IsA(bitmapqual, BitmapAndPath)) {
@@ -3344,6 +3648,7 @@ create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
     plan = (Plan *) make_bitmap_and(subplans);
     plan->startup_cost = apath->path.startup_cost;
     plan->total_cost = apath->path.total_cost;
+    DBUG_PRINT("info", "bitmapselectivity:%g, tuples:%g", apath->bitmapselectivity, apath->path.parent->tuples);
     plan->plan_rows =
       clamp_row_est(apath->bitmapselectivity * apath->path.parent->tuples);
     plan->plan_width = 0; /* meaningless */
@@ -3404,6 +3709,7 @@ create_bitmap_subplan(PlannerInfo *root, Path *bitmapqual,
       plan = (Plan *) make_bitmap_or(subplans);
       plan->startup_cost = opath->path.startup_cost;
       plan->total_cost = opath->path.total_cost;
+      DBUG_PRINT("info", "bitmapselectivity:%g, tuples:%g", opath->bitmapselectivity, opath->path.parent->tuples);
       plan->plan_rows =
         clamp_row_est(opath->bitmapselectivity * opath->path.parent->tuples);
       plan->plan_width = 0; /* meaningless */
@@ -3510,6 +3816,7 @@ static TidScan *
 create_tidscan_plan(PlannerInfo *root, TidPath *best_path,
                     List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   TidScan    *scan_plan;
   Index   scan_relid = best_path->path.parent->relid;
   List     *tidquals = best_path->tidquals;
@@ -3608,6 +3915,7 @@ static TidRangeScan *
 create_tidrangescan_plan(PlannerInfo *root, TidRangePath *best_path,
                          List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   TidRangeScan *scan_plan;
   Index   scan_relid = best_path->path.parent->relid;
   List     *tidrangequals = best_path->tidrangequals;
@@ -3674,6 +3982,7 @@ static SubqueryScan *
 create_subqueryscan_plan(PlannerInfo *root, SubqueryScanPath *best_path,
                          List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   SubqueryScan *scan_plan;
   RelOptInfo *rel = best_path->path.parent;
   Index   scan_relid = rel->relid;
@@ -3732,6 +4041,7 @@ static FunctionScan *
 create_functionscan_plan(PlannerInfo *root, Path *best_path,
                          List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   FunctionScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -3774,6 +4084,7 @@ static TableFuncScan *
 create_tablefuncscan_plan(PlannerInfo *root, Path *best_path,
                           List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   TableFuncScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -3816,6 +4127,7 @@ static ValuesScan *
 create_valuesscan_plan(PlannerInfo *root, Path *best_path,
                        List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   ValuesScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -3859,6 +4171,7 @@ static CteScan *
 create_ctescan_plan(PlannerInfo *root, Path *best_path,
                     List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   CteScan    *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -3961,6 +4274,7 @@ static NamedTuplestoreScan *
 create_namedtuplestorescan_plan(PlannerInfo *root, Path *best_path,
                                 List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   NamedTuplestoreScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -3999,6 +4313,7 @@ static Result *
 create_resultscan_plan(PlannerInfo *root, Path *best_path,
                        List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   Result     *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte PG_USED_FOR_ASSERTS_ONLY;
@@ -4035,6 +4350,7 @@ static WorkTableScan *
 create_worktablescan_plan(PlannerInfo *root, Path *best_path,
                           List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   WorkTableScan *scan_plan;
   Index   scan_relid = best_path->parent->relid;
   RangeTblEntry *rte;
@@ -4098,6 +4414,7 @@ static ForeignScan *
 create_foreignscan_plan(PlannerInfo *root, ForeignPath *best_path,
                         List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   ForeignScan *scan_plan;
   RelOptInfo *rel = best_path->path.parent;
   Index   scan_relid = rel->relid;
@@ -4248,6 +4565,7 @@ static CustomScan *
 create_customscan_plan(PlannerInfo *root, CustomPath *best_path,
                        List *tlist, List *scan_clauses)
 {
+  DBUG_TRACE;
   CustomScan *cplan;
   RelOptInfo *rel = best_path->path.parent;
   List     *custom_plans = NIL;
@@ -4317,6 +4635,7 @@ static NestLoop *
 create_nestloop_plan(PlannerInfo *root,
                      NestPath *best_path)
 {
+  DBUG_TRACE;
   NestLoop   *join_plan;
   Plan     *outer_plan;
   Plan     *inner_plan;
@@ -4351,6 +4670,7 @@ create_nestloop_plan(PlannerInfo *root,
   outer_plan = create_plan_recurse(root, best_path->jpath.outerjoinpath, 0);
 
   /* For a nestloop, include outer relids in curOuterRels for inner side */
+  DBUG_PRINT("info", "for a nestloop, include outer relids in curOuterRels for inner side");
   outerrelids = best_path->jpath.outerjoinpath->parent->relids;
   root->curOuterRels = bms_union(root->curOuterRels, outerrelids);
 
@@ -4361,16 +4681,19 @@ create_nestloop_plan(PlannerInfo *root,
   root->curOuterRels = saveOuterRels;
 
   /* Sort join qual clauses into best execution order */
+  DBUG_PRINT("info", "sort join qual clauses into best execution order");
   joinrestrictclauses = order_qual_clauses(root, joinrestrictclauses);
 
   /* Get the join qual clauses (in plain expression form) */
   /* Any pseudoconstant clauses are ignored here */
   if (IS_OUTER_JOIN(best_path->jpath.jointype)) {
+    DBUG_PRINT("info", "get the join qual clauses for outer join");
     extract_actual_join_clauses(joinrestrictclauses,
                                 best_path->jpath.path.parent->relids,
                                 &joinclauses, &otherclauses);
   } else {
     /* We can treat all clauses alike for an inner join */
+    DBUG_PRINT("info", "we can treat all clauses alike for an inner join");
     joinclauses = extract_actual_clauses(joinrestrictclauses, false);
     otherclauses = NIL;
   }
@@ -4387,6 +4710,7 @@ create_nestloop_plan(PlannerInfo *root,
    * Identify any nestloop parameters that should be supplied by this join
    * node, and remove them from root->curOuterParams.
    */
+  DBUG_PRINT("info", "identify any nestloop parameters that should be supplied by this join node");
   nestParams = identify_current_nestloop_params(root,
                outerrelids,
                PATH_REQ_OUTER((Path *) best_path));
@@ -4469,6 +4793,7 @@ static MergeJoin *
 create_mergejoin_plan(PlannerInfo *root,
                       MergePath *best_path)
 {
+  DBUG_TRACE;
   MergeJoin  *join_plan;
   Plan     *outer_plan;
   Plan     *inner_plan;
@@ -4506,15 +4831,18 @@ create_mergejoin_plan(PlannerInfo *root,
 
   /* Sort join qual clauses into best execution order */
   /* NB: do NOT reorder the mergeclauses */
+  DBUG_PRINT("info", "sort join qual clauses into best execution order");
   joinclauses = order_qual_clauses(root, best_path->jpath.joinrestrictinfo);
 
   /* Get the join qual clauses (in plain expression form) */
   /* Any pseudoconstant clauses are ignored here */
   if (IS_OUTER_JOIN(best_path->jpath.jointype)) {
+    DBUG_PRINT("info", "get the join qual clauses");
     extract_actual_join_clauses(joinclauses,
                                 best_path->jpath.path.parent->relids,
                                 &joinclauses, &otherclauses);
   } else {
+    DBUG_PRINT("info", "we can treat all clauses alike for an inner join");
     /* We can treat all clauses alike for an inner join */
     joinclauses = extract_actual_clauses(joinclauses, false);
     otherclauses = NIL;
@@ -4524,6 +4852,7 @@ create_mergejoin_plan(PlannerInfo *root,
    * Remove the mergeclauses from the list of join qual clauses, leaving the
    * list of quals that must be checked as qpquals.
    */
+  DBUG_PRINT("info", "remove the mergeclauses from the list of join qual clauses");
   mergeclauses = get_actual_clauses(best_path->path_mergeclauses);
   joinclauses = list_difference(joinclauses, mergeclauses);
 
@@ -4532,6 +4861,7 @@ create_mergejoin_plan(PlannerInfo *root,
    * should not be any in the mergeclauses.
    */
   if (best_path->jpath.path.param_info) {
+    DBUG_PRINT("info", "replace any outer-relation variables with nestloop params");
     joinclauses = (List *)
                   replace_nestloop_params(root, (Node *) joinclauses);
     otherclauses = (List *)
@@ -4543,6 +4873,7 @@ create_mergejoin_plan(PlannerInfo *root,
    * on the left; mark the mergeclause restrictinfos with correct
    * outer_is_left status.
    */
+  DBUG_PRINT("info", "rearrange mergeclauses, if needed, so that the outer variable is always on the left");
   mergeclauses = get_switched_clauses(best_path->path_mergeclauses,
                                       best_path->jpath.outerjoinpath->parent->relids);
 
@@ -4611,6 +4942,7 @@ create_mergejoin_plan(PlannerInfo *root,
                                    best_path->innersortkeys,
                                    inner_relids);
 
+    DBUG_PRINT("info", "create explicit sort nodes for the outer and inner paths");
     label_sort_with_costsize(root, sort, -1.0);
     inner_plan = (Plan *) sort;
     innerpathkeys = best_path->innersortkeys;
@@ -4624,6 +4956,7 @@ create_mergejoin_plan(PlannerInfo *root,
   if (best_path->materialize_inner) {
     Plan     *matplan = (Plan *) make_material(inner_plan);
 
+    DBUG_PRINT("info", "add a materialize node to shield the inner plan from the need to handle mark/restore");
     /*
      * We assume the materialize will not spill to disk, and therefore
      * charge just cpu_operator_cost per tuple.  (Keep this estimate in
@@ -4664,6 +4997,8 @@ create_mergejoin_plan(PlannerInfo *root,
     bool    first_inner_match = false;
 
     /* fetch outer/inner eclass from mergeclause */
+    DBUG_PRINT("info", "fetch outer/inner eclass from mergeclause");
+
     if (rinfo->outer_is_left) {
       oeclass = rinfo->left_ec;
       ieclass = rinfo->right_ec;
@@ -4772,6 +5107,7 @@ create_mergejoin_plan(PlannerInfo *root,
       elog(ERROR, "left and right pathkeys do not match in mergejoin");
 
     /* OK, save info for executor */
+    DBUG_PRINT("info", "OK, save info for executor");
     mergefamilies[i] = opathkey->pk_opfamily;
     mergecollations[i] = opathkey->pk_eclass->ec_collation;
     mergereversals[i] = (opathkey->pk_cmptype == COMPARE_GT ? true : false);
@@ -4788,6 +5124,7 @@ create_mergejoin_plan(PlannerInfo *root,
   /*
    * Now we can build the mergejoin node.
    */
+  DBUG_PRINT("info", "now we can build the mergejoin node");
   join_plan = make_mergejoin(tlist,
                              joinclauses,
                              otherclauses,
@@ -4802,6 +5139,7 @@ create_mergejoin_plan(PlannerInfo *root,
                              best_path->jpath.inner_unique,
                              best_path->skip_mark_restore);
 
+  DBUG_PRINT("info", "costs of sort and material steps are included in path cost already");
   /* Costs of sort and material steps are included in path cost already */
   copy_generic_path_info(&join_plan->join.plan, &best_path->jpath.path);
 
@@ -4812,6 +5150,7 @@ static HashJoin *
 create_hashjoin_plan(PlannerInfo *root,
                      HashPath *best_path)
 {
+  DBUG_TRACE;
   HashJoin   *join_plan;
   Hash     *hash_plan;
   Plan     *outer_plan;
@@ -4849,11 +5188,13 @@ create_hashjoin_plan(PlannerInfo *root,
   /* Get the join qual clauses (in plain expression form) */
   /* Any pseudoconstant clauses are ignored here */
   if (IS_OUTER_JOIN(best_path->jpath.jointype)) {
+    DBUG_PRINT("info", "get the join qual clauses");
     extract_actual_join_clauses(joinclauses,
                                 best_path->jpath.path.parent->relids,
                                 &joinclauses, &otherclauses);
   } else {
     /* We can treat all clauses alike for an inner join */
+    DBUG_PRINT("info", "we can treat all clauses alike for an inner join");
     joinclauses = extract_actual_clauses(joinclauses, false);
     otherclauses = NIL;
   }
@@ -4880,6 +5221,7 @@ create_hashjoin_plan(PlannerInfo *root,
    * Rearrange hashclauses, if needed, so that the outer variable is always
    * on the left.
    */
+  DBUG_PRINT("info", "rearrange hashclauses, if needed, so that the outer variable is always on the left");
   hashclauses = get_switched_clauses(best_path->path_hashclauses,
                                      best_path->jpath.outerjoinpath->parent->relids);
 
@@ -4935,6 +5277,7 @@ create_hashjoin_plan(PlannerInfo *root,
   /*
    * Build the hash node and hash join node.
    */
+  DBUG_PRINT("info", "build the hash node and hash join node");
   hash_plan = make_hash(inner_plan,
                         inner_hashkeys,
                         skewTable,
@@ -4954,6 +5297,7 @@ create_hashjoin_plan(PlannerInfo *root,
    * shared hash table.
    */
   if (best_path->jpath.path.parallel_aware) {
+    DBUG_PRINT("info", "set parallel_aware true for hash_plan");
     hash_plan->plan.parallel_aware = true;
     hash_plan->rows_total = best_path->inner_rows_total;
   }
@@ -5083,6 +5427,7 @@ static void
 fix_indexqual_references(PlannerInfo *root, IndexPath *index_path,
                          List **stripped_indexquals_p, List **fixed_indexquals_p)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = index_path->indexinfo;
   List     *stripped_indexquals;
   List     *fixed_indexquals;
@@ -5121,6 +5466,7 @@ fix_indexqual_references(PlannerInfo *root, IndexPath *index_path,
 static List *
 fix_indexorderby_references(PlannerInfo *root, IndexPath *index_path)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = index_path->indexinfo;
   List     *fixed_indexorderbys;
   ListCell   *lcc,
@@ -5150,6 +5496,7 @@ static Node *
 fix_indexqual_clause(PlannerInfo *root, IndexOptInfo *index, int indexcol,
                      Node *clause, List *indexcolnos)
 {
+  DBUG_TRACE;
   /*
    * Replace any outer-relation variables with nestloop params.
    *
@@ -5289,6 +5636,7 @@ fix_indexqual_operand(Node *node, IndexOptInfo *index, int indexcol)
 static List *
 get_switched_clauses(List *clauses, Relids outerrelids)
 {
+  DBUG_TRACE;
   List     *t_list = NIL;
   ListCell   *l;
 
@@ -5364,6 +5712,7 @@ get_switched_clauses(List *clauses, Relids outerrelids)
 static List *
 order_qual_clauses(PlannerInfo *root, List *clauses)
 {
+  DBUG_TRACE;
   typedef struct {
     Node     *clause;
     Cost    cost;
@@ -5376,9 +5725,12 @@ order_qual_clauses(PlannerInfo *root, List *clauses)
   List     *result;
 
   /* No need to work hard for 0 or 1 clause */
-  if (nitems <= 1)
+  if (nitems <= 1) {
+    DBUG_PRINT("info", "no need to work hard for 0 or 1 clause");
     return clauses;
+  }
 
+  DBUG_PRINT("info", "sort the list of qual clauses into the order we want to check the quals in at runtime");
   /*
    * Collect the items and costs into an array.  This is to avoid repeated
    * cost_qual_eval work if the inputs aren't RestrictInfos.
@@ -5422,6 +5774,8 @@ order_qual_clauses(PlannerInfo *root, List *clauses)
    * equal keys.  The expected number of entries is small enough that a
    * simple insertion sort should be good enough.
    */
+  DBUG_PRINT("info", "the expected number of entries is small enough:%d", nitems);
+
   for (i = 1; i < nitems; i++) {
     QualItem  newitem = items[i];
     int     j;
@@ -5497,6 +5851,7 @@ copy_plan_costsize(Plan *dest, Plan *src)
 static void
 label_sort_with_costsize(PlannerInfo *root, Sort *plan, double limit_tuples)
 {
+  DBUG_TRACE;
   Plan     *lefttree = plan->plan.lefttree;
   Path    sort_path;    /* dummy for result of cost_sort */
 
@@ -5557,6 +5912,8 @@ label_incrementalsort_with_costsize(PlannerInfo *root, IncrementalSort *plan,
 static void
 bitmap_subplan_mark_shared(Plan *plan)
 {
+  DBUG_TRACE;
+
   if (IsA(plan, BitmapAnd))
     bitmap_subplan_mark_shared(linitial(((BitmapAnd *) plan)->bitmapplans));
   else if (IsA(plan, BitmapOr)) {
@@ -5587,6 +5944,7 @@ make_seqscan(List *qptlist,
              List *qpqual,
              Index scanrelid)
 {
+  DBUG_TRACE;
   SeqScan    *node = makeNode(SeqScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5605,6 +5963,7 @@ make_samplescan(List *qptlist,
                 Index scanrelid,
                 TableSampleClause *tsc)
 {
+  DBUG_TRACE;
   SampleScan *node = makeNode(SampleScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5630,6 +5989,7 @@ make_indexscan(List *qptlist,
                List *indexorderbyops,
                ScanDirection indexscandir)
 {
+  DBUG_TRACE;
   IndexScan  *node = makeNode(IndexScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5660,6 +6020,7 @@ make_indexonlyscan(List *qptlist,
                    List *indextlist,
                    ScanDirection indexscandir)
 {
+  DBUG_TRACE;
   IndexOnlyScan *node = makeNode(IndexOnlyScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5684,6 +6045,7 @@ make_bitmap_indexscan(Index scanrelid,
                       List *indexqual,
                       List *indexqualorig)
 {
+  DBUG_TRACE;
   BitmapIndexScan *node = makeNode(BitmapIndexScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5706,6 +6068,7 @@ make_bitmap_heapscan(List *qptlist,
                      List *bitmapqualorig,
                      Index scanrelid)
 {
+  DBUG_TRACE;
   BitmapHeapScan *node = makeNode(BitmapHeapScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5725,6 +6088,7 @@ make_tidscan(List *qptlist,
              Index scanrelid,
              List *tidquals)
 {
+  DBUG_TRACE;
   TidScan    *node = makeNode(TidScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5744,6 +6108,7 @@ make_tidrangescan(List *qptlist,
                   Index scanrelid,
                   List *tidrangequals)
 {
+  DBUG_TRACE;
   TidRangeScan *node = makeNode(TidRangeScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5763,6 +6128,7 @@ make_subqueryscan(List *qptlist,
                   Index scanrelid,
                   Plan *subplan)
 {
+  DBUG_TRACE;
   SubqueryScan *node = makeNode(SubqueryScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5784,6 +6150,7 @@ make_functionscan(List *qptlist,
                   List *functions,
                   bool funcordinality)
 {
+  DBUG_TRACE;
   FunctionScan *node = makeNode(FunctionScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5804,6 +6171,7 @@ make_tablefuncscan(List *qptlist,
                    Index scanrelid,
                    TableFunc *tablefunc)
 {
+  DBUG_TRACE;
   TableFuncScan *node = makeNode(TableFuncScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5823,6 +6191,7 @@ make_valuesscan(List *qptlist,
                 Index scanrelid,
                 List *values_lists)
 {
+  DBUG_TRACE;
   ValuesScan *node = makeNode(ValuesScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5843,6 +6212,7 @@ make_ctescan(List *qptlist,
              int ctePlanId,
              int cteParam)
 {
+  DBUG_TRACE;
   CteScan    *node = makeNode(CteScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5863,6 +6233,7 @@ make_namedtuplestorescan(List *qptlist,
                          Index scanrelid,
                          char *enrname)
 {
+  DBUG_TRACE;
   NamedTuplestoreScan *node = makeNode(NamedTuplestoreScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5883,6 +6254,7 @@ make_worktablescan(List *qptlist,
                    Index scanrelid,
                    int wtParam)
 {
+  DBUG_TRACE;
   WorkTableScan *node = makeNode(WorkTableScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5906,6 +6278,7 @@ make_foreignscan(List *qptlist,
                  List *fdw_recheck_quals,
                  Plan *outer_plan)
 {
+  DBUG_TRACE;
   ForeignScan *node = makeNode(ForeignScan);
   Plan     *plan = &node->scan.plan;
 
@@ -5944,6 +6317,7 @@ make_recursive_union(List *tlist,
                      List *distinctList,
                      long numGroups)
 {
+  DBUG_TRACE;
   RecursiveUnion *node = makeNode(RecursiveUnion);
   Plan     *plan = &node->plan;
   int     numCols = list_length(distinctList);
@@ -5996,6 +6370,7 @@ make_recursive_union(List *tlist,
 static BitmapAnd *
 make_bitmap_and(List *bitmapplans)
 {
+  DBUG_TRACE;
   BitmapAnd  *node = makeNode(BitmapAnd);
   Plan     *plan = &node->plan;
 
@@ -6011,6 +6386,7 @@ make_bitmap_and(List *bitmapplans)
 static BitmapOr *
 make_bitmap_or(List *bitmapplans)
 {
+  DBUG_TRACE;
   BitmapOr   *node = makeNode(BitmapOr);
   Plan     *plan = &node->plan;
 
@@ -6033,6 +6409,7 @@ make_nestloop(List *tlist,
               JoinType jointype,
               bool inner_unique)
 {
+  DBUG_TRACE;
   NestLoop   *node = makeNode(NestLoop);
   Plan     *plan = &node->join.plan;
 
@@ -6061,6 +6438,7 @@ make_hashjoin(List *tlist,
               JoinType jointype,
               bool inner_unique)
 {
+  DBUG_TRACE;
   HashJoin   *node = makeNode(HashJoin);
   Plan     *plan = &node->join.plan;
 
@@ -6086,6 +6464,7 @@ make_hash(Plan *lefttree,
           AttrNumber skewColumn,
           bool skewInherit)
 {
+  DBUG_TRACE;
   Hash     *node = makeNode(Hash);
   Plan     *plan = &node->plan;
 
@@ -6117,6 +6496,7 @@ make_mergejoin(List *tlist,
                bool inner_unique,
                bool skip_mark_restore)
 {
+  DBUG_TRACE;
   MergeJoin  *node = makeNode(MergeJoin);
   Plan     *plan = &node->join.plan;
 
@@ -6148,9 +6528,11 @@ make_sort(Plan *lefttree, int numCols,
           AttrNumber *sortColIdx, Oid *sortOperators,
           Oid *collations, bool *nullsFirst)
 {
+  DBUG_TRACE;
   Sort     *node;
   Plan     *plan;
 
+  DBUG_PRINT("info", "basic routine to build a Sort plan node");
   node = makeNode(Sort);
 
   plan = &node->plan;
@@ -6179,6 +6561,7 @@ make_incrementalsort(Plan *lefttree, int numCols, int nPresortedCols,
                      AttrNumber *sortColIdx, Oid *sortOperators,
                      Oid *collations, bool *nullsFirst)
 {
+  DBUG_TRACE;
   IncrementalSort *node;
   Plan     *plan;
 
@@ -6251,6 +6634,7 @@ prepare_sort_from_pathkeys(Plan *lefttree, List *pathkeys,
                            Oid **p_collations,
                            bool **p_nullsFirst)
 {
+  DBUG_TRACE;
   List     *tlist = lefttree->targetlist;
   ListCell   *i;
   int     numsortkeys;
@@ -6259,6 +6643,7 @@ prepare_sort_from_pathkeys(Plan *lefttree, List *pathkeys,
   Oid      *collations;
   bool     *nullsFirst;
 
+  DBUG_PRINT("info", "prepare to sort according to given pathkeys");
   /*
    * We will need at most list_length(pathkeys) sort columns; possibly less
    */
@@ -6420,6 +6805,7 @@ prepare_sort_from_pathkeys(Plan *lefttree, List *pathkeys,
 static Sort *
 make_sort_from_pathkeys(Plan *lefttree, List *pathkeys, Relids relids)
 {
+  DBUG_TRACE;
   int     numsortkeys;
   AttrNumber *sortColIdx;
   Oid      *sortOperators;
@@ -6456,12 +6842,14 @@ static IncrementalSort *
 make_incrementalsort_from_pathkeys(Plan *lefttree, List *pathkeys,
                                    Relids relids, int nPresortedCols)
 {
+  DBUG_TRACE;
   int     numsortkeys;
   AttrNumber *sortColIdx;
   Oid      *sortOperators;
   Oid      *collations;
   bool     *nullsFirst;
 
+  DBUG_PRINT("info", "create sort plan to sort according to given pathkeys");
   /* Compute sort column info, and adjust lefttree as needed */
   lefttree = prepare_sort_from_pathkeys(lefttree, pathkeys,
                                         relids,
@@ -6489,6 +6877,7 @@ make_incrementalsort_from_pathkeys(Plan *lefttree, List *pathkeys,
 Sort *
 make_sort_from_sortclauses(List *sortcls, Plan *lefttree)
 {
+  DBUG_TRACE;
   List     *sub_tlist = lefttree->targetlist;
   ListCell   *l;
   int     numsortkeys;
@@ -6497,6 +6886,7 @@ make_sort_from_sortclauses(List *sortcls, Plan *lefttree)
   Oid      *collations;
   bool     *nullsFirst;
 
+  DBUG_PRINT("info", "create sort plan to sort according to given sortclauses");
   /* Convert list-ish representation to arrays wanted by executor */
   numsortkeys = list_length(sortcls);
   sortColIdx = (AttrNumber *) palloc(numsortkeys * sizeof(AttrNumber));
@@ -6540,6 +6930,7 @@ make_sort_from_groupcols(List *groupcls,
                          AttrNumber *grpColIdx,
                          Plan *lefttree)
 {
+  DBUG_TRACE;
   List     *sub_tlist = lefttree->targetlist;
   ListCell   *l;
   int     numsortkeys;
@@ -6548,6 +6939,7 @@ make_sort_from_groupcols(List *groupcls,
   Oid      *collations;
   bool     *nullsFirst;
 
+  DBUG_PRINT("info", "create sort plan to sort based on grouping columns");
   /* Convert list-ish representation to arrays wanted by executor */
   numsortkeys = list_length(groupcls);
   sortColIdx = (AttrNumber *) palloc(numsortkeys * sizeof(AttrNumber));
@@ -6579,6 +6971,7 @@ make_sort_from_groupcols(List *groupcls,
 static Material *
 make_material(Plan *lefttree)
 {
+  DBUG_TRACE;
   Material   *node = makeNode(Material);
   Plan     *plan = &node->plan;
 
@@ -6601,6 +6994,7 @@ make_material(Plan *lefttree)
 Plan *
 materialize_finished_plan(Plan *subplan)
 {
+  DBUG_TRACE;
   Plan     *matplan;
   Path    matpath;    /* dummy for result of cost_material */
   Cost    initplan_cost;
@@ -6646,6 +7040,7 @@ make_memoize(Plan *lefttree, Oid *hashoperators, Oid *collations,
              List *param_exprs, bool singlerow, bool binary_mode,
              uint32 est_entries, Bitmapset *keyparamids)
 {
+  DBUG_TRACE;
   Memoize    *node = makeNode(Memoize);
   Plan     *plan = &node->plan;
 
@@ -6673,6 +7068,7 @@ make_agg(List *tlist, List *qual,
          List *groupingSets, List *chain, double dNumGroups,
          Size transitionSpace, Plan *lefttree)
 {
+  DBUG_TRACE;
   Agg      *node = makeNode(Agg);
   Plan     *plan = &node->plan;
   long    numGroups;
@@ -6706,6 +7102,7 @@ make_windowagg(List *tlist, WindowClause *wc,
                int ordNumCols, AttrNumber *ordColIdx, Oid *ordOperators, Oid *ordCollations,
                List *runCondition, List *qual, bool topWindow, Plan *lefttree)
 {
+  DBUG_TRACE;
   WindowAgg  *node = makeNode(WindowAgg);
   Plan     *plan = &node->plan;
 
@@ -6749,6 +7146,7 @@ make_group(List *tlist,
            Oid *grpCollations,
            Plan *lefttree)
 {
+  DBUG_TRACE;
   Group    *node = makeNode(Group);
   Plan     *plan = &node->plan;
 
@@ -6773,6 +7171,7 @@ make_group(List *tlist,
 static Unique *
 make_unique_from_sortclauses(Plan *lefttree, List *distinctList)
 {
+  DBUG_TRACE;
   Unique     *node = makeNode(Unique);
   Plan     *plan = &node->plan;
   int     numCols = list_length(distinctList);
@@ -6821,6 +7220,7 @@ make_unique_from_sortclauses(Plan *lefttree, List *distinctList)
 static Unique *
 make_unique_from_pathkeys(Plan *lefttree, List *pathkeys, int numCols)
 {
+  DBUG_TRACE;
   Unique     *node = makeNode(Unique);
   Plan     *plan = &node->plan;
   int     keyno = 0;
@@ -6930,6 +7330,7 @@ make_gather(List *qptlist,
             bool single_copy,
             Plan *subplan)
 {
+  DBUG_TRACE;
   Gather     *node = makeNode(Gather);
   Plan     *plan = &node->plan;
 
@@ -6956,6 +7357,7 @@ make_setop(SetOpCmd cmd, SetOpStrategy strategy,
            List *tlist, Plan *lefttree, Plan *righttree,
            List *groupList, long numGroups)
 {
+  DBUG_TRACE;
   SetOp    *node = makeNode(SetOp);
   Plan     *plan = &node->plan;
   int     numCols = list_length(groupList);
@@ -7016,6 +7418,7 @@ make_setop(SetOpCmd cmd, SetOpStrategy strategy,
 static LockRows *
 make_lockrows(Plan *lefttree, List *rowMarks, int epqParam)
 {
+  DBUG_TRACE;
   LockRows   *node = makeNode(LockRows);
   Plan     *plan = &node->plan;
 
@@ -7039,6 +7442,7 @@ make_limit(Plan *lefttree, Node *limitOffset, Node *limitCount,
            LimitOption limitOption, int uniqNumCols, AttrNumber *uniqColIdx,
            Oid *uniqOperators, Oid *uniqCollations)
 {
+  DBUG_TRACE;
   Limit    *node = makeNode(Limit);
   Plan     *plan = &node->plan;
 
@@ -7067,6 +7471,7 @@ make_result(List *tlist,
             Node *resconstantqual,
             Plan *subplan)
 {
+  DBUG_TRACE;
   Result     *node = makeNode(Result);
   Plan     *plan = &node->plan;
 
@@ -7087,6 +7492,7 @@ static ProjectSet *
 make_project_set(List *tlist,
                  Plan *subplan)
 {
+  DBUG_TRACE;
   ProjectSet *node = makeNode(ProjectSet);
   Plan     *plan = &node->plan;
 
@@ -7114,6 +7520,7 @@ make_modifytable(PlannerInfo *root, Plan *subplan,
                  List *mergeActionLists, List *mergeJoinConditions,
                  int epqParam)
 {
+  DBUG_TRACE;
   ModifyTable *node = makeNode(ModifyTable);
   bool    returning_old_or_new = false;
   bool    returning_old_or_new_valid = false;
@@ -7124,6 +7531,7 @@ make_modifytable(PlannerInfo *root, Plan *subplan,
   ListCell   *lc;
   int     i;
 
+  DBUG_PRINT("info", "build a ModifyTable plan node");
   Assert(operation == CMD_MERGE ||
          (operation == CMD_UPDATE ?
           list_length(resultRelations) == list_length(updateColnosLists) :
@@ -7225,6 +7633,7 @@ make_modifytable(PlannerInfo *root, Plan *subplan,
         if (unlikely((restrict_nonsystem_relation_kind & RESTRICT_RELKIND_FOREIGN_TABLE) != 0)) {
           /* there must not be built-in foreign tables */
           Assert(rte->relid >= FirstNormalObjectId);
+          DBUG_INSTANT_PRINT("info", "access to non-system foreign table is restricted");
           ereport(ERROR,
                   (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                    errmsg("access to non-system foreign table is restricted")));
@@ -7245,10 +7654,11 @@ make_modifytable(PlannerInfo *root, Plan *subplan,
     if (operation == CMD_MERGE && fdwroutine != NULL) {
       RangeTblEntry *rte = planner_rt_fetch(rti, root);
 
+      char *rel_name = get_rel_name(rte->relid);
+      DBUG_INSTANT_PRINT("info", "cannot execute MERGE on relation \"%s\"", rel_name);
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-              errmsg("cannot execute MERGE on relation \"%s\"",
-                     get_rel_name(rte->relid)),
+              errmsg("cannot execute MERGE on relation \"%s\"", rel_name),
               errdetail_relkind_not_supported(rte->relkind));
     }
 
@@ -7322,6 +7732,8 @@ make_modifytable(PlannerInfo *root, Plan *subplan,
 bool
 is_projection_capable_path(Path *path)
 {
+  DBUG_TRACE;
+
   /* Most plan types can project, so just list the ones that can't */
   switch (path->pathtype) {
     case T_Hash:
@@ -7336,12 +7748,16 @@ is_projection_capable_path(Path *path)
     case T_ModifyTable:
     case T_MergeAppend:
     case T_RecursiveUnion:
+      DBUG_PRINT("info", "return false");
       return false;
 
     case T_CustomScan:
-      if (castNode(CustomPath, path)->flags & CUSTOMPATH_SUPPORT_PROJECTION)
+      if (castNode(CustomPath, path)->flags & CUSTOMPATH_SUPPORT_PROJECTION) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
+      DBUG_PRINT("info", "return false");
       return false;
 
     case T_Append:
@@ -7361,12 +7777,14 @@ is_projection_capable_path(Path *path)
        * something else; the SRFs have to stay at top level.  This might
        * get relaxed later.
        */
+      DBUG_PRINT("info", "return false");
       return false;
 
     default:
       break;
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -7377,6 +7795,8 @@ is_projection_capable_path(Path *path)
 bool
 is_projection_capable_plan(Plan *plan)
 {
+  DBUG_TRACE;
+
   /* Most plan types can project, so just list the ones that can't */
   switch (nodeTag(plan)) {
     case T_Hash:
@@ -7391,12 +7811,16 @@ is_projection_capable_plan(Plan *plan)
     case T_Append:
     case T_MergeAppend:
     case T_RecursiveUnion:
+      DBUG_PRINT("info", "return false");
       return false;
 
     case T_CustomScan:
-      if (((CustomScan *) plan)->flags & CUSTOMPATH_SUPPORT_PROJECTION)
+      if (((CustomScan *) plan)->flags & CUSTOMPATH_SUPPORT_PROJECTION) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
+      DBUG_PRINT("info", "return false");
       return false;
 
     case T_ProjectSet:
@@ -7407,11 +7831,13 @@ is_projection_capable_plan(Plan *plan)
        * something else; the SRFs have to stay at top level.  This might
        * get relaxed later.
        */
+      DBUG_PRINT("info", "return false");
       return false;
 
     default:
       break;
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }

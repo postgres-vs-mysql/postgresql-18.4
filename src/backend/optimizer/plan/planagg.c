@@ -27,6 +27,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_aggregate.h"
@@ -72,6 +73,7 @@ static Oid  fetch_agg_sort_op(Oid aggfnoid);
 void
 preprocess_minmax_aggregates(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   FromExpr   *jtnode;
   RangeTblRef *rtr;
@@ -80,6 +82,7 @@ preprocess_minmax_aggregates(PlannerInfo *root)
   RelOptInfo *grouped_rel;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "preprocess MIN/MAX aggregates");
   /* minmax_aggs list should be empty at this point */
   Assert(root->minmax_aggs == NIL);
 
@@ -222,7 +225,7 @@ preprocess_minmax_aggregates(PlannerInfo *root)
    * doesn't need to change anymore, so making the pathtarget now is safe.
    */
   grouped_rel = fetch_upper_rel(root, UPPERREL_GROUP_AGG, NULL);
-  add_path(grouped_rel, (Path *)
+  add_path(root, grouped_rel, (Path *)
            create_minmaxagg_path(root, grouped_rel,
                                  create_pathtarget(root,
                                      root->processed_tlist),
@@ -241,7 +244,10 @@ preprocess_minmax_aggregates(PlannerInfo *root)
 static bool
 can_minmax_aggs(PlannerInfo *root, List **context)
 {
+  DBUG_TRACE;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "examine all the aggregates in the query, and check if they are all MIN/MAX aggregates");
 
   /*
    * This function used to have to scan the query for itself, but now we can
@@ -256,8 +262,10 @@ can_minmax_aggs(PlannerInfo *root, List **context)
 
     Assert(aggref->agglevelsup == 0);
 
-    if (list_length(aggref->args) != 1)
+    if (list_length(aggref->args) != 1) {
+      DBUG_PRINT("info", "it couldn't be MIN/MAX");
       return false;   /* it couldn't be MIN/MAX */
+    }
 
     /*
      * ORDER BY is usually irrelevant for MIN/MAX, but it can change the
@@ -272,8 +280,10 @@ can_minmax_aggs(PlannerInfo *root, List **context)
      * In any case, this test lets us reject ordered-set aggregates
      * quickly.
      */
-    if (aggref->aggorder != NIL)
+    if (aggref->aggorder != NIL) {
+      DBUG_PRINT("info", "reject ordered-set aggregate quickly");
       return false;
+    }
 
     /* note: we do not care if DISTINCT is mentioned ... */
 
@@ -282,24 +292,33 @@ can_minmax_aggs(PlannerInfo *root, List **context)
      * by adding the filter to the quals of the generated subquery.  For
      * now, just punt.
      */
-    if (aggref->aggfilter != NULL)
+    if (aggref->aggfilter != NULL) {
+      DBUG_PRINT("info", "reject when a FILTER clause is present");
       return false;
+    }
 
     aggsortop = fetch_agg_sort_op(aggref->aggfnoid);
 
-    if (!OidIsValid(aggsortop))
+    if (!OidIsValid(aggsortop)) {
+      DBUG_PRINT("info", "not a MIN/MAX aggregate");
       return false;   /* not a MIN/MAX aggregate */
+    }
 
     curTarget = (TargetEntry *) linitial(aggref->args);
 
-    if (contain_mutable_functions((Node *) curTarget->expr))
+    if (contain_mutable_functions((Node *) curTarget->expr)) {
+      DBUG_PRINT("info", "not potentially indexable");
       return false;   /* not potentially indexable */
+    }
 
-    if (type_is_rowtype(exprType((Node *) curTarget->expr)))
+    if (type_is_rowtype(exprType((Node *) curTarget->expr))) {
+      DBUG_PRINT("info", "IS NOT NULL would have weird semantics");
       return false;   /* IS NOT NULL would have weird semantics */
+    }
 
     mminfo = makeNode(MinMaxAggInfo);
     mminfo->aggfnoid = aggref->aggfnoid;
+    DBUG_PRINT("info", "set aggfnoid:%d", aggref->aggfnoid);
     mminfo->aggsortop = aggsortop;
     mminfo->target = curTarget->expr;
     mminfo->subroot = NULL; /* don't compute path yet */
@@ -325,6 +344,7 @@ static bool
 build_minmax_path(PlannerInfo *root, MinMaxAggInfo *mminfo,
                   Oid eqop, Oid sortop, bool reverse_sort, bool nulls_first)
 {
+  DBUG_TRACE;
   PlannerInfo *subroot;
   Query    *parse;
   TargetEntry *tle;
@@ -488,6 +508,7 @@ build_minmax_path(PlannerInfo *root, MinMaxAggInfo *mminfo,
 static void
 minmax_qp_callback(PlannerInfo *root, void *extra)
 {
+  DBUG_TRACE;
   root->group_pathkeys = NIL;
   root->window_pathkeys = NIL;
   root->distinct_pathkeys = NIL;
@@ -507,6 +528,7 @@ minmax_qp_callback(PlannerInfo *root, void *extra)
 static Oid
 fetch_agg_sort_op(Oid aggfnoid)
 {
+  DBUG_TRACE;
   HeapTuple aggTuple;
   Form_pg_aggregate aggform;
   Oid     aggsortop;
@@ -521,5 +543,6 @@ fetch_agg_sort_op(Oid aggfnoid)
   aggsortop = aggform->aggsortop;
   ReleaseSysCache(aggTuple);
 
+  DBUG_PRINT("info", "get the OID of the sort operator:%d", aggsortop);
   return aggsortop;
 }

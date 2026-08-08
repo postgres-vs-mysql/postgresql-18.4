@@ -10,6 +10,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/table.h"
@@ -41,6 +42,7 @@ do {                              \
 Datum
 binary_upgrade_set_next_pg_tablespace_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tbspoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -52,6 +54,7 @@ binary_upgrade_set_next_pg_tablespace_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_pg_type_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -63,6 +66,7 @@ binary_upgrade_set_next_pg_type_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_array_pg_type_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -74,6 +78,7 @@ binary_upgrade_set_next_array_pg_type_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_multirange_pg_type_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -85,6 +90,7 @@ binary_upgrade_set_next_multirange_pg_type_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_multirange_array_pg_type_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -96,6 +102,7 @@ binary_upgrade_set_next_multirange_array_pg_type_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_heap_pg_class_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -107,6 +114,7 @@ binary_upgrade_set_next_heap_pg_class_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_heap_relfilenode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RelFileNumber relfilenumber = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -118,6 +126,7 @@ binary_upgrade_set_next_heap_relfilenode(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_index_pg_class_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -129,6 +138,7 @@ binary_upgrade_set_next_index_pg_class_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_index_relfilenode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RelFileNumber relfilenumber = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -140,6 +150,7 @@ binary_upgrade_set_next_index_relfilenode(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_toast_pg_class_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -151,6 +162,7 @@ binary_upgrade_set_next_toast_pg_class_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_toast_relfilenode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RelFileNumber relfilenumber = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -162,6 +174,7 @@ binary_upgrade_set_next_toast_relfilenode(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_pg_enum_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -173,6 +186,7 @@ binary_upgrade_set_next_pg_enum_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_next_pg_authid_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     authoid = PG_GETARG_OID(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -183,6 +197,7 @@ binary_upgrade_set_next_pg_authid_oid(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_create_empty_extension(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *extName;
   text     *schemaName;
   bool    relocatable;
@@ -248,6 +263,7 @@ binary_upgrade_create_empty_extension(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_record_init_privs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    record_init_privs = PG_GETARG_BOOL(0);
 
   CHECK_IS_BINARY_UPGRADE;
@@ -259,6 +275,7 @@ binary_upgrade_set_record_init_privs(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_set_missing_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     table_id = PG_GETARG_OID(0);
   text     *attname = PG_GETARG_TEXT_P(1);
   text     *value = PG_GETARG_TEXT_P(2);
@@ -283,6 +300,7 @@ binary_upgrade_set_missing_value(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_logical_slot_has_caught_up(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    slot_name;
   XLogRecPtr  end_of_wal;
   bool    found_pending_wal;
@@ -323,6 +341,7 @@ binary_upgrade_logical_slot_has_caught_up(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_add_sub_rel_state(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Relation  subrel;
   Relation  rel;
   Oid     subid;
@@ -367,6 +386,7 @@ binary_upgrade_add_sub_rel_state(PG_FUNCTION_ARGS)
 Datum
 binary_upgrade_replorigin_advance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Relation  rel;
   Oid     subid;
   char     *subname;

@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_operator.h"
 #include "catalog/pg_proc.h"
@@ -150,6 +151,7 @@ bool
 predicate_implied_by(List *predicate_list, List *clause_list,
                      bool weak)
 {
+  DBUG_TRACE;
   Node     *p,
            *c;
 
@@ -222,14 +224,20 @@ bool
 predicate_refuted_by(List *predicate_list, List *clause_list,
                      bool weak)
 {
+  DBUG_TRACE;
   Node     *p,
            *c;
+  bool result;
 
-  if (predicate_list == NIL)
+  if (predicate_list == NIL) {
+    DBUG_PRINT("info", "no predicate: no refutation is possible");
     return false;     /* no predicate: no refutation is possible */
+  }
 
-  if (clause_list == NIL)
+  if (clause_list == NIL) {
+    DBUG_PRINT("info", "no restriction: refutation must fail");
     return false;     /* no restriction: refutation must fail */
+  }
 
   /*
    * If either input is a single-element list, replace it with its lone
@@ -248,7 +256,15 @@ predicate_refuted_by(List *predicate_list, List *clause_list,
     c = (Node *) clause_list;
 
   /* And away we go ... */
-  return predicate_refuted_by_recurse(c, p, weak);
+  result = predicate_refuted_by_recurse(c, p, weak);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  return result;
 }
 
 /*----------
@@ -292,6 +308,7 @@ static bool
 predicate_implied_by_recurse(Node *clause, Node *predicate,
                              bool weak)
 {
+  DBUG_TRACE;
   PredIterInfoData clause_info;
   PredIterInfoData pred_info;
   PredClass pclass;
@@ -517,6 +534,7 @@ static bool
 predicate_refuted_by_recurse(Node *clause, Node *predicate,
                              bool weak)
 {
+  DBUG_TRACE;
   PredIterInfoData clause_info;
   PredIterInfoData pred_info;
   PredClass pclass;
@@ -551,8 +569,10 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
           }
           iterate_end(pred_info);
 
-          if (result)
+          if (result) {
+            DBUG_PRINT("info", "return true");
             return result;
+          }
 
           /*
            * Also check if any of A's items refutes B
@@ -567,6 +587,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(clause_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_OR:
@@ -583,6 +610,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(pred_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_ATOM:
@@ -601,8 +635,10 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
 
           if (not_arg &&
               predicate_implied_by_recurse(clause, not_arg,
-                                           false))
+                                           false)) {
+            DBUG_PRINT("info", "return true");
             return true;
+          }
 
           /*
            * AND-clause R=> atom if any of A's items refutes B
@@ -616,6 +652,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(clause_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
       }
 
@@ -637,6 +680,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(pred_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_AND:
@@ -664,6 +714,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(clause_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_ATOM:
@@ -677,8 +734,10 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
 
           if (not_arg &&
               predicate_implied_by_recurse(clause, not_arg,
-                                           false))
+                                           false)) {
+            DBUG_PRINT("info", "return true");
             return true;
+          }
 
           /*
            * OR-clause R=> atom if each of A's items refutes B
@@ -692,6 +751,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(clause_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
       }
 
@@ -712,8 +778,10 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
 
       if (not_arg &&
           predicate_implied_by_recurse(predicate, not_arg,
-                                       !weak))
+                                       !weak)) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
       switch (pclass) {
         case CLASS_AND:
@@ -730,6 +798,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(pred_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_OR:
@@ -746,6 +821,13 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
             }
           }
           iterate_end(pred_info);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
+
           return result;
 
         case CLASS_ATOM:
@@ -759,16 +841,23 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
 
           if (not_arg &&
               predicate_implied_by_recurse(clause, not_arg,
-                                           false))
+                                           false)) {
+            DBUG_PRINT("info", "return true");
             return true;
+          }
+
+          result =  predicate_refuted_by_simple_clause((Expr *) predicate, clause, weak);
+
+          if (result) {
+            DBUG_PRINT("info", "return true");
+          } else {
+            DBUG_PRINT("info", "return false");
+          }
 
           /*
            * atom R=> atom is the base case
            */
-          return
-            predicate_refuted_by_simple_clause((Expr *) predicate,
-                                               clause,
-                                               weak);
+          return result;
       }
 
       break;
@@ -797,6 +886,7 @@ predicate_refuted_by_recurse(Node *clause, Node *predicate,
 static PredClass
 predicate_classify(Node *clause, PredIterInfo info)
 {
+  DBUG_TRACE;
   /* Caller should not pass us NULL, nor a RestrictInfo clause */
   Assert(clause != NULL);
   Assert(!IsA(clause, RestrictInfo));
@@ -806,6 +896,7 @@ predicate_classify(Node *clause, PredIterInfo info)
    * semantics for lists of RestrictInfo nodes.
    */
   if (IsA(clause, List)) {
+    DBUG_PRINT("info", "we see a List and assume it's an implicit-AND list");
     info->startup_fn = list_startup_fn;
     info->next_fn = list_next_fn;
     info->cleanup_fn = list_cleanup_fn;
@@ -814,6 +905,7 @@ predicate_classify(Node *clause, PredIterInfo info)
 
   /* Handle normal AND and OR boolean clauses */
   if (is_andclause(clause)) {
+    DBUG_PRINT("info", "handle normal AND boolean clauses");
     info->startup_fn = boolexpr_startup_fn;
     info->next_fn = list_next_fn;
     info->cleanup_fn = list_cleanup_fn;
@@ -821,6 +913,7 @@ predicate_classify(Node *clause, PredIterInfo info)
   }
 
   if (is_orclause(clause)) {
+    DBUG_PRINT("info", "handle normal OR boolean clauses");
     info->startup_fn = boolexpr_startup_fn;
     info->next_fn = list_next_fn;
     info->cleanup_fn = list_cleanup_fn;
@@ -831,6 +924,8 @@ predicate_classify(Node *clause, PredIterInfo info)
   if (IsA(clause, ScalarArrayOpExpr)) {
     ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) clause;
     Node     *arraynode = (Node *) lsecond(saop->args);
+
+    DBUG_PRINT("info", "handle ScalarArrayOpExpr");
 
     /*
      * We can break this down into an AND or OR structure, but only if we
@@ -862,6 +957,7 @@ predicate_classify(Node *clause, PredIterInfo info)
     }
   }
 
+  DBUG_PRINT("info", "none of the above, so it's an atom");
   /* None of the above, so it's an atom */
   return CLASS_ATOM;
 }
@@ -924,6 +1020,7 @@ typedef struct {
 static void
 arrayconst_startup_fn(Node *clause, PredIterInfo info)
 {
+  DBUG_TRACE;
   ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) clause;
   ArrayConstIterState *state;
   Const    *arrayconst;
@@ -973,6 +1070,7 @@ arrayconst_startup_fn(Node *clause, PredIterInfo info)
 static Node *
 arrayconst_next_fn(PredIterInfo info)
 {
+  DBUG_TRACE;
   ArrayConstIterState *state = (ArrayConstIterState *) info->state;
 
   if (state->next_elem >= state->num_elems)
@@ -987,6 +1085,7 @@ arrayconst_next_fn(PredIterInfo info)
 static void
 arrayconst_cleanup_fn(PredIterInfo info)
 {
+  DBUG_TRACE;
   ArrayConstIterState *state = (ArrayConstIterState *) info->state;
 
   pfree(state->elem_values);
@@ -1007,6 +1106,7 @@ typedef struct {
 static void
 arrayexpr_startup_fn(Node *clause, PredIterInfo info)
 {
+  DBUG_TRACE;
   ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) clause;
   ArrayExprIterState *state;
   ArrayExpr  *arrayexpr;
@@ -1034,6 +1134,7 @@ arrayexpr_startup_fn(Node *clause, PredIterInfo info)
 static Node *
 arrayexpr_next_fn(PredIterInfo info)
 {
+  DBUG_TRACE;
   ArrayExprIterState *state = (ArrayExprIterState *) info->state;
 
   if (state->next == NULL)
@@ -1047,6 +1148,7 @@ arrayexpr_next_fn(PredIterInfo info)
 static void
 arrayexpr_cleanup_fn(PredIterInfo info)
 {
+  DBUG_TRACE;
   ArrayExprIterState *state = (ArrayExprIterState *) info->state;
 
   list_free(state->opexpr.args);
@@ -1065,6 +1167,7 @@ static bool
 predicate_implied_by_simple_clause(Expr *predicate, Node *clause,
                                    bool weak)
 {
+  DBUG_TRACE;
   /* Allow interrupting long proof attempts */
   CHECK_FOR_INTERRUPTS();
 
@@ -1187,6 +1290,7 @@ static bool
 predicate_refuted_by_simple_clause(Expr *predicate, Node *clause,
                                    bool weak)
 {
+  DBUG_TRACE;
   /* Allow interrupting long proof attempts */
   CHECK_FOR_INTERRUPTS();
 
@@ -1413,6 +1517,7 @@ extract_strong_not_arg(Node *clause)
 static bool
 clause_is_strict_for(Node *clause, Node *subexpr, bool allow_false)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* safety checks */
@@ -1731,6 +1836,7 @@ static bool
 operator_predicate_proof(Expr *predicate, Node *clause,
                          bool refute_it, bool weak)
 {
+  DBUG_TRACE;
   OpExpr     *pred_opexpr,
              *clause_opexpr;
   Oid     pred_collation,
@@ -1993,6 +2099,8 @@ operator_predicate_proof(Expr *predicate, Node *clause,
 static bool
 operator_same_subexprs_proof(Oid pred_op, Oid clause_op, bool refute_it)
 {
+  DBUG_TRACE;
+
   /*
    * A simple and general rule is that the predicate is proven if clause_op
    * and pred_op are the same, or refuted if they are each other's negators.
@@ -2057,6 +2165,7 @@ static HTAB *OprProofCacheHash = NULL;
 static OprProofCacheEntry *
 lookup_proof_cache(Oid pred_op, Oid clause_op, bool refute_it)
 {
+  DBUG_TRACE;
   OprProofCacheKey key;
   OprProofCacheEntry *cache_entry;
   bool    cfound;
@@ -2250,6 +2359,7 @@ lookup_proof_cache(Oid pred_op, Oid clause_op, bool refute_it)
 static bool
 operator_same_subexprs_lookup(Oid pred_op, Oid clause_op, bool refute_it)
 {
+  DBUG_TRACE;
   OprProofCacheEntry *cache_entry;
 
   cache_entry = lookup_proof_cache(pred_op, clause_op, refute_it);
@@ -2276,6 +2386,7 @@ operator_same_subexprs_lookup(Oid pred_op, Oid clause_op, bool refute_it)
 static Oid
 get_btree_test_op(Oid pred_op, Oid clause_op, bool refute_it)
 {
+  DBUG_TRACE;
   OprProofCacheEntry *cache_entry;
 
   cache_entry = lookup_proof_cache(pred_op, clause_op, refute_it);
@@ -2293,6 +2404,7 @@ get_btree_test_op(Oid pred_op, Oid clause_op, bool refute_it)
 static void
 InvalidateOprProofCacheCallBack(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   OprProofCacheEntry *hentry;
 

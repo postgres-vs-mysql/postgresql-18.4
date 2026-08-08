@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/tupmacs.h"
@@ -49,6 +50,7 @@ Datum
 expand_array(Datum arraydatum, MemoryContext parentcontext,
              ArrayMetaState *metacache)
 {
+  DBUG_TRACE;
   ArrayType  *array;
   ExpandedArrayHeader *eah;
   MemoryContext objcxt;
@@ -181,6 +183,7 @@ static void
 copy_byval_expanded_array(ExpandedArrayHeader *eah,
                           ExpandedArrayHeader *oldeah)
 {
+  DBUG_TRACE;
   MemoryContext objcxt = eah->hdr.eoh_context;
   int     ndims = oldeah->ndims;
   int     dvalueslen = oldeah->dvalueslen;
@@ -228,6 +231,7 @@ copy_byval_expanded_array(ExpandedArrayHeader *eah,
 static Size
 EA_get_flat_size(ExpandedObjectHeader *eohptr)
 {
+  DBUG_TRACE;
   ExpandedArrayHeader *eah = (ExpandedArrayHeader *) eohptr;
   int     nelems;
   int     ndims;
@@ -291,6 +295,7 @@ static void
 EA_flatten_into(ExpandedObjectHeader *eohptr,
                 void *result, Size allocated_size)
 {
+  DBUG_TRACE;
   ExpandedArrayHeader *eah = (ExpandedArrayHeader *) eohptr;
   ArrayType  *aresult = (ArrayType *) result;
   int     nelems;
@@ -348,6 +353,8 @@ EA_flatten_into(ExpandedObjectHeader *eohptr,
 ExpandedArrayHeader *
 DatumGetExpandedArray(Datum d)
 {
+  DBUG_TRACE;
+
   /* If it's a writable expanded array already, just return it */
   if (VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d))) {
     ExpandedArrayHeader *eah = (ExpandedArrayHeader *) DatumGetEOHP(d);
@@ -367,6 +374,8 @@ DatumGetExpandedArray(Datum d)
 ExpandedArrayHeader *
 DatumGetExpandedArrayX(Datum d, ArrayMetaState *metacache)
 {
+  DBUG_TRACE;
+
   /* If it's a writable expanded array already, just return it */
   if (VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d))) {
     ExpandedArrayHeader *eah = (ExpandedArrayHeader *) DatumGetEOHP(d);
@@ -396,6 +405,7 @@ DatumGetExpandedArrayX(Datum d, ArrayMetaState *metacache)
 AnyArrayType *
 DatumGetAnyArrayP(Datum d)
 {
+  DBUG_TRACE;
   ExpandedArrayHeader *eah;
 
   /*
@@ -418,6 +428,8 @@ DatumGetAnyArrayP(Datum d)
 void
 deconstruct_expanded_array(ExpandedArrayHeader *eah)
 {
+  DBUG_TRACE;
+
   if (eah->dvalues == NULL) {
     MemoryContext oldcxt = MemoryContextSwitchTo(eah->hdr.eoh_context);
     Datum    *dvalues;

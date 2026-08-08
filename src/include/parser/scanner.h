@@ -26,8 +26,7 @@
  * Note that this is a subset of the fields used in YYSTYPE of the bison
  * parsers built atop the scanner.
  */
-typedef union core_YYSTYPE
-{
+typedef union core_YYSTYPE {
   int     ival;     /* for integer literals */
   char     *str;      /* for identifiers and non-integer literals */
   const char *keyword;    /* canonical spelling of keywords */

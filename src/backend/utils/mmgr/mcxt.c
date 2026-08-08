@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "common/int.h"
@@ -345,8 +346,10 @@ BogusGetChunkSpace(void *pointer)
 void
 MemoryContextInit(void)
 {
+  DBUG_TRACE;
   Assert(TopMemoryContext == NULL);
 
+  DBUG_PRINT("info", "start up the memory-context subsystem");
   /*
    * First, initialize TopMemoryContext, which is the parent of all others.
    */

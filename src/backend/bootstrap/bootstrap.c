@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -245,6 +246,7 @@ CheckerModeMain(void)
 void
 BootstrapModeMain(int argc, char *argv[], bool check_only)
 {
+  DBUG_TRACE;
   int     i;
   char     *progname = argv[0];
   int     flag;
@@ -368,6 +370,7 @@ BootstrapModeMain(int argc, char *argv[], bool check_only)
   checkDataDir();
   ChangeToDataDir();
 
+  DBUG_PRINT("info", "create lockfile for data directory");
   CreateDataDirLockFile(false);
 
   SetProcessingMode(BootstrapProcessing);
@@ -461,6 +464,7 @@ BootstrapModeMain(int argc, char *argv[], bool check_only)
 static void
 bootstrap_signals(void)
 {
+  DBUG_TRACE;
   Assert(!IsUnderPostmaster);
 
   /*
@@ -488,6 +492,7 @@ bootstrap_signals(void)
 void
 boot_openrel(char *relname)
 {
+  DBUG_TRACE;
   int     i;
 
   if (strlen(relname) >= NAMEDATALEN)
@@ -503,6 +508,7 @@ boot_openrel(char *relname)
   if (boot_reldesc != NULL)
     closerel(NULL);
 
+  DBUG_PRINT("info", "open relation %s, attrsize %d", relname, (int) ATTRIBUTE_FIXED_PART_SIZE);
   elog(DEBUG4, "open relation %s, attrsize %d",
        relname, (int) ATTRIBUTE_FIXED_PART_SIZE);
 
@@ -520,6 +526,8 @@ boot_openrel(char *relname)
     {
       Form_pg_attribute at = attrtypes[i];
 
+      DBUG_PRINT("info", "create attribute %d name %s len %d num %d type %u",
+                 i, NameStr(at->attname), at->attlen, at->attnum, at->atttypid);
       elog(DEBUG4, "create attribute %d name %s len %d num %d type %u",
            i, NameStr(at->attname), at->attlen, at->attnum,
            at->atttypid);
@@ -534,21 +542,31 @@ boot_openrel(char *relname)
 void
 closerel(char *relname)
 {
+  DBUG_TRACE;
+  char *name_str;
+
   if (relname) {
     if (boot_reldesc) {
-      if (strcmp(RelationGetRelationName(boot_reldesc), relname) != 0)
+      if (strcmp(RelationGetRelationName(boot_reldesc), relname) != 0) {
+        name_str = RelationGetRelationName(boot_reldesc);
+        DBUG_PRINT("info", "close of %s when %s was expected", relname, name_str);
         elog(ERROR, "close of %s when %s was expected",
-             relname, RelationGetRelationName(boot_reldesc));
-    } else
+             relname, name_str);
+      }
+    } else {
+      DBUG_PRINT("info", "close of %s before any relation was opened", relname);
       elog(ERROR, "close of %s before any relation was opened",
            relname);
+    }
   }
 
-  if (boot_reldesc == NULL)
+  if (boot_reldesc == NULL) {
+    DBUG_PRINT("info", "no open relation to close");
     elog(ERROR, "no open relation to close");
-  else {
-    elog(DEBUG4, "close relation %s",
-         RelationGetRelationName(boot_reldesc));
+  } else {
+    name_str = RelationGetRelationName(boot_reldesc);
+    elog(DEBUG4, "close relation %s", name_str);
+    DBUG_PRINT("info", "close relation %s", name_str);
     table_close(boot_reldesc, NoLock);
     boot_reldesc = NULL;
   }
@@ -567,9 +585,11 @@ closerel(char *relname)
 void
 DefineAttr(char *name, char *type, int attnum, int nullness)
 {
+  DBUG_TRACE;
   Oid     typeoid;
 
   if (boot_reldesc != NULL) {
+    DBUG_PRINT("info", "no open relations allowed with CREATE command");
     elog(WARNING, "no open relations allowed with CREATE command");
     closerel(NULL);
   }
@@ -580,6 +600,7 @@ DefineAttr(char *name, char *type, int attnum, int nullness)
   MemSet(attrtypes[attnum], 0, ATTRIBUTE_FIXED_PART_SIZE);
 
   namestrcpy(&attrtypes[attnum]->attname, name);
+  DBUG_PRINT("info", "column %s %s", NameStr(attrtypes[attnum]->attname), type);
   elog(DEBUG4, "column %s %s", NameStr(attrtypes[attnum]->attname), type);
   attrtypes[attnum]->attnum = attnum + 1;
 
@@ -667,11 +688,13 @@ DefineAttr(char *name, char *type, int attnum, int nullness)
 void
 InsertOneTuple(void)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   TupleDesc tupDesc;
   int     i;
 
   elog(DEBUG4, "inserting row with %d columns", numattr);
+  DBUG_PRINT("info", "inserting row with %d columns", numattr);
 
   tupDesc = CreateTupleDesc(numattr, attrtypes);
   tuple = heap_form_tuple(tupDesc, values, Nulls);
@@ -695,6 +718,7 @@ InsertOneTuple(void)
 void
 InsertOneValue(char *value, int i)
 {
+  DBUG_TRACE;
   Oid     typoid;
   int16   typlen;
   bool    typbyval;
@@ -707,6 +731,7 @@ InsertOneValue(char *value, int i)
   Assert(i >= 0 && i < MAXATTR);
 
   elog(DEBUG4, "inserting column %d value \"%s\"", i, value);
+  DBUG_PRINT("info", "inserting column %d value \"%s\"", i, value);
 
   typoid = TupleDescAttr(boot_reldesc->rd_att, i)->atttypid;
 
@@ -733,7 +758,9 @@ InsertOneValue(char *value, int i)
 void
 InsertOneNull(int i)
 {
+  DBUG_TRACE;
   elog(DEBUG4, "inserting column %d NULL", i);
+  DBUG_PRINT("info", "inserting column %d NULL", i);
   Assert(i >= 0 && i < MAXATTR);
 
   if (TupleDescAttr(boot_reldesc->rd_att, i)->attnotnull)
@@ -753,6 +780,8 @@ InsertOneNull(int i)
 static void
 cleanup(void)
 {
+  DBUG_TRACE;
+
   if (boot_reldesc != NULL)
     closerel(NULL);
 }
@@ -766,6 +795,7 @@ cleanup(void)
 static void
 populate_typ_list(void)
 {
+  DBUG_TRACE;
   Relation  rel;
   TableScanDesc scan;
   HeapTuple tup;
@@ -807,6 +837,8 @@ populate_typ_list(void)
 static Oid
 gettype(char *type)
 {
+  DBUG_TRACE;
+
   if (Typ != NIL) {
     ListCell   *lc;
 
@@ -815,6 +847,7 @@ gettype(char *type)
 
       if (strncmp(NameStr(app->am_typ.typname), type, NAMEDATALEN) == 0) {
         Ap = app;
+        DBUG_PRINT("info", "oid:%u for type: %s", app->am_oid, type);
         return app->am_oid;
       }
     }
@@ -837,6 +870,7 @@ gettype(char *type)
 
       if (strncmp(NameStr(app->am_typ.typname), type, NAMEDATALEN) == 0) {
         Ap = app;
+        DBUG_PRINT("info", "oid:%u for type: %s", app->am_oid, type);
         return app->am_oid;
       }
     }
@@ -844,12 +878,15 @@ gettype(char *type)
     int     i;
 
     for (i = 0; i < n_types; i++) {
-      if (strncmp(type, TypInfo[i].name, NAMEDATALEN) == 0)
+      if (strncmp(type, TypInfo[i].name, NAMEDATALEN) == 0) {
+        DBUG_PRINT("info", "oid:%d for type: %s", i, type);
         return i;
+      }
     }
 
     /* Not in TypInfo, so we'd better be able to read pg_type now */
     elog(DEBUG4, "external type: %s", type);
+    DBUG_PRINT("info", "external type: %s", type);
     populate_typ_list();
     return gettype(type);
   }
@@ -879,6 +916,8 @@ boot_get_type_io_data(Oid typid,
                       Oid *typinput,
                       Oid *typoutput)
 {
+  DBUG_TRACE;
+
   if (Typ != NIL) {
     /* We have the boot-time contents of pg_type, so use it */
     struct typmap *ap = NULL;
@@ -966,6 +1005,7 @@ index_register(Oid heap,
                Oid ind,
                const IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexList  *newind;
   MemoryContext oldcxt;
 
@@ -980,6 +1020,7 @@ index_register(Oid heap,
                                  "BootstrapNoGC",
                                  ALLOCSET_DEFAULT_SIZES);
 
+  DBUG_PRINT("info", "record an index that has been set up for building later");
   oldcxt = MemoryContextSwitchTo(nogc);
 
   newind = (IndexList *) palloc(sizeof(IndexList));
@@ -1014,6 +1055,8 @@ index_register(Oid heap,
 void
 build_indices(void)
 {
+  DBUG_TRACE;
+
   for (; ILHead != NULL; ILHead = ILHead->il_next) {
     Relation  heap;
     Relation  ind;

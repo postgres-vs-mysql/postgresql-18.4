@@ -135,6 +135,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/stat.h>
@@ -540,6 +541,7 @@ end_replication_step(void)
 static bool
 handle_streamed_transaction(LogicalRepMsgType action, StringInfo s)
 {
+  DBUG_TRACE;
   TransactionId current_xid;
   ParallelApplyWorkerInfo *winfo;
   TransApplyAction apply_action;
@@ -632,6 +634,7 @@ handle_streamed_transaction(LogicalRepMsgType action, StringInfo s)
 static ApplyExecutionData *
 create_edata_for_relation(LogicalRepRelMapEntry *rel)
 {
+  DBUG_TRACE;
   ApplyExecutionData *edata;
   EState     *estate;
   RangeTblEntry *rte;
@@ -690,6 +693,7 @@ create_edata_for_relation(LogicalRepRelMapEntry *rel)
 static void
 finish_edata(ApplyExecutionData *edata)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
 
   /* Handle any queued AFTER triggers. */
@@ -722,6 +726,7 @@ static void
 slot_fill_defaults(LogicalRepRelMapEntry *rel, EState *estate,
                    TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   TupleDesc desc = RelationGetDescr(rel->localrel);
   int     num_phys_attrs = desc->natts;
   int     i;
@@ -778,6 +783,7 @@ static void
 slot_store_data(TupleTableSlot *slot, LogicalRepRelMapEntry *rel,
                 LogicalRepTupleData *tupleData)
 {
+  DBUG_TRACE;
   int     natts = slot->tts_tupleDescriptor->natts;
   int     i;
 
@@ -873,6 +879,7 @@ slot_modify_data(TupleTableSlot *slot, TupleTableSlot *srcslot,
                  LogicalRepRelMapEntry *rel,
                  LogicalRepTupleData *tupleData)
 {
+  DBUG_TRACE;
   int     natts = slot->tts_tupleDescriptor->natts;
   int     i;
 
@@ -959,6 +966,7 @@ slot_modify_data(TupleTableSlot *slot, TupleTableSlot *srcslot,
 static void
 apply_handle_begin(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepBeginData begin_data;
 
   /* There must not be an active streaming transaction. */
@@ -984,6 +992,7 @@ apply_handle_begin(StringInfo s)
 static void
 apply_handle_commit(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepCommitData commit_data;
 
   logicalrep_read_commit(s, &commit_data);
@@ -1010,6 +1019,7 @@ apply_handle_commit(StringInfo s)
 static void
 apply_handle_begin_prepare(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepPreparedTxnData begin_data;
 
   /* Tablesync should never receive prepare. */
@@ -1039,6 +1049,7 @@ apply_handle_begin_prepare(StringInfo s)
 static void
 apply_handle_prepare_internal(LogicalRepPreparedTxnData *prepare_data)
 {
+  DBUG_TRACE;
   char    gid[GIDSIZE];
 
   /*
@@ -1075,6 +1086,7 @@ apply_handle_prepare_internal(LogicalRepPreparedTxnData *prepare_data)
 static void
 apply_handle_prepare(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepPreparedTxnData prepare_data;
 
   logicalrep_read_prepare(s, &prepare_data);
@@ -1146,6 +1158,7 @@ apply_handle_prepare(StringInfo s)
 static void
 apply_handle_commit_prepared(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepCommitPreparedTxnData prepare_data;
   char    gid[GIDSIZE];
 
@@ -1195,6 +1208,7 @@ apply_handle_commit_prepared(StringInfo s)
 static void
 apply_handle_rollback_prepared(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepRollbackPreparedTxnData rollback_data;
   char    gid[GIDSIZE];
 
@@ -1252,6 +1266,7 @@ apply_handle_rollback_prepared(StringInfo s)
 static void
 apply_handle_stream_prepare(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepPreparedTxnData prepare_data;
   ParallelApplyWorkerInfo *winfo;
   TransApplyAction apply_action;
@@ -1395,6 +1410,8 @@ apply_handle_stream_prepare(StringInfo s)
 static void
 apply_handle_origin(StringInfo s)
 {
+  DBUG_TRACE;
+
   /*
    * ORIGIN message can only come inside streaming transaction or inside
    * remote transaction and before any actual writes.
@@ -1416,6 +1433,7 @@ apply_handle_origin(StringInfo s)
 void
 stream_start_internal(TransactionId xid, bool first_segment)
 {
+  DBUG_TRACE;
   begin_replication_step();
 
   /*
@@ -1453,6 +1471,7 @@ stream_start_internal(TransactionId xid, bool first_segment)
 static void
 apply_handle_stream_start(StringInfo s)
 {
+  DBUG_TRACE;
   bool    first_segment;
   ParallelApplyWorkerInfo *winfo;
   TransApplyAction apply_action;
@@ -1586,6 +1605,7 @@ apply_handle_stream_start(StringInfo s)
 void
 stream_stop_internal(TransactionId xid)
 {
+  DBUG_TRACE;
   /*
    * Serialize information about subxacts for the toplevel transaction, then
    * close the stream messages spool file.
@@ -1609,6 +1629,7 @@ stream_stop_internal(TransactionId xid)
 static void
 apply_handle_stream_stop(StringInfo s)
 {
+  DBUG_TRACE;
   ParallelApplyWorkerInfo *winfo;
   TransApplyAction apply_action;
 
@@ -1710,6 +1731,8 @@ apply_handle_stream_stop(StringInfo s)
 static void
 stream_abort_internal(TransactionId xid, TransactionId subxid)
 {
+  DBUG_TRACE;
+
   /*
    * If the two XIDs are the same, it's in fact abort of toplevel xact, so
    * just delete the files with serialized info.
@@ -1789,6 +1812,7 @@ stream_abort_internal(TransactionId xid, TransactionId subxid)
 static void
 apply_handle_stream_abort(StringInfo s)
 {
+  DBUG_TRACE;
   TransactionId xid;
   TransactionId subxid;
   LogicalRepStreamAbortData abort_data;
@@ -1944,6 +1968,7 @@ static void
 ensure_last_message(FileSet *stream_fileset, TransactionId xid, int fileno,
                     off_t offset)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   BufFile    *fd;
   int     last_fileno;
@@ -1976,6 +2001,7 @@ void
 apply_spooled_messages(FileSet *stream_fileset, TransactionId xid,
                        XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   int     nchanges;
   char    path[MAXPGPATH];
   char     *buffer = NULL;
@@ -2104,6 +2130,7 @@ apply_spooled_messages(FileSet *stream_fileset, TransactionId xid,
 static void
 apply_handle_stream_commit(StringInfo s)
 {
+  DBUG_TRACE;
   TransactionId xid;
   LogicalRepCommitData commit_data;
   ParallelApplyWorkerInfo *winfo;
@@ -2212,6 +2239,8 @@ apply_handle_stream_commit(StringInfo s)
 static void
 apply_handle_commit_internal(LogicalRepCommitData *commit_data)
 {
+  DBUG_TRACE;
+
   if (is_skipping_changes()) {
     stop_skipping_changes();
 
@@ -2267,6 +2296,7 @@ apply_handle_commit_internal(LogicalRepCommitData *commit_data)
 static void
 apply_handle_relation(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepRelation *rel;
 
   if (handle_streamed_transaction(LOGICAL_REP_MSG_RELATION, s))
@@ -2290,6 +2320,7 @@ apply_handle_relation(StringInfo s)
 static void
 apply_handle_type(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepTyp typ;
 
   if (handle_streamed_transaction(LOGICAL_REP_MSG_TYPE, s))
@@ -2305,6 +2336,7 @@ apply_handle_type(StringInfo s)
 static void
 TargetPrivilegesCheck(Relation rel, AclMode mode)
 {
+  DBUG_TRACE;
   Oid     relid;
   AclResult aclresult;
 
@@ -2338,6 +2370,7 @@ TargetPrivilegesCheck(Relation rel, AclMode mode)
 static void
 apply_handle_insert(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepRelMapEntry *rel;
   LogicalRepTupleData newtup;
   LogicalRepRelId relid;
@@ -2431,6 +2464,7 @@ apply_handle_insert_internal(ApplyExecutionData *edata,
                              ResultRelInfo *relinfo,
                              TupleTableSlot *remoteslot)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
 
   /* Caller should have opened indexes already. */
@@ -2454,6 +2488,8 @@ apply_handle_insert_internal(ApplyExecutionData *edata,
 static void
 check_relation_updatable(LogicalRepRelMapEntry *rel)
 {
+  DBUG_TRACE;
+
   /*
    * For partitioned tables, we only need to care if the target partition is
    * updatable (aka has PK or RI defined for it).
@@ -2494,6 +2530,7 @@ check_relation_updatable(LogicalRepRelMapEntry *rel)
 static void
 apply_handle_update(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepRelMapEntry *rel;
   LogicalRepRelId relid;
   UserContext ucxt;
@@ -2616,6 +2653,7 @@ apply_handle_update_internal(ApplyExecutionData *edata,
                              LogicalRepTupleData *newtup,
                              Oid localindexoid)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
   LogicalRepRelMapEntry *relmapentry = edata->targetRel;
   Relation  localrel = relinfo->ri_RelationDesc;
@@ -2699,6 +2737,7 @@ apply_handle_update_internal(ApplyExecutionData *edata,
 static void
 apply_handle_delete(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepRelMapEntry *rel;
   LogicalRepTupleData oldtup;
   LogicalRepRelId relid;
@@ -2796,6 +2835,7 @@ apply_handle_delete_internal(ApplyExecutionData *edata,
                              TupleTableSlot *remoteslot,
                              Oid localindexoid)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
   Relation  localrel = relinfo->ri_RelationDesc;
   LogicalRepRelation *remoterel = &edata->targetRel->remoterel;
@@ -2861,6 +2901,7 @@ FindReplTupleInLocalRel(ApplyExecutionData *edata, Relation localrel,
                         TupleTableSlot *remoteslot,
                         TupleTableSlot **localslot)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
   bool    found;
 
@@ -2906,6 +2947,7 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
                            LogicalRepTupleData *newtup,
                            CmdType operation)
 {
+  DBUG_TRACE;
   EState     *estate = edata->estate;
   LogicalRepRelMapEntry *relmapentry = edata->targetRel;
   ResultRelInfo *relinfo = edata->targetRelInfo;
@@ -3173,6 +3215,7 @@ apply_handle_tuple_routing(ApplyExecutionData *edata,
 static void
 apply_handle_truncate(StringInfo s)
 {
+  DBUG_TRACE;
   bool    cascade = false;
   bool    restart_seqs = false;
   List     *remote_relids = NIL;
@@ -3299,6 +3342,7 @@ apply_handle_truncate(StringInfo s)
 void
 apply_dispatch(StringInfo s)
 {
+  DBUG_TRACE;
   LogicalRepMsgType action = pq_getmsgbyte(s);
   LogicalRepMsgType saved_command;
 
@@ -3419,6 +3463,7 @@ static void
 get_flush_position(XLogRecPtr *write, XLogRecPtr *flush,
                    bool *have_pending_txes)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
   XLogRecPtr  local_flush = GetFlushRecPtr(NULL);
 
@@ -3458,6 +3503,7 @@ get_flush_position(XLogRecPtr *write, XLogRecPtr *flush,
 void
 store_flush_position(XLogRecPtr remote_lsn, XLogRecPtr local_lsn)
 {
+  DBUG_TRACE;
   FlushPosition *flushpos;
 
   /*
@@ -3484,6 +3530,7 @@ store_flush_position(XLogRecPtr remote_lsn, XLogRecPtr local_lsn)
 static void
 UpdateWorkerStats(XLogRecPtr last_lsn, TimestampTz send_time, bool reply)
 {
+  DBUG_TRACE;
   MyLogicalRepWorker->last_lsn = last_lsn;
   MyLogicalRepWorker->last_send_time = send_time;
   MyLogicalRepWorker->last_recv_time = GetCurrentTimestamp();
@@ -3500,6 +3547,7 @@ UpdateWorkerStats(XLogRecPtr last_lsn, TimestampTz send_time, bool reply)
 static void
 LogicalRepApplyLoop(XLogRecPtr last_received)
 {
+  DBUG_TRACE;
   TimestampTz last_recv_timestamp = GetCurrentTimestamp();
   bool    ping_sent = false;
   TimeLineID  tli;
@@ -3747,6 +3795,7 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 static void
 send_feedback(XLogRecPtr recvpos, bool force, bool requestReply)
 {
+  DBUG_TRACE;
   static StringInfo reply_message = NULL;
   static TimestampTz send_time = 0;
 
@@ -3837,6 +3886,8 @@ send_feedback(XLogRecPtr recvpos, bool force, bool requestReply)
 static void
 apply_worker_exit(void)
 {
+  DBUG_TRACE;
+
   if (am_parallel_apply_worker()) {
     /*
      * Don't stop the parallel apply worker as the leader will detect the
@@ -3870,6 +3921,7 @@ apply_worker_exit(void)
 void
 maybe_reread_subscription(void)
 {
+  DBUG_TRACE;
   MemoryContext oldctx;
   Subscription *newsub;
   bool    started_tx = false;
@@ -4008,6 +4060,7 @@ subscription_change_cb(Datum arg, int cacheid, uint32 hashvalue)
 static void
 subxact_info_write(Oid subid, TransactionId xid)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   Size    len;
   BufFile    *fd;
@@ -4057,6 +4110,7 @@ subxact_info_write(Oid subid, TransactionId xid)
 static void
 subxact_info_read(Oid subid, TransactionId xid)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   Size    len;
   BufFile    *fd;
@@ -4109,6 +4163,7 @@ subxact_info_read(Oid subid, TransactionId xid)
 static void
 subxact_info_add(TransactionId xid)
 {
+  DBUG_TRACE;
   SubXactInfo *subxacts = subxact_data.subxacts;
   int64   i;
 
@@ -4204,6 +4259,7 @@ changes_filename(char *path, Oid subid, TransactionId xid)
 void
 stream_cleanup_files(Oid subid, TransactionId xid)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
 
   /* Delete the changes file. */
@@ -4228,6 +4284,7 @@ stream_cleanup_files(Oid subid, TransactionId xid)
 static void
 stream_open_file(Oid subid, TransactionId xid, bool first_segment)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   MemoryContext oldcxt;
 
@@ -4272,6 +4329,7 @@ stream_open_file(Oid subid, TransactionId xid, bool first_segment)
 static void
 stream_close_file(void)
 {
+  DBUG_TRACE;
   Assert(stream_fd != NULL);
 
   BufFileClose(stream_fd);
@@ -4290,6 +4348,7 @@ stream_close_file(void)
 static void
 stream_write_change(char action, StringInfo s)
 {
+  DBUG_TRACE;
   int     len;
 
   Assert(stream_fd != NULL);
@@ -4320,6 +4379,7 @@ stream_write_change(char action, StringInfo s)
 static void
 stream_open_and_write_change(TransactionId xid, char action, StringInfo s)
 {
+  DBUG_TRACE;
   Assert(!in_streamed_transaction);
 
   if (!stream_fd)
@@ -4338,6 +4398,7 @@ set_stream_options(WalRcvStreamOptions *options,
                    char *slotname,
                    XLogRecPtr *origin_startpos)
 {
+  DBUG_TRACE;
   int     server_version;
 
   options->logical = true;
@@ -4381,6 +4442,8 @@ set_stream_options(WalRcvStreamOptions *options,
 static inline void
 cleanup_subxact_info()
 {
+  DBUG_TRACE;
+
   if (subxact_data.subxacts)
     pfree(subxact_data.subxacts);
 
@@ -4400,6 +4463,7 @@ cleanup_subxact_info()
 void
 start_apply(XLogRecPtr origin_startpos)
 {
+  DBUG_TRACE;
   PG_TRY();
   {
     LogicalRepApplyLoop(origin_startpos);
@@ -4439,6 +4503,7 @@ start_apply(XLogRecPtr origin_startpos)
 static void
 run_apply_worker()
 {
+  DBUG_TRACE;
   char    originname[NAMEDATALEN];
   XLogRecPtr  origin_startpos = InvalidXLogRecPtr;
   char     *slotname = NULL;
@@ -4551,6 +4616,7 @@ run_apply_worker()
 void
 InitializeLogRepWorker(void)
 {
+  DBUG_TRACE;
   MemoryContext oldctx;
 
   /* Run as replica session replication role. */
@@ -4659,6 +4725,7 @@ InitializeLogRepWorker(void)
 static void
 replorigin_reset(int code, Datum arg)
 {
+  DBUG_TRACE;
   replorigin_session_origin = InvalidRepOriginId;
   replorigin_session_origin_lsn = InvalidXLogRecPtr;
   replorigin_session_origin_timestamp = 0;
@@ -4668,6 +4735,7 @@ replorigin_reset(int code, Datum arg)
 void
 SetupApplyOrSyncWorker(int worker_slot)
 {
+  DBUG_TRACE;
   /* Attach to slot */
   logicalrep_worker_attach(worker_slot);
 
@@ -4709,6 +4777,7 @@ SetupApplyOrSyncWorker(int worker_slot)
 void
 ApplyWorkerMain(Datum main_arg)
 {
+  DBUG_TRACE;
   int     worker_slot = DatumGetInt32(main_arg);
 
   InitializingApplyWorker = true;
@@ -4729,6 +4798,7 @@ ApplyWorkerMain(Datum main_arg)
 void
 DisableSubscriptionAndExit(void)
 {
+  DBUG_TRACE;
   /*
    * Emit the error message, and recover from the error state to an idle
    * state
@@ -4795,6 +4865,7 @@ IsLogicalParallelApplyWorker(void)
 static void
 maybe_start_skipping_changes(XLogRecPtr finish_lsn)
 {
+  DBUG_TRACE;
   Assert(!is_skipping_changes());
   Assert(!in_remote_transaction);
   Assert(!in_streamed_transaction);
@@ -4822,6 +4893,8 @@ maybe_start_skipping_changes(XLogRecPtr finish_lsn)
 static void
 stop_skipping_changes(void)
 {
+  DBUG_TRACE;
+
   if (!is_skipping_changes())
     return;
 
@@ -4844,6 +4917,7 @@ stop_skipping_changes(void)
 static void
 clear_subscription_skip_lsn(XLogRecPtr finish_lsn)
 {
+  DBUG_TRACE;
   Relation  rel;
   Form_pg_subscription subform;
   HeapTuple tup;
@@ -4931,6 +5005,7 @@ clear_subscription_skip_lsn(XLogRecPtr finish_lsn)
 void
 apply_error_callback(void *arg)
 {
+  DBUG_TRACE;
   ApplyErrorCallbackArg *errarg = &apply_error_callback_arg;
 
   if (apply_error_callback_arg.command == 0)
@@ -5021,6 +5096,7 @@ reset_apply_error_context_info(void)
 void
 LogicalRepWorkersWakeupAtCommit(Oid subid)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
 
   oldcxt = MemoryContextSwitchTo(TopTransactionContext);
@@ -5035,6 +5111,8 @@ LogicalRepWorkersWakeupAtCommit(Oid subid)
 void
 AtEOXact_LogicalRepWorkers(bool isCommit)
 {
+  DBUG_TRACE;
+
   if (isCommit && on_commit_wakeup_workers_subids != NIL) {
     ListCell   *lc;
 
@@ -5067,6 +5145,7 @@ AtEOXact_LogicalRepWorkers(bool isCommit)
 void
 set_apply_error_context_origin(char *originname)
 {
+  DBUG_TRACE;
   apply_error_callback_arg.origin_name = MemoryContextStrdup(ApplyContext,
                                          originname);
 }
@@ -5082,6 +5161,7 @@ set_apply_error_context_origin(char *originname)
 static TransApplyAction
 get_transaction_apply_action(TransactionId xid, ParallelApplyWorkerInfo **winfo)
 {
+  DBUG_TRACE;
   *winfo = NULL;
 
   if (am_parallel_apply_worker()) {

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/htup_details.h"
@@ -32,6 +33,7 @@
 IndexAmRoutine *
 GetIndexAmRoutine(Oid amhandler)
 {
+  DBUG_TRACE;
   Datum   datum;
   IndexAmRoutine *routine;
 
@@ -55,6 +57,7 @@ GetIndexAmRoutine(Oid amhandler)
 IndexAmRoutine *
 GetIndexAmRoutineByAmId(Oid amoid, bool noerror)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_am  amform;
   regproc   amhandler;
@@ -175,6 +178,7 @@ IndexAmTranslateCompareType(CompareType cmptype, Oid amoid, Oid opfamily, bool m
 Datum
 amvalidate(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     opclassoid = PG_GETARG_OID(0);
   bool    result;
   HeapTuple classtup;

@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -209,6 +210,7 @@ mdexists(SMgrRelation reln, ForkNumber forknum)
 void
 mdcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
+  DBUG_TRACE;
   MdfdVec    *mdfd;
   RelPathStr  path;
   File    fd;
@@ -323,6 +325,8 @@ mdcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
 void
 mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
 {
+  DBUG_TRACE;
+
   /* Now do the per-fork work */
   if (forknum == InvalidForkNumber) {
     for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
@@ -337,6 +341,7 @@ mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
 static int
 do_truncate(const char *path)
 {
+  DBUG_TRACE;
   int     save_errno;
   int     ret;
 
@@ -357,6 +362,7 @@ do_truncate(const char *path)
 static void
 mdunlinkfork(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo)
 {
+  DBUG_TRACE;
   RelPathStr  path;
   int     ret;
   int     save_errno;
@@ -462,6 +468,7 @@ void
 mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
          const void *buffer, bool skipFsync)
 {
+  DBUG_TRACE;
   off_t   seekpos;
   int     nbytes;
   MdfdVec    *v;
@@ -488,6 +495,7 @@ mdextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
                     relpath(reln->smgr_rlocator, forknum).str,
                     InvalidBlockNumber)));
 
+  DBUG_PRINT("info", "add a block (%u) to the specified relation", blocknum);
   v = _mdfd_getseg(reln, forknum, blocknum, skipFsync, EXTENSION_CREATE);
 
   seekpos = (off_t) BLCKSZ * (blocknum % ((BlockNumber) RELSEG_SIZE));
@@ -527,6 +535,7 @@ void
 mdzeroextend(SMgrRelation reln, ForkNumber forknum,
              BlockNumber blocknum, int nblocks, bool skipFsync)
 {
+  DBUG_TRACE;
   MdfdVec    *v;
   BlockNumber curblocknum = blocknum;
   int     remblocks = nblocks;
@@ -717,6 +726,7 @@ bool
 mdprefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
            int nblocks)
 {
+  DBUG_TRACE;
 #ifdef USE_PREFETCH
 
   Assert((io_direct_flags & IO_DIRECT_DATA) == 0);
@@ -824,6 +834,9 @@ void
 mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
         void **buffers, BlockNumber nblocks)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "read the specified blocks from a relation:%u", nblocks);
+
   while (nblocks > 0) {
     struct iovec iov[PG_IOV_MAX];
     int     iovcnt;
@@ -1034,10 +1047,13 @@ void
 mdwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
          const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
+  DBUG_TRACE;
   /* This assert is too expensive to have on normally ... */
 #ifdef CHECK_WRITE_VS_EXTEND
   Assert((uint64) blocknum + (uint64) nblocks <= (uint64) mdnblocks(reln, forknum));
 #endif
+
+  DBUG_PRINT("info", "write the supplied blocks at the appropriate location:%u", nblocks);
 
   while (nblocks > 0) {
     struct iovec iov[PG_IOV_MAX];
@@ -1137,7 +1153,10 @@ void
 mdwriteback(SMgrRelation reln, ForkNumber forknum,
             BlockNumber blocknum, BlockNumber nblocks)
 {
+  DBUG_TRACE;
   Assert((io_direct_flags & IO_DIRECT_DATA) == 0);
+
+  DBUG_PRINT("info", "tell the kernel to write pages back to storage:%u", nblocks);
 
   /*
    * Issue flush requests in as few requests as possible; have to split at
@@ -1195,6 +1214,7 @@ mdwriteback(SMgrRelation reln, ForkNumber forknum,
 BlockNumber
 mdnblocks(SMgrRelation reln, ForkNumber forknum)
 {
+  DBUG_TRACE;
   MdfdVec    *v;
   BlockNumber nblocks;
   BlockNumber segno;
@@ -1226,8 +1246,10 @@ mdnblocks(SMgrRelation reln, ForkNumber forknum)
     if (nblocks > ((BlockNumber) RELSEG_SIZE))
       elog(FATAL, "segment too big");
 
-    if (nblocks < ((BlockNumber) RELSEG_SIZE))
+    if (nblocks < ((BlockNumber) RELSEG_SIZE)) {
+      DBUG_PRINT("info", "get the number of blocks stored in a relation:%u", (segno * ((BlockNumber) RELSEG_SIZE)) + nblocks);
       return (segno * ((BlockNumber) RELSEG_SIZE)) + nblocks;
+    }
 
     /*
      * If segment is exactly RELSEG_SIZE, advance to next one.
@@ -1243,8 +1265,10 @@ mdnblocks(SMgrRelation reln, ForkNumber forknum)
      */
     v = _mdfd_openseg(reln, forknum, segno, 0);
 
-    if (v == NULL)
+    if (v == NULL) {
+      DBUG_PRINT("info", "get the number of blocks stored in a relation:%u", segno * ((BlockNumber) RELSEG_SIZE));
       return segno * ((BlockNumber) RELSEG_SIZE);
+    }
   }
 }
 
@@ -1265,8 +1289,11 @@ void
 mdtruncate(SMgrRelation reln, ForkNumber forknum,
            BlockNumber curnblk, BlockNumber nblocks)
 {
+  DBUG_TRACE;
   BlockNumber priorblocks;
   int     curopensegs;
+
+  DBUG_PRINT("info", "truncate relation to specified number of blocks:%u", nblocks);
 
   if (nblocks > curnblk) {
     /* Bogus request ... but no complaint if InRecovery */
@@ -1351,9 +1378,11 @@ mdtruncate(SMgrRelation reln, ForkNumber forknum,
 void
 mdregistersync(SMgrRelation reln, ForkNumber forknum)
 {
+  DBUG_TRACE;
   int     segno;
   int     min_inactive_seg;
 
+  DBUG_PRINT("info", "mark whole relation as needing fsync");
   /*
    * NOTE: mdnblocks makes sure we have opened all active segments, so that
    * the loop below will get them all!
@@ -1400,9 +1429,11 @@ mdregistersync(SMgrRelation reln, ForkNumber forknum)
 void
 mdimmedsync(SMgrRelation reln, ForkNumber forknum)
 {
+  DBUG_TRACE;
   int     segno;
   int     min_inactive_seg;
 
+  DBUG_PRINT("info", "immediately sync a relation to stable storage");
   /*
    * NOTE: mdnblocks makes sure we have opened all active segments, so that
    * the loop below will get them all!
@@ -1475,8 +1506,10 @@ mdfd(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off)
 static void
 register_dirty_segment(SMgrRelation reln, ForkNumber forknum, MdfdVec *seg)
 {
+  DBUG_TRACE;
   FileTag   tag;
 
+  DBUG_PRINT("info", "mark a relation segment as needing fsync");
   INIT_MD_FILETAG(tag, reln->smgr_rlocator.locator, forknum, seg->mdfd_segno);
 
   /* Temp relations should never be fsync'd */
@@ -1519,8 +1552,10 @@ static void
 register_unlink_segment(RelFileLocatorBackend rlocator, ForkNumber forknum,
                         BlockNumber segno)
 {
+  DBUG_TRACE;
   FileTag   tag;
 
+  DBUG_PRINT("info", "schedule a file to be deleted after next checkpoint");
   INIT_MD_FILETAG(tag, rlocator.locator, forknum, segno);
 
   /* Should never be used with temp relations */
@@ -1536,6 +1571,7 @@ static void
 register_forget_request(RelFileLocatorBackend rlocator, ForkNumber forknum,
                         BlockNumber segno)
 {
+  DBUG_TRACE;
   FileTag   tag;
 
   INIT_MD_FILETAG(tag, rlocator.locator, forknum, segno);
@@ -1549,6 +1585,7 @@ register_forget_request(RelFileLocatorBackend rlocator, ForkNumber forknum,
 void
 ForgetDatabaseSyncRequests(Oid dbid)
 {
+  DBUG_TRACE;
   FileTag   tag;
   RelFileLocator rlocator;
 
@@ -1567,6 +1604,7 @@ ForgetDatabaseSyncRequests(Oid dbid)
 void
 DropRelationFiles(RelFileLocator *delrels, int ndelrels, bool isRedo)
 {
+  DBUG_TRACE;
   SMgrRelation *srels;
   int     i;
 

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <unistd.h>
@@ -435,6 +436,7 @@ CopySendChar(CopyToState cstate, char c)
 static void
 CopySendEndOfRow(CopyToState cstate)
 {
+  DBUG_TRACE;
   StringInfo  fe_msgbuf = cstate->fe_msgbuf;
 
   switch (cstate->copy_dest) {
@@ -460,13 +462,16 @@ CopySendEndOfRow(CopyToState cstate)
             errno = EPIPE;
           }
 
+          DBUG_INSTANT_PRINT("info", "could not write to COPY program");
           ereport(ERROR,
                   (errcode_for_file_access(),
                    errmsg("could not write to COPY program: %m")));
-        } else
+        } else {
+          DBUG_INSTANT_PRINT("info", "could not write to COPY file");
           ereport(ERROR,
                   (errcode_for_file_access(),
                    errmsg("could not write to COPY file: %m")));
+        }
       }
 
       break;
@@ -558,11 +563,13 @@ ClosePipeToProgram(CopyToState cstate)
 
   pclose_rc = ClosePipeStream(cstate->copy_file);
 
-  if (pclose_rc == -1)
+  if (pclose_rc == -1) {
+    DBUG_INSTANT_PRINT("info", "could not close pipe to external command");
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not close pipe to external command: %m")));
-  else if (pclose_rc != 0) {
+  } else if (pclose_rc != 0) {
+    DBUG_INSTANT_PRINT("info", "program \"%s\" failed", cstate->filename);
     ereport(ERROR,
             (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
              errmsg("program \"%s\" failed",
@@ -577,14 +584,18 @@ ClosePipeToProgram(CopyToState cstate)
 static void
 EndCopy(CopyToState cstate)
 {
+  DBUG_TRACE;
+
   if (cstate->is_program) {
     ClosePipeToProgram(cstate);
   } else {
-    if (cstate->filename != NULL && FreeFile(cstate->copy_file))
+    if (cstate->filename != NULL && FreeFile(cstate->copy_file)) {
+      DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", cstate->filename);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not close file \"%s\": %m",
                       cstate->filename)));
+    }
   }
 
   pgstat_progress_end_command();
@@ -618,6 +629,7 @@ BeginCopyTo(ParseState *pstate,
             List *attnamelist,
             List *options)
 {
+  DBUG_TRACE;
   CopyToState cstate;
   bool    pipe = (filename == NULL && data_dest_cb == NULL);
   TupleDesc tupDesc;
@@ -633,41 +645,49 @@ BeginCopyTo(ParseState *pstate,
   };
 
   if (rel != NULL && rel->rd_rel->relkind != RELKIND_RELATION) {
-    if (rel->rd_rel->relkind == RELKIND_VIEW)
+    if (rel->rd_rel->relkind == RELKIND_VIEW) {
+      DBUG_INSTANT_PRINT("info", "cannot copy from view \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy from view \"%s\"",
                       RelationGetRelationName(rel)),
                errhint("Try the COPY (SELECT ...) TO variant.")));
-    else if (rel->rd_rel->relkind == RELKIND_MATVIEW) {
-      if (!RelationIsPopulated(rel))
+    } else if (rel->rd_rel->relkind == RELKIND_MATVIEW) {
+      if (!RelationIsPopulated(rel)) {
+        DBUG_INSTANT_PRINT("info", "cannot copy from unpopulated materialized view \"%s\"", RelationGetRelationName(rel));
         ereport(ERROR,
                 errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                 errmsg("cannot copy from unpopulated materialized view \"%s\"",
                        RelationGetRelationName(rel)),
                 errhint("Use the REFRESH MATERIALIZED VIEW command."));
-    } else if (rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+      }
+    } else if (rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE) {
+      DBUG_INSTANT_PRINT("info", "cannot copy from foreign table \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy from foreign table \"%s\"",
                       RelationGetRelationName(rel)),
                errhint("Try the COPY (SELECT ...) TO variant.")));
-    else if (rel->rd_rel->relkind == RELKIND_SEQUENCE)
+    } else if (rel->rd_rel->relkind == RELKIND_SEQUENCE) {
+      DBUG_INSTANT_PRINT("info", "cannot copy from sequence \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy from sequence \"%s\"",
                       RelationGetRelationName(rel))));
-    else if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+    } else if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+      DBUG_INSTANT_PRINT("info", "cannot copy from partitioned table \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy from partitioned table \"%s\"",
                       RelationGetRelationName(rel)),
                errhint("Try the COPY (SELECT ...) TO variant.")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "cannot copy from non-table relation \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy from non-table relation \"%s\"",
                       RelationGetRelationName(rel))));
+    }
   }
 
 
@@ -715,6 +735,7 @@ BeginCopyTo(ParseState *pstate,
 
     /* check that we got back something we can work with */
     if (rewritten == NIL) {
+      DBUG_INSTANT_PRINT("info", "DO INSTEAD NOTHING rules are not supported for COPY");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("DO INSTEAD NOTHING rules are not supported for COPY")));
@@ -725,17 +746,22 @@ BeginCopyTo(ParseState *pstate,
       foreach(lc, rewritten) {
         Query    *q = lfirst_node(Query, lc);
 
-        if (q->querySource == QSRC_QUAL_INSTEAD_RULE)
+        if (q->querySource == QSRC_QUAL_INSTEAD_RULE) {
+          DBUG_INSTANT_PRINT("info", "conditional DO INSTEAD rules are not supported for COPY");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("conditional DO INSTEAD rules are not supported for COPY")));
+        }
 
-        if (q->querySource == QSRC_NON_INSTEAD_RULE)
+        if (q->querySource == QSRC_NON_INSTEAD_RULE) {
+          DBUG_INSTANT_PRINT("info", "DO ALSO rules are not supported for COPY");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("DO ALSO rules are not supported for COPY")));
+        }
       }
 
+      DBUG_INSTANT_PRINT("info", "multi-statement DO INSTEAD rules are not supported for COPY");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("multi-statement DO INSTEAD rules are not supported for COPY")));
@@ -745,16 +771,20 @@ BeginCopyTo(ParseState *pstate,
 
     /* The grammar allows SELECT INTO, but we don't support that */
     if (query->utilityStmt != NULL &&
-        IsA(query->utilityStmt, CreateTableAsStmt))
+        IsA(query->utilityStmt, CreateTableAsStmt)) {
+      DBUG_INSTANT_PRINT("info", "COPY (SELECT INTO) is not supported");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("COPY (SELECT INTO) is not supported")));
+    }
 
     /* The only other utility command we could see is NOTIFY */
-    if (query->utilityStmt != NULL)
+    if (query->utilityStmt != NULL) {
+      DBUG_INSTANT_PRINT("info", "COPY query must not be a utility command");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("COPY query must not be a utility command")));
+    }
 
     /*
      * Similarly the grammar doesn't enforce the presence of a RETURNING
@@ -767,6 +797,7 @@ BeginCopyTo(ParseState *pstate,
              query->commandType == CMD_DELETE ||
              query->commandType == CMD_MERGE);
 
+      DBUG_INSTANT_PRINT("info", "COPY query must have a RETURNING clause");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("COPY query must have a RETURNING clause")));
@@ -794,10 +825,12 @@ BeginCopyTo(ParseState *pstate,
        * make any guarantees of that in the planner, so check the whole
        * list and make sure we find the original relation.
        */
-      if (!list_member_oid(plan->relationOids, queryRelId))
+      if (!list_member_oid(plan->relationOids, queryRelId)) {
+        DBUG_INSTANT_PRINT("info", "relation referenced by COPY statement has changed");
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                  errmsg("relation referenced by COPY statement has changed")));
+      }
     }
 
     /*
@@ -847,12 +880,14 @@ BeginCopyTo(ParseState *pstate,
       int     attnum = lfirst_int(cur);
       Form_pg_attribute attr = TupleDescAttr(tupDesc, attnum - 1);
 
-      if (!list_member_int(cstate->attnumlist, attnum))
+      if (!list_member_int(cstate->attnumlist, attnum)) {
+        DBUG_INSTANT_PRINT("info", "%s column \"%s\" not referenced by COPY", "FORCE_QUOTE", NameStr(attr->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  /*- translator: %s is the name of a COPY option, e.g. FORCE_NOT_NULL */
                  errmsg("%s column \"%s\" not referenced by COPY",
                         "FORCE_QUOTE", NameStr(attr->attname))));
+      }
 
       cstate->opts.force_quote_flags[attnum - 1] = true;
     }
@@ -898,11 +933,13 @@ BeginCopyTo(ParseState *pstate,
       progress_vals[1] = PROGRESS_COPY_TYPE_PROGRAM;
       cstate->copy_file = OpenPipeStream(cstate->filename, PG_BINARY_W);
 
-      if (cstate->copy_file == NULL)
+      if (cstate->copy_file == NULL) {
+        DBUG_INSTANT_PRINT("info", "could not execute command \"%s\"", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not execute command \"%s\": %m",
                         cstate->filename)));
+      }
     } else {
       mode_t    oumask; /* Pre-existing umask value */
       struct stat st;
@@ -913,10 +950,12 @@ BeginCopyTo(ParseState *pstate,
        * Prevent write to relative path ... too easy to shoot oneself in
        * the foot by overwriting a database file ...
        */
-      if (!is_absolute_path(filename))
+      if (!is_absolute_path(filename)) {
+        DBUG_INSTANT_PRINT("info", "relative path not allowed for COPY to file");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_NAME),
                  errmsg("relative path not allowed for COPY to file")));
+      }
 
       oumask = umask(S_IWGRP | S_IWOTH);
       PG_TRY();
@@ -933,6 +972,7 @@ BeginCopyTo(ParseState *pstate,
         /* copy errno because ereport subfunctions might change it */
         int     save_errno = errno;
 
+        DBUG_INSTANT_PRINT("info", "could not open file \"%s\" for writing", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not open file \"%s\" for writing: %m",
@@ -942,16 +982,20 @@ BeginCopyTo(ParseState *pstate,
                          "You may want a client-side facility such as psql's \\copy.") : 0));
       }
 
-      if (fstat(fileno(cstate->copy_file), &st))
+      if (fstat(fileno(cstate->copy_file), &st)) {
+        DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not stat file \"%s\": %m",
                         cstate->filename)));
+      }
 
-      if (S_ISDIR(st.st_mode))
+      if (S_ISDIR(st.st_mode)) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is a directory", cstate->filename);
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is a directory", cstate->filename)));
+      }
     }
   }
 
@@ -973,6 +1017,8 @@ BeginCopyTo(ParseState *pstate,
 void
 EndCopyTo(CopyToState cstate)
 {
+  DBUG_TRACE;
+
   if (cstate->queryDesc != NULL) {
     /* Close down the query and free resources. */
     ExecutorFinish(cstate->queryDesc);
@@ -993,6 +1039,7 @@ EndCopyTo(CopyToState cstate)
 uint64
 DoCopyTo(CopyToState cstate)
 {
+  DBUG_TRACE;
   bool    pipe = (cstate->filename == NULL && cstate->data_dest_cb == NULL);
   bool    fe_copy = (pipe && whereToSendOutput == DestRemote);
   TupleDesc tupDesc;
@@ -1087,6 +1134,7 @@ DoCopyTo(CopyToState cstate)
 static inline void
 CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
 
   MemoryContextReset(cstate->rowcontext);
@@ -1112,6 +1160,7 @@ CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 static void
 CopyAttributeOutText(CopyToState cstate, const char *string)
 {
+  DBUG_TRACE;
   const char *ptr;
   const char *start;
   char    c;
@@ -1271,6 +1320,7 @@ static void
 CopyAttributeOutCSV(CopyToState cstate, const char *string,
                     bool use_quote)
 {
+  DBUG_TRACE;
   const char *ptr;
   const char *start;
   char    c;
@@ -1400,6 +1450,7 @@ copy_dest_destroy(DestReceiver *self)
 DestReceiver *
 CreateCopyDestReceiver(void)
 {
+  DBUG_TRACE;
   DR_copy    *self = (DR_copy *) palloc(sizeof(DR_copy));
 
   self->pub.receiveSlot = copy_dest_receive;

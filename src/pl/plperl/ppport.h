@@ -14416,8 +14416,7 @@ DPPP_(my_ck_warner)(pTHX_ U32 err, const char *pat, ...)
   if (   ! ckWARN((err      ) & 0xFF)
          && ! ckWARN((err >>  8) & 0xFF)
          && ! ckWARN((err >> 16) & 0xFF)
-         && ! ckWARN((err >> 24) & 0xFF))
-  {
+         && ! ckWARN((err >> 24) & 0xFF)) {
     return;
   }
 
@@ -14451,8 +14450,7 @@ DPPP_(my_ck_warner_d)(pTHX_ U32 err, const char *pat, ...)
   if (   ! ckWARN_d((err      ) & 0xFF)
          && ! ckWARN_d((err >>  8) & 0xFF)
          && ! ckWARN_d((err >> 16) & 0xFF)
-         && ! ckWARN_d((err >> 24) & 0xFF))
-  {
+         && ! ckWARN_d((err >> 24) & 0xFF)) {
     return;
   }
 
@@ -15174,17 +15172,14 @@ DPPP_(my_vload_module)(U32 flags, SV *name, SV *ver, va_list *args)
 
   if (ver) {
     veop = newSVOP(OP_CONST, 0, ver);
-  }
-  else
+  } else
     veop = NULL;
 
   if (flags & PERL_LOADMOD_NOIMPORT) {
     imop = sawparens(newNULLLIST());
-  }
-  else if (flags & PERL_LOADMOD_IMPORT_OPS) {
+  } else if (flags & PERL_LOADMOD_IMPORT_OPS) {
     imop = va_arg(*args, OP*);
-  }
-  else {
+  } else {
     SV *sv;
     imop = NULL;
     sv = va_arg(*args, SV*);
@@ -15975,7 +15970,8 @@ extern MAGIC * DPPP_(my_mg_findext)(const SV * sv, int type, const MGVTBL * vtbl
 
 
 MAGIC *
-DPPP_(my_mg_findext)(const SV * sv, int type, const MGVTBL *vtbl) {
+DPPP_(my_mg_findext)(const SV * sv, int type, const MGVTBL *vtbl)
+{
   if (sv) {
     MAGIC *mg;
 
@@ -16045,16 +16041,14 @@ DPPP_(my_sv_unmagicext)(pTHX_ SV *const sv, const int type, MGVTBL *vtbl)
         SvREFCNT_dec(mg->mg_obj);
 
       Safefree(mg);
-    }
-    else
+    } else
       mgp = &mg->mg_moremagic;
   }
 
   if (SvMAGIC(sv)) {
     if (SvMAGICAL(sv))  /* if we're under save_magic, wait for restore_magic; */
       mg_magical(sv); /*    else fix the flags now */
-  }
-  else {
+  } else {
     SvMAGICAL_off(sv);
     SvFLAGS(sv) |= (SvFLAGS(sv) & (SVp_IOK | SVp_NOK | SVp_POK)) >> PRIVSHIFT;
   }
@@ -16405,8 +16399,7 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
   } else if (*s == '-') {
     s++;
     numtype = IS_NUMBER_NEG;
-  }
-  else if (*s == '+')
+  } else if (*s == '+')
     s++;
 
   if (s == send)
@@ -16532,8 +16525,7 @@ skip_value:
       while (s < send && isDIGIT(*s))  /* optional digits after the radix */
         s++;
     }
-  }
-  else if (GROK_NUMERIC_RADIX(&s, send)) {
+  } else if (GROK_NUMERIC_RADIX(&s, send)) {
     numtype |= IS_NUMBER_NOT_INT | IS_NUMBER_IN_UV; /* valuep assigned below */
 
     /* no digits before the radix means we need digits after it */
@@ -16546,8 +16538,7 @@ skip_value:
         /* integer approximation is valid - it's 0.  */
         *valuep = 0;
       }
-    }
-    else
+    } else
       return 0;
   } else if (*s == 'I' || *s == 'i') {
     s++;
@@ -16617,8 +16608,7 @@ skip_value:
         do {
           s++;
         } while (s < send && isDIGIT(*s));
-      }
-      else
+      } else
         return 0;
     }
   }
@@ -16683,8 +16673,7 @@ DPPP_(my_grok_bin)(pTHX_ const char *start, STRLEN *len_p, I32 *flags, NV *resul
       if (s[0] == 'b') {
         s++;
         len--;
-      }
-      else if (len >= 2 && s[0] == '0' && s[1] == 'b') {
+      } else if (len >= 2 && s[0] == '0' && s[1] == 'b') {
         s += 2;
         len -= 2;
       }
@@ -16724,8 +16713,7 @@ redo:
     }
 
     if (bit == '_' && len && allow_underscores && (bit = s[1])
-        && (bit == '0' || bit == '1'))
-    {
+        && (bit == '0' || bit == '1')) {
       --len;
       ++s;
       goto redo;
@@ -16799,8 +16787,7 @@ DPPP_(my_grok_hex)(pTHX_ const char *start, STRLEN *len_p, I32 *flags, NV *resul
       if (s[0] == 'x') {
         s++;
         len--;
-      }
-      else if (len >= 2 && s[0] == '0' && s[1] == 'x') {
+      } else if (len >= 2 && s[0] == '0' && s[1] == 'x') {
         s += 2;
         len -= 2;
       }
@@ -16839,8 +16826,7 @@ redo:
     }
 
     if (*s == '_' && len && allow_underscores && s[1]
-        && (xdigit = strchr((char *) PL_hexdigit, s[1])))
-    {
+        && (xdigit = strchr((char *) PL_hexdigit, s[1]))) {
       --len;
       ++s;
       goto redo;
@@ -16940,8 +16926,7 @@ redo:
     }
 
     if (digit == ('_' - '0') && len && allow_underscores
-        && (digit = s[1] - '0') && (digit >= 0 && digit <= 7))
-    {
+        && (digit = s[1] - '0') && (digit >= 0 && digit <= 7)) {
       --len;
       ++s;
       goto redo;
@@ -17493,8 +17478,7 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
 
   if (send > s) {
     curlen = send - s;
-  }
-  else {
+  } else {
     assert(0);  /* Modern perls die under this circumstance */
     curlen = 0;
 
@@ -17523,8 +17507,7 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
     if (sizeof(ret) < 8) {
       overflows = 1;
       overflow_length = (*s == 0xFE) ? 7 : 13;
-    }
-    else {
+    } else {
       const U8 highest[] =    /* 2*63-1 */
         "\xFF\x80\x87\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF";
       const U8 *cur_h = highest;
@@ -17557,8 +17540,7 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
     if (! do_warnings && retlen) {
       *retlen = overflow_length;
     }
-  }
-  else
+  } else
 
 #    endif  /* < 5.26 */
 
@@ -17592,8 +17574,7 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
       }
 
       return UNICODE_REPLACEMENT;
-    }
-    else {
+    } else {
 
       /* We use the error message in use from 5.8-5.26 */
       Perl_warner(aTHX_ packWARN(WARN_UTF8),
@@ -17622,8 +17603,7 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
       if (retlen) {
         *retlen = (STRLEN) - 1;
       }
-    }
-    else {
+    } else {
       ret = D_PPP_utf8_to_uvchr_buf_callee(
               (U8 *) /* Early perls: no const */
               s, curlen, retlen, UTF8_ALLOW_ANY);

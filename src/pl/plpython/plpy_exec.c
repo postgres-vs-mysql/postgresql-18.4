@@ -51,6 +51,7 @@ static void PLy_abort_open_subtransactions(int save_subxact_level);
 Datum
 PLy_exec_function(FunctionCallInfo fcinfo, PLyProcedure *proc)
 {
+  DBUG_TRACE
   bool    is_setof = proc->is_setof;
   Datum   rv;
   PyObject   *volatile plargs = NULL;
@@ -302,6 +303,7 @@ PLy_exec_function(FunctionCallInfo fcinfo, PLyProcedure *proc)
 HeapTuple
 PLy_exec_trigger(FunctionCallInfo fcinfo, PLyProcedure *proc)
 {
+  DBUG_TRACE
   HeapTuple rv = NULL;
   PyObject   *volatile plargs = NULL;
   PyObject   *volatile plrv = NULL;
@@ -414,6 +416,7 @@ PLy_exec_trigger(FunctionCallInfo fcinfo, PLyProcedure *proc)
 static PyObject *
 PLy_function_build_args(FunctionCallInfo fcinfo, PLyProcedure *proc)
 {
+  DBUG_TRACE
   PyObject   *volatile arg = NULL;
   PyObject   *args;
   int     i;
@@ -674,6 +677,7 @@ plpython_return_error_callback(void *arg)
 static PyObject *
 PLy_trigger_build_args(FunctionCallInfo fcinfo, PLyProcedure *proc, HeapTuple *rv)
 {
+  DBUG_TRACE
   TriggerData *tdata = (TriggerData *) fcinfo->context;
   TupleDesc rel_descr = RelationGetDescr(tdata->tg_relation);
   PyObject   *pltname,

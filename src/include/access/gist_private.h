@@ -131,8 +131,7 @@ typedef struct GISTSearchItem
 {
   pairingheap_node phNode;
   BlockNumber blkno;      /* index page number, or InvalidBlockNumber */
-  union
-  {
+  union {
     GistNSN   parentlsn;  /* parent page's LSN, if index page */
     /* we must store parentlsn to detect whether a split occurred */
     GISTSearchHeapItem heap;  /* heap info, if heap tuple */

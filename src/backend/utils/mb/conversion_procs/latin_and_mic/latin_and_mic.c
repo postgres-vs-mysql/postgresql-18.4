@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "mb/pg_wchar.h"
 
@@ -45,6 +46,7 @@ PG_FUNCTION_INFO_V1(mic_to_latin4);
 Datum
 latin1_to_mic(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -61,6 +63,7 @@ latin1_to_mic(PG_FUNCTION_ARGS)
 Datum
 mic_to_latin1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -77,6 +80,7 @@ mic_to_latin1(PG_FUNCTION_ARGS)
 Datum
 latin3_to_mic(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -93,6 +97,7 @@ latin3_to_mic(PG_FUNCTION_ARGS)
 Datum
 mic_to_latin3(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -109,6 +114,7 @@ mic_to_latin3(PG_FUNCTION_ARGS)
 Datum
 latin4_to_mic(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -125,6 +131,7 @@ latin4_to_mic(PG_FUNCTION_ARGS)
 Datum
 mic_to_latin4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);

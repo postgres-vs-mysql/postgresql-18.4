@@ -6,6 +6,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "commands/trigger.h"
 #include "executor/spi.h"
@@ -26,6 +27,7 @@ PG_FUNCTION_INFO_V1(lo_manage);
 Datum
 lo_manage(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   int     attnum;     /* attribute number to monitor  */
   char    **args;     /* Args containing attr name  */

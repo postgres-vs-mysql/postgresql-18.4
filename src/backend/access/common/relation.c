@@ -19,6 +19,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/xact.h"
@@ -46,6 +47,7 @@
 Relation
 relation_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);
@@ -87,6 +89,7 @@ relation_open(Oid relationId, LOCKMODE lockmode)
 Relation
 try_relation_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);
@@ -135,6 +138,7 @@ try_relation_open(Oid relationId, LOCKMODE lockmode)
 Relation
 relation_openrv(const RangeVar *relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Oid     relOid;
 
   /*
@@ -171,6 +175,7 @@ Relation
 relation_openrv_extended(const RangeVar *relation, LOCKMODE lockmode,
                          bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     relOid;
 
   /*
@@ -182,6 +187,7 @@ relation_openrv_extended(const RangeVar *relation, LOCKMODE lockmode,
 
   /* Look up and lock the appropriate relation using namespace search */
   relOid = RangeVarGetRelid(relation, lockmode, missing_ok);
+  DBUG_PRINT("info", "look up and lock the appropriate relation using namespace search:%u", relOid);
 
   /* Return NULL on not-found */
   if (!OidIsValid(relOid))
@@ -203,6 +209,7 @@ relation_openrv_extended(const RangeVar *relation, LOCKMODE lockmode,
 void
 relation_close(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LockRelId relid = relation->rd_lockInfo.lockRelId;
 
   Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);

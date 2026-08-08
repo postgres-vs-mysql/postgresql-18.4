@@ -41,6 +41,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "common/hashfn.h"
@@ -409,6 +410,7 @@ datum_image_hash(Datum value, bool typByVal, int typLen)
 Datum
 btequalimage(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Oid    opcintype = PG_GETARG_OID(0); */
 
   PG_RETURN_BOOL(true);

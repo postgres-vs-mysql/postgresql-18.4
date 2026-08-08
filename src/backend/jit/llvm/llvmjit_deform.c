@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <llvm-c/Core.h>
@@ -34,6 +35,7 @@ LLVMValueRef
 slot_compile_deform(LLVMJitContext *context, TupleDesc desc,
                     const TupleTableSlotOps *ops, int natts)
 {
+  DBUG_TRACE;
   char     *funcname;
 
   LLVMModuleRef mod;

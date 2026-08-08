@@ -5,6 +5,7 @@
  *
  **********************************************************************/
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 /* system stuff */
@@ -375,6 +376,7 @@ hek2cstr(HE *he)
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /*
    * Be sure we do initialization only once.
    *
@@ -501,6 +503,7 @@ set_interp_require(bool trusted)
 static void
 plperl_fini(int code, Datum arg)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS hash_seq;
   plperl_interp_desc *interp_desc;
 
@@ -543,6 +546,7 @@ plperl_fini(int code, Datum arg)
 static void
 select_perl_context(bool trusted)
 {
+  DBUG_TRACE;
   Oid     user_id;
   plperl_interp_desc *interp_desc;
   bool    found;
@@ -671,6 +675,8 @@ select_perl_context(bool trusted)
 static void
 activate_interpreter(plperl_interp_desc *interp_desc)
 {
+  DBUG_TRACE;
+
   if (interp_desc && plperl_active_interp != interp_desc) {
     Assert(interp_desc->interp);
     PERL_SET_CONTEXT(interp_desc->interp);
@@ -691,6 +697,7 @@ activate_interpreter(plperl_interp_desc *interp_desc)
 static PerlInterpreter *
 plperl_init_interp(void)
 {
+  DBUG_TRACE;
   PerlInterpreter *plperl;
 
   static char *embedding[3 + 2] = {
@@ -864,6 +871,7 @@ plperl_init_interp(void)
 static OP  *
 pp_require_safe(pTHX)
 {
+  DBUG_TRACE;
   dVAR;
   dSP;
   SV       *sv,
@@ -904,6 +912,8 @@ pp_require_safe(pTHX)
 static void
 plperl_destroy_interp(PerlInterpreter **interp)
 {
+  DBUG_TRACE;
+
   if (interp && *interp) {
     /*
      * Only a very minimal destruction is performed: - just call END
@@ -944,6 +954,7 @@ plperl_destroy_interp(PerlInterpreter **interp)
 static void
 plperl_trusted_init(void)
 {
+  DBUG_TRACE;
   dTHX;
   HV       *stash;
   SV       *sv;
@@ -1029,6 +1040,7 @@ plperl_trusted_init(void)
 static void
 plperl_untrusted_init(void)
 {
+  DBUG_TRACE;
   dTHX;
 
   /*
@@ -1067,6 +1079,7 @@ strip_trailing_ws(const char *msg)
 static HeapTuple
 plperl_build_tuple_result(HV *perlhash, TupleDesc td)
 {
+  DBUG_TRACE;
   dTHX;
   Datum    *values;
   bool     *nulls;
@@ -1120,6 +1133,7 @@ plperl_build_tuple_result(HV *perlhash, TupleDesc td)
 static Datum
 plperl_hash_to_datum(SV *src, TupleDesc td)
 {
+  DBUG_TRACE;
   HeapTuple tup = plperl_build_tuple_result((HV *) SvRV(src), td);
 
   return HeapTupleGetDatum(tup);
@@ -1132,6 +1146,7 @@ plperl_hash_to_datum(SV *src, TupleDesc td)
 static SV  *
 get_perl_array_ref(SV *sv)
 {
+  DBUG_TRACE;
   dTHX;
 
   if (SvOK(sv) && SvROK(sv)) {
@@ -1166,6 +1181,7 @@ array_to_datum_internal(AV *av, ArrayBuildState **astatep,
                         Oid elemtypid, int32 typmod,
                         FmgrInfo *finfo, Oid typioparam)
 {
+  DBUG_TRACE;
   dTHX;
   int     i;
   int     len = av_len(av) + 1;
@@ -1246,6 +1262,7 @@ array_to_datum_internal(AV *av, ArrayBuildState **astatep,
 static Datum
 plperl_array_to_datum(SV *src, Oid typid, int32 typmod)
 {
+  DBUG_TRACE;
   dTHX;
   AV       *nav = (AV *) SvRV(src);
   ArrayBuildState *astate = NULL;
@@ -1316,6 +1333,7 @@ plperl_sv_to_datum(SV *sv, Oid typid, int32 typmod,
                    FmgrInfo *finfo, Oid typioparam,
                    bool *isnull)
 {
+  DBUG_TRACE;
   FmgrInfo  tmp;
   Oid     funcid;
 
@@ -1425,6 +1443,7 @@ plperl_sv_to_datum(SV *sv, Oid typid, int32 typmod,
 char *
 plperl_sv_to_literal(SV *sv, char *fqtypename)
 {
+  DBUG_TRACE;
   Oid     typid;
   Oid     typoutput;
   Datum   datum;
@@ -1462,6 +1481,7 @@ plperl_sv_to_literal(SV *sv, char *fqtypename)
 static SV  *
 plperl_ref_from_pg_array(Datum arg, Oid typid)
 {
+  DBUG_TRACE;
   dTHX;
   ArrayType  *ar = DatumGetArrayTypeP(arg);
   Oid     elementtype = ARR_ELEMTYPE(ar);
@@ -1539,6 +1559,7 @@ plperl_ref_from_pg_array(Datum arg, Oid typid)
 static SV  *
 split_array(plperl_array_info *info, int first, int last, int nest)
 {
+  DBUG_TRACE;
   dTHX;
   int     i;
   AV       *result;
@@ -1574,6 +1595,7 @@ split_array(plperl_array_info *info, int first, int last, int nest)
 static SV  *
 make_array_ref(plperl_array_info *info, int first, int last)
 {
+  DBUG_TRACE;
   dTHX;
   int     i;
   AV       *result = newAV();
@@ -1608,6 +1630,7 @@ make_array_ref(plperl_array_info *info, int first, int last)
 static SV  *
 plperl_trigger_build_args(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   dTHX;
   TriggerData *tdata;
   TupleDesc tupdesc;
@@ -1720,6 +1743,7 @@ plperl_trigger_build_args(FunctionCallInfo fcinfo)
 static SV  *
 plperl_event_trigger_build_args(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   dTHX;
   EventTriggerData *tdata;
   HV       *hv;
@@ -1738,6 +1762,7 @@ plperl_event_trigger_build_args(FunctionCallInfo fcinfo)
 static HeapTuple
 plperl_modify_tuple(HV *hvTD, TriggerData *tdata, HeapTuple otup)
 {
+  DBUG_TRACE;
   dTHX;
   SV      **svp;
   HV       *hvNew;
@@ -1834,6 +1859,7 @@ PG_FUNCTION_INFO_V1(plperl_call_handler);
 Datum
 plperl_call_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   retval = (Datum) 0;
   plperl_call_data *volatile save_call_data = current_call_data;
   plperl_interp_desc *volatile oldinterp = plperl_active_interp;
@@ -1876,6 +1902,7 @@ PG_FUNCTION_INFO_V1(plperl_inline_handler);
 Datum
 plperl_inline_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fake_fcinfo, 0);
   InlineCodeBlock *codeblock = (InlineCodeBlock *) PG_GETARG_POINTER(0);
   FmgrInfo  flinfo;
@@ -1971,6 +1998,7 @@ PG_FUNCTION_INFO_V1(plperl_validator);
 Datum
 plperl_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcoid = PG_GETARG_OID(0);
   HeapTuple tuple;
   Form_pg_proc proc;
@@ -2049,6 +2077,7 @@ PG_FUNCTION_INFO_V1(plperlu_call_handler);
 Datum
 plperlu_call_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return plperl_call_handler(fcinfo);
 }
 
@@ -2057,6 +2086,7 @@ PG_FUNCTION_INFO_V1(plperlu_inline_handler);
 Datum
 plperlu_inline_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return plperl_inline_handler(fcinfo);
 }
 
@@ -2065,6 +2095,7 @@ PG_FUNCTION_INFO_V1(plperlu_validator);
 Datum
 plperlu_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* call plperl validator with our fcinfo so it gets our oid */
   return plperl_validator(fcinfo);
 }
@@ -2077,6 +2108,7 @@ plperlu_validator(PG_FUNCTION_ARGS)
 static void
 plperl_create_sub(plperl_proc_desc *prodesc, const char *s, Oid fn_oid)
 {
+  DBUG_TRACE;
   dTHX;
   dSP;
   char    subname[NAMEDATALEN + 40];
@@ -2148,6 +2180,7 @@ plperl_create_sub(plperl_proc_desc *prodesc, const char *s, Oid fn_oid)
 static void
 plperl_init_shared_libs(pTHX)
 {
+  DBUG_TRACE;
   char     *file = __FILE__;
 
   newXS("DynaLoader::boot_DynaLoader", boot_DynaLoader, file);
@@ -2160,6 +2193,8 @@ plperl_init_shared_libs(pTHX)
 static SV  *
 plperl_call_perl_func(plperl_proc_desc *desc, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
+  DBUG_TRACE;
   dTHX;
   dSP;
   SV       *retval;
@@ -2249,6 +2284,7 @@ static SV  *
 plperl_call_perl_trigger_func(plperl_proc_desc *desc, FunctionCallInfo fcinfo,
                               SV *td)
 {
+  DBUG_TRACE;
   dTHX;
   dSP;
   SV       *retval,
@@ -2318,6 +2354,7 @@ plperl_call_perl_event_trigger_func(plperl_proc_desc *desc,
                                     FunctionCallInfo fcinfo,
                                     SV *td)
 {
+  DBUG_TRACE;
   dTHX;
   dSP;
   SV       *retval,
@@ -2376,6 +2413,7 @@ plperl_call_perl_event_trigger_func(plperl_proc_desc *desc,
 static Datum
 plperl_func_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nonatomic;
   plperl_proc_desc *prodesc;
   SV       *perlret;
@@ -2488,6 +2526,7 @@ plperl_func_handler(PG_FUNCTION_ARGS)
 static Datum
 plperl_trigger_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   plperl_proc_desc *prodesc;
   SV       *perlret;
   Datum   retval;
@@ -2595,6 +2634,7 @@ plperl_trigger_handler(PG_FUNCTION_ARGS)
 static void
 plperl_event_trigger_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   plperl_proc_desc *prodesc;
   SV       *svTD;
   ErrorContextCallback pl_error_context;
@@ -2631,6 +2671,8 @@ plperl_event_trigger_handler(PG_FUNCTION_ARGS)
 static bool
 validate_plperl_function(plperl_proc_ptr *proc_ptr, HeapTuple procTup)
 {
+  DBUG_TRACE;
+
   if (proc_ptr && proc_ptr->proc_ptr) {
     plperl_proc_desc *prodesc = proc_ptr->proc_ptr;
     bool    uptodate;
@@ -2659,6 +2701,7 @@ validate_plperl_function(plperl_proc_ptr *proc_ptr, HeapTuple procTup)
 static void
 free_plperl_function(plperl_proc_desc *prodesc)
 {
+  DBUG_TRACE;
   Assert(prodesc->fn_refcount == 0);
 
   /* Release CODE reference, if we have one, from the appropriate interp */
@@ -2678,6 +2721,7 @@ free_plperl_function(plperl_proc_desc *prodesc)
 static plperl_proc_desc *
 compile_plperl_function(Oid fn_oid, bool is_trigger, bool is_event_trigger)
 {
+  DBUG_TRACE;
   HeapTuple procTup;
   Form_pg_proc procStruct;
   plperl_proc_key proc_key;
@@ -2961,6 +3005,7 @@ compile_plperl_function(Oid fn_oid, bool is_trigger, bool is_event_trigger)
 static SV  *
 plperl_hash_from_datum(Datum attr)
 {
+  DBUG_TRACE;
   HeapTupleHeader td;
   Oid     tupType;
   int32   tupTypmod;
@@ -2989,6 +3034,7 @@ plperl_hash_from_datum(Datum attr)
 static SV  *
 plperl_hash_from_tuple(HeapTuple tuple, TupleDesc tupdesc, bool include_generated)
 {
+  DBUG_TRACE;
   dTHX;
   HV       *hv;
   int     i;
@@ -3067,6 +3113,8 @@ plperl_hash_from_tuple(HeapTuple tuple, TupleDesc tupdesc, bool include_generate
 static void
 check_spi_usage_allowed(void)
 {
+  DBUG_TRACE;
+
   /* see comment in plperl_fini() */
   if (plperl_ending) {
     /* simple croak as we don't want to involve PostgreSQL code */
@@ -3092,6 +3140,7 @@ check_spi_usage_allowed(void)
 HV *
 plperl_spi_exec(char *query, int limit)
 {
+  DBUG_TRACE;
   HV       *ret_hv;
 
   /*
@@ -3153,6 +3202,7 @@ static HV  *
 plperl_spi_execute_fetch_result(SPITupleTable *tuptable, uint64 processed,
                                 int status)
 {
+  DBUG_TRACE;
   dTHX;
   HV       *result;
 
@@ -3204,6 +3254,7 @@ plperl_spi_execute_fetch_result(SPITupleTable *tuptable, uint64 processed,
 void
 plperl_return_next(SV *sv)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
 
   check_spi_usage_allowed();
@@ -3234,6 +3285,7 @@ plperl_return_next(SV *sv)
 static void
 plperl_return_next_internal(SV *sv)
 {
+  DBUG_TRACE;
   plperl_proc_desc *prodesc;
   FunctionCallInfo fcinfo;
   ReturnSetInfo *rsi;
@@ -3358,6 +3410,7 @@ plperl_return_next_internal(SV *sv)
 SV *
 plperl_spi_query(char *query)
 {
+  DBUG_TRACE;
   SV       *cursor;
 
   /*
@@ -3433,6 +3486,7 @@ plperl_spi_query(char *query)
 SV *
 plperl_spi_fetchrow(char *cursor)
 {
+  DBUG_TRACE;
   SV       *row;
 
   /*
@@ -3504,6 +3558,7 @@ plperl_spi_fetchrow(char *cursor)
 void
 plperl_spi_cursor_close(char *cursor)
 {
+  DBUG_TRACE;
   Portal    p;
 
   check_spi_usage_allowed();
@@ -3519,6 +3574,7 @@ plperl_spi_cursor_close(char *cursor)
 SV *
 plperl_spi_prepare(char *query, int argc, SV **argv)
 {
+  DBUG_TRACE;
   volatile SPIPlanPtr plan = NULL;
   volatile MemoryContext plan_cxt = NULL;
   plperl_query_desc *volatile qdesc = NULL;
@@ -3669,6 +3725,7 @@ plperl_spi_prepare(char *query, int argc, SV **argv)
 HV *
 plperl_spi_exec_prepared(char *query, HV *attr, int argc, SV **argv)
 {
+  DBUG_TRACE;
   HV       *ret_hv;
   SV      **sv;
   int     i,
@@ -3796,6 +3853,7 @@ plperl_spi_exec_prepared(char *query, HV *attr, int argc, SV **argv)
 SV *
 plperl_spi_query_prepared(char *query, int argc, SV **argv)
 {
+  DBUG_TRACE;
   int     i;
   char     *nulls;
   Datum    *argvalues;
@@ -3913,6 +3971,7 @@ plperl_spi_query_prepared(char *query, int argc, SV **argv)
 void
 plperl_spi_freeplan(char *query)
 {
+  DBUG_TRACE;
   SPIPlanPtr  plan;
   plperl_query_desc *qdesc;
   plperl_query_entry *hash_entry;
@@ -3947,6 +4006,7 @@ plperl_spi_freeplan(char *query)
 void
 plperl_spi_commit(void)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
 
   check_spi_usage_allowed();
@@ -3973,6 +4033,7 @@ plperl_spi_commit(void)
 void
 plperl_spi_rollback(void)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
 
   check_spi_usage_allowed();
@@ -4010,6 +4071,7 @@ plperl_spi_rollback(void)
 void
 plperl_util_elog(int level, SV *msg)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
   char     *volatile cmsg = NULL;
 
@@ -4049,6 +4111,7 @@ plperl_util_elog(int level, SV *msg)
 static SV **
 hv_store_string(HV *hv, const char *key, SV *val)
 {
+  DBUG_TRACE;
   dTHX;
   int32   hlen;
   char     *hkey;
@@ -4076,6 +4139,7 @@ hv_store_string(HV *hv, const char *key, SV *val)
 static SV **
 hv_fetch_string(HV *hv, const char *key)
 {
+  DBUG_TRACE;
   dTHX;
   int32   hlen;
   char     *hkey;
@@ -4099,6 +4163,7 @@ hv_fetch_string(HV *hv, const char *key)
 static void
 plperl_exec_callback(void *arg)
 {
+  DBUG_TRACE;
   char     *procname = (char *) arg;
 
   if (procname)
@@ -4111,6 +4176,7 @@ plperl_exec_callback(void *arg)
 static void
 plperl_compile_callback(void *arg)
 {
+  DBUG_TRACE;
   char     *procname = (char *) arg;
 
   if (procname)
@@ -4123,6 +4189,7 @@ plperl_compile_callback(void *arg)
 static void
 plperl_inline_callback(void *arg)
 {
+  DBUG_TRACE;
   errcontext("PL/Perl anonymous code block");
 }
 

@@ -166,8 +166,7 @@ pg_noreturn extern void MemoryContextSizeFailure(MemoryContext context, Size siz
 static inline void
 MemoryContextCheckSize(MemoryContext context, Size size, int flags)
 {
-  if (unlikely(!AllocSizeIsValid(size)))
-  {
+  if (unlikely(!AllocSizeIsValid(size))) {
     if (!(flags & MCXT_ALLOC_HUGE) || !AllocHugeSizeIsValid(size))
       MemoryContextSizeFailure(context, size, flags);
   }

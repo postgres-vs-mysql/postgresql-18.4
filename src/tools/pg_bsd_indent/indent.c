@@ -438,12 +438,12 @@ main(int argc, char **argv)
                * it into the buffer */
             force_nl = false;
             --line_no;  /* this will be re-increased when the
-         * newline is read from the buffer */
+ * newline is read from the buffer */
             *sc_end++ = '\n';
             *sc_end++ = ' ';
 
             if (verbose)  /* print error msg if the line was
-         * not already broken */
+ * not already broken */
               diag2(0, "Line broken");
           }
 
@@ -452,12 +452,12 @@ main(int argc, char **argv)
 
 sw_buffer:
           ps.search_brace = false;  /* stop looking for start of
-           * stmt */
+ * stmt */
           bp_save = buf_ptr;  /* save current input buffer */
           be_save = buf_end;
           buf_ptr = save_com; /* fix so that subsequent calls to
-         * lexi will take tokens out of
-         * save_com */
+ * lexi will take tokens out of
+ * save_com */
           *sc_end++ = ' ';/* add trailing blank, just in case */
           buf_end = sc_end;
           sc_end = NULL;

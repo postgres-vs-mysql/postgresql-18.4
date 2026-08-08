@@ -107,24 +107,32 @@ l_pbool_const(bool i)
 static inline LLVMValueRef
 l_struct_gep(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, int32 idx, const char *name)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "idx:%d, name:'%s'", idx, name);
   return LLVMBuildStructGEP2(b, t, v, idx, "");
 }
 
 static inline LLVMValueRef
 l_gep(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, LLVMValueRef *indices, int32 nindices, const char *name)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "nindices:%d, name:'%s'", nindices, name);
   return LLVMBuildGEP2(b, t, v, indices, nindices, name);
 }
 
 static inline LLVMValueRef
 l_load(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, const char *name)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "name:'%s'", name);
   return LLVMBuildLoad2(b, t, v, name);
 }
 
 static inline LLVMValueRef
 l_call(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef fn, LLVMValueRef *args, int32 nargs, const char *name)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "nargs:%d, name:'%s'", nargs, name);
   return LLVMBuildCall2(b, t, fn, args, nargs, name);
 }
 
@@ -134,6 +142,7 @@ l_call(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef fn, LLVMValueRef *args, int
 static inline LLVMValueRef
 l_load_struct_gep(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, int32 idx, const char *name)
 {
+  DBUG_TRACE;
   return l_load(b,
                 LLVMStructGetTypeAtIndex(t, idx),
                 l_struct_gep(b, t, v, idx, ""),
@@ -146,6 +155,7 @@ l_load_struct_gep(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, int32 idx, co
 static inline LLVMValueRef
 l_load_gep1(LLVMBuilderRef b, LLVMTypeRef t, LLVMValueRef v, LLVMValueRef idx, const char *name)
 {
+  DBUG_TRACE;
   return l_load(b, t, l_gep(b, t, v, &idx, 1, ""), name);
 }
 
@@ -201,6 +211,7 @@ l_bb_append_v(LLVMValueRef f, const char *fmt, ...)
 static inline void
 l_callsite_ro(LLVMValueRef f)
 {
+  DBUG_TRACE;
   const char  argname[] = "readonly";
   LLVMAttributeRef ref;
 
@@ -218,6 +229,7 @@ l_callsite_ro(LLVMValueRef f)
 static inline void
 l_callsite_alwaysinline(LLVMValueRef f)
 {
+  DBUG_TRACE;
   const char  argname[] = "alwaysinline";
   int     id;
   LLVMAttributeRef attr;
@@ -234,6 +246,7 @@ l_callsite_alwaysinline(LLVMValueRef f)
 static inline LLVMValueRef
 l_mcxt_switch(LLVMModuleRef mod, LLVMBuilderRef b, LLVMValueRef nc)
 {
+  DBUG_TRACE;
   const char *cmc = "CurrentMemoryContext";
   LLVMValueRef cur;
   LLVMValueRef ret;
@@ -253,6 +266,7 @@ l_mcxt_switch(LLVMModuleRef mod, LLVMBuilderRef b, LLVMValueRef nc)
 static inline LLVMValueRef
 l_funcnullp(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 {
+  DBUG_TRACE;
   LLVMValueRef v_args;
   LLVMValueRef v_argn;
 
@@ -279,6 +293,7 @@ l_funcnullp(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 static inline LLVMValueRef
 l_funcvaluep(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 {
+  DBUG_TRACE;
   LLVMValueRef v_args;
   LLVMValueRef v_argn;
 
@@ -305,6 +320,7 @@ l_funcvaluep(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 static inline LLVMValueRef
 l_funcnull(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 {
+  DBUG_TRACE;
   return l_load(b, TypeStorageBool, l_funcnullp(b, v_fcinfo, argno), "");
 }
 
@@ -314,6 +330,7 @@ l_funcnull(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 static inline LLVMValueRef
 l_funcvalue(LLVMBuilderRef b, LLVMValueRef v_fcinfo, size_t argno)
 {
+  DBUG_TRACE;
   return l_load(b, TypeSizeT, l_funcvaluep(b, v_fcinfo, argno), "");
 }
 

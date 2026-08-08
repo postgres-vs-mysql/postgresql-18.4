@@ -7,6 +7,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -105,6 +106,7 @@ static bool firstNumaTouch = true;
 Datum
 pg_buffercache_pages(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
   MemoryContext oldcontext;
@@ -132,12 +134,16 @@ pg_buffercache_pages(PG_FUNCTION_ARGS)
      * without potentially crashing when somebody uses the old (or even
      * wrong) function definition though.
      */
-    if (get_call_result_type(fcinfo, NULL, &expected_tupledesc) != TYPEFUNC_COMPOSITE)
+    if (get_call_result_type(fcinfo, NULL, &expected_tupledesc) != TYPEFUNC_COMPOSITE) {
+      DBUG_INSTANT_PRINT("buffercache", "return type must be a row type");
       elog(ERROR, "return type must be a row type");
+    }
 
     if (expected_tupledesc->natts < NUM_BUFFERCACHE_PAGES_MIN_ELEM ||
-        expected_tupledesc->natts > NUM_BUFFERCACHE_PAGES_ELEM)
+        expected_tupledesc->natts > NUM_BUFFERCACHE_PAGES_ELEM) {
+      DBUG_INSTANT_PRINT("buffercache", "incorrect number of output arguments");
       elog(ERROR, "incorrect number of output arguments");
+    }
 
     /* Construct a tuple descriptor for the result rows. */
     tupledesc = CreateTemplateTupleDesc(expected_tupledesc->natts);
@@ -184,6 +190,8 @@ pg_buffercache_pages(PG_FUNCTION_ARGS)
      * snapshot across all buffers, but we do grab the buffer header
      * locks, so the information of each buffer is self-consistent.
      */
+    DBUG_PRINT("buffercache", "scan through all the buffers:%d", NBuffers);
+
     for (i = 0; i < NBuffers; i++) {
       BufferDesc *bufHdr;
       uint32    buf_state;
@@ -534,6 +542,7 @@ pg_buffercache_numa_pages(PG_FUNCTION_ARGS)
 Datum
 pg_buffercache_summary(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   result;
   TupleDesc tupledesc;
   HeapTuple tuple;
@@ -546,8 +555,10 @@ pg_buffercache_summary(PG_FUNCTION_ARGS)
   int32   buffers_pinned = 0;
   int64   usagecount_total = 0;
 
-  if (get_call_result_type(fcinfo, NULL, &tupledesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupledesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("buffercache", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   for (int i = 0; i < NBuffers; i++) {
     BufferDesc *bufHdr;
@@ -598,6 +609,7 @@ pg_buffercache_summary(PG_FUNCTION_ARGS)
 Datum
 pg_buffercache_usage_counts(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   int     usage_counts[BM_MAX_USAGE_COUNT + 1] = {0};
   int     dirty[BM_MAX_USAGE_COUNT + 1] = {0};
@@ -642,11 +654,13 @@ pg_buffercache_usage_counts(PG_FUNCTION_ARGS)
 static void
 pg_buffercache_superuser_check(char *func_name)
 {
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("buffercache", "must be superuser to use pg_buffercache_evict function");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use %s()",
                     func_name)));
+  }
 }
 
 /*
@@ -655,6 +669,7 @@ pg_buffercache_superuser_check(char *func_name)
 Datum
 pg_buffercache_evict(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   result;
   TupleDesc tupledesc;
   HeapTuple tuple;
@@ -664,13 +679,17 @@ pg_buffercache_evict(PG_FUNCTION_ARGS)
   Buffer    buf = PG_GETARG_INT32(0);
   bool    buffer_flushed;
 
-  if (get_call_result_type(fcinfo, NULL, &tupledesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupledesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("buffercache", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   pg_buffercache_superuser_check("pg_buffercache_evict");
 
-  if (buf < 1 || buf > NBuffers)
+  if (buf < 1 || buf > NBuffers) {
+    DBUG_INSTANT_PRINT("buffercache", "bad buffer ID: %d", buf);
     elog(ERROR, "bad buffer ID: %d", buf);
+  }
 
   values[0] = BoolGetDatum(EvictUnpinnedBuffer(buf, &buffer_flushed));
   values[1] = BoolGetDatum(buffer_flushed);

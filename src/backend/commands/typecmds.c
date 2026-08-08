@@ -30,6 +30,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -149,6 +150,7 @@ static void AlterTypeRecurse(Oid typeOid, bool isImplicitArray,
 ObjectAddress
 DefineType(ParseState *pstate, List *names, List *parameters)
 {
+  DBUG_TRACE;
   char     *typeName;
   Oid     typeNamespace;
   int16   internalLength = -1;  /* default: variable-length */
@@ -213,10 +215,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
    *
    * XXX re-enable NOT_USED code sections below if you remove this test.
    */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to create a base type");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to create a base type")));
+  }
 
   /* Convert list of names to a name and namespace */
   typeNamespace = QualifiedNameGetCreationNamespace(names, &typeName);
@@ -246,10 +250,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
   if (OidIsValid(typoid) && get_typisdefined(typoid)) {
     if (moveArrayTypeName(typoid, typeName, typeNamespace))
       typoid = InvalidOid;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", typeName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", typeName)));
+    }
   }
 
   /*
@@ -257,10 +263,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
    * make a shell type, so do that (or fail if there already is a shell).
    */
   if (parameters == NIL) {
-    if (OidIsValid(typoid))
+    if (OidIsValid(typoid)) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", typeName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", typeName)));
+    }
 
     address = TypeShellMake(typeName, typeNamespace, GetUserId());
     return address;
@@ -270,11 +278,13 @@ DefineType(ParseState *pstate, List *names, List *parameters)
    * Otherwise, we must already have a shell type, since there is no other
    * way that the I/O functions could have been created.
    */
-  if (!OidIsValid(typoid))
+  if (!OidIsValid(typoid)) {
+    DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", typeName);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("type \"%s\" does not exist", typeName),
              errhint("Create the type as a shell type, then create its I/O functions, then do a full CREATE TYPE.")));
+  }
 
   /* Extract the parameters from the parameter list */
   foreach(pl, parameters) {
@@ -387,11 +397,13 @@ DefineType(ParseState *pstate, List *names, List *parameters)
     category = p[0];
 
     /* restrict to non-control ASCII */
-    if (category < 32 || category > 126)
+    if (category < 32 || category > 126) {
+      DBUG_INSTANT_PRINT("info", "invalid type category \"%s\": must be simple ASCII", p);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid type category \"%s\": must be simple ASCII",
                       p)));
+    }
   }
 
   if (preferredEl)
@@ -408,11 +420,14 @@ DefineType(ParseState *pstate, List *names, List *parameters)
     elemType = typenameTypeId(NULL, defGetTypeName(elemTypeEl));
 
     /* disallow arrays of pseudotypes */
-    if (get_typtype(elemType) == TYPTYPE_PSEUDO)
+    if (get_typtype(elemType) == TYPTYPE_PSEUDO) {
+      char *format1 = format_type_be(elemType);
+      DBUG_INSTANT_PRINT("info", "array element type cannot be %s", format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("array element type cannot be %s",
-                      format_type_be(elemType))));
+                      format1)));
+    }
   }
 
   if (defaultValueEl)
@@ -442,10 +457,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
     else if (pg_strcasecmp(a, "char") == 0 ||
              pg_strcasecmp(a, "pg_catalog.bpchar") == 0)
       alignment = TYPALIGN_CHAR;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "alignment \"%s\" not recognized", a);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("alignment \"%s\" not recognized", a)));
+    }
   }
 
   if (storageEl) {
@@ -459,10 +476,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
       storage = TYPSTORAGE_EXTENDED;
     else if (pg_strcasecmp(a, "main") == 0)
       storage = TYPSTORAGE_MAIN;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "storage \"%s\" not recognized", a);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("storage \"%s\" not recognized", a)));
+    }
   }
 
   if (collatableEl)
@@ -471,20 +490,26 @@ DefineType(ParseState *pstate, List *names, List *parameters)
   /*
    * make sure we have our required definitions
    */
-  if (inputName == NIL)
+  if (inputName == NIL) {
+    DBUG_INSTANT_PRINT("info", "type input function must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type input function must be specified")));
+  }
 
-  if (outputName == NIL)
+  if (outputName == NIL) {
+    DBUG_INSTANT_PRINT("info", "type output function must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type output function must be specified")));
+  }
 
-  if (typmodinName == NIL && typmodoutName != NIL)
+  if (typmodinName == NIL && typmodoutName != NIL) {
+    DBUG_INSTANT_PRINT("info", "type modifier output function is useless without a type modifier input function");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type modifier output function is useless without a type modifier input function")));
+  }
 
   /*
    * Convert I/O proc names to OIDs
@@ -525,10 +550,12 @@ DefineType(ParseState *pstate, List *names, List *parameters)
   else if (OidIsValid(elemType)) {
     if (internalLength > 0 && !byValue && get_typlen(elemType) > 0)
       subscriptOid = F_RAW_ARRAY_SUBSCRIPT_HANDLER;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "element type cannot be specified without a subscripting function");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("element type cannot be specified without a subscripting function")));
+    }
   }
 
   /*
@@ -680,6 +707,7 @@ DefineType(ParseState *pstate, List *names, List *parameters)
 void
 RemoveTypeById(Oid typeOid)
 {
+  DBUG_TRACE;
   Relation  relation;
   HeapTuple tup;
 
@@ -721,6 +749,7 @@ RemoveTypeById(Oid typeOid)
 ObjectAddress
 DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 {
+  DBUG_TRACE;
   char     *domainName;
   char     *domainArrayName;
   Oid     domainNamespace;
@@ -778,10 +807,12 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
                                  ObjectIdGetDatum(domainNamespace));
 
   if (OidIsValid(old_type_oid)) {
-    if (!moveArrayTypeName(old_type_oid, domainName, domainNamespace))
+    if (!moveArrayTypeName(old_type_oid, domainName, domainNamespace)) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", domainName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", domainName)));
+    }
   }
 
   /*
@@ -806,12 +837,14 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
       typtype != TYPTYPE_DOMAIN &&
       typtype != TYPTYPE_ENUM &&
       typtype != TYPTYPE_RANGE &&
-      typtype != TYPTYPE_MULTIRANGE)
+      typtype != TYPTYPE_MULTIRANGE) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a valid base type for a domain", TypeNameToString(stmt->typeName));
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("\"%s\" is not a valid base type for a domain",
                     TypeNameToString(stmt->typeName)),
              parser_errposition(pstate, stmt->typeName->location)));
+  }
 
   aclresult = object_aclcheck(TypeRelationId, basetypeoid, GetUserId(), ACL_USAGE);
 
@@ -835,12 +868,15 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
     domaincoll = baseColl;
 
   /* Complain if COLLATE is applied to an uncollatable type */
-  if (OidIsValid(domaincoll) && !OidIsValid(baseColl))
+  if (OidIsValid(domaincoll) && !OidIsValid(baseColl)) {
+    char *format1 = format_type_be(basetypeoid);
+    DBUG_INSTANT_PRINT("info", "collations are not supported by type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("collations are not supported by type %s",
-                    format_type_be(basetypeoid)),
+                    format1),
              parser_errposition(pstate, stmt->typeName->location)));
+  }
 
   /* passed by value */
   byValue = baseType->typbyval;
@@ -909,11 +945,13 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
          * The inherited default value may be overridden by the user
          * with the DEFAULT <expr> clause ... but only once.
          */
-        if (saw_default)
+        if (saw_default) {
+          DBUG_INSTANT_PRINT("info", "multiple default expressions");
           ereport(ERROR,
                   errcode(ERRCODE_SYNTAX_ERROR),
                   errmsg("multiple default expressions"),
                   parser_errposition(pstate, constr->location));
+        }
 
         saw_default = true;
 
@@ -966,34 +1004,41 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 
       case CONSTR_NOTNULL:
         if (nullDefined) {
-          if (!typNotNull)
+          if (!typNotNull) {
+            DBUG_INSTANT_PRINT("info", "conflicting NULL/NOT NULL constraints");
             ereport(ERROR,
                     errcode(ERRCODE_SYNTAX_ERROR),
                     errmsg("conflicting NULL/NOT NULL constraints"),
                     parser_errposition(pstate, constr->location));
+          }
 
+          DBUG_INSTANT_PRINT("info", "redundant NOT NULL constraint definition");
           ereport(ERROR,
                   errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                   errmsg("redundant NOT NULL constraint definition"),
                   parser_errposition(pstate, constr->location));
         }
 
-        if (constr->is_no_inherit)
+        if (constr->is_no_inherit) {
+          DBUG_INSTANT_PRINT("info", "not-null constraints for domains cannot be marked NO INHERIT");
           ereport(ERROR,
                   errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                   errmsg("not-null constraints for domains cannot be marked NO INHERIT"),
                   parser_errposition(pstate, constr->location));
+        }
 
         typNotNull = true;
         nullDefined = true;
         break;
 
       case CONSTR_NULL:
-        if (nullDefined && typNotNull)
+        if (nullDefined && typNotNull) {
+          DBUG_INSTANT_PRINT("info", "conflicting NULL/NOT NULL constraints");
           ereport(ERROR,
                   errcode(ERRCODE_SYNTAX_ERROR),
                   errmsg("conflicting NULL/NOT NULL constraints"),
                   parser_errposition(pstate, constr->location));
+        }
 
         typNotNull = false;
         nullDefined = true;
@@ -1007,11 +1052,12 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
          * only check that they're not marked NO INHERIT, because that
          * would be bogus.
          */
-        if (constr->is_no_inherit)
+        if (constr->is_no_inherit) {
           ereport(ERROR,
                   errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                   errmsg("check constraints for domains cannot be marked NO INHERIT"),
                   parser_errposition(pstate, constr->location));
+        }
 
         break;
 
@@ -1019,6 +1065,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
        * All else are error cases
        */
       case CONSTR_UNIQUE:
+        DBUG_INSTANT_PRINT("info", "unique constraints not possible for domains");
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 errmsg("unique constraints not possible for domains"),
@@ -1026,6 +1073,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
         break;
 
       case CONSTR_PRIMARY:
+        DBUG_INSTANT_PRINT("info", "primary key constraints not possible for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("primary key constraints not possible for domains"),
@@ -1033,6 +1081,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
         break;
 
       case CONSTR_EXCLUSION:
+        DBUG_INSTANT_PRINT("info", "exclusion constraints not possible for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("exclusion constraints not possible for domains"),
@@ -1040,6 +1089,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
         break;
 
       case CONSTR_FOREIGN:
+        DBUG_INSTANT_PRINT("info", "foreign key constraints not possible for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("foreign key constraints not possible for domains"),
@@ -1050,6 +1100,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
       case CONSTR_ATTR_NOT_DEFERRABLE:
       case CONSTR_ATTR_DEFERRED:
       case CONSTR_ATTR_IMMEDIATE:
+        DBUG_INSTANT_PRINT("info", "specifying constraint deferrability not supported for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("specifying constraint deferrability not supported for domains"),
@@ -1058,6 +1109,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 
       case CONSTR_GENERATED:
       case CONSTR_IDENTITY:
+        DBUG_INSTANT_PRINT("info", "specifying GENERATED not supported for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("specifying GENERATED not supported for domains"),
@@ -1066,6 +1118,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 
       case CONSTR_ATTR_ENFORCED:
       case CONSTR_ATTR_NOT_ENFORCED:
+        DBUG_INSTANT_PRINT("info", "specifying constraint enforceability not supported for domains");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("specifying constraint enforceability not supported for domains"),
@@ -1206,6 +1259,7 @@ DefineDomain(ParseState *pstate, CreateDomainStmt *stmt)
 ObjectAddress
 DefineEnum(CreateEnumStmt *stmt)
 {
+  DBUG_TRACE;
   char     *enumName;
   char     *enumArrayName;
   Oid     enumNamespace;
@@ -1234,10 +1288,12 @@ DefineEnum(CreateEnumStmt *stmt)
                                  ObjectIdGetDatum(enumNamespace));
 
   if (OidIsValid(old_type_oid)) {
-    if (!moveArrayTypeName(old_type_oid, enumName, enumNamespace))
+    if (!moveArrayTypeName(old_type_oid, enumName, enumNamespace)) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", enumName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", enumName)));
+    }
   }
 
   /* Allocate OID for array type */
@@ -1331,6 +1387,7 @@ DefineEnum(CreateEnumStmt *stmt)
 ObjectAddress
 AlterEnum(AlterEnumStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     enum_type_oid;
   TypeName   *typename;
   HeapTuple tup;
@@ -1377,14 +1434,18 @@ AlterEnum(AlterEnumStmt *stmt)
 static void
 checkEnumOwner(HeapTuple tup)
 {
+  DBUG_TRACE;
   Form_pg_type typTup = (Form_pg_type) GETSTRUCT(tup);
 
   /* Check that this is actually an enum */
-  if (typTup->typtype != TYPTYPE_ENUM)
+  if (typTup->typtype != TYPTYPE_ENUM) {
+    char *format1 = format_type_be(typTup->oid);
+    DBUG_INSTANT_PRINT("info", "%s is not an enum", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not an enum",
-                    format_type_be(typTup->oid))));
+                    format1)));
+  }
 
   /* Permission check: must own type */
   if (!object_ownercheck(TypeRelationId, typTup->oid, GetUserId()))
@@ -1404,6 +1465,7 @@ checkEnumOwner(HeapTuple tup)
 ObjectAddress
 DefineRange(ParseState *pstate, CreateRangeStmt *stmt)
 {
+  DBUG_TRACE;
   char     *typeName;
   Oid     typeNamespace;
   Oid     typoid;
@@ -1458,10 +1520,12 @@ DefineRange(ParseState *pstate, CreateRangeStmt *stmt)
   if (OidIsValid(typoid) && get_typisdefined(typoid)) {
     if (moveArrayTypeName(typoid, typeName, typeNamespace))
       typoid = InvalidOid;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", typeName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", typeName)));
+    }
   }
 
   /*
@@ -1514,25 +1578,32 @@ DefineRange(ParseState *pstate, CreateRangeStmt *stmt)
       if (aclresult != ACLCHECK_OK)
         aclcheck_error(aclresult, OBJECT_SCHEMA,
                        get_namespace_name(multirangeNamespace));
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "type attribute \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("type attribute \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
   /* Must have a subtype */
-  if (!OidIsValid(rangeSubtype))
+  if (!OidIsValid(rangeSubtype)) {
+    DBUG_INSTANT_PRINT("info", "type attribute \"subtype\" is required");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("type attribute \"subtype\" is required")));
+  }
 
   /* disallow ranges of pseudotypes */
-  if (get_typtype(rangeSubtype) == TYPTYPE_PSEUDO)
+  if (get_typtype(rangeSubtype) == TYPTYPE_PSEUDO) {
+    char *format1 = format_type_be(rangeSubtype);
+    DBUG_INSTANT_PRINT("info", "range subtype cannot be %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("range subtype cannot be %s",
-                    format_type_be(rangeSubtype))));
+                    format1)));
+  }
 
   /* Identify subopclass */
   rangeSubOpclass = findRangeSubOpclass(rangeSubOpclassName, rangeSubtype);
@@ -1544,21 +1615,25 @@ DefineRange(ParseState *pstate, CreateRangeStmt *stmt)
     else
       rangeCollation = get_typcollation(rangeSubtype);
   } else {
-    if (rangeCollationName != NIL)
+    if (rangeCollationName != NIL) {
+      DBUG_INSTANT_PRINT("info", "range collation specified but subtype does not support collation");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("range collation specified but subtype does not support collation")));
+    }
 
     rangeCollation = InvalidOid;
   }
 
   /* Identify support functions, if provided */
   if (rangeCanonicalName != NIL) {
-    if (!OidIsValid(typoid))
+    if (!OidIsValid(typoid)) {
+      DBUG_INSTANT_PRINT("info", "cannot specify a canonical function without a pre-created shell type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cannot specify a canonical function without a pre-created shell type"),
                errhint("Create the type as a shell type, then create its canonicalization function, then do a full CREATE TYPE.")));
+    }
 
     rangeCanonical = findRangeCanonicalFunction(rangeCanonicalName,
                      typoid);
@@ -1635,10 +1710,12 @@ DefineRange(ParseState *pstate, CreateRangeStmt *stmt)
      * if so rename it out of the way.
      */
     if (OidIsValid(old_typoid) && get_typisdefined(old_typoid)) {
-      if (!moveArrayTypeName(old_typoid, multirangeTypeName, multirangeNamespace))
+      if (!moveArrayTypeName(old_typoid, multirangeTypeName, multirangeNamespace)) {
+        DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", multirangeTypeName);
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_OBJECT),
                  errmsg("type \"%s\" already exists", multirangeTypeName)));
+      }
     }
   } else {
     /* Generate multirange name automatically */
@@ -1791,6 +1868,7 @@ static void
 makeRangeConstructors(const char *name, Oid namespace,
                       Oid rangeOid, Oid subtype)
 {
+  DBUG_TRACE;
   static const char *const prosrc[2] = {"range_constructor2",
                                         "range_constructor3"
                                        };
@@ -1867,6 +1945,7 @@ makeMultirangeConstructors(const char *name, Oid namespace,
                            Oid multirangeOid, Oid rangeOid, Oid rangeArrayOid,
                            Oid *castFuncOid)
 {
+  DBUG_TRACE;
   ObjectAddress myself,
                 referenced;
   oidvector  *argtypes;
@@ -2010,6 +2089,7 @@ makeMultirangeConstructors(const char *name, Oid namespace,
 static Oid
 findTypeInputFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[3];
   Oid     procOid;
   Oid     procOid2;
@@ -2027,28 +2107,35 @@ findTypeInputFunction(List *procname, Oid typeOid)
   procOid2 = LookupFuncName(procname, 3, argList, true);
 
   if (OidIsValid(procOid)) {
-    if (OidIsValid(procOid2))
+    if (OidIsValid(procOid2)) {
+      DBUG_INSTANT_PRINT("info", "type input function %s has multiple matches", NameListToString(procname));
       ereport(ERROR,
               (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
                errmsg("type input function %s has multiple matches",
                       NameListToString(procname))));
+    }
   } else {
     procOid = procOid2;
 
     /* If not found, reference the 1-argument signature in error msg */
-    if (!OidIsValid(procOid))
+    if (!OidIsValid(procOid)) {
+      DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_FUNCTION),
                errmsg("function %s does not exist",
                       func_signature_string(procname, 1, NIL, argList))));
+    }
   }
 
   /* Input functions must return the target type. */
-  if (get_func_rettype(procOid) != typeOid)
+  if (get_func_rettype(procOid) != typeOid) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "type input function %s must return type %s", NameListToString(procname), format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type input function %s must return type %s",
-                    NameListToString(procname), format_type_be(typeOid))));
+                    NameListToString(procname), format1)));
+  }
 
   /*
    * Print warnings if any of the type's I/O functions are marked volatile.
@@ -2072,6 +2159,7 @@ findTypeInputFunction(List *procname, Oid typeOid)
 static Oid
 findTypeOutputFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2083,24 +2171,31 @@ findTypeOutputFunction(List *procname, Oid typeOid)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != CSTRINGOID)
+  if (get_func_rettype(procOid) != CSTRINGOID) {
+    DBUG_INSTANT_PRINT("info", "type output function %s must return type %s",
+                       NameListToString(procname), "cstring");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type output function %s must return type %s",
                     NameListToString(procname), "cstring")));
+  }
 
   /* Just a warning for now, per comments in findTypeInputFunction */
-  if (func_volatile(procOid) == PROVOLATILE_VOLATILE)
+  if (func_volatile(procOid) == PROVOLATILE_VOLATILE) {
+    DBUG_INSTANT_PRINT("info", "type output function %s should not be volatile", NameListToString(procname));
     ereport(WARNING,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type output function %s should not be volatile",
                     NameListToString(procname))));
+  }
 
   return procOid;
 }
@@ -2108,6 +2203,7 @@ findTypeOutputFunction(List *procname, Oid typeOid)
 static Oid
 findTypeReceiveFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[3];
   Oid     procOid;
   Oid     procOid2;
@@ -2125,35 +2221,44 @@ findTypeReceiveFunction(List *procname, Oid typeOid)
   procOid2 = LookupFuncName(procname, 3, argList, true);
 
   if (OidIsValid(procOid)) {
-    if (OidIsValid(procOid2))
+    if (OidIsValid(procOid2)) {
+      DBUG_INSTANT_PRINT("info", "type receive function %s has multiple matches", NameListToString(procname));
       ereport(ERROR,
               (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
                errmsg("type receive function %s has multiple matches",
                       NameListToString(procname))));
+    }
   } else {
     procOid = procOid2;
 
     /* If not found, reference the 1-argument signature in error msg */
-    if (!OidIsValid(procOid))
+    if (!OidIsValid(procOid)) {
+      DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_FUNCTION),
                errmsg("function %s does not exist",
                       func_signature_string(procname, 1, NIL, argList))));
+    }
   }
 
   /* Receive functions must return the target type. */
-  if (get_func_rettype(procOid) != typeOid)
+  if (get_func_rettype(procOid) != typeOid) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "type receive function %s must return type %s", NameListToString(procname), format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type receive function %s must return type %s",
-                    NameListToString(procname), format_type_be(typeOid))));
+                    NameListToString(procname), format1)));
+  }
 
   /* Just a warning for now, per comments in findTypeInputFunction */
-  if (func_volatile(procOid) == PROVOLATILE_VOLATILE)
+  if (func_volatile(procOid) == PROVOLATILE_VOLATILE) {
+    DBUG_INSTANT_PRINT("info", "type receive function %s should not be volatile", NameListToString(procname));
     ereport(WARNING,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type receive function %s should not be volatile",
                     NameListToString(procname))));
+  }
 
   return procOid;
 }
@@ -2161,6 +2266,7 @@ findTypeReceiveFunction(List *procname, Oid typeOid)
 static Oid
 findTypeSendFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2172,24 +2278,30 @@ findTypeSendFunction(List *procname, Oid typeOid)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != BYTEAOID)
+  if (get_func_rettype(procOid) != BYTEAOID) {
+    DBUG_INSTANT_PRINT("info", "type send function %s must return type %s", NameListToString(procname), "bytea");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type send function %s must return type %s",
                     NameListToString(procname), "bytea")));
+  }
 
   /* Just a warning for now, per comments in findTypeInputFunction */
-  if (func_volatile(procOid) == PROVOLATILE_VOLATILE)
+  if (func_volatile(procOid) == PROVOLATILE_VOLATILE) {
+    DBUG_INSTANT_PRINT("info", "type send function %s should not be volatile", NameListToString(procname));
     ereport(WARNING,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type send function %s should not be volatile",
                     NameListToString(procname))));
+  }
 
   return procOid;
 }
@@ -2197,6 +2309,7 @@ findTypeSendFunction(List *procname, Oid typeOid)
 static Oid
 findTypeTypmodinFunction(List *procname)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2207,17 +2320,21 @@ findTypeTypmodinFunction(List *procname)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != INT4OID)
+  if (get_func_rettype(procOid) != INT4OID) {
+    DBUG_INSTANT_PRINT("info", "typmod_in function %s must return type %s", NameListToString(procname), "integer");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("typmod_in function %s must return type %s",
                     NameListToString(procname), "integer")));
+  }
 
   /* Just a warning for now, per comments in findTypeInputFunction */
   if (func_volatile(procOid) == PROVOLATILE_VOLATILE)
@@ -2232,6 +2349,7 @@ findTypeTypmodinFunction(List *procname)
 static Oid
 findTypeTypmodoutFunction(List *procname)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2242,24 +2360,29 @@ findTypeTypmodoutFunction(List *procname)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != CSTRINGOID)
+  if (get_func_rettype(procOid) != CSTRINGOID) {
+    DBUG_INSTANT_PRINT("info", "typmod_out function %s must return type %s", NameListToString(procname), "cstring");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("typmod_out function %s must return type %s",
                     NameListToString(procname), "cstring")));
+  }
 
   /* Just a warning for now, per comments in findTypeInputFunction */
-  if (func_volatile(procOid) == PROVOLATILE_VOLATILE)
+  if (func_volatile(procOid) == PROVOLATILE_VOLATILE) {
     ereport(WARNING,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type modifier output function %s should not be volatile",
                     NameListToString(procname))));
+  }
 
   return procOid;
 }
@@ -2267,6 +2390,7 @@ findTypeTypmodoutFunction(List *procname)
 static Oid
 findTypeAnalyzeFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2277,17 +2401,21 @@ findTypeAnalyzeFunction(List *procname, Oid typeOid)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != BOOLOID)
+  if (get_func_rettype(procOid) != BOOLOID) {
+    DBUG_INSTANT_PRINT("info", "type analyze function %s must return type %s", NameListToString(procname), "boolean");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type analyze function %s must return type %s",
                     NameListToString(procname), "boolean")));
+  }
 
   return procOid;
 }
@@ -2295,6 +2423,7 @@ findTypeAnalyzeFunction(List *procname, Oid typeOid)
 static Oid
 findTypeSubscriptingFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
 
@@ -2307,27 +2436,33 @@ findTypeSubscriptingFunction(List *procname, Oid typeOid)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != INTERNALOID)
+  if (get_func_rettype(procOid) != INTERNALOID) {
+    DBUG_INSTANT_PRINT("info", "type subscripting function %s must return type %s", NameListToString(procname), "internal");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("type subscripting function %s must return type %s",
                     NameListToString(procname), "internal")));
+  }
 
   /*
    * We disallow array_subscript_handler() from being selected explicitly,
    * since that must only be applied to autogenerated array types.
    */
-  if (procOid == F_ARRAY_SUBSCRIPT_HANDLER)
+  if (procOid == F_ARRAY_SUBSCRIPT_HANDLER) {
+    DBUG_INSTANT_PRINT("info", "user-defined types cannot use subscripting function %s", NameListToString(procname));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("user-defined types cannot use subscripting function %s",
                     NameListToString(procname))));
+  }
 
   return procOid;
 }
@@ -2343,6 +2478,7 @@ findTypeSubscriptingFunction(List *procname, Oid typeOid)
 static Oid
 findRangeSubOpclass(List *opcname, Oid subtype)
 {
+  DBUG_TRACE;
   Oid     opcid;
   Oid     opInputType;
 
@@ -2355,21 +2491,27 @@ findRangeSubOpclass(List *opcname, Oid subtype)
      */
     opInputType = get_opclass_input_type(opcid);
 
-    if (!IsBinaryCoercible(subtype, opInputType))
+    if (!IsBinaryCoercible(subtype, opInputType)) {
+      char *format1 = format_type_be(subtype);
+      DBUG_INSTANT_PRINT("info", "operator class \"%s\" does not accept data type %s", NameListToString(opcname), format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("operator class \"%s\" does not accept data type %s",
                       NameListToString(opcname),
-                      format_type_be(subtype))));
+                      format1)));
+    }
   } else {
     opcid = GetDefaultOpClass(subtype, BTREE_AM_OID);
 
     if (!OidIsValid(opcid)) {
+      char *format1 = format_type_be(subtype);
       /* We spell the error message identically to ResolveOpClass */
+      DBUG_INSTANT_PRINT("info", "data type %s has no default operator class for access method \"%s\"",
+                         format1, "btree");
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("data type %s has no default operator class for access method \"%s\"",
-                      format_type_be(subtype), "btree"),
+                      format1, "btree"),
                errhint("You must specify an operator class for the range type or define a default operator class for the subtype.")));
     }
   }
@@ -2380,6 +2522,7 @@ findRangeSubOpclass(List *opcname, Oid subtype)
 static Oid
 findRangeCanonicalFunction(List *procname, Oid typeOid)
 {
+  DBUG_TRACE;
   Oid     argList[1];
   Oid     procOid;
   AclResult aclresult;
@@ -2392,23 +2535,29 @@ findRangeCanonicalFunction(List *procname, Oid typeOid)
 
   procOid = LookupFuncName(procname, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != typeOid)
+  if (get_func_rettype(procOid) != typeOid) {
+    DBUG_INSTANT_PRINT("info", "range canonical function %s must return range type", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("range canonical function %s must return range type",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
-  if (func_volatile(procOid) != PROVOLATILE_IMMUTABLE)
+  if (func_volatile(procOid) != PROVOLATILE_IMMUTABLE) {
+    DBUG_INSTANT_PRINT("info", "range canonical function %s must be immutable", func_signature_string(procname, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("range canonical function %s must be immutable",
                     func_signature_string(procname, 1, NIL, argList))));
+  }
 
   /* Also, range type's creator must have permission to call function */
   aclresult = object_aclcheck(ProcedureRelationId, procOid, GetUserId(), ACL_EXECUTE);
@@ -2422,6 +2571,7 @@ findRangeCanonicalFunction(List *procname, Oid typeOid)
 static Oid
 findRangeSubtypeDiffFunction(List *procname, Oid subtype)
 {
+  DBUG_TRACE;
   Oid     argList[2];
   Oid     procOid;
   AclResult aclresult;
@@ -2435,24 +2585,31 @@ findRangeSubtypeDiffFunction(List *procname, Oid subtype)
 
   procOid = LookupFuncName(procname, 2, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procname, 2, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procname, 2, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != FLOAT8OID)
+  if (get_func_rettype(procOid) != FLOAT8OID) {
+    DBUG_INSTANT_PRINT("info", "range subtype diff function %s must return type %s",
+                       func_signature_string(procname, 2, NIL, argList), "double precision");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("range subtype diff function %s must return type %s",
                     func_signature_string(procname, 2, NIL, argList),
                     "double precision")));
+  }
 
-  if (func_volatile(procOid) != PROVOLATILE_IMMUTABLE)
+  if (func_volatile(procOid) != PROVOLATILE_IMMUTABLE) {
+    DBUG_INSTANT_PRINT("info", "range subtype diff function %s must be immutable", func_signature_string(procname, 2, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("range subtype diff function %s must be immutable",
                     func_signature_string(procname, 2, NIL, argList))));
+  }
 
   /* Also, range type's creator must have permission to call function */
   aclresult = object_aclcheck(ProcedureRelationId, procOid, GetUserId(), ACL_EXECUTE);
@@ -2471,14 +2628,17 @@ findRangeSubtypeDiffFunction(List *procname, Oid subtype)
 Oid
 AssignTypeArrayOid(void)
 {
+  DBUG_TRACE;
   Oid     type_array_oid;
 
   /* Use binary-upgrade override for pg_type.typarray? */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_array_pg_type_oid))
+    if (!OidIsValid(binary_upgrade_next_array_pg_type_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_type array OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_type array OID value not set when in binary upgrade mode")));
+    }
 
     type_array_oid = binary_upgrade_next_array_pg_type_oid;
     binary_upgrade_next_array_pg_type_oid = InvalidOid;
@@ -2501,14 +2661,17 @@ AssignTypeArrayOid(void)
 Oid
 AssignTypeMultirangeOid(void)
 {
+  DBUG_TRACE;
   Oid     type_multirange_oid;
 
   /* Use binary-upgrade override for pg_type.oid? */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_mrng_pg_type_oid))
+    if (!OidIsValid(binary_upgrade_next_mrng_pg_type_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_type multirange OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_type multirange OID value not set when in binary upgrade mode")));
+    }
 
     type_multirange_oid = binary_upgrade_next_mrng_pg_type_oid;
     binary_upgrade_next_mrng_pg_type_oid = InvalidOid;
@@ -2531,14 +2694,17 @@ AssignTypeMultirangeOid(void)
 Oid
 AssignTypeMultirangeArrayOid(void)
 {
+  DBUG_TRACE;
   Oid     type_multirange_array_oid;
 
   /* Use binary-upgrade override for pg_type.oid? */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_mrng_array_pg_type_oid))
+    if (!OidIsValid(binary_upgrade_next_mrng_array_pg_type_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_type multirange array OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_type multirange array OID value not set when in binary upgrade mode")));
+    }
 
     type_multirange_array_oid = binary_upgrade_next_mrng_array_pg_type_oid;
     binary_upgrade_next_mrng_array_pg_type_oid = InvalidOid;
@@ -2570,6 +2736,7 @@ AssignTypeMultirangeArrayOid(void)
 ObjectAddress
 DefineCompositeType(RangeVar *typevar, List *coldeflist)
 {
+  DBUG_TRACE;
   CreateStmt *createStmt = makeNode(CreateStmt);
   Oid     old_type_oid;
   Oid     typeNamespace;
@@ -2603,10 +2770,12 @@ DefineCompositeType(RangeVar *typevar, List *coldeflist)
                     ObjectIdGetDatum(typeNamespace));
 
   if (OidIsValid(old_type_oid)) {
-    if (!moveArrayTypeName(old_type_oid, createStmt->relation->relname, typeNamespace))
+    if (!moveArrayTypeName(old_type_oid, createStmt->relation->relname, typeNamespace)) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", createStmt->relation->relname);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", createStmt->relation->relname)));
+    }
   }
 
   /*
@@ -2628,6 +2797,7 @@ DefineCompositeType(RangeVar *typevar, List *coldeflist)
 ObjectAddress
 AlterDomainDefault(List *names, Node *defaultRaw)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     domainoid;
   HeapTuple tup;
@@ -2753,6 +2923,7 @@ AlterDomainDefault(List *names, Node *defaultRaw)
 ObjectAddress
 AlterDomainNotNull(List *names, bool notNull)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     domainoid;
   Relation  typrel;
@@ -2839,6 +3010,7 @@ ObjectAddress
 AlterDomainDropConstraint(List *names, const char *constrName,
                           DropBehavior behavior, bool missing_ok)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     domainoid;
   HeapTuple tup;
@@ -2908,15 +3080,17 @@ AlterDomainDropConstraint(List *names, const char *constrName,
   table_close(conrel, RowExclusiveLock);
 
   if (!found) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" of domain \"%s\" does not exist", constrName, TypeNameToString(typename));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("constraint \"%s\" of domain \"%s\" does not exist",
                       constrName, TypeNameToString(typename))));
-    else
+    } else {
       ereport(NOTICE,
               (errmsg("constraint \"%s\" of domain \"%s\" does not exist, skipping",
                       constrName, TypeNameToString(typename))));
+    }
   }
 
   /*
@@ -2943,6 +3117,7 @@ ObjectAddress
 AlterDomainAddConstraint(List *names, Node *newConstraint,
                          ObjectAddress *constrAddr)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     domainoid;
   Relation  typrel;
@@ -3038,6 +3213,7 @@ AlterDomainAddConstraint(List *names, Node *newConstraint,
 ObjectAddress
 AlterDomainValidateConstraint(List *names, const char *constrName)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     domainoid;
   Relation  typrel;
@@ -3090,19 +3266,25 @@ AlterDomainValidateConstraint(List *names, const char *constrName)
                             NULL, 3, skey);
 
   /* There can be at most one matching row */
-  if (!HeapTupleIsValid(tuple = systable_getnext(scan)))
+  if (!HeapTupleIsValid(tuple = systable_getnext(scan))) {
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" of domain \"%s\" does not exist",
+                       constrName, TypeNameToString(typename));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("constraint \"%s\" of domain \"%s\" does not exist",
                     constrName, TypeNameToString(typename))));
+  }
 
   con = (Form_pg_constraint) GETSTRUCT(tuple);
 
-  if (con->contype != CONSTRAINT_CHECK)
+  if (con->contype != CONSTRAINT_CHECK) {
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" of domain \"%s\" is not a check constraint",
+                       constrName, TypeNameToString(typename));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("constraint \"%s\" of domain \"%s\" is not a check constraint",
                     constrName, TypeNameToString(typename))));
+  }
 
   val = SysCacheGetAttrNotNull(CONSTROID, tuple, Anum_pg_constraint_conbin);
   conbin = TextDatumGetCString(val);
@@ -3139,6 +3321,7 @@ AlterDomainValidateConstraint(List *names, const char *constrName)
 static void
 validateDomainNotNullConstraint(Oid domainoid)
 {
+  DBUG_TRACE;
   List     *rels;
   ListCell   *rt;
 
@@ -3176,6 +3359,8 @@ validateDomainNotNullConstraint(Oid domainoid)
            * only executes in an ALTER DOMAIN command, the client
            * should already know which domain is in question.
            */
+          DBUG_INSTANT_PRINT("info", "column \"%s\" of table \"%s\" contains null values",
+                             NameStr(attr->attname), RelationGetRelationName(testrel));
           ereport(ERROR,
                   (errcode(ERRCODE_NOT_NULL_VIOLATION),
                    errmsg("column \"%s\" of table \"%s\" contains null values",
@@ -3202,6 +3387,7 @@ validateDomainNotNullConstraint(Oid domainoid)
 static void
 validateDomainCheckConstraint(Oid domainoid, const char *ccbin)
 {
+  DBUG_TRACE;
   Expr     *expr = (Expr *) stringToNode(ccbin);
   List     *rels;
   ListCell   *rt;
@@ -3263,6 +3449,8 @@ validateDomainCheckConstraint(Oid domainoid, const char *ccbin)
            * client should already know which domain is in question,
            * and which constraint too.
            */
+          DBUG_INSTANT_PRINT("info", "column \"%s\" of table \"%s\" contains values that violate the new constraint",
+                             NameStr(attr->attname), RelationGetRelationName(testrel));
           ereport(ERROR,
                   (errcode(ERRCODE_CHECK_VIOLATION),
                    errmsg("column \"%s\" of table \"%s\" contains values that violate the new constraint",
@@ -3320,6 +3508,7 @@ validateDomainCheckConstraint(Oid domainoid, const char *ccbin)
 static List *
 get_rels_with_domain(Oid domainOid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   char     *domainTypeName = format_type_be(domainOid);
   Relation  depRel;
@@ -3484,14 +3673,18 @@ get_rels_with_domain(Oid domainOid, LOCKMODE lockmode)
 void
 checkDomainOwner(HeapTuple tup)
 {
+  DBUG_TRACE;
   Form_pg_type typTup = (Form_pg_type) GETSTRUCT(tup);
 
   /* Check that this is actually a domain */
-  if (typTup->typtype != TYPTYPE_DOMAIN)
+  if (typTup->typtype != TYPTYPE_DOMAIN) {
+    char *format1 = format_type_be(typTup->oid);
+    DBUG_INSTANT_PRINT("info", "%s is not a domain", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a domain",
-                    format_type_be(typTup->oid))));
+                    format1)));
+  }
 
   /* Permission check: must own type */
   if (!object_ownercheck(TypeRelationId, typTup->oid, GetUserId()))
@@ -3506,6 +3699,7 @@ domainAddCheckConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
                          int typMod, Constraint *constr,
                          const char *domainName, ObjectAddress *constrAddr)
 {
+  DBUG_TRACE;
   Node     *expr;
   char     *ccbin;
   ParseState *pstate;
@@ -3520,11 +3714,13 @@ domainAddCheckConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
   if (constr->conname) {
     if (ConstraintNameIsUsed(CONSTRAINT_DOMAIN,
                              domainOid,
-                             constr->conname))
+                             constr->conname)) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" for domain \"%s\" already exists", constr->conname, domainName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("constraint \"%s\" for domain \"%s\" already exists",
                       constr->conname, domainName)));
+    }
   } else
     constr->conname = ChooseConstraintName(domainName,
                                            NULL,
@@ -3570,10 +3766,12 @@ domainAddCheckConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
    * add_missing_from is history, but let's be sure).
    */
   if (pstate->p_rtable != NIL ||
-      contain_var_clause(expr))
+      contain_var_clause(expr)) {
+    DBUG_INSTANT_PRINT("info", "cannot use table references in domain check constraint");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("cannot use table references in domain check constraint")));
+  }
 
   /*
    * Convert to string form for storage.
@@ -3632,6 +3830,8 @@ domainAddCheckConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
 static Node *
 replace_domain_constraint_value(ParseState *pstate, ColumnRef *cref)
 {
+  DBUG_TRACE;
+
   /*
    * Check for a reference to "value", and if that's what it is, replace
    * with a CoerceToDomainValue as prepared for us by
@@ -3665,6 +3865,7 @@ domainAddNotNullConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
                            int typMod, Constraint *constr,
                            const char *domainName, ObjectAddress *constrAddr)
 {
+  DBUG_TRACE;
   Oid     ccoid;
 
   Assert(constr->contype == CONSTR_NOTNULL);
@@ -3675,11 +3876,13 @@ domainAddNotNullConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
   if (constr->conname) {
     if (ConstraintNameIsUsed(CONSTRAINT_DOMAIN,
                              domainOid,
-                             constr->conname))
+                             constr->conname)) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" for domain \"%s\" already exists", constr->conname, domainName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("constraint \"%s\" for domain \"%s\" already exists",
                       constr->conname, domainName)));
+    }
   } else
     constr->conname = ChooseConstraintName(domainName,
                                            NULL,
@@ -3736,6 +3939,7 @@ domainAddNotNullConstraint(Oid domainOid, Oid domainNamespace, Oid baseTypeOid,
 ObjectAddress
 RenameType(RenameStmt *stmt)
 {
+  DBUG_TRACE;
   List     *names = castNode(List, stmt->object);
   const char *newTypeName = stmt->newname;
   TypeName   *typename;
@@ -3764,11 +3968,14 @@ RenameType(RenameStmt *stmt)
     aclcheck_error_type(ACLCHECK_NOT_OWNER, typeOid);
 
   /* ALTER DOMAIN used on a non-domain? */
-  if (stmt->renameType == OBJECT_DOMAIN && typTup->typtype != TYPTYPE_DOMAIN)
+  if (stmt->renameType == OBJECT_DOMAIN && typTup->typtype != TYPTYPE_DOMAIN) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is not a domain", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a domain",
-                    format_type_be(typeOid))));
+                    format1)));
+  }
 
   /*
    * If it's a composite type, we need to check that it really is a
@@ -3776,23 +3983,29 @@ RenameType(RenameStmt *stmt)
    * to use ALTER TABLE not ALTER TYPE for that case.
    */
   if (typTup->typtype == TYPTYPE_COMPOSITE &&
-      get_rel_relkind(typTup->typrelid) != RELKIND_COMPOSITE_TYPE)
+      get_rel_relkind(typTup->typrelid) != RELKIND_COMPOSITE_TYPE) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is a table's row type", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is a table's row type",
-                    format_type_be(typeOid)),
+                    format1),
              /* translator: %s is an SQL ALTER command */
              errhint("Use %s instead.",
                      "ALTER TABLE")));
+  }
 
   /* don't allow direct alteration of array types, either */
-  if (IsTrueArrayType(typTup))
+  if (IsTrueArrayType(typTup)) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "cannot alter array type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot alter array type %s",
-                    format_type_be(typeOid)),
+                    format1),
              errhint("You can alter type %s, which will alter the array type as well.",
                      format_type_be(typTup->typelem))));
+  }
 
   /* we do allow separate renaming of multirange types, though */
 
@@ -3819,6 +4032,7 @@ RenameType(RenameStmt *stmt)
 ObjectAddress
 AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     typeOid;
   Relation  rel;
@@ -3836,11 +4050,13 @@ AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
   /* Use LookupTypeName here so that shell types can be processed */
   tup = LookupTypeName(NULL, typename, NULL, false);
 
-  if (tup == NULL)
+  if (tup == NULL) {
+    DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", TypeNameToString(typename));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("type \"%s\" does not exist",
                     TypeNameToString(typename))));
+  }
 
   typeOid = typeTypeId(tup);
 
@@ -3851,11 +4067,14 @@ AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
   typTup = (Form_pg_type) GETSTRUCT(tup);
 
   /* Don't allow ALTER DOMAIN on a type */
-  if (objecttype == OBJECT_DOMAIN && typTup->typtype != TYPTYPE_DOMAIN)
+  if (objecttype == OBJECT_DOMAIN && typTup->typtype != TYPTYPE_DOMAIN) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is not a domain", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a domain",
-                    format_type_be(typeOid))));
+                    format1)));
+  }
 
   /*
    * If it's a composite type, we need to check that it really is a
@@ -3863,33 +4082,41 @@ AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
    * to use ALTER TABLE not ALTER TYPE for that case.
    */
   if (typTup->typtype == TYPTYPE_COMPOSITE &&
-      get_rel_relkind(typTup->typrelid) != RELKIND_COMPOSITE_TYPE)
+      get_rel_relkind(typTup->typrelid) != RELKIND_COMPOSITE_TYPE) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is a table's row type", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is a table's row type",
-                    format_type_be(typeOid)),
+                    format1),
              /* translator: %s is an SQL ALTER command */
              errhint("Use %s instead.",
                      "ALTER TABLE")));
+  }
 
   /* don't allow direct alteration of array types, either */
-  if (IsTrueArrayType(typTup))
+  if (IsTrueArrayType(typTup)) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "cannot alter array type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot alter array type %s",
-                    format_type_be(typeOid)),
+                    format1),
              errhint("You can alter type %s, which will alter the array type as well.",
                      format_type_be(typTup->typelem))));
+  }
 
   /* don't allow direct alteration of multirange types, either */
   if (typTup->typtype == TYPTYPE_MULTIRANGE) {
     Oid     rangetype = get_multirange_range(typeOid);
 
+    char *format1 = format_type_be(typeOid);
     /* We don't expect get_multirange_range to fail, but cope if so */
+    DBUG_INSTANT_PRINT("info", "cannot alter multirange type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot alter multirange type %s",
-                    format_type_be(typeOid)),
+                    format1),
              OidIsValid(rangetype) ?
              errhint("You can alter type %s, which will alter the multirange type as well.",
                      format_type_be(rangetype)) : 0));
@@ -3944,6 +4171,7 @@ AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
 void
 AlterTypeOwner_oid(Oid typeOid, Oid newOwnerId, bool hasDependEntry)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_type typTup;
@@ -3986,6 +4214,7 @@ AlterTypeOwner_oid(Oid typeOid, Oid newOwnerId, bool hasDependEntry)
 void
 AlterTypeOwnerInternal(Oid typeOid, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_type typTup;
@@ -4037,11 +4266,14 @@ AlterTypeOwnerInternal(Oid typeOid, Oid newOwnerId)
   if (typTup->typtype == TYPTYPE_RANGE) {
     Oid     multirange_typeid = get_range_multirange(typeOid);
 
-    if (!OidIsValid(multirange_typeid))
+    if (!OidIsValid(multirange_typeid)) {
+      char *format1 = format_type_be(typeOid);
+      DBUG_INSTANT_PRINT("info", "could not find multirange type for data type %s", format1);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("could not find multirange type for data type %s",
-                      format_type_be(typeOid))));
+                      format1)));
+    }
 
     AlterTypeOwnerInternal(multirange_typeid, newOwnerId);
   }
@@ -4057,6 +4289,7 @@ ObjectAddress
 AlterTypeNamespace(List *names, const char *newschema, ObjectType objecttype,
                    Oid *oldschema)
 {
+  DBUG_TRACE;
   TypeName   *typename;
   Oid     typeOid;
   Oid     nspOid;
@@ -4069,11 +4302,14 @@ AlterTypeNamespace(List *names, const char *newschema, ObjectType objecttype,
   typeOid = typenameTypeId(NULL, typename);
 
   /* Don't allow ALTER DOMAIN on a non-domain type */
-  if (objecttype == OBJECT_DOMAIN && get_typtype(typeOid) != TYPTYPE_DOMAIN)
+  if (objecttype == OBJECT_DOMAIN && get_typtype(typeOid) != TYPTYPE_DOMAIN) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is not a domain", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a domain",
-                    format_type_be(typeOid))));
+                    format1)));
+  }
 
   /* get schema OID and check its permissions */
   nspOid = LookupCreationNamespace(newschema);
@@ -4106,7 +4342,9 @@ Oid
 AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, bool ignoreDependent,
                        ObjectAddresses *objsMoved)
 {
+  DBUG_TRACE;
   Oid     elemOid;
+  char *format1;
 
   /* check permissions on type */
   if (!object_ownercheck(TypeRelationId, typeOid, GetUserId()))
@@ -4119,10 +4357,12 @@ AlterTypeNamespace_oid(Oid typeOid, Oid nspOid, bool ignoreDependent,
     if (ignoreDependent)
       return InvalidOid;
 
+    format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "cannot alter array type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot alter array type %s",
-                    format_type_be(typeOid)),
+                    format1),
              errhint("You can alter type %s, which will alter the array type as well.",
                      format_type_be(elemOid))));
   }
@@ -4162,6 +4402,7 @@ AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
                            bool errorOnTableType,
                            ObjectAddresses *objsMoved)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Form_pg_type typform;
@@ -4200,12 +4441,16 @@ AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
     /* check for duplicate name (more friendly than unique-index failure) */
     if (SearchSysCacheExists2(TYPENAMENSP,
                               NameGetDatum(&typform->typname),
-                              ObjectIdGetDatum(nspOid)))
+                              ObjectIdGetDatum(nspOid))) {
+      char *namespace_name = get_namespace_name(nspOid);
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists in schema \"%s\"", NameStr(typform->typname),
+                         namespace_name);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists in schema \"%s\"",
                       NameStr(typform->typname),
-                      get_namespace_name(nspOid))));
+                      namespace_name)));
+    }
   }
 
   /* Detect whether type is a composite type (but not a table rowtype) */
@@ -4220,13 +4465,16 @@ AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
       return InvalidOid;
     }
 
-    if (errorOnTableType)
+    if (errorOnTableType) {
+      char *format1 = format_type_be(typeOid);
+      DBUG_INSTANT_PRINT("info", "%s is a table's row type", format1);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("%s is a table's row type",
-                      format_type_be(typeOid)),
+                      format1),
                /* translator: %s is an SQL ALTER command */
                errhint("Use %s instead.", "ALTER TABLE")));
+    }
   }
 
   if (oldNspOid != nspOid) {
@@ -4310,6 +4558,7 @@ AlterTypeNamespaceInternal(Oid typeOid, Oid nspOid,
 ObjectAddress
 AlterType(AlterTypeStmt *stmt)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Relation  catalog;
   TypeName   *typename;
@@ -4346,19 +4595,23 @@ AlterType(AlterTypeStmt *stmt)
         atparams.storage = TYPSTORAGE_EXTENDED;
       else if (pg_strcasecmp(a, "main") == 0)
         atparams.storage = TYPSTORAGE_MAIN;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "storage \"%s\" not recognized", a);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("storage \"%s\" not recognized", a)));
+      }
 
       /*
        * Validate the storage request.  If the type isn't varlena, it
        * certainly doesn't support non-PLAIN storage.
        */
-      if (atparams.storage != TYPSTORAGE_PLAIN && typForm->typlen != -1)
+      if (atparams.storage != TYPSTORAGE_PLAIN && typForm->typlen != -1) {
+        DBUG_INSTANT_PRINT("info", "fixed-size types must have storage PLAIN");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("fixed-size types must have storage PLAIN")));
+      }
 
       /*
        * Switching from PLAIN to non-PLAIN is allowed, but it requires
@@ -4374,10 +4627,12 @@ AlterType(AlterTypeStmt *stmt)
           typForm->typstorage == TYPSTORAGE_PLAIN)
         requireSuper = true;
       else if (atparams.storage == TYPSTORAGE_PLAIN &&
-               typForm->typstorage != TYPSTORAGE_PLAIN)
+               typForm->typstorage != TYPSTORAGE_PLAIN) {
+        DBUG_INSTANT_PRINT("info", "cannot change type's storage to PLAIN");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("cannot change type's storage to PLAIN")));
+      }
 
       atparams.updateStorage = true;
     } else if (strcmp(defel->defname, "receive") == 0) {
@@ -4461,16 +4716,19 @@ AlterType(AlterTypeStmt *stmt)
              strcmp(defel->defname, "default") == 0 ||
              strcmp(defel->defname, "element") == 0 ||
              strcmp(defel->defname, "delimiter") == 0 ||
-             strcmp(defel->defname, "collatable") == 0)
+             strcmp(defel->defname, "collatable") == 0) {
+      DBUG_INSTANT_PRINT("info", "type attribute \"%s\" cannot be changed", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("type attribute \"%s\" cannot be changed",
                       defel->defname)));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "type attribute \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("type attribute \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
   /*
@@ -4478,10 +4736,12 @@ AlterType(AlterTypeStmt *stmt)
    * requires that, else must own the type.
    */
   if (requireSuper) {
-    if (!superuser())
+    if (!superuser()) {
+      DBUG_INSTANT_PRINT("info", "must be superuser to alter a type");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("must be superuser to alter a type")));
+    }
   } else {
     if (!object_ownercheck(TypeRelationId, typeOid, GetUserId()))
       aclcheck_error_type(ACLCHECK_NOT_OWNER, typeOid);
@@ -4497,20 +4757,26 @@ AlterType(AlterTypeStmt *stmt)
    * Note: if you weaken this enough to allow composite types, be sure to
    * adjust the GenerateTypeDependencies call in AlterTypeRecurse.
    */
-  if (typForm->typtype != TYPTYPE_BASE)
+  if (typForm->typtype != TYPTYPE_BASE) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is not a base type", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a base type",
-                    format_type_be(typeOid))));
+                    format1)));
+  }
 
   /*
    * For the same reasons, don't allow direct alteration of array types.
    */
-  if (IsTrueArrayType(typForm))
+  if (IsTrueArrayType(typForm)) {
+    char *format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "%s is not a base type", format1);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("%s is not a base type",
-                    format_type_be(typeOid))));
+                    format1)));
+  }
 
   /* OK, recursively update this type and any arrays/domains over it */
   AlterTypeRecurse(typeOid, false, tup, catalog, &atparams);
@@ -4553,6 +4819,7 @@ AlterTypeRecurse(Oid typeOid, bool isImplicitArray,
                  HeapTuple tup, Relation catalog,
                  AlterTypeRecurseParams *atparams)
 {
+  DBUG_TRACE;
   Datum   values[Natts_pg_type];
   bool    nulls[Natts_pg_type];
   bool    replaces[Natts_pg_type];

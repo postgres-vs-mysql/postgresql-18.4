@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -95,6 +96,8 @@ static void explain_ExecutorEnd(QueryDesc *queryDesc);
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("auto_explain", "define custom GUC variables for auto_explain");
   /* Define custom GUC variables. */
   DefineCustomIntVariable("auto_explain.log_min_duration",
                           "Sets the minimum execution time above which plans will be logged.",
@@ -248,6 +251,7 @@ _PG_init(void)
   MarkGUCPrefixReserved("auto_explain");
 
   /* Install hooks. */
+  DBUG_PRINT("auto_explain", "install hooks for auto_explain");
   prev_ExecutorStart = ExecutorStart_hook;
   ExecutorStart_hook = explain_ExecutorStart;
   prev_ExecutorRun = ExecutorRun_hook;
@@ -264,6 +268,8 @@ _PG_init(void)
 static void
 explain_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+  DBUG_TRACE;
+
   /*
    * At the beginning of each top-level statement, decide whether we'll
    * sample this statement.  If nested-statement explaining is enabled,
@@ -311,6 +317,7 @@ explain_ExecutorStart(QueryDesc *queryDesc, int eflags)
     if (queryDesc->totaltime == NULL) {
       MemoryContext oldcxt;
 
+      DBUG_PRINT("auto_explain", "set up to track total elapsed time in ExecutorRun");
       oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
       queryDesc->totaltime = InstrAlloc(1, INSTRUMENT_ALL, false);
       MemoryContextSwitchTo(oldcxt);
@@ -325,7 +332,9 @@ static void
 explain_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
                     uint64 count)
 {
+  DBUG_TRACE;
   nesting_level++;
+  DBUG_PRINT("auto_explain", "track nesting depth:%d", nesting_level);
   PG_TRY();
   {
     if (prev_ExecutorRun)
@@ -346,7 +355,9 @@ explain_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction,
 static void
 explain_ExecutorFinish(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   nesting_level++;
+  DBUG_PRINT("auto_explain", "track nesting depth:%d", nesting_level);
   PG_TRY();
   {
     if (prev_ExecutorFinish)
@@ -367,10 +378,13 @@ explain_ExecutorFinish(QueryDesc *queryDesc)
 static void
 explain_ExecutorEnd(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
+
   if (queryDesc->totaltime && auto_explain_enabled()) {
     MemoryContext oldcxt;
     double    msec;
 
+    DBUG_PRINT("auto_explain", "log results");
     /*
      * Make sure we operate in the per-query context, so any cruft will be
      * discarded later during ExecutorEnd.
@@ -385,6 +399,7 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
 
     /* Log plan if duration is exceeded. */
     msec = queryDesc->totaltime->total * 1000.0;
+    DBUG_PRINT("auto_explain", "log plan if duration:%g is exceeded:%d", msec, auto_explain_log_min_duration);
 
     if (msec >= auto_explain_log_min_duration) {
       ExplainState *es = NewExplainState();
@@ -429,6 +444,7 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
        * reported.  This isn't ideal but trying to do it here would
        * often result in duplication.
        */
+      DBUG_PRINT("auto_explain", "duration: %g ms  plan:\n%s", msec, es->str->data);
       ereport(auto_explain_log_level,
               (errmsg("duration: %.3f ms  plan:\n%s",
                       msec, es->str->data),
@@ -436,6 +452,12 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
     }
 
     MemoryContextSwitchTo(oldcxt);
+  } else {
+    if (auto_explain_enabled()) {
+      DBUG_PRINT("auto_explain", "auto_explain_enabled:true");
+    } else {
+      DBUG_PRINT("auto_explain", "auto_explain_enabled:false");
+    }
   }
 
   if (prev_ExecutorEnd)

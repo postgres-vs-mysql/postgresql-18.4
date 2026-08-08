@@ -31,6 +31,7 @@
  *
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -201,6 +202,7 @@ static void
 dblink_get_conn(char *conname_or_str,
                 PGconn *volatile *conn_p, char **conname_p, volatile bool *freeconn_p)
 {
+  DBUG_TRACE;
   remoteConn *rconn = getConnectionByName(conname_or_str);
   PGconn     *conn;
   char     *conname;
@@ -266,6 +268,8 @@ dblink_get_named_conn(const char *conname)
 static void
 dblink_init(void)
 {
+  DBUG_TRACE;
+
   if (!pconn) {
     if (dblink_we_get_result == 0)
       dblink_we_get_result = WaitEventExtensionNew("DblinkGetResult");
@@ -284,6 +288,7 @@ PG_FUNCTION_INFO_V1(dblink_connect);
 Datum
 dblink_connect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *conname_or_str = NULL;
   char     *connstr = NULL;
   char     *connname = NULL;
@@ -361,6 +366,7 @@ PG_FUNCTION_INFO_V1(dblink_disconnect);
 Datum
 dblink_disconnect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *conname = NULL;
   remoteConn *rconn = NULL;
   PGconn     *conn = NULL;
@@ -396,6 +402,7 @@ PG_FUNCTION_INFO_V1(dblink_open);
 Datum
 dblink_open(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGresult   *res = NULL;
   PGconn     *conn;
   char     *curname = NULL;
@@ -405,6 +412,7 @@ dblink_open(PG_FUNCTION_ARGS)
   remoteConn *rconn = NULL;
   bool    fail = true;  /* default to backward compatible behavior */
 
+  DBUG_PRINT("dblink", "open a cursor using a persistent connection");
   dblink_init();
   initStringInfo(&buf);
 
@@ -482,6 +490,7 @@ PG_FUNCTION_INFO_V1(dblink_close);
 Datum
 dblink_close(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGconn     *conn;
   PGresult   *res = NULL;
   char     *curname = NULL;
@@ -490,6 +499,7 @@ dblink_close(PG_FUNCTION_ARGS)
   remoteConn *rconn = NULL;
   bool    fail = true;  /* default to backward compatible behavior */
 
+  DBUG_PRINT("dblink", "close a cursor");
   dblink_init();
   initStringInfo(&buf);
 
@@ -563,6 +573,7 @@ PG_FUNCTION_INFO_V1(dblink_fetch);
 Datum
 dblink_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGresult   *res = NULL;
   char     *conname = NULL;
   remoteConn *rconn = NULL;
@@ -574,6 +585,7 @@ dblink_fetch(PG_FUNCTION_ARGS)
 
   prepTuplestoreResult(fcinfo);
 
+  DBUG_PRINT("dblink", "fetch results from an open cursor");
   dblink_init();
 
   if (PG_NARGS() == 4) {
@@ -649,6 +661,7 @@ PG_FUNCTION_INFO_V1(dblink_record);
 Datum
 dblink_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return dblink_record_internal(fcinfo, false);
 }
 
@@ -656,6 +669,7 @@ PG_FUNCTION_INFO_V1(dblink_send_query);
 Datum
 dblink_send_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGconn     *conn;
   char     *sql;
   int     retval;
@@ -680,12 +694,14 @@ PG_FUNCTION_INFO_V1(dblink_get_result);
 Datum
 dblink_get_result(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return dblink_record_internal(fcinfo, true);
 }
 
 static Datum
 dblink_record_internal(FunctionCallInfo fcinfo, bool is_async)
 {
+  DBUG_TRACE;
   PGconn     *volatile conn = NULL;
   volatile bool freeconn = false;
 
@@ -812,8 +828,10 @@ prepTuplestoreResult(FunctionCallInfo fcinfo)
 static void
 materializeResult(FunctionCallInfo fcinfo, PGconn *conn, PGresult *res)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 
+  DBUG_PRINT("dblink", "copy the contents of the PGresult into a tuplestore to be returned");
   /* prepTuplestoreResult must have been called previously */
   Assert(rsinfo->returnMode == SFRM_Materialize);
 
@@ -899,6 +917,8 @@ materializeResult(FunctionCallInfo fcinfo, PGconn *conn, PGresult *res)
       values = palloc_array(char *, nfields);
 
       /* put all tuples into the tuplestore */
+      DBUG_PRINT("dblink", "put all tuples(%d) into the tuplestore", ntuples);
+
       for (row = 0; row < ntuples; row++) {
         HeapTuple tuple;
 
@@ -947,10 +967,13 @@ materializeQueryResult(FunctionCallInfo fcinfo,
                        const char *sql,
                        bool fail)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   PGresult   *volatile res = NULL;
   volatile storeInfo sinfo = {0};
 
+  DBUG_PRINT("dblink", "execute the given SQL command and store its results into a tuplestore");
+  DBUG_PRINT("dblink", "to be returned as the result of the current function");
   /* prepTuplestoreResult must have been called previously */
   Assert(rsinfo->returnMode == SFRM_Materialize);
 
@@ -1057,9 +1080,13 @@ materializeQueryResult(FunctionCallInfo fcinfo,
 static PGresult *
 storeQueryResult(volatile storeInfo *sinfo, PGconn *conn, const char *sql)
 {
+  DBUG_TRACE;
   bool    first = true;
   int     nestlevel = -1;
   PGresult   *res;
+
+  DBUG_PRINT("dblink", "execute query:'%s'", sql);
+  DBUG_PRINT("dblink", "send any result rows to sinfo->tuplestore");
 
   if (!PQsendQuery(conn, sql))
     elog(ERROR, "could not send query: %s", pchomp(PQerrorMessage(conn)));
@@ -1122,6 +1149,7 @@ storeQueryResult(volatile storeInfo *sinfo, PGconn *conn, const char *sql)
 static void
 storeRow(volatile storeInfo *sinfo, PGresult *res, bool first)
 {
+  DBUG_TRACE;
   int     nfields = PQnfields(res);
   HeapTuple tuple;
   int     i;
@@ -1235,6 +1263,7 @@ PG_FUNCTION_INFO_V1(dblink_get_connections);
 Datum
 dblink_get_connections(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   remoteConnHashEnt *hentry;
   ArrayBuildState *astate = NULL;
@@ -1273,13 +1302,17 @@ PG_FUNCTION_INFO_V1(dblink_is_busy);
 Datum
 dblink_is_busy(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGconn     *conn;
+  int32 result;
 
   dblink_init();
   conn = dblink_get_named_conn(text_to_cstring(PG_GETARG_TEXT_PP(0)));
 
   PQconsumeInput(conn);
-  PG_RETURN_INT32(PQisBusy(conn));
+  result = (PQisBusy(conn));
+  DBUG_PRINT("dblink", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -1297,6 +1330,7 @@ PG_FUNCTION_INFO_V1(dblink_cancel_query);
 Datum
 dblink_cancel_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGconn     *conn;
   const char *msg;
   TimestampTz endtime;
@@ -1328,6 +1362,7 @@ PG_FUNCTION_INFO_V1(dblink_error_message);
 Datum
 dblink_error_message(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *msg;
   PGconn     *conn;
 
@@ -1349,10 +1384,12 @@ PG_FUNCTION_INFO_V1(dblink_exec);
 Datum
 dblink_exec(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *volatile sql_cmd_status = NULL;
   PGconn     *volatile conn = NULL;
   volatile bool freeconn = false;
 
+  DBUG_PRINT("dblink", "execute an SQL non-SELECT command");
   dblink_init();
 
   PG_TRY();
@@ -1439,6 +1476,7 @@ PG_FUNCTION_INFO_V1(dblink_get_pkey);
 Datum
 dblink_get_pkey(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   indnkeyatts;
   char    **results;
   FuncCallContext *funcctx;
@@ -1556,6 +1594,7 @@ PG_FUNCTION_INFO_V1(dblink_build_sql_insert);
 Datum
 dblink_build_sql_insert(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname_text = PG_GETARG_TEXT_PP(0);
   int2vector *pkattnums_arg = (int2vector *) PG_GETARG_POINTER(1);
   int32   pknumatts_arg = PG_GETARG_INT32(2);
@@ -1645,6 +1684,7 @@ PG_FUNCTION_INFO_V1(dblink_build_sql_delete);
 Datum
 dblink_build_sql_delete(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname_text = PG_GETARG_TEXT_PP(0);
   int2vector *pkattnums_arg = (int2vector *) PG_GETARG_POINTER(1);
   int32   pknumatts_arg = PG_GETARG_INT32(2);
@@ -1721,6 +1761,7 @@ PG_FUNCTION_INFO_V1(dblink_build_sql_update);
 Datum
 dblink_build_sql_update(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname_text = PG_GETARG_TEXT_PP(0);
   int2vector *pkattnums_arg = (int2vector *) PG_GETARG_POINTER(1);
   int32   pknumatts_arg = PG_GETARG_INT32(2);
@@ -1800,6 +1841,7 @@ PG_FUNCTION_INFO_V1(dblink_current_query);
 Datum
 dblink_current_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* This is now just an alias for the built-in function current_query() */
   PG_RETURN_DATUM(current_query(fcinfo));
 }
@@ -1818,6 +1860,7 @@ PG_FUNCTION_INFO_V1(dblink_get_notify);
 Datum
 dblink_get_notify(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PGconn     *conn;
   PGnotify   *notify;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -1872,6 +1915,7 @@ PG_FUNCTION_INFO_V1(dblink_fdw_validator);
 Datum
 dblink_fdw_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
   Oid     context = PG_GETARG_OID(1);
   ListCell   *cell;
@@ -1948,6 +1992,7 @@ dblink_fdw_validator(PG_FUNCTION_ARGS)
 static char **
 get_pkey_attnames(Relation rel, int16 *indnkeyatts)
 {
+  DBUG_TRACE;
   Relation  indexRelation;
   ScanKeyData skey;
   SysScanDesc scan;
@@ -2002,6 +2047,7 @@ get_pkey_attnames(Relation rel, int16 *indnkeyatts)
 static char **
 get_text_array_contents(ArrayType *array, int *numitems)
 {
+  DBUG_TRACE;
   int     ndim = ARR_NDIM(array);
   int      *dims = ARR_DIMS(array);
   int     nitems;
@@ -2053,6 +2099,7 @@ get_text_array_contents(ArrayType *array, int *numitems)
 static char *
 get_sql_insert(Relation rel, int *pkattnums, int pknumatts, char **src_pkattvals, char **tgt_pkattvals)
 {
+  DBUG_TRACE;
   char     *relname;
   HeapTuple tuple;
   TupleDesc tupdesc;
@@ -2134,6 +2181,7 @@ get_sql_insert(Relation rel, int *pkattnums, int pknumatts, char **src_pkattvals
 static char *
 get_sql_delete(Relation rel, int *pkattnums, int pknumatts, char **tgt_pkattvals)
 {
+  DBUG_TRACE;
   char     *relname;
   TupleDesc tupdesc;
   StringInfoData buf;
@@ -2171,6 +2219,7 @@ get_sql_delete(Relation rel, int *pkattnums, int pknumatts, char **tgt_pkattvals
 static char *
 get_sql_update(Relation rel, int *pkattnums, int pknumatts, char **src_pkattvals, char **tgt_pkattvals)
 {
+  DBUG_TRACE;
   char     *relname;
   HeapTuple tuple;
   TupleDesc tupdesc;
@@ -2261,6 +2310,7 @@ get_sql_update(Relation rel, int *pkattnums, int pknumatts, char **src_pkattvals
 static char *
 quote_ident_cstr(char *rawstr)
 {
+  DBUG_TRACE;
   text     *rawstr_text;
   text     *result_text;
   char     *result;
@@ -2270,6 +2320,7 @@ quote_ident_cstr(char *rawstr)
                                PointerGetDatum(rawstr_text)));
   result = text_to_cstring(result_text);
 
+  DBUG_PRINT("dblink", "return a properly quoted identifier:'%s'", result);
   return result;
 }
 
@@ -2291,6 +2342,7 @@ get_attnum_pk_pos(int *pkattnums, int pknumatts, int key)
 static HeapTuple
 get_tuple_of_interest(Relation rel, int *pkattnums, int pknumatts, char **src_pkattvals)
 {
+  DBUG_TRACE;
   char     *relname;
   TupleDesc tupdesc;
   int     natts;
@@ -2397,6 +2449,7 @@ get_tuple_of_interest(Relation rel, int *pkattnums, int pknumatts, char **src_pk
 static Relation
 get_rel_from_relname(text *relname_text, LOCKMODE lockmode, AclMode aclmode)
 {
+  DBUG_TRACE;
   RangeVar   *relvar;
   Relation  rel;
   AclResult aclresult;
@@ -2423,6 +2476,7 @@ get_rel_from_relname(text *relname_text, LOCKMODE lockmode, AclMode aclmode)
 static char *
 generate_relation_name(Relation rel)
 {
+  DBUG_TRACE;
   char     *nspname;
   char     *result;
 
@@ -2434,6 +2488,7 @@ generate_relation_name(Relation rel)
 
   result = quote_qualified_identifier(nspname, RelationGetRelationName(rel));
 
+  DBUG_PRINT("dblink", "compute the name to display for a relation:'%s'", result);
   return result;
 }
 
@@ -2441,6 +2496,7 @@ generate_relation_name(Relation rel)
 static remoteConn *
 getConnectionByName(const char *name)
 {
+  DBUG_TRACE;
   remoteConnHashEnt *hentry;
   char     *key;
 
@@ -2461,6 +2517,7 @@ getConnectionByName(const char *name)
 static HTAB *
 createConnHash(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   ctl.keysize = NAMEDATALEN;
@@ -2473,6 +2530,7 @@ createConnHash(void)
 static remoteConn *
 createNewConnection(const char *name)
 {
+  DBUG_TRACE;
   remoteConnHashEnt *hentry;
   bool    found;
   char     *key;
@@ -2499,6 +2557,7 @@ createNewConnection(const char *name)
 static void
 deleteConnection(const char *name)
 {
+  DBUG_TRACE;
   remoteConnHashEnt *hentry;
   bool    found;
   char     *key;
@@ -2586,9 +2645,14 @@ dblink_connstr_has_required_scram_options(const char *connstr)
 static void
 dblink_security_check(PGconn *conn, const char *connname, const char *connstr)
 {
+  DBUG_TRACE;
+
   /* Superuser bypasses security check */
-  if (superuser())
+  if (superuser()) {
+    DBUG_PRINT("dblink", "superuser bypasses security check");
     return;
+  }
+
 
   /* If password was used to connect, make sure it was one provided */
   if (PQconnectionUsedPassword(conn) && dblink_connstr_has_pw(connstr))
@@ -2620,6 +2684,7 @@ dblink_security_check(PGconn *conn, const char *connname, const char *connstr)
   if (connname)
     deleteConnection(connname);
 
+  DBUG_INSTANT_PRINT("dblink", "password or GSSAPI delegated credentials required");
   ereport(ERROR,
           (errcode(ERRCODE_S_R_E_PROHIBITED_SQL_STATEMENT_ATTEMPTED),
            errmsg("password or GSSAPI delegated credentials required"),
@@ -2636,6 +2701,7 @@ dblink_security_check(PGconn *conn, const char *connname, const char *connstr)
 static bool
 dblink_connstr_has_pw(const char *connstr)
 {
+  DBUG_TRACE;
   PQconninfoOption *options;
   PQconninfoOption *option;
   bool    connstr_gives_password = false;
@@ -2655,6 +2721,12 @@ dblink_connstr_has_pw(const char *connstr)
     PQconninfoFree(options);
   }
 
+  if (connstr_gives_password) {
+    DBUG_PRINT("dblink", "return true");
+  } else {
+    DBUG_PRINT("dblink", "return false");
+  }
+
   return connstr_gives_password;
 }
 
@@ -2671,6 +2743,8 @@ dblink_connstr_has_pw(const char *connstr)
 static void
 dblink_connstr_check(const char *connstr)
 {
+  DBUG_TRACE;
+
   if (superuser())
     return;
 
@@ -2687,6 +2761,7 @@ dblink_connstr_check(const char *connstr)
 
 #endif
 
+  DBUG_INSTANT_PRINT("dblink", "password or GSSAPI delegated credentials required");
   ereport(ERROR,
           (errcode(ERRCODE_S_R_E_PROHIBITED_SQL_STATEMENT_ATTEMPTED),
            errmsg("password or GSSAPI delegated credentials required"),
@@ -2705,6 +2780,7 @@ static void
 dblink_res_error(PGconn *conn, const char *conname, PGresult *res,
                  bool fail, const char *fmt, ...)
 {
+  DBUG_TRACE;
   int     level;
   char     *pg_diag_sqlstate = PQresultErrorField(res, PG_DIAG_SQLSTATE);
   char     *pg_diag_message_primary = PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY);
@@ -2765,6 +2841,7 @@ dblink_res_error(PGconn *conn, const char *conname, PGresult *res,
   vsnprintf(dblink_context_msg, sizeof(dblink_context_msg), fmt, ap);
   va_end(ap);
 
+  DBUG_INSTANT_PRINT("dblink", "could not obtain message string for remote error");
   ereport(level,
           (errcode(sqlstate),
            (message_primary != NULL && message_primary[0] != '\0') ?
@@ -2786,6 +2863,7 @@ dblink_res_error(PGconn *conn, const char *conname, PGresult *res,
 static char *
 get_connect_string(const char *servername)
 {
+  DBUG_TRACE;
   ForeignServer *foreign_server = NULL;
   UserMapping *user_mapping;
   ListCell   *cell;
@@ -2867,6 +2945,7 @@ get_connect_string(const char *servername)
                          escape_param_str(strVal(def->arg)));
     }
 
+    DBUG_PRINT("dblink", "%s", buf.data);
     return buf.data;
   } else
     return NULL;
@@ -2915,6 +2994,7 @@ validate_pkattnums(Relation rel,
                    int2vector *pkattnums_arg, int32 pknumatts_arg,
                    int **pkattnums, int *pknumatts)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = rel->rd_att;
   int     natts = tupdesc->natts;
   int     i;
@@ -2984,6 +3064,7 @@ static bool
 is_valid_dblink_option(const PQconninfoOption *options, const char *option,
                        Oid context)
 {
+  DBUG_TRACE;
   const PQconninfoOption *opt;
 
   /* Look up the option in libpq result */
@@ -2992,36 +3073,49 @@ is_valid_dblink_option(const PQconninfoOption *options, const char *option,
       break;
   }
 
-  if (opt->keyword == NULL)
+  if (opt->keyword == NULL) {
+    DBUG_PRINT("dblink", "return false");
     return false;
+  }
 
   /* Disallow debug options (particularly "replication") */
-  if (strchr(opt->dispchar, 'D'))
+  if (strchr(opt->dispchar, 'D')) {
+    DBUG_PRINT("dblink", "return false");
     return false;
+  }
 
   /* Disallow "client_encoding" */
-  if (strcmp(opt->keyword, "client_encoding") == 0)
+  if (strcmp(opt->keyword, "client_encoding") == 0) {
+    DBUG_PRINT("dblink", "return false");
     return false;
+  }
 
   /*
    * Disallow OAuth options for now, since the builtin flow communicates on
    * stderr by default and can't cache tokens yet.
    */
-  if (strncmp(opt->keyword, "oauth_", strlen("oauth_")) == 0)
+  if (strncmp(opt->keyword, "oauth_", strlen("oauth_")) == 0) {
+    DBUG_PRINT("dblink", "return false");
     return false;
+  }
 
   /*
    * If the option is "user" or marked secure, it should be specified only
    * in USER MAPPING.  Others should be specified only in SERVER.
    */
   if (strcmp(opt->keyword, "user") == 0 || strchr(opt->dispchar, '*')) {
-    if (context != UserMappingRelationId)
+    if (context != UserMappingRelationId) {
+      DBUG_PRINT("dblink", "return false");
       return false;
+    }
   } else {
-    if (context != ForeignServerRelationId)
+    if (context != ForeignServerRelationId) {
+      DBUG_PRINT("dblink", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("dblink", "return true");
   return true;
 }
 
@@ -3052,6 +3146,7 @@ is_valid_dblink_fdw_option(const PQconninfoOption *options, const char *option,
 static int
 applyRemoteGucs(PGconn *conn)
 {
+  DBUG_TRACE;
   static const char *const GUCsAffectingIO[] = {
     "DateStyle",
     "IntervalStyle"
@@ -3103,6 +3198,8 @@ applyRemoteGucs(PGconn *conn)
 static void
 restoreLocalGucs(int nestlevel)
 {
+  DBUG_TRACE;
+
   /* Do nothing if no new nestlevel was created */
   if (nestlevel > 0)
     AtEOXact_GUC(true, nestlevel);

@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_utils_var.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <limits.h>
@@ -453,6 +454,7 @@ GIST_SPLITVEC *
 gbt_var_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
                   Oid collation, const gbtree_vinfo *tinfo, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff = entryvec->n - 1;
   Vsrt     *arr;
@@ -461,6 +463,7 @@ gbt_var_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
   char     *cur;
   GBT_VARKEY **sv = NULL;
   gbt_vsrt_arg varg;
+  int count = 0;
 
   arr = (Vsrt *) palloc((maxoff + 1) * sizeof(Vsrt));
   nbytes = (maxoff + 2) * sizeof(OffsetNumber);
@@ -487,13 +490,16 @@ gbt_var_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
 
       if (sv[svcntr] != (GBT_VARKEY *) cur)
         svcntr++;
-    } else
+    } else {
       arr[i].t = (GBT_VARKEY *) cur;
+    }
 
     arr[i].i = i;
+    count++;
   }
 
   /* sort */
+  DBUG_PRINT("btree_gist", "sort entries(%d)", count);
   varg.tinfo = tinfo;
   varg.collation = collation;
   varg.flinfo = flinfo;
@@ -504,6 +510,8 @@ gbt_var_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
             &varg);
 
   /* We do simply create two parts */
+
+  DBUG_PRINT("btree_gist", "we do simply create two parts");
 
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     if (i <= (maxoff - FirstOffsetNumber + 1) / 2) {
@@ -524,6 +532,7 @@ gbt_var_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
     GBT_VARKEY *dl;
     GBT_VARKEY *dr;
 
+    DBUG_PRINT("btree_gist", "truncate (=compress) key");
     ll = Max(ll, lr);
     ll++;
 
@@ -549,6 +558,7 @@ gbt_var_consistent(GBT_VARKEY_R *key,
                    const gbtree_vinfo *tinfo,
                    FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   bool    retval = false;
 
   switch (strategy) {

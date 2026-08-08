@@ -915,8 +915,7 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
 #define StaticAssertDecl(condition, errmessage) \
   extern void static_assert_func(int static_assert_failure[(condition) ? 1 : -1])
 #define StaticAssertStmt(condition, errmessage) \
-  ((void) sizeof(struct 
-{ int static_assert_failure : (condition) ? 1 : -1; }))
+  ((void) sizeof(struct { int static_assert_failure : (condition) ? 1 : -1; }))
 #define StaticAssertExpr(condition, errmessage) \
   StaticAssertStmt(condition, errmessage)
 #endif              /* HAVE__STATIC_ASSERT */
@@ -932,9 +931,7 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
 #define StaticAssertDecl(condition, errmessage) \
   extern void static_assert_func(int static_assert_failure[(condition) ? 1 : -1])
 #define StaticAssertStmt(condition, errmessage) \
-  do { struct static_assert_struct
-
-{ int static_assert_failure : (condition) ? 1 : -1; }; } while(0)
+  do { struct static_assert_struct { int static_assert_failure : (condition) ? 1 : -1; }; } while(0)
 #define StaticAssertExpr(condition, errmessage) \
   ((void) ({ StaticAssertStmt(condition, errmessage); }))
 #endif              /* __cpp_static_assert */
@@ -1099,8 +1096,7 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
  * the compiler knows the value must be MAXALIGN'ed (cf. configure's
  * computation of MAXIMUM_ALIGNOF).
  */
-typedef union PGAlignedBlock
-{
+typedef union PGAlignedBlock {
   char    data[BLCKSZ];
   double    force_align_d;
   int64   force_align_i64;
@@ -1114,8 +1110,7 @@ typedef union PGAlignedBlock
  * for I/O in general, but may be strictly required on some platforms when
  * using direct I/O.
  */
-typedef union PGIOAlignedBlock
-{
+typedef union PGIOAlignedBlock {
 #ifdef pg_attribute_aligned
   pg_attribute_aligned(PG_IO_ALIGN_SIZE)
 #endif
@@ -1125,8 +1120,7 @@ typedef union PGIOAlignedBlock
 } PGIOAlignedBlock;
 
 /* Same, but for an XLOG_BLCKSZ-sized buffer */
-typedef union PGAlignedXLogBlock
-{
+typedef union PGAlignedXLogBlock {
 #ifdef pg_attribute_aligned
   pg_attribute_aligned(PG_IO_ALIGN_SIZE)
 #endif

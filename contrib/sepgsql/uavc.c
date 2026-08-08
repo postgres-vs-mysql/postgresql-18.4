@@ -10,6 +10,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_proc.h"

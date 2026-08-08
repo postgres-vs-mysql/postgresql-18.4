@@ -41,8 +41,7 @@ typedef struct TableScanDescData
   /*
    * Scan type-specific members
    */
-  union
-  {
+  union {
     /* Iterator for Bitmap Table Scans */
     TBMIterator rs_tbmiterator;
 
@@ -50,8 +49,8 @@ typedef struct TableScanDescData
      * Range of ItemPointers for table_scan_getnextslot_tidrange() to
      * scan.
      */
-    struct
-    {
+struct
+{
       ItemPointerData rs_mintid;
       ItemPointerData rs_maxtid;
     }     tidrange;
@@ -64,7 +63,7 @@ typedef struct TableScanDescData
   uint32    rs_flags;
 
   struct ParallelTableScanDescData *rs_parallel;  /* parallel scan
-                           * information */
+                                                   * information */
 } TableScanDescData;
 typedef struct TableScanDescData *TableScanDesc;
 
@@ -97,7 +96,7 @@ typedef struct ParallelBlockTableScanDescData
   slock_t   phs_mutex;    /* mutual exclusion for setting startblock */
   BlockNumber phs_startblock; /* starting block number */
   pg_atomic_uint64 phs_nallocated;  /* number of blocks allocated to
-                     * workers so far. */
+                                     * workers so far. */
 }     ParallelBlockTableScanDescData;
 typedef struct ParallelBlockTableScanDescData *ParallelBlockTableScanDesc;
 
@@ -109,7 +108,7 @@ typedef struct ParallelBlockTableScanWorkerData
   uint64    phsw_nallocated;  /* Current # of blocks into the scan */
   uint32    phsw_chunk_remaining; /* # blocks left in this chunk */
   uint32    phsw_chunk_size;  /* The number of blocks to allocate in
-                   * each I/O chunk for the scan */
+                               * each I/O chunk for the scan */
 } ParallelBlockTableScanWorkerData;
 typedef struct ParallelBlockTableScanWorkerData *ParallelBlockTableScanWorker;
 
@@ -147,7 +146,7 @@ typedef struct IndexScanDescData
   bool    kill_prior_tuple; /* last-returned tuple is dead */
   bool    ignore_killed_tuples; /* do not return killed entries */
   bool    xactStartedInRecovery;  /* prevents killing/seeing killed
-                     * tuples */
+                                   * tuples */
 
   /* index access method's private state */
   void     *opaque;     /* access-method-specific info */
@@ -171,7 +170,7 @@ typedef struct IndexScanDescData
 
   ItemPointerData xs_heaptid; /* result */
   bool    xs_heap_continue; /* T if must keep walking, potential
-                   * further results */
+                             * further results */
   IndexFetchTableData *xs_heapfetch;
 
   bool    xs_recheck;   /* T means scan keys must be rechecked */
@@ -189,7 +188,7 @@ typedef struct IndexScanDescData
 
   /* parallel index scan information, in shared memory */
   struct ParallelIndexScanDescData *parallel_scan;
-}     IndexScanDescData;
+} IndexScanDescData;
 
 /* Generic structure for parallel scans */
 typedef struct ParallelIndexScanDescData
@@ -199,7 +198,7 @@ typedef struct ParallelIndexScanDescData
   Size    ps_offset_ins;  /* Offset to SharedIndexScanInstrumentation */
   Size    ps_offset_am; /* Offset to am-specific structure */
   char    ps_snapshot_data[FLEXIBLE_ARRAY_MEMBER];
-}     ParallelIndexScanDescData;
+} ParallelIndexScanDescData;
 
 struct TupleTableSlot;
 
@@ -212,6 +211,6 @@ typedef struct SysScanDescData
   struct IndexScanDescData *iscan;  /* only valid in index-scan case */
   struct SnapshotData *snapshot;  /* snapshot to unregister at end of scan */
   struct TupleTableSlot *slot;
-}     SysScanDescData;
+} SysScanDescData;
 
 #endif              /* RELSCAN_H */

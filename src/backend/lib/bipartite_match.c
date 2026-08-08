@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -38,6 +39,7 @@ static bool hk_depth_search(BipartiteMatchState *state, int u);
 BipartiteMatchState *
 BipartiteMatch(int u_size, int v_size, short **adjacency)
 {
+  DBUG_TRACE;
   BipartiteMatchState *state = palloc(sizeof(BipartiteMatchState));
 
   if (u_size < 0 || u_size >= SHRT_MAX ||
@@ -75,6 +77,7 @@ BipartiteMatch(int u_size, int v_size, short **adjacency)
 void
 BipartiteMatchFree(BipartiteMatchState *state)
 {
+  DBUG_TRACE;
   /* adjacency matrix is treated as owned by the caller */
   pfree(state->pair_uv);
   pfree(state->pair_vu);
@@ -90,6 +93,7 @@ BipartiteMatchFree(BipartiteMatchState *state)
 static bool
 hk_breadth_search(BipartiteMatchState *state)
 {
+  DBUG_TRACE;
   int     usize = state->u_size;
   short    *queue = state->queue;
   short    *distance = state->distance;
@@ -136,6 +140,7 @@ hk_breadth_search(BipartiteMatchState *state)
 static bool
 hk_depth_search(BipartiteMatchState *state, int u)
 {
+  DBUG_TRACE;
   short    *distance = state->distance;
   short    *pair_uv = state->pair_uv;
   short    *pair_vu = state->pair_vu;

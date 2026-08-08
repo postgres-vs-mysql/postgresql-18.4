@@ -28,6 +28,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/multixact.h"
@@ -298,8 +299,10 @@ heap_create(const char *relname,
             MultiXactId *relminmxid,
             bool create_storage)
 {
+  DBUG_TRACE;
   Relation  rel;
 
+  DBUG_PRINT("info", "create an uncataloged heap relation:%s", relname);
   /* The caller must have provided an OID for the relation. */
   Assert(OidIsValid(relid));
 
@@ -315,12 +318,15 @@ heap_create(const char *relname,
   if (!allow_system_table_mods &&
       ((IsCatalogNamespace(relnamespace) && relkind != RELKIND_INDEX) ||
        IsToastNamespace(relnamespace)) &&
-      IsNormalProcessingMode())
+      IsNormalProcessingMode()) {
+    char *namespace_name = get_namespace_name(relnamespace);
+    DBUG_INSTANT_PRINT("info", "permission denied to create \"%s.%s\"", namespace_name, relname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create \"%s.%s\"",
-                    get_namespace_name(relnamespace), relname),
+                    namespace_name, relname),
              errdetail("System catalog modifications are currently disallowed.")));
+  }
 
   *relfrozenxid = InvalidTransactionId;
   *relminmxid = InvalidMultiXactId;
@@ -450,16 +456,19 @@ void
 CheckAttributeNamesTypes(TupleDesc tupdesc, char relkind,
                          int flags)
 {
+  DBUG_TRACE;
   int     i;
   int     j;
   int     natts = tupdesc->natts;
 
   /* Sanity check on column count */
-  if (natts < 0 || natts > MaxHeapAttributeNumber)
+  if (natts < 0 || natts > MaxHeapAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "tables can have at most %d columns", MaxHeapAttributeNumber);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("tables can have at most %d columns",
                     MaxHeapAttributeNumber)));
+  }
 
   /*
    * first check for collision with system attribute names
@@ -471,11 +480,13 @@ CheckAttributeNamesTypes(TupleDesc tupdesc, char relkind,
     for (i = 0; i < natts; i++) {
       Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
 
-      if (SystemAttributeByName(NameStr(attr->attname)) != NULL)
+      if (SystemAttributeByName(NameStr(attr->attname)) != NULL) {
+        DBUG_INSTANT_PRINT("info", "column name \"%s\" conflicts with a system column name", NameStr(attr->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("column name \"%s\" conflicts with a system column name",
                         NameStr(attr->attname))));
+      }
     }
   }
 
@@ -485,11 +496,13 @@ CheckAttributeNamesTypes(TupleDesc tupdesc, char relkind,
   for (i = 1; i < natts; i++) {
     for (j = 0; j < i; j++) {
       if (strcmp(NameStr(TupleDescAttr(tupdesc, j)->attname),
-                 NameStr(TupleDescAttr(tupdesc, i)->attname)) == 0)
+                 NameStr(TupleDescAttr(tupdesc, i)->attname)) == 0) {
+        DBUG_INSTANT_PRINT("info", "column name \"%s\" specified more than once", NameStr(TupleDescAttr(tupdesc, j)->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("column name \"%s\" specified more than once",
                         NameStr(TupleDescAttr(tupdesc, j)->attname))));
+      }
     }
   }
 
@@ -544,6 +557,7 @@ CheckAttributeType(const char *attname,
                    List *containing_rowtypes,
                    int flags)
 {
+  DBUG_TRACE;
   char    att_typtype = get_typtype(atttypid);
   Oid     att_typelem;
 
@@ -564,17 +578,22 @@ CheckAttributeType(const char *attname,
     if (!((atttypid == ANYARRAYOID && (flags & CHKATYPE_ANYARRAY)) ||
           (atttypid == RECORDOID && (flags & CHKATYPE_ANYRECORD)) ||
           (atttypid == RECORDARRAYOID && (flags & CHKATYPE_ANYRECORD)))) {
-      if (flags & CHKATYPE_IS_PARTKEY)
+      if (flags & CHKATYPE_IS_PARTKEY) {
+        char *format1 = format_type_be(atttypid);
+        DBUG_INSTANT_PRINT("info", "partition key column %s has pseudo-type %s", attname, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                  /* translator: first %s is an integer not a name */
                  errmsg("partition key column %s has pseudo-type %s",
-                        attname, format_type_be(atttypid))));
-      else
+                        attname, format1)));
+      } else {
+        char *format1 = format_type_be(atttypid);
+        DBUG_INSTANT_PRINT("info", "column \"%s\" has pseudo-type %s", attname, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                  errmsg("column \"%s\" has pseudo-type %s",
-                        attname, format_type_be(atttypid))));
+                        attname, format1)));
+      }
     }
   } else if (att_typtype == TYPTYPE_DOMAIN) {
     /*
@@ -583,14 +602,17 @@ CheckAttributeType(const char *attname,
      * the generated column change.  This could possibly be implemented,
      * but it's not.
      */
-    if (flags & CHKATYPE_IS_VIRTUAL)
+    if (flags & CHKATYPE_IS_VIRTUAL) {
+      DBUG_INSTANT_PRINT("info", "virtual generated column \"%s\" cannot have a domain type", attname);
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               errmsg("virtual generated column \"%s\" cannot have a domain type", attname));
+    }
 
     /*
      * If it's a domain, recurse to check its base type.
      */
+    DBUG_PRINT("info", "when it's a domain, recurse to check its base type");
     CheckAttributeType(attname, getBaseType(atttypid), attcollation,
                        containing_rowtypes,
                        flags);
@@ -602,17 +624,22 @@ CheckAttributeType(const char *attname,
     TupleDesc tupdesc;
     int     i;
 
+    DBUG_PRINT("info", "for a composite type, recurse into its attributes");
+
     /*
      * Check for self-containment.  Eventually we might be able to allow
      * this (just return without complaint, if so) but it's not clear how
      * many other places would require anti-recursion defenses before it
      * would be safe to allow tables to contain their own rowtype.
      */
-    if (list_member_oid(containing_rowtypes, atttypid))
+    if (list_member_oid(containing_rowtypes, atttypid)) {
+      char *format1 = format_type_be(atttypid);
+      DBUG_INSTANT_PRINT("info", "composite type %s cannot be made a member of itself", format1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("composite type %s cannot be made a member of itself",
-                      format_type_be(atttypid))));
+                      format1)));
+    }
 
     containing_rowtypes = lappend_oid(containing_rowtypes, atttypid);
 
@@ -639,6 +666,7 @@ CheckAttributeType(const char *attname,
     /*
      * If it's a range, recurse to check its subtype.
      */
+    DBUG_PRINT("info", "when it's a range, recurse to check its subtype");
     CheckAttributeType(attname, get_range_subtype(atttypid),
                        get_range_collation(atttypid),
                        containing_rowtypes,
@@ -655,6 +683,7 @@ CheckAttributeType(const char *attname,
     /*
      * Must recurse into array types, too, in case they are composite.
      */
+    DBUG_PRINT("info", "must recurse into array types, too, in case they are composite");
     CheckAttributeType(attname, att_typelem, attcollation,
                        containing_rowtypes,
                        flags);
@@ -663,30 +692,39 @@ CheckAttributeType(const char *attname,
   /*
    * For consistency with check_virtual_generated_security().
    */
-  if ((flags & CHKATYPE_IS_VIRTUAL) && atttypid >= FirstUnpinnedObjectId)
+  if ((flags & CHKATYPE_IS_VIRTUAL) && atttypid >= FirstUnpinnedObjectId) {
+    DBUG_INSTANT_PRINT("info", "virtual generated column \"%s\" cannot have a user-defined type", attname);
     ereport(ERROR,
             errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
             errmsg("virtual generated column \"%s\" cannot have a user-defined type", attname),
             errdetail("Virtual generated columns that make use of user-defined types are not yet supported."));
+  }
 
   /*
    * This might not be strictly invalid per SQL standard, but it is pretty
    * useless, and it cannot be dumped, so we must disallow it.
    */
   if (!OidIsValid(attcollation) && type_is_collatable(atttypid)) {
-    if (flags & CHKATYPE_IS_PARTKEY)
+    if (flags & CHKATYPE_IS_PARTKEY) {
+      char *format1 = format_type_be(atttypid);
+      DBUG_INSTANT_PRINT("info", "no collation was derived for partition key column %s with collatable type %s",
+                         attname, format1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                /* translator: first %s is an integer not a name */
                errmsg("no collation was derived for partition key column %s with collatable type %s",
-                      attname, format_type_be(atttypid)),
+                      attname, format1),
                errhint("Use the COLLATE clause to set the collation explicitly.")));
-    else
+    } else {
+      char *format1 = format_type_be(atttypid);
+      DBUG_INSTANT_PRINT("info", "no collation was derived for column \"%s\" with collatable type %s",
+                         attname, format1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("no collation was derived for column \"%s\" with collatable type %s",
-                      attname, format_type_be(atttypid)),
+                      attname, format1),
                errhint("Use the COLLATE clause to set the collation explicitly.")));
+    }
   }
 }
 
@@ -715,6 +753,7 @@ InsertPgAttributeTuples(Relation pg_attribute_rel,
                         const FormExtraData_pg_attribute tupdesc_extra[],
                         CatalogIndexState indstate)
 {
+  DBUG_TRACE;
   TupleTableSlot **slot;
   TupleDesc td;
   int     nslots;
@@ -828,6 +867,7 @@ AddNewAttributeTuples(Oid new_rel_oid,
                       TupleDesc tupdesc,
                       char relkind)
 {
+  DBUG_TRACE;
   Relation  rel;
   CatalogIndexState indstate;
   int     natts = tupdesc->natts;
@@ -903,6 +943,7 @@ InsertPgClassTuple(Relation pg_class_desc,
                    Datum relacl,
                    Datum reloptions)
 {
+  DBUG_TRACE;
   Form_pg_class rd_rel = new_rel_desc->rd_rel;
   Datum   values[Natts_pg_class];
   bool    nulls[Natts_pg_class];
@@ -985,6 +1026,7 @@ AddNewRelationTuple(Relation pg_class_desc,
                     Datum relacl,
                     Datum reloptions)
 {
+  DBUG_TRACE;
   Form_pg_class new_rel_reltup;
 
   /*
@@ -1039,6 +1081,7 @@ AddNewRelationType(const char *typeName,
                    Oid new_row_type,
                    Oid new_array_type)
 {
+  DBUG_TRACE;
   return
     TypeCreate(new_row_type,  /* optional predetermined OID */
                typeName,  /* type name */
@@ -1132,6 +1175,7 @@ heap_create_with_catalog(const char *relname,
                          Oid relrewrite,
                          ObjectAddress *typaddress)
 {
+  DBUG_TRACE;
   Relation  pg_class_desc;
   Relation  new_rel_desc;
   Acl      *relacl;
@@ -1144,6 +1188,7 @@ heap_create_with_catalog(const char *relname,
   TransactionId relfrozenxid;
   MultiXactId relminmxid;
 
+  DBUG_PRINT("info", "creates a new cataloged relation:%s", relname);
   pg_class_desc = table_open(RelationRelationId, RowExclusiveLock);
 
   /*
@@ -1165,10 +1210,12 @@ heap_create_with_catalog(const char *relname,
    */
   existing_relid = get_relname_relid(relname, relnamespace);
 
-  if (existing_relid != InvalidOid)
+  if (existing_relid != InvalidOid) {
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" already exists", relname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_TABLE),
              errmsg("relation \"%s\" already exists", relname)));
+  }
 
   /*
    * Since we are going to create a rowtype as well, also check for
@@ -1181,20 +1228,24 @@ heap_create_with_catalog(const char *relname,
                                  ObjectIdGetDatum(relnamespace));
 
   if (OidIsValid(old_type_oid)) {
-    if (!moveArrayTypeName(old_type_oid, relname, relnamespace))
+    if (!moveArrayTypeName(old_type_oid, relname, relnamespace)) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", relname);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", relname),
                errhint("A relation has an associated type of the same name, "
                        "so you must use a name that doesn't conflict "
                        "with any existing type.")));
+    }
   }
 
   /*
    * Shared relations must be in pg_global (last-ditch check)
    */
-  if (shared_relation && reltablespace != GLOBALTABLESPACE_OID)
+  if (shared_relation && reltablespace != GLOBALTABLESPACE_OID) {
+    DBUG_INSTANT_PRINT("info", "shared relations must be placed in pg_global tablespace");
     elog(ERROR, "shared relations must be placed in pg_global tablespace");
+  }
 
   /*
    * Allocate an OID for the relation, unless we were told what to use.
@@ -1218,28 +1269,34 @@ heap_create_with_catalog(const char *relname,
           relid = binary_upgrade_next_toast_pg_class_oid;
           binary_upgrade_next_toast_pg_class_oid = InvalidOid;
 
-          if (!RelFileNumberIsValid(binary_upgrade_next_toast_pg_class_relfilenumber))
+          if (!RelFileNumberIsValid(binary_upgrade_next_toast_pg_class_relfilenumber)) {
+            DBUG_INSTANT_PRINT("info", "toast relfilenumber value not set when in binary upgrade mode");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                      errmsg("toast relfilenumber value not set when in binary upgrade mode")));
+          }
 
           relfilenumber = binary_upgrade_next_toast_pg_class_relfilenumber;
           binary_upgrade_next_toast_pg_class_relfilenumber = InvalidRelFileNumber;
         }
       } else {
-        if (!OidIsValid(binary_upgrade_next_heap_pg_class_oid))
+        if (!OidIsValid(binary_upgrade_next_heap_pg_class_oid)) {
+          DBUG_INSTANT_PRINT("info", "pg_class heap OID value not set when in binary upgrade mode");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                    errmsg("pg_class heap OID value not set when in binary upgrade mode")));
+        }
 
         relid = binary_upgrade_next_heap_pg_class_oid;
         binary_upgrade_next_heap_pg_class_oid = InvalidOid;
 
         if (RELKIND_HAS_STORAGE(relkind)) {
-          if (!RelFileNumberIsValid(binary_upgrade_next_heap_pg_class_relfilenumber))
+          if (!RelFileNumberIsValid(binary_upgrade_next_heap_pg_class_relfilenumber)) {
+            DBUG_INSTANT_PRINT("info", "relfilenumber value not set when in binary upgrade mode");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                      errmsg("relfilenumber value not set when in binary upgrade mode")));
+          }
 
           relfilenumber = binary_upgrade_next_heap_pg_class_relfilenumber;
           binary_upgrade_next_heap_pg_class_relfilenumber = InvalidRelFileNumber;
@@ -1521,6 +1578,7 @@ heap_create_with_catalog(const char *relname,
 static void
 RelationRemoveInheritance(Oid relid)
 {
+  DBUG_TRACE;
   Relation  catalogRelation;
   SysScanDesc scan;
   ScanKeyData key;
@@ -1554,6 +1612,7 @@ RelationRemoveInheritance(Oid relid)
 void
 DeleteRelationTuple(Oid relid)
 {
+  DBUG_TRACE;
   Relation  pg_class_desc;
   HeapTuple tup;
 
@@ -1584,6 +1643,7 @@ DeleteRelationTuple(Oid relid)
 void
 DeleteAttributeTuples(Oid relid)
 {
+  DBUG_TRACE;
   Relation  attrel;
   SysScanDesc scan;
   ScanKeyData key[1];
@@ -1621,6 +1681,7 @@ DeleteAttributeTuples(Oid relid)
 void
 DeleteSystemAttributeTuples(Oid relid)
 {
+  DBUG_TRACE;
   Relation  attrel;
   SysScanDesc scan;
   ScanKeyData key[2];
@@ -1662,6 +1723,7 @@ DeleteSystemAttributeTuples(Oid relid)
 void
 RemoveAttributeById(Oid relid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   Relation  rel;
   Relation  attr_rel;
   HeapTuple tuple;
@@ -1765,10 +1827,18 @@ RemoveAttributeById(Oid relid, AttrNumber attnum)
 void
 heap_drop_with_catalog(Oid relid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tuple;
   Oid     parentOid = InvalidOid,
           defaultPartOid = InvalidOid;
+  char *table_name;
+
+  if (relid) {
+    table_name = get_rel_name(relid);
+    DBUG_PRINT("info", "removes specified relation from catalogs:%s", table_name);
+    pfree(table_name);
+  }
 
   /*
    * To drop a partition safely, we must grab exclusive lock on its parent,
@@ -1946,6 +2016,7 @@ heap_drop_with_catalog(Oid relid)
 void
 RelationClearMissing(Relation rel)
 {
+  DBUG_TRACE;
   Relation  attr_rel;
   Oid     relid = RelationGetRelid(rel);
   int     natts = RelationGetNumberOfAttributes(rel);
@@ -2069,6 +2140,7 @@ StoreAttrMissingVal(Relation rel, AttrNumber attnum, Datum missingval)
 void
 SetAttrMissing(Oid relid, char *attname, char *value)
 {
+  DBUG_TRACE;
   Datum   valuesAtt[Natts_pg_attribute] = {0};
   bool    nullsAtt[Natts_pg_attribute] = {0};
   bool    replacesAtt[Natts_pg_attribute] = {0};
@@ -2133,6 +2205,7 @@ StoreRelCheck(Relation rel, const char *ccname, Node *expr,
               bool is_enforced, bool is_validated, bool is_local,
               int16 inhcount, bool is_no_inherit, bool is_internal)
 {
+  DBUG_TRACE;
   char     *ccbin;
   List     *varList;
   int     keycount;
@@ -2181,11 +2254,13 @@ StoreRelCheck(Relation rel, const char *ccname, Node *expr,
    * constraint makes no sense.
    */
   if (is_no_inherit &&
-      rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+      rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "cannot add NO INHERIT constraint to partitioned table \"%s\"", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
              errmsg("cannot add NO INHERIT constraint to partitioned table \"%s\"",
                     RelationGetRelationName(rel))));
+  }
 
   /*
    * Create the Check Constraint
@@ -2294,6 +2369,7 @@ StoreRelNotNull(Relation rel, const char *nnname, AttrNumber attnum,
 static void
 StoreConstraints(Relation rel, List *cooked_constraints, bool is_internal)
 {
+  DBUG_TRACE;
   int     numchecks = 0;
   ListCell   *lc;
 
@@ -2374,6 +2450,7 @@ AddRelationNewConstraints(Relation rel,
                           bool is_internal,
                           const char *queryString)
 {
+  DBUG_TRACE;
   List     *cookedConstraints = NIL;
   TupleDesc tupleDesc;
   TupleConstr *oldconstr;
@@ -2496,11 +2573,13 @@ AddRelationNewConstraints(Relation rel,
         /* Check against other new constraints */
         /* Needed because we don't do CommandCounterIncrement in loop */
         foreach_ptr(char, chkname, checknames) {
-          if (strcmp(chkname, ccname) == 0)
+          if (strcmp(chkname, ccname) == 0) {
+            DBUG_INSTANT_PRINT("info", "check constraint \"%s\" already exists", ccname);
             ereport(ERROR,
                     (errcode(ERRCODE_DUPLICATE_OBJECT),
                      errmsg("check constraint \"%s\" already exists",
                             ccname)));
+          }
         }
 
         /* save name for future checks */
@@ -2690,6 +2769,7 @@ MergeWithExistingConstraint(Relation rel, const char *ccname, Node *expr,
                             bool is_initially_valid,
                             bool is_no_inherit)
 {
+  DBUG_TRACE;
   bool    found;
   Relation  conDesc;
   SysScanDesc conscan;
@@ -2749,39 +2829,51 @@ MergeWithExistingConstraint(Relation rel, const char *ccname, Node *expr,
     if (is_local && !con->conislocal && !rel->rd_rel->relispartition)
       allow_merge = true;
 
-    if (!found || !allow_merge)
+    if (!found || !allow_merge) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" for relation \"%s\" already exists",
+                         ccname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("constraint \"%s\" for relation \"%s\" already exists",
                       ccname, RelationGetRelationName(rel))));
+    }
 
     /* If the child constraint is "no inherit" then cannot merge */
-    if (con->connoinherit)
+    if (con->connoinherit) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" conflicts with non-inherited constraint on relation \"%s\"",
+                         ccname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("constraint \"%s\" conflicts with non-inherited constraint on relation \"%s\"",
                       ccname, RelationGetRelationName(rel))));
+    }
 
     /*
      * Must not change an existing inherited constraint to "no inherit"
      * status.  That's because inherited constraints should be able to
      * propagate to lower-level children.
      */
-    if (con->coninhcount > 0 && is_no_inherit)
+    if (con->coninhcount > 0 && is_no_inherit) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" conflicts with inherited constraint on relation \"%s\"",
+                         ccname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("constraint \"%s\" conflicts with inherited constraint on relation \"%s\"",
                       ccname, RelationGetRelationName(rel))));
+    }
 
     /*
      * If the child constraint is "not valid" then cannot merge with a
      * valid parent constraint.
      */
-    if (is_initially_valid && con->conenforced && !con->convalidated)
+    if (is_initially_valid && con->conenforced && !con->convalidated) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" conflicts with NOT VALID constraint on relation \"%s\"",
+                         ccname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("constraint \"%s\" conflicts with NOT VALID constraint on relation \"%s\"",
                       ccname, RelationGetRelationName(rel))));
+    }
 
     /*
      * A non-enforced child constraint cannot be merged with an enforced
@@ -2789,12 +2881,15 @@ MergeWithExistingConstraint(Relation rel, const char *ccname, Node *expr,
      * constraint is enforced.
      */
     if ((!is_local && is_enforced && !con->conenforced) ||
-        (is_local && !is_enforced && con->conenforced))
+        (is_local && !is_enforced && con->conenforced)) {
+      DBUG_INSTANT_PRINT("info", "constraint \"%s\" conflicts with NOT ENFORCED constraint on relation \"%s\"", ccname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("constraint \"%s\" conflicts with NOT ENFORCED constraint on relation \"%s\"",
                       ccname, RelationGetRelationName(rel))));
+    }
 
+    DBUG_PRINT("info", "merging constraint \"%s\" with inherited definition", ccname);
     /* OK to update the tuple */
     ereport(NOTICE,
             (errmsg("merging constraint \"%s\" with inherited definition",
@@ -2815,10 +2910,12 @@ MergeWithExistingConstraint(Relation rel, const char *ccname, Node *expr,
       if (is_local)
         con->conislocal = true;
       else if (pg_add_s16_overflow(con->coninhcount, 1,
-                                   &con->coninhcount))
+                                   &con->coninhcount)) {
+        DBUG_INSTANT_PRINT("info", "too many inheritance parents");
         ereport(ERROR,
                 errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                 errmsg("too many inheritance parents"));
+      }
     }
 
     if (is_no_inherit) {
@@ -3107,6 +3204,7 @@ AddRelationNotNullConstraints(Relation rel, List *constraints,
 static void
 SetRelationNumChecks(Relation rel, int numchecks)
 {
+  DBUG_TRACE;
   Relation  relrel;
   HeapTuple reltup;
   Form_pg_class relStruct;
@@ -3140,6 +3238,7 @@ SetRelationNumChecks(Relation rel, int numchecks)
 static bool
 check_nested_generated_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
   ParseState *pstate = context;
 
   if (node == NULL)
@@ -3156,21 +3255,27 @@ check_nested_generated_walker(Node *node, void *context)
 
     attnum = var->varattno;
 
-    if (attnum > 0 && get_attgenerated(relid, attnum))
+    if (attnum > 0 && get_attgenerated(relid, attnum)) {
+      char *attname = get_attname(relid, attnum, false);
+      DBUG_INSTANT_PRINT("info", "cannot use generated column \"%s\" in column generation expression",
+                         attname);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cannot use generated column \"%s\" in column generation expression",
-                      get_attname(relid, attnum, false)),
+                      attname),
                errdetail("A generated column cannot reference another generated column."),
                parser_errposition(pstate, var->location)));
+    }
 
     /* A whole-row Var is necessarily self-referential, so forbid it */
-    if (attnum == 0)
+    if (attnum == 0) {
+      DBUG_INSTANT_PRINT("info", "cannot use whole-row variable in column generation expression");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cannot use whole-row variable in column generation expression"),
                errdetail("This would cause the generated column to depend on its own value."),
                parser_errposition(pstate, var->location)));
+    }
 
     /* System columns were already checked in the parser */
 
@@ -3183,6 +3288,7 @@ check_nested_generated_walker(Node *node, void *context)
 static void
 check_nested_generated(ParseState *pstate, Node *node)
 {
+  DBUG_TRACE;
   check_nested_generated_walker(node, pstate);
 }
 
@@ -3285,6 +3391,7 @@ cookDefault(ParseState *pstate,
             const char *attname,
             char attgenerated)
 {
+  DBUG_TRACE;
   Node     *expr;
 
   Assert(raw_default != NULL);
@@ -3299,10 +3406,12 @@ cookDefault(ParseState *pstate,
     check_nested_generated(pstate, expr);
 
     /* Disallow mutable functions */
-    if (contain_mutable_functions_after_planning((Expr *) expr))
+    if (contain_mutable_functions_after_planning((Expr *) expr)) {
+      DBUG_INSTANT_PRINT("info", "generation expression is not immutable");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("generation expression is not immutable")));
+    }
 
     /* Check security of expressions for virtual generated column */
     if (attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
@@ -3329,15 +3438,20 @@ cookDefault(ParseState *pstate,
                                  COERCE_IMPLICIT_CAST,
                                  -1);
 
-    if (expr == NULL)
+    if (expr == NULL) {
+      char *format1 = format_type_be(atttypid);
+      char *format2 = format_type_be(type_id);
+      DBUG_INSTANT_PRINT("info", "column \"%s\" is of type %s but default expression is of type %s",
+                         attname, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("column \"%s\" is of type %s"
                       " but default expression is of type %s",
                       attname,
-                      format_type_be(atttypid),
-                      format_type_be(type_id)),
+                      format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression.")));
+    }
   }
 
   /*
@@ -3360,6 +3474,7 @@ cookConstraint(ParseState *pstate,
                Node *raw_constraint,
                char *relname)
 {
+  DBUG_TRACE;
   Node     *expr;
 
   /*
@@ -3381,11 +3496,13 @@ cookConstraint(ParseState *pstate,
    * Make sure no outside relations are referred to (this is probably dead
    * code now that add_missing_from is history).
    */
-  if (list_length(pstate->p_rtable) != 1)
+  if (list_length(pstate->p_rtable) != 1) {
+    DBUG_INSTANT_PRINT("info", "only table \"%s\" can be referenced in check constraint", relname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("only table \"%s\" can be referenced in check constraint",
                     relname)));
+  }
 
   return expr;
 }
@@ -3396,6 +3513,7 @@ cookConstraint(ParseState *pstate,
 void
 CopyStatistics(Oid fromrelid, Oid torelid)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   SysScanDesc scan;
   ScanKeyData key[1];
@@ -3449,6 +3567,7 @@ CopyStatistics(Oid fromrelid, Oid torelid)
 void
 RemoveStatistics(Oid relid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   Relation  pgstatistic;
   SysScanDesc scan;
   ScanKeyData key[2];
@@ -3495,6 +3614,7 @@ RemoveStatistics(Oid relid, AttrNumber attnum)
 static void
 RelationTruncateIndexes(Relation heapRelation)
 {
+  DBUG_TRACE;
   ListCell   *indlist;
 
   /* Ask the relcache to produce a list of the indexes of the rel */
@@ -3542,6 +3662,7 @@ RelationTruncateIndexes(Relation heapRelation)
 void
 heap_truncate(List *relids)
 {
+  DBUG_TRACE;
   List     *relations = NIL;
   ListCell   *cell;
 
@@ -3581,6 +3702,7 @@ heap_truncate(List *relids)
 void
 heap_truncate_one_rel(Relation rel)
 {
+  DBUG_TRACE;
   Oid     toastrelid;
 
   /*
@@ -3625,6 +3747,7 @@ heap_truncate_one_rel(Relation rel)
 void
 heap_truncate_check_FKs(List *relations, bool tempTables)
 {
+  DBUG_TRACE;
   List     *oids = NIL;
   List     *dependents;
   ListCell   *cell;
@@ -3680,13 +3803,15 @@ heap_truncate_check_FKs(List *relations, bool tempTables)
         char     *relname = get_rel_name(relid);
         char     *relname2 = get_rel_name(relid2);
 
-        if (tempTables)
+        if (tempTables) {
+          DBUG_INSTANT_PRINT("info", "unsupported ON COMMIT and foreign key combination");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("unsupported ON COMMIT and foreign key combination"),
                    errdetail("Table \"%s\" references \"%s\", but they do not have the same ON COMMIT setting.",
                              relname2, relname)));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "cannot truncate a table referenced in a foreign key constraint");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cannot truncate a table referenced in a foreign key constraint"),
@@ -3695,6 +3820,7 @@ heap_truncate_check_FKs(List *relations, bool tempTables)
                    errhint("Truncate table \"%s\" at the same time, "
                            "or use TRUNCATE ... CASCADE.",
                            relname2)));
+        }
       }
     }
   }
@@ -3717,6 +3843,7 @@ heap_truncate_check_FKs(List *relations, bool tempTables)
 List *
 heap_truncate_find_FKs(List *relationIds)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   List     *oids;
   List     *parent_cons;
@@ -3848,6 +3975,7 @@ StorePartitionKey(Relation rel,
                   Oid *partopclass,
                   Oid *partcollation)
 {
+  DBUG_TRACE;
   int     i;
   int2vector *partattrs_vec;
   oidvector  *partopclass_vec;
@@ -3962,6 +4090,7 @@ StorePartitionKey(Relation rel,
 void
 RemovePartitionKeyByRelId(Oid relid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tuple;
 
@@ -3994,6 +4123,7 @@ RemovePartitionKeyByRelId(Oid relid)
 void
 StorePartitionBound(Relation rel, Relation parent, PartitionBoundSpec *bound)
 {
+  DBUG_TRACE;
   Relation  classRel;
   HeapTuple tuple,
             newtuple;
@@ -4007,9 +4137,11 @@ StorePartitionBound(Relation rel, Relation parent, PartitionBoundSpec *bound)
   tuple = SearchSysCacheCopy1(RELOID,
                               ObjectIdGetDatum(RelationGetRelid(rel)));
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for relation %u", RelationGetRelid(rel));
     elog(ERROR, "cache lookup failed for relation %u",
          RelationGetRelid(rel));
+  }
 
 #ifdef USE_ASSERT_CHECKING
   {

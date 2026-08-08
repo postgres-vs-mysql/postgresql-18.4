@@ -41,6 +41,7 @@ typedef struct {
 static int
 comparison_shim(Datum x, Datum y, SortSupport ssup)
 {
+  DBUG_TRACE;
   SortShimExtra *extra = (SortShimExtra *) ssup->ssup_extra;
   Datum   result;
 
@@ -66,6 +67,7 @@ comparison_shim(Datum x, Datum y, SortSupport ssup)
 void
 PrepareSortSupportComparisonShim(Oid cmpFunc, SortSupport ssup)
 {
+  DBUG_TRACE;
   SortShimExtra *extra;
 
   extra = (SortShimExtra *) MemoryContextAlloc(ssup->ssup_cxt,
@@ -92,6 +94,7 @@ PrepareSortSupportComparisonShim(Oid cmpFunc, SortSupport ssup)
 static void
 FinishSortSupportFunction(Oid opfamily, Oid opcintype, SortSupport ssup)
 {
+  DBUG_TRACE;
   Oid     sortSupportFunction;
 
   /* Look for a sort support function */
@@ -131,6 +134,7 @@ FinishSortSupportFunction(Oid opfamily, Oid opcintype, SortSupport ssup)
 void
 PrepareSortSupportFromOrderingOp(Oid orderingOp, SortSupport ssup)
 {
+  DBUG_TRACE;
   Oid     opfamily;
   Oid     opcintype;
   CompareType cmptype;
@@ -160,6 +164,7 @@ void
 PrepareSortSupportFromIndexRel(Relation indexRel, bool reverse,
                                SortSupport ssup)
 {
+  DBUG_TRACE;
   Oid     opfamily = indexRel->rd_opfamily[ssup->ssup_attno - 1];
   Oid     opcintype = indexRel->rd_opcintype[ssup->ssup_attno - 1];
 
@@ -184,6 +189,7 @@ PrepareSortSupportFromIndexRel(Relation indexRel, bool reverse,
 void
 PrepareSortSupportFromGistIndexRel(Relation indexRel, SortSupport ssup)
 {
+  DBUG_TRACE;
   Oid     opfamily = indexRel->rd_opfamily[ssup->ssup_attno - 1];
   Oid     opcintype = indexRel->rd_opcintype[ssup->ssup_attno - 1];
   Oid     sortSupportFunction;

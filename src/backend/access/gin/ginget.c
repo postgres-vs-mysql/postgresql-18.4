@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/relscan.h"
@@ -41,6 +42,7 @@ typedef struct pendingPosition {
 static bool
 moveRightIfItNeeded(GinBtreeData *btree, GinBtreeStack *stack, Snapshot snapshot)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(stack->buffer);
 
   if (stack->off > PageGetMaxOffsetNumber(page)) {
@@ -67,6 +69,7 @@ static void
 scanPostingTree(Relation index, GinScanEntry scanEntry,
                 BlockNumber rootPostingTree)
 {
+  DBUG_TRACE;
   GinBtreeData btree;
   GinBtreeStack *stack;
   Buffer    buffer;
@@ -118,6 +121,7 @@ static bool
 collectMatchBitmap(GinBtreeData *btree, GinBtreeStack *stack,
                    GinScanEntry scanEntry, Snapshot snapshot)
 {
+  DBUG_TRACE;
   OffsetNumber attnum;
   CompactAttribute *attr;
 
@@ -137,6 +141,7 @@ collectMatchBitmap(GinBtreeData *btree, GinBtreeStack *stack,
    * Predicate lock entry leaf page, following pages will be locked by
    * moveRightIfItNeeded()
    */
+  DBUG_PRINT("info", "predicate lock entry leaf page");
   PredicateLockPage(btree->index,
                     BufferGetBlockNumber(stack->buffer),
                     snapshot);
@@ -254,6 +259,8 @@ collectMatchBitmap(GinBtreeData *btree, GinBtreeStack *stack,
       }
 
       /* Search forward to re-find idatum */
+      DBUG_PRINT("info", "search forward to re-find idatum");
+
       for (;;) {
         if (moveRightIfItNeeded(btree, stack, snapshot) == false)
           ereport(ERROR,
@@ -295,6 +302,7 @@ collectMatchBitmap(GinBtreeData *btree, GinBtreeStack *stack,
     /*
      * Done with this entry, go to the next
      */
+    DBUG_PRINT("info", "done with this entry, go to the next");
     stack->off++;
   }
 }
@@ -305,6 +313,7 @@ collectMatchBitmap(GinBtreeData *btree, GinBtreeStack *stack,
 static void
 startScanEntry(GinState *ginstate, GinScanEntry entry, Snapshot snapshot)
 {
+  DBUG_TRACE;
   GinBtreeData btreeEntry;
   GinBtreeStack *stackEntry;
   Page    page;
@@ -488,6 +497,7 @@ entryIndexByFrequencyCmp(const void *a1, const void *a2, void *arg)
 static void
 startScanKey(GinState *ginstate, GinScanOpaque so, GinScanKey key)
 {
+  DBUG_TRACE;
   MemoryContext oldCtx = CurrentMemoryContext;
   int     i;
   int     j;
@@ -588,6 +598,7 @@ startScanKey(GinState *ginstate, GinScanOpaque so, GinScanKey key)
 static void
 startScan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   GinState   *ginstate = &so->ginstate;
   uint32    i;
@@ -637,6 +648,7 @@ static void
 entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
                    ItemPointerData advancePast)
 {
+  DBUG_TRACE;
   Page    page;
   int     i;
   bool    stepright;
@@ -663,6 +675,8 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
     /*
      * Set the search key, and find the correct leaf page.
      */
+    DBUG_PRINT("info", "set the search key, and find the correct leaf page");
+
     if (ItemPointerIsLossyPage(&advancePast)) {
       ItemPointerSet(&entry->btree.itemptr,
                      GinItemPointerGetBlockNumber(&advancePast) + 1,
@@ -708,6 +722,7 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
         UnlockReleaseBuffer(entry->buffer);
         entry->buffer = InvalidBuffer;
         entry->isFinished = true;
+        DBUG_PRINT("info", "it was the last page in the tree and we're done");
         return;
       }
 
@@ -715,6 +730,7 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
        * Step to next page, following the right link. then find the
        * first ItemPointer greater than advancePast.
        */
+      DBUG_PRINT("info", "step to next page, following the right link");
       entry->buffer = ginStepRight(entry->buffer,
                                    ginstate->index,
                                    GIN_SHARE);
@@ -723,8 +739,10 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
 
     stepright = true;
 
-    if (GinPageGetOpaque(page)->flags & GIN_DELETED)
+    if (GinPageGetOpaque(page)->flags & GIN_DELETED) {
+      DBUG_PRINT("info", "page was deleted by concurrent vacuum");
       continue;     /* page was deleted by concurrent vacuum */
+    }
 
     /*
      * The first item > advancePast might not be on this page, but
@@ -739,6 +757,8 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
        * the item we're looking is > the right bound of the page, so it
        * can't be on this page.
        */
+      DBUG_PRINT("info", "the item we're looking is > the right bound of the page,");
+      DBUG_PRINT("info", "so it can't be on this page");
       continue;
     }
 
@@ -750,6 +770,7 @@ entryLoadMoreItems(GinState *ginstate, GinScanEntry entry,
 
         if (GinPageRightMost(page)) {
           /* after processing the copied items, we're done. */
+          DBUG_PRINT("info", "after processing the copied items, we're done");
           UnlockReleaseBuffer(entry->buffer);
           entry->buffer = InvalidBuffer;
         } else
@@ -907,6 +928,7 @@ entryGetItem(GinState *ginstate, GinScanEntry entry,
     for (;;) {
       /* If we've processed the current batch, load more items */
       while (entry->offset >= entry->nlist) {
+        DBUG_PRINT("info", "we've processed the current batch and load more items");
         entryLoadMoreItems(ginstate, entry, advancePast);
 
         if (entry->isFinished) {
@@ -959,6 +981,7 @@ static void
 keyGetItem(GinState *ginstate, MemoryContext tempCtx, GinScanKey key,
            ItemPointerData advancePast)
 {
+  DBUG_TRACE;
   ItemPointerData minItem;
   ItemPointerData curPageLossy;
   uint32    i;
@@ -975,8 +998,10 @@ keyGetItem(GinState *ginstate, MemoryContext tempCtx, GinScanKey key,
    * (Note: the ">" case can happen, if advancePast is exact but we
    * previously had to set curItem to a lossy-page pointer.)
    */
-  if (ginCompareItemPointers(&key->curItem, &advancePast) > 0)
+  if (ginCompareItemPointers(&key->curItem, &advancePast) > 0) {
+    DBUG_PRINT("info", "we have already tested this item and no need to repeat work");
     return;
+  }
 
   /*
    * Find the minimum item > advancePast among the active entry streams.
@@ -1016,6 +1041,7 @@ keyGetItem(GinState *ginstate, MemoryContext tempCtx, GinScanKey key,
   }
 
   if (allFinished && !key->excludeOnly) {
+    DBUG_PRINT("info", "all entries are finished");
     /* all entries are finished */
     key->isFinished = true;
     return;
@@ -1244,6 +1270,7 @@ static bool
 scanGetItem(IndexScanDesc scan, ItemPointerData advancePast,
             ItemPointerData *item, bool *recheck)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   uint32    i;
   bool    match;
@@ -1294,8 +1321,10 @@ scanGetItem(IndexScanDesc scan, ItemPointerData advancePast,
       /* Fetch the next item for this key that is > advancePast. */
       keyGetItem(&so->ginstate, so->tempCtx, key, advancePast);
 
-      if (key->isFinished)
+      if (key->isFinished) {
+        DBUG_PRINT("info", "key is finished and return false");
         return false;
+      }
 
       /*
        * If it's not a match, we can immediately conclude that nothing
@@ -1369,6 +1398,7 @@ scanGetItem(IndexScanDesc scan, ItemPointerData advancePast,
     GinScanKey  key = so->keys + i;
 
     if (key->recheckCurItem) {
+      DBUG_PRINT("info", "we must return recheck = true when any of the keys are marked recheck");
       *recheck = true;
       break;
     }
@@ -1396,6 +1426,7 @@ scanGetItem(IndexScanDesc scan, ItemPointerData advancePast,
 static bool
 scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 {
+  DBUG_TRACE;
   OffsetNumber maxoff;
   Page    page;
   IndexTuple  itup;
@@ -1438,6 +1469,8 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
         /*
          * find itempointer to the next row
          */
+        DBUG_PRINT("info", "find itempointer to the next row");
+
         for (pos->lastOffset = pos->firstOffset + 1; pos->lastOffset <= maxoff; pos->lastOffset++) {
           itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, pos->lastOffset));
 
@@ -1448,6 +1481,7 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
         /*
          * All itempointers are the same on this page
          */
+        DBUG_PRINT("info", "all itempointers are the same on this page");
         pos->lastOffset = maxoff + 1;
       }
 
@@ -1480,6 +1514,7 @@ matchPartialInPendingList(GinState *ginstate, Page page,
                           Datum *datum, GinNullCategory *category,
                           bool *datumExtracted)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
   int32   cmp;
 
@@ -1543,6 +1578,7 @@ matchPartialInPendingList(GinState *ginstate, Page page,
 static bool
 collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   OffsetNumber attrnum;
   Page    page;
@@ -1726,10 +1762,13 @@ collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
    * non-excludeOnly scan keys have at least one match.
    */
   for (i = 0; i < so->nkeys; i++) {
-    if (pos->hasMatchKey[i] == false && !so->keys[i].excludeOnly)
+    if (pos->hasMatchKey[i] == false && !so->keys[i].excludeOnly) {
+      DBUG_PRINT("info", "Some non-exclude-only scan keys have no matches");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true when each scan key has at least one entryRes match");
   return true;
 }
 
@@ -1739,6 +1778,7 @@ collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
 static void
 scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   MemoryContext oldCtx;
   bool    recheck,
@@ -1749,12 +1789,14 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
   Page    page;
   BlockNumber blkno;
 
+  DBUG_PRINT("info", "collect all matched rows from pending list into bitmap");
   *ntids = 0;
 
   /*
    * Acquire predicate lock on the metapage, to conflict with any fastupdate
    * insertions.
    */
+  DBUG_PRINT("info", "acquire predicate lock on the metapage, to conflict with any fastupdate insertions");
   PredicateLockPage(scan->indexRelation, GIN_METAPAGE_BLKNO, scan->xs_snapshot);
 
   LockBuffer(metabuffer, GIN_SHARE);
@@ -1766,6 +1808,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
    * to prevent deletion by vacuum process
    */
   if (blkno == InvalidBlockNumber) {
+    DBUG_PRINT("info", "no pending list, so proceed with normal scan");
     /* No pending list, so proceed with normal scan */
     UnlockReleaseBuffer(metabuffer);
     return;
@@ -1781,6 +1824,8 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
    * loop for each heap row. scanGetCandidate returns full row or row's
    * tuples from first page.
    */
+  DBUG_PRINT("info", "loop for each heap row");
+
   while (scanGetCandidate(scan, &pos)) {
     /*
      * Check entries in tuple and set up entryRes array.
@@ -1804,6 +1849,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
       GinScanKey  key = so->keys + i;
 
       if (!key->boolConsistentFn(key)) {
+        DBUG_PRINT("info", "match:false");
         match = false;
         break;
       }
@@ -1815,6 +1861,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
     MemoryContextReset(so->tempCtx);
 
     if (match) {
+      DBUG_PRINT("info", "match:true");
       tbm_add_tuples(tbm, &pos.item, 1, recheck);
       (*ntids)++;
     }
@@ -1829,6 +1876,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 int64
 gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   int64   ntids;
   ItemPointerData iptr;
@@ -1861,6 +1909,7 @@ gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
   /*
    * Now scan the main index.
    */
+  DBUG_PRINT("info", "now scan the main index");
   startScan(scan);
 
   ItemPointerSetMin(&iptr);
@@ -1877,5 +1926,6 @@ gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
     ntids++;
   }
 
+  DBUG_PRINT("info", "ntids:%ld", ntids);
   return ntids;
 }

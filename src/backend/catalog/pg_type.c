@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -56,6 +57,7 @@ Oid     binary_upgrade_next_pg_type_oid = InvalidOid;
 ObjectAddress
 TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 {
+  DBUG_TRACE;
   Relation  pg_type_desc;
   TupleDesc tupDesc;
   int     i;
@@ -125,10 +127,12 @@ TypeShellMake(const char *typeName, Oid typeNamespace, Oid ownerId)
 
   /* Use binary-upgrade override for pg_type.oid? */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_pg_type_oid))
+    if (!OidIsValid(binary_upgrade_next_pg_type_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_type OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_type OID value not set when in binary upgrade mode")));
+    }
 
     typoid = binary_upgrade_next_pg_type_oid;
     binary_upgrade_next_pg_type_oid = InvalidOid;
@@ -221,6 +225,7 @@ TypeCreate(Oid newTypeOid,
            bool typeNotNull,
            Oid typeCollation)
 {
+  DBUG_TRACE;
   Relation  pg_type_desc;
   Oid     typeObjectId;
   bool    isDependentType;
@@ -243,11 +248,13 @@ TypeCreate(Oid newTypeOid,
    */
   if (!(internalSize > 0 ||
         internalSize == -1 ||
-        internalSize == -2))
+        internalSize == -2)) {
+    DBUG_INSTANT_PRINT("info", "invalid type internal size %d", internalSize);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("invalid type internal size %d",
                     internalSize)));
+  }
 
   if (passedByValue) {
     /*
@@ -257,62 +264,78 @@ TypeCreate(Oid newTypeOid,
      * access/tupmacs.h!
      */
     if (internalSize == (int16) sizeof(char)) {
-      if (alignment != TYPALIGN_CHAR)
+      if (alignment != TYPALIGN_CHAR) {
+        DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for passed-by-value type of size %d", alignment, internalSize);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("alignment \"%c\" is invalid for passed-by-value type of size %d",
                         alignment, internalSize)));
+      }
     } else if (internalSize == (int16) sizeof(int16)) {
-      if (alignment != TYPALIGN_SHORT)
+      if (alignment != TYPALIGN_SHORT) {
+        DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for passed-by-value type of size %d", alignment, internalSize);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("alignment \"%c\" is invalid for passed-by-value type of size %d",
                         alignment, internalSize)));
+      }
     } else if (internalSize == (int16) sizeof(int32)) {
-      if (alignment != TYPALIGN_INT)
+      if (alignment != TYPALIGN_INT) {
+        DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for passed-by-value type of size %d", alignment, internalSize);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("alignment \"%c\" is invalid for passed-by-value type of size %d",
                         alignment, internalSize)));
+      }
     }
 
 #if SIZEOF_DATUM == 8
     else if (internalSize == (int16) sizeof(Datum)) {
-      if (alignment != TYPALIGN_DOUBLE)
+      if (alignment != TYPALIGN_DOUBLE) {
+        DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for passed-by-value type of size %d", alignment, internalSize);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("alignment \"%c\" is invalid for passed-by-value type of size %d",
                         alignment, internalSize)));
+      }
     }
 
 #endif
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "internal size %d is invalid for passed-by-value type", internalSize);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("internal size %d is invalid for passed-by-value type",
                       internalSize)));
+    }
   } else {
     /* varlena types must have int align or better */
     if (internalSize == -1 &&
-        !(alignment == TYPALIGN_INT || alignment == TYPALIGN_DOUBLE))
+        !(alignment == TYPALIGN_INT || alignment == TYPALIGN_DOUBLE)) {
+      DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for variable-length type", alignment);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("alignment \"%c\" is invalid for variable-length type",
                       alignment)));
+    }
 
     /* cstring must have char alignment */
-    if (internalSize == -2 && !(alignment == TYPALIGN_CHAR))
+    if (internalSize == -2 && !(alignment == TYPALIGN_CHAR)) {
+      DBUG_INSTANT_PRINT("info", "alignment \"%c\" is invalid for variable-length type", alignment);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("alignment \"%c\" is invalid for variable-length type",
                       alignment)));
+    }
   }
 
   /* Only varlena types can be toasted */
-  if (storage != TYPSTORAGE_PLAIN && internalSize != -1)
+  if (storage != TYPSTORAGE_PLAIN && internalSize != -1) {
+    DBUG_INSTANT_PRINT("info", "fixed-size types must have storage PLAIN");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("fixed-size types must have storage PLAIN")));
+  }
 
   /*
    * This is a dependent type if it's an implicitly-created array type or
@@ -418,10 +441,12 @@ TypeCreate(Oid newTypeOid,
      * check that the type is not already defined.  It may exist as a
      * shell type, however.
      */
-    if (typform->typisdefined)
+    if (typform->typisdefined) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", typeName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", typeName)));
+    }
 
     /*
      * shell type must have been created by same owner
@@ -430,8 +455,10 @@ TypeCreate(Oid newTypeOid,
       aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_TYPE, typeName);
 
     /* trouble if caller wanted to force the OID */
-    if (OidIsValid(newTypeOid))
+    if (OidIsValid(newTypeOid)) {
+      DBUG_INSTANT_PRINT("info", "cannot assign new OID to existing shell type");
       elog(ERROR, "cannot assign new OID to existing shell type");
+    }
 
     replaces[Anum_pg_type_oid - 1] = false;
 
@@ -455,10 +482,12 @@ TypeCreate(Oid newTypeOid,
       typeObjectId = newTypeOid;
     /* Use binary-upgrade override for pg_type.oid, if supplied. */
     else if (IsBinaryUpgrade) {
-      if (!OidIsValid(binary_upgrade_next_pg_type_oid))
+      if (!OidIsValid(binary_upgrade_next_pg_type_oid)) {
+        DBUG_INSTANT_PRINT("info", "pg_type OID value not set when in binary upgrade mode");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("pg_type OID value not set when in binary upgrade mode")));
+      }
 
       typeObjectId = binary_upgrade_next_pg_type_oid;
       binary_upgrade_next_pg_type_oid = InvalidOid;
@@ -549,6 +578,7 @@ GenerateTypeDependencies(HeapTuple typeTuple,
                          bool makeExtensionDep,
                          bool rebuild)
 {
+  DBUG_TRACE;
   Form_pg_type typeForm = (Form_pg_type) GETSTRUCT(typeTuple);
   Oid     typeObjectId = typeForm->oid;
   Datum   datum;
@@ -735,6 +765,7 @@ GenerateTypeDependencies(HeapTuple typeTuple,
 void
 RenameTypeInternal(Oid typeOid, const char *newTypeName, Oid typeNamespace)
 {
+  DBUG_TRACE;
   Relation  pg_type_desc;
   HeapTuple tuple;
   Form_pg_type typ;
@@ -771,10 +802,12 @@ RenameTypeInternal(Oid typeOid, const char *newTypeName, Oid typeNamespace)
     if (get_typisdefined(oldTypeOid) &&
         moveArrayTypeName(oldTypeOid, newTypeName, typeNamespace))
       /* successfully dodged the problem */ ;
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", newTypeName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("type \"%s\" already exists", newTypeName)));
+    }
   }
 
   /* OK, do the rename --- tuple is a copy, so OK to scribble on it */
@@ -810,6 +843,7 @@ RenameTypeInternal(Oid typeOid, const char *newTypeName, Oid typeNamespace)
 char *
 makeArrayTypeName(const char *typeName, Oid typeNamespace)
 {
+  DBUG_TRACE;
   char     *arr_name;
   int     pass = 0;
   char    suffix[NAMEDATALEN];
@@ -874,6 +908,7 @@ makeArrayTypeName(const char *typeName, Oid typeNamespace)
 bool
 moveArrayTypeName(Oid typeOid, const char *typeName, Oid typeNamespace)
 {
+  DBUG_TRACE;
   Oid     elemOid;
   char     *newname;
 
@@ -920,6 +955,7 @@ moveArrayTypeName(Oid typeOid, const char *typeName, Oid typeNamespace)
 char *
 makeMultirangeTypeName(const char *rangeTypeName, Oid typeNamespace)
 {
+  DBUG_TRACE;
   char     *buf;
   const char *rangestr;
 
@@ -941,12 +977,14 @@ makeMultirangeTypeName(const char *rangeTypeName, Oid typeNamespace)
 
   if (SearchSysCacheExists2(TYPENAMENSP,
                             CStringGetDatum(buf),
-                            ObjectIdGetDatum(typeNamespace)))
+                            ObjectIdGetDatum(typeNamespace))) {
+    DBUG_INSTANT_PRINT("info", "type \"%s\" already exists", buf);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("type \"%s\" already exists", buf),
              errdetail("Failed while creating a multirange type for type \"%s\".", rangeTypeName),
              errhint("You can manually specify a multirange type name using the \"multirange_type_name\" attribute.")));
+  }
 
   return pstrdup(buf);
 }

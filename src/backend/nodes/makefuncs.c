@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_class.h"
 #include "catalog/pg_type.h"
@@ -139,6 +140,7 @@ makeWholeRowVar(RangeTblEntry *rte,
                 Index varlevelsup,
                 bool allowScalar)
 {
+  DBUG_TRACE;
   Var      *result;
   Oid     toid;
   Node     *fexpr;
@@ -559,6 +561,7 @@ makeTypeNameFromOid(Oid typeOid, int32 typmod)
 ColumnDef *
 makeColumnDef(const char *colname, Oid typeOid, int32 typmod, Oid collOid)
 {
+  DBUG_TRACE;
   ColumnDef  *n = makeNode(ColumnDef);
 
   n->colname = pstrdup(colname);
@@ -589,6 +592,7 @@ FuncExpr *
 makeFuncExpr(Oid funcid, Oid rettype, List *args,
              Oid funccollid, Oid inputcollid, CoercionForm fformat)
 {
+  DBUG_TRACE;
   FuncExpr   *funcexpr;
 
   funcexpr = makeNode(FuncExpr);
@@ -835,6 +839,7 @@ makeIndexInfo(int numattrs, int numkeyattrs, Oid amoid, List *expressions,
               bool isready, bool concurrent, bool summarizing,
               bool withoutoverlaps)
 {
+  DBUG_TRACE;
   IndexInfo  *n = makeNode(IndexInfo);
 
   n->ii_NumIndexAttrs = numattrs;
@@ -890,6 +895,7 @@ makeIndexInfo(int numattrs, int numkeyattrs, Oid amoid, List *expressions,
 GroupingSet *
 makeGroupingSet(GroupingSetKind kind, List *content, int location)
 {
+  DBUG_TRACE;
   GroupingSet *n = makeNode(GroupingSet);
 
   n->kind = kind;
@@ -905,6 +911,7 @@ makeGroupingSet(GroupingSetKind kind, List *content, int location)
 VacuumRelation *
 makeVacuumRelation(RangeVar *relation, Oid oid, List *va_cols)
 {
+  DBUG_TRACE;
   VacuumRelation *v = makeNode(VacuumRelation);
 
   v->relation = relation;
@@ -920,6 +927,7 @@ makeVacuumRelation(RangeVar *relation, Oid oid, List *va_cols)
 JsonFormat *
 makeJsonFormat(JsonFormatType type, JsonEncoding encoding, int location)
 {
+  DBUG_TRACE;
   JsonFormat *jf = makeNode(JsonFormat);
 
   jf->format_type = type;
@@ -937,6 +945,7 @@ JsonValueExpr *
 makeJsonValueExpr(Expr *raw_expr, Expr *formatted_expr,
                   JsonFormat *format)
 {
+  DBUG_TRACE;
   JsonValueExpr *jve = makeNode(JsonValueExpr);
 
   jve->raw_expr = raw_expr;
@@ -953,6 +962,7 @@ makeJsonValueExpr(Expr *raw_expr, Expr *formatted_expr,
 JsonBehavior *
 makeJsonBehavior(JsonBehaviorType btype, Node *expr, int location)
 {
+  DBUG_TRACE;
   JsonBehavior *behavior = makeNode(JsonBehavior);
 
   behavior->btype = btype;
@@ -969,6 +979,7 @@ makeJsonBehavior(JsonBehaviorType btype, Node *expr, int location)
 Node *
 makeJsonKeyValue(Node *key, Node *value)
 {
+  DBUG_TRACE;
   JsonKeyValue *n = makeNode(JsonKeyValue);
 
   n->key = (Expr *) key;
@@ -1004,6 +1015,7 @@ JsonTablePathSpec *
 makeJsonTablePathSpec(char *string, char *name, int string_location,
                       int name_location)
 {
+  DBUG_TRACE;
   JsonTablePathSpec *pathspec = makeNode(JsonTablePathSpec);
 
   Assert(string != NULL);
@@ -1025,6 +1037,7 @@ makeJsonTablePathSpec(char *string, char *name, int string_location,
 JsonTablePath *
 makeJsonTablePath(Const *pathvalue, char *pathname)
 {
+  DBUG_TRACE;
   JsonTablePath *path = makeNode(JsonTablePath);
 
   Assert(IsA(pathvalue, Const));

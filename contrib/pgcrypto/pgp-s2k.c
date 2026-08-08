@@ -33,11 +33,13 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 static int
 calc_s2k_simple(PGP_S2K *s2k, PX_MD *md, const uint8 *key,
                 unsigned key_len)
 {
+  DBUG_TRACE;
   unsigned  md_rlen;
   uint8   buf[PGP_MAX_DIGEST];
   unsigned  preload;
@@ -79,6 +81,7 @@ calc_s2k_simple(PGP_S2K *s2k, PX_MD *md, const uint8 *key,
 static int
 calc_s2k_salted(PGP_S2K *s2k, PX_MD *md, const uint8 *key, unsigned key_len)
 {
+  DBUG_TRACE;
   unsigned  md_rlen;
   uint8   buf[PGP_MAX_DIGEST];
   unsigned  preload = 0;
@@ -122,6 +125,7 @@ static int
 calc_s2k_iter_salted(PGP_S2K *s2k, PX_MD *md, const uint8 *key,
                      unsigned key_len)
 {
+  DBUG_TRACE;
   unsigned  md_rlen;
   uint8   buf[PGP_MAX_DIGEST];
   uint8    *dst;
@@ -204,6 +208,7 @@ calc_s2k_iter_salted(PGP_S2K *s2k, PX_MD *md, const uint8 *key,
 static uint8
 decide_s2k_iter(unsigned rand_byte, int count)
 {
+  DBUG_TRACE;
   int     iter;
 
   if (count == -1)
@@ -220,6 +225,7 @@ decide_s2k_iter(unsigned rand_byte, int count)
 int
 pgp_s2k_fill(PGP_S2K *s2k, int mode, int digest_algo, int count)
 {
+  DBUG_TRACE;
   int     res = 0;
   uint8   tmp;
 
@@ -256,6 +262,7 @@ pgp_s2k_fill(PGP_S2K *s2k, int mode, int digest_algo, int count)
 int
 pgp_s2k_read(PullFilter *src, PGP_S2K *s2k)
 {
+  DBUG_TRACE;
   int     res = 0;
 
   GETBYTE(src, s2k->mode);
@@ -288,6 +295,7 @@ pgp_s2k_read(PullFilter *src, PGP_S2K *s2k)
 int
 pgp_s2k_process(PGP_S2K *s2k, int cipher, const uint8 *key, int key_len)
 {
+  DBUG_TRACE;
   int     res;
   PX_MD    *md;
 

@@ -25,6 +25,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/table.h"
@@ -240,6 +241,7 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
                      int nrequested_workers, int vac_work_mem,
                      int elevel, BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   ParallelVacuumState *pvs;
   ParallelContext *pcxt;
   PVShared   *shared;
@@ -431,6 +433,7 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 void
 parallel_vacuum_end(ParallelVacuumState *pvs, IndexBulkDeleteResult **istats)
 {
+  DBUG_TRACE;
   Assert(!IsParallelWorker());
 
   /* Copy the updated statistics */
@@ -467,6 +470,7 @@ parallel_vacuum_get_dead_items(ParallelVacuumState *pvs, VacDeadItemsInfo **dead
 void
 parallel_vacuum_reset_dead_items(ParallelVacuumState *pvs)
 {
+  DBUG_TRACE;
   VacDeadItemsInfo *dead_items_info = &(pvs->shared->dead_items_info);
 
   /*
@@ -493,6 +497,7 @@ void
 parallel_vacuum_bulkdel_all_indexes(ParallelVacuumState *pvs, long num_table_tuples,
                                     int num_index_scans)
 {
+  DBUG_TRACE;
   Assert(!IsParallelWorker());
 
   /*
@@ -512,6 +517,7 @@ void
 parallel_vacuum_cleanup_all_indexes(ParallelVacuumState *pvs, long num_table_tuples,
                                     int num_index_scans, bool estimated_count)
 {
+  DBUG_TRACE;
   Assert(!IsParallelWorker());
 
   /*
@@ -542,29 +548,42 @@ static int
 parallel_vacuum_compute_workers(Relation *indrels, int nindexes, int nrequested,
                                 bool *will_parallel_vacuum)
 {
+  DBUG_TRACE;
   int     nindexes_parallel = 0;
   int     nindexes_parallel_bulkdel = 0;
   int     nindexes_parallel_cleanup = 0;
   int     parallel_workers;
 
+  DBUG_PRINT("info", "compute the number of parallel worker processes to request");
+
   /*
    * We don't allow performing parallel operation in standalone backend or
    * when parallelism is disabled.
    */
-  if (!IsUnderPostmaster || max_parallel_maintenance_workers == 0)
+  if (!IsUnderPostmaster || max_parallel_maintenance_workers == 0) {
+    if (!IsUnderPostmaster) {
+      DBUG_PRINT("info", "we don't allow performing parallel operation in standalone backend");
+    } else {
+      DBUG_PRINT("info", "we don't allow performing parallel operation when parallelism is disabled");
+    }
+
     return 0;
+  }
 
   /*
    * Compute the number of indexes that can participate in parallel vacuum.
    */
+  DBUG_PRINT("info", "compute the number of indexes that can participate in parallel vacuum (nindexes:%d)", nindexes);
+
   for (int i = 0; i < nindexes; i++) {
     Relation  indrel = indrels[i];
     uint8   vacoptions = indrel->rd_indam->amparallelvacuumoptions;
 
     /* Skip index that is not a suitable target for parallel index vacuum */
     if (vacoptions == VACUUM_OPTION_NO_PARALLEL ||
-        RelationGetNumberOfBlocks(indrel) < min_parallel_index_scan_size)
+        RelationGetNumberOfBlocks(indrel) < min_parallel_index_scan_size) {
       continue;
+    }
 
     will_parallel_vacuum[i] = true;
 
@@ -579,19 +598,25 @@ parallel_vacuum_compute_workers(Relation *indrels, int nindexes, int nrequested,
   nindexes_parallel = Max(nindexes_parallel_bulkdel,
                           nindexes_parallel_cleanup);
 
+  DBUG_PRINT("info", "nindexes_parallel_bulkdel:%d, nindexes_parallel_cleanup:%d", nindexes_parallel_bulkdel, nindexes_parallel_cleanup);
   /* The leader process takes one index */
   nindexes_parallel--;
+  DBUG_PRINT("info", "the leader process takes one index and now nindexes_parallel is %d", nindexes_parallel);
 
   /* No index supports parallel vacuum */
-  if (nindexes_parallel <= 0)
+  if (nindexes_parallel <= 0) {
+    DBUG_PRINT("info", "no index supports parallel vacuum");
     return 0;
+  }
 
   /* Compute the parallel degree */
   parallel_workers = (nrequested > 0) ?
                      Min(nrequested, nindexes_parallel) : nindexes_parallel;
+  DBUG_PRINT("info", "compute the parallel degree:%d", parallel_workers);
 
   /* Cap by max_parallel_maintenance_workers */
   parallel_workers = Min(parallel_workers, max_parallel_maintenance_workers);
+  DBUG_PRINT("info", "cap by max_parallel_maintenance_workers and parallel_workers:%d", parallel_workers);
 
   return parallel_workers;
 }
@@ -604,26 +629,35 @@ static void
 parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scans,
                                     bool vacuum)
 {
+  DBUG_TRACE;
   int     nworkers;
   PVIndVacStatus new_status;
 
   Assert(!IsParallelWorker());
 
+  DBUG_PRINT("info", "perform index vacuum or index cleanup with parallel workers");
+
   if (vacuum) {
     new_status = PARALLEL_INDVAC_STATUS_NEED_BULKDELETE;
 
+    DBUG_PRINT("info", "new status: PARALLEL_INDVAC_STATUS_NEED_BULKDELETE");
     /* Determine the number of parallel workers to launch */
     nworkers = pvs->nindexes_parallel_bulkdel;
+    DBUG_PRINT("info", "determine the number of parallel workers to launch:%d", nworkers);
   } else {
     new_status = PARALLEL_INDVAC_STATUS_NEED_CLEANUP;
 
     /* Determine the number of parallel workers to launch */
     nworkers = pvs->nindexes_parallel_cleanup;
+    DBUG_PRINT("info", "determine the number of parallel workers to launch:%d", nworkers);
 
     /* Add conditionally parallel-aware indexes if in the first time call */
-    if (num_index_scans == 0)
+    if (num_index_scans == 0) {
       nworkers += pvs->nindexes_parallel_condcleanup;
+      DBUG_PRINT("info", "add conditionally parallel-aware indexes if in the first time call:%d", nworkers);
+    }
   }
+
 
   /* The leader process will participate */
   nworkers--;
@@ -635,6 +669,7 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
    * parallel_vacuum_compute_workers().
    */
   nworkers = Min(nworkers, pvs->pcxt->nworkers);
+  DBUG_PRINT("info", "finally determine the number of parallel workers to launch:%d", nworkers);
 
   /*
    * Set index vacuum status and mark whether parallel vacuum worker can
@@ -691,21 +726,27 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
       VacuumActiveNWorkers = &(pvs->shared->active_nworkers);
     }
 
-    if (vacuum)
+    if (vacuum) {
+      DBUG_PRINT("info", "launched %d parallel vacuum worker for index vacuuming (planned: %d)",
+                 pvs->pcxt->nworkers_launched, nworkers);
       ereport(pvs->shared->elevel,
               (errmsg(ngettext("launched %d parallel vacuum worker for index vacuuming (planned: %d)",
                                "launched %d parallel vacuum workers for index vacuuming (planned: %d)",
                                pvs->pcxt->nworkers_launched),
                       pvs->pcxt->nworkers_launched, nworkers)));
-    else
+    } else {
+      DBUG_PRINT("info", "launched %d parallel vacuum worker for index vacuuming (planned: %d)",
+                 pvs->pcxt->nworkers_launched, nworkers);
       ereport(pvs->shared->elevel,
               (errmsg(ngettext("launched %d parallel vacuum worker for index cleanup (planned: %d)",
                                "launched %d parallel vacuum workers for index cleanup (planned: %d)",
                                pvs->pcxt->nworkers_launched),
                       pvs->pcxt->nworkers_launched, nworkers)));
+    }
   }
 
   /* Vacuum the indexes that can be processed by only leader process */
+  DBUG_PRINT("info", "vacuum the indexes that can be processed by only leader process");
   parallel_vacuum_process_unsafe_indexes(pvs);
 
   /*
@@ -718,8 +759,11 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
    * Next, accumulate buffer and WAL usage.  (This must wait for the workers
    * to finish, or we might get incomplete data.)
    */
+  DBUG_PRINT("info", "accumulate buffer and WAL usage");
+
   if (nworkers > 0) {
     /* Wait for all vacuum workers to finish */
+    DBUG_PRINT("info", "wait for all vacuum workers to finish");
     WaitForParallelWorkersToFinish(pvs->pcxt);
 
     for (int i = 0; i < pvs->pcxt->nworkers_launched; i++)
@@ -757,11 +801,15 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
 static void
 parallel_vacuum_process_safe_indexes(ParallelVacuumState *pvs)
 {
+  DBUG_TRACE;
+
   /*
    * Increment the active worker count if we are able to launch any worker.
    */
   if (VacuumActiveNWorkers)
     pg_atomic_add_fetch_u32(VacuumActiveNWorkers, 1);
+
+  DBUG_PRINT("info", "loop until all indexes are vacuumed");
 
   /* Loop until all indexes are vacuumed */
   for (;;) {
@@ -772,8 +820,10 @@ parallel_vacuum_process_safe_indexes(ParallelVacuumState *pvs)
     idx = pg_atomic_fetch_add_u32(&(pvs->shared->idx), 1);
 
     /* Done for all indexes? */
-    if (idx >= pvs->nindexes)
+    if (idx >= pvs->nindexes) {
+      DBUG_PRINT("info", "done for all indexes");
       break;
+    }
 
     indstats = &(pvs->indstats[idx]);
 
@@ -793,8 +843,10 @@ parallel_vacuum_process_safe_indexes(ParallelVacuumState *pvs)
    * We have completed the index vacuum so decrement the active worker
    * count.
    */
-  if (VacuumActiveNWorkers)
+  if (VacuumActiveNWorkers) {
+    DBUG_PRINT("info", "we have completed the index vacuum so decrement the active worker count");
     pg_atomic_sub_fetch_u32(VacuumActiveNWorkers, 1);
+  }
 }
 
 /*
@@ -810,6 +862,7 @@ parallel_vacuum_process_safe_indexes(ParallelVacuumState *pvs)
 static void
 parallel_vacuum_process_unsafe_indexes(ParallelVacuumState *pvs)
 {
+  DBUG_TRACE;
   Assert(!IsParallelWorker());
 
   /*
@@ -833,8 +886,10 @@ parallel_vacuum_process_unsafe_indexes(ParallelVacuumState *pvs)
    * We have completed the index vacuum so decrement the active worker
    * count.
    */
-  if (VacuumActiveNWorkers)
+  if (VacuumActiveNWorkers) {
+    DBUG_PRINT("info", "we have completed the index vacuum so decrement the active worker count");
     pg_atomic_sub_fetch_u32(VacuumActiveNWorkers, 1);
+  }
 }
 
 /*
@@ -847,6 +902,7 @@ static void
 parallel_vacuum_process_one_index(ParallelVacuumState *pvs, Relation indrel,
                                   PVIndStats *indstats)
 {
+  DBUG_TRACE;
   IndexBulkDeleteResult *istat = NULL;
   IndexBulkDeleteResult *istat_res;
   IndexVacuumInfo ivinfo;
@@ -933,18 +989,31 @@ static bool
 parallel_vacuum_index_is_parallel_safe(Relation indrel, int num_index_scans,
                                        bool vacuum)
 {
+  DBUG_TRACE;
   uint8   vacoptions;
 
   vacoptions = indrel->rd_indam->amparallelvacuumoptions;
 
   /* In parallel vacuum case, check if it supports parallel bulk-deletion */
-  if (vacuum)
-    return ((vacoptions & VACUUM_OPTION_PARALLEL_BULKDEL) != 0);
+  if (vacuum) {
+    bool result;
+    result = ((vacoptions & VACUUM_OPTION_PARALLEL_BULKDEL) != 0);
+
+    if (result) {
+      DBUG_PRINT("info", "result: true");
+    } else {
+      DBUG_PRINT("info", "result: false");
+    }
+
+    return result;
+  }
 
   /* Not safe, if the index does not support parallel cleanup */
   if (((vacoptions & VACUUM_OPTION_PARALLEL_CLEANUP) == 0) &&
-      ((vacoptions & VACUUM_OPTION_PARALLEL_COND_CLEANUP) == 0))
+      ((vacoptions & VACUUM_OPTION_PARALLEL_COND_CLEANUP) == 0)) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
   /*
    * Not safe, if the index supports parallel cleanup conditionally, but we
@@ -955,9 +1024,12 @@ parallel_vacuum_index_is_parallel_safe(Relation indrel, int num_index_scans,
    * parallel cleanup conditionally.
    */
   if (num_index_scans > 0 &&
-      ((vacoptions & VACUUM_OPTION_PARALLEL_COND_CLEANUP) != 0))
+      ((vacoptions & VACUUM_OPTION_PARALLEL_COND_CLEANUP) != 0)) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
+  DBUG_PRINT("info", "result: true");
   return true;
 }
 
@@ -970,6 +1042,7 @@ parallel_vacuum_index_is_parallel_safe(Relation indrel, int num_index_scans,
 void
 parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
 {
+  DBUG_TRACE;
   ParallelVacuumState pvs;
   Relation  rel;
   Relation   *indrels;
@@ -989,6 +1062,7 @@ parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
   Assert(MyProc->statusFlags == PROC_IN_VACUUM);
 
   elog(DEBUG1, "starting parallel vacuum worker");
+  DBUG_PRINT("info", "starting parallel vacuum worker");
 
   shared = (PVShared *) shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_SHARED, false);
 
@@ -1100,6 +1174,7 @@ parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
 static void
 parallel_vacuum_error_callback(void *arg)
 {
+  DBUG_TRACE;
   ParallelVacuumState *errinfo = arg;
 
   switch (errinfo->status) {

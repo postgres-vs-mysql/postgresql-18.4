@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -33,11 +34,14 @@
 void
 gistfillbuffer(Page page, IndexTuple *itup, int len, OffsetNumber off)
 {
+  DBUG_TRACE;
   int     i;
 
   if (off == InvalidOffsetNumber)
     off = (PageIsEmpty(page)) ? FirstOffsetNumber :
           OffsetNumberNext(PageGetMaxOffsetNumber(page));
+
+  DBUG_PRINT("info", "write itup vector to page (off:%u, len:%d)", off, len);
 
   for (i = 0; i < len; i++) {
     Size    sz = IndexTupleSize(itup[i]);
@@ -59,9 +63,13 @@ gistfillbuffer(Page page, IndexTuple *itup, int len, OffsetNumber off)
 bool
 gistnospace(Page page, IndexTuple *itvec, int len, OffsetNumber todelete, Size freespace)
 {
+  DBUG_TRACE;
   unsigned int size = freespace,
                deleted = 0;
   int     i;
+  bool result;
+
+  DBUG_PRINT("info", "todelete off:%u, len:%d", todelete, len);
 
   for (i = 0; i < len; i++)
     size += IndexTupleSize(itvec[i]) + sizeof(ItemIdData);
@@ -72,20 +80,38 @@ gistnospace(Page page, IndexTuple *itvec, int len, OffsetNumber todelete, Size f
     deleted = IndexTupleSize(itup) + sizeof(ItemIdData);
   }
 
-  return (PageGetFreeSpace(page) + deleted < size);
+  result = (PageGetFreeSpace(page) + deleted < size);
+
+  if (result) {
+    DBUG_PRINT("info", "check space for itup vector on page:true");
+  } else {
+    DBUG_PRINT("info", "check space for itup vector on page:false");
+  }
+
+  return result;
 }
 
 bool
 gistfitpage(IndexTuple *itvec, int len)
 {
+  DBUG_TRACE;
   int     i;
   Size    size = 0;
+  bool result;
 
   for (i = 0; i < len; i++)
     size += IndexTupleSize(itvec[i]) + sizeof(ItemIdData);
 
   /* TODO: Consider fillfactor */
-  return (size <= GiSTPageSize);
+  result = (size <= GiSTPageSize);
+
+  if (result) {
+    DBUG_PRINT("info", "size:%lu, GiSTPageSize:%lu and return true", size, GiSTPageSize);
+  } else {
+    DBUG_PRINT("info", "size:%lu, GiSTPageSize:%lu and return false", size, GiSTPageSize);
+  }
+
+  return result;
 }
 
 /*
@@ -94,6 +120,7 @@ gistfitpage(IndexTuple *itvec, int len)
 IndexTuple *
 gistextractpage(Page page, int *len /* out */ )
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff;
   IndexTuple *itvec;
@@ -114,6 +141,8 @@ gistextractpage(Page page, int *len /* out */ )
 IndexTuple *
 gistjoinvector(IndexTuple *itvec, int *len, IndexTuple *additvec, int addlen)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "join two vectors into one");
   itvec = (IndexTuple *) repalloc(itvec, sizeof(IndexTuple) * ((*len) + addlen));
   memmove(&itvec[*len], additvec, sizeof(IndexTuple) * addlen);
   *len += addlen;
@@ -127,6 +156,7 @@ gistjoinvector(IndexTuple *itvec, int *len, IndexTuple *additvec, int addlen)
 IndexTupleData *
 gistfillitupvec(IndexTuple *vec, int veclen, int *memlen)
 {
+  DBUG_TRACE;
   char     *ptr,
            *ret;
   int     i;
@@ -155,6 +185,7 @@ void
 gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
                    Datum *attr, bool *isnull)
 {
+  DBUG_TRACE;
   int     i;
   GistEntryVector *evec;
   int     attrsize = 0; /* silence compiler warning */
@@ -192,11 +223,13 @@ gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
     } else {
       if (evec->n == 1) {
         /* unionFn may expect at least two inputs */
+        DBUG_PRINT("info", "unionFn may expect at least two inputs");
         evec->n = 2;
         evec->vector[1] = evec->vector[0];
       }
 
       /* Make union and store in attr array */
+      DBUG_PRINT("info", "make union and store in attr array");
       attr[i] = FunctionCall2Coll(&giststate->unionFn[i],
                                   giststate->supportCollation[i],
                                   PointerGetDatum(evec),
@@ -214,6 +247,7 @@ gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
 IndexTuple
 gistunion(Relation r, IndexTuple *itvec, int len, GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   Datum   attr[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];
 
@@ -231,6 +265,7 @@ gistMakeUnionKey(GISTSTATE *giststate, int attno,
                  GISTENTRY *entry2, bool isnull2,
                  Datum *dst, bool *dstisnull)
 {
+  DBUG_TRACE;
   /* we need a GistEntryVector with room for exactly 2 elements */
   union {
     GistEntryVector gev;
@@ -267,12 +302,20 @@ gistMakeUnionKey(GISTSTATE *giststate, int attno,
 bool
 gistKeyIsEQ(GISTSTATE *giststate, int attno, Datum a, Datum b)
 {
+  DBUG_TRACE;
   bool    result = false; /* silence compiler warning */
 
   FunctionCall3Coll(&giststate->equalFn[attno],
                     giststate->supportCollation[attno],
                     a, b,
                     PointerGetDatum(&result));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -283,16 +326,22 @@ void
 gistDeCompressAtt(GISTSTATE *giststate, Relation r, IndexTuple tuple, Page p,
                   OffsetNumber o, GISTENTRY *attdata, bool *isnull)
 {
+  DBUG_TRACE;
   int     i;
+
+  int  count = 0;
 
   for (i = 0; i < IndexRelationGetNumberOfKeyAttributes(r); i++) {
     Datum   datum;
 
+    count++;
     datum = index_getattr(tuple, i + 1, giststate->leafTupdesc, &isnull[i]);
     gistdentryinit(giststate, i, &attdata[i],
                    datum, r, p, o,
                    false, isnull[i]);
   }
+
+  DBUG_PRINT("info", "decompress all keys in tuple(attributes:%d)", count);
 }
 
 /*
@@ -301,6 +350,7 @@ gistDeCompressAtt(GISTSTATE *giststate, Relation r, IndexTuple tuple, Page p,
 IndexTuple
 gistgetadjusted(Relation r, IndexTuple oldtup, IndexTuple addtup, GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   bool    neednew = false;
   GISTENTRY oldentries[INDEX_MAX_KEYS],
             addentries[INDEX_MAX_KEYS];
@@ -311,6 +361,7 @@ gistgetadjusted(Relation r, IndexTuple oldtup, IndexTuple addtup, GISTSTATE *gis
   IndexTuple  newtup = NULL;
   int     i;
 
+  DBUG_PRINT("info", "form union of oldtup and addtup");
   gistDeCompressAtt(giststate, r, oldtup, NULL,
                     (OffsetNumber) 0, oldentries, oldisnull);
 
@@ -340,6 +391,7 @@ gistgetadjusted(Relation r, IndexTuple oldtup, IndexTuple addtup, GISTSTATE *gis
 
   if (neednew) {
     /* need to update key */
+    DBUG_PRINT("info", "need to update key");
     newtup = gistFormTuple(giststate, r, attr, isnull, false);
     newtup->t_tid = oldtup->t_tid;
   }
@@ -357,6 +409,7 @@ OffsetNumber
 gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
            GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   OffsetNumber result;
   OffsetNumber maxoff;
   OffsetNumber i;
@@ -368,6 +421,7 @@ gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
 
   Assert(!GistPageIsLeaf(p));
 
+  DBUG_PRINT("info", "search an upper index page for the entry with lowest penalty for insertion");
   gistDeCompressAtt(giststate, r,
                     it, NULL, (OffsetNumber) 0,
                     identry, isnull);
@@ -418,6 +472,9 @@ gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
   maxoff = PageGetMaxOffsetNumber(p);
   Assert(maxoff >= FirstOffsetNumber);
 
+  DBUG_PRINT("info", "first offset number:%u, maxoff:%u and the number of index attributes:%d",
+             FirstOffsetNumber, maxoff, IndexRelationGetNumberOfKeyAttributes(r));
+
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     IndexTuple  itup = (IndexTuple) PageGetItem(p, PageGetItemId(p, i));
     bool    zero_penalty;
@@ -452,6 +509,8 @@ gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
          * remaining columns during subsequent loop iterations.
          */
         result = i;
+        DBUG_PRINT("info", "tentatively select this tuple:%u as the target, and record the best penalty[%d]:%g",
+                   result, j, usize);
         best_penalty[j] = usize;
 
         if (j < IndexRelationGetNumberOfKeyAttributes(r) - 1)
@@ -489,6 +548,7 @@ gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
       if (keep_current_best == 0) {
         /* we choose to use the new tuple */
         result = i;
+        DBUG_PRINT("info", "we choose to use the new tuple:%u", result);
         /* choose again if there are even more exactly-as-good ones */
         keep_current_best = -1;
       }
@@ -511,6 +571,7 @@ gistchoose(Relation r, Page p, IndexTuple it, /* it has compressed entry */
     }
   }
 
+  DBUG_PRINT("info", "return the index of the page entry to insert into:%u", result);
   return result;
 }
 
@@ -548,6 +609,7 @@ IndexTuple
 gistFormTuple(GISTSTATE *giststate, Relation r,
               const Datum *attdata, const bool *isnull, bool isleaf)
 {
+  DBUG_TRACE;
   Datum   compatt[INDEX_MAX_KEYS];
   IndexTuple  res;
 
@@ -569,6 +631,7 @@ void
 gistCompressValues(GISTSTATE *giststate, Relation r,
                    const Datum *attdata, const bool *isnull, bool isleaf, Datum *compatt)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -616,6 +679,7 @@ gistCompressValues(GISTSTATE *giststate, Relation r,
 static Datum
 gistFetchAtt(GISTSTATE *giststate, int nkey, Datum k, Relation r)
 {
+  DBUG_TRACE;
   GISTENTRY fentry;
   GISTENTRY  *fep;
 
@@ -637,6 +701,7 @@ gistFetchAtt(GISTSTATE *giststate, int nkey, Datum k, Relation r)
 HeapTuple
 gistFetchTuple(GISTSTATE *giststate, Relation r, IndexTuple tuple)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt = MemoryContextSwitchTo(giststate->tempCxt);
   Datum   fetchatt[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];
@@ -690,6 +755,7 @@ gistpenalty(GISTSTATE *giststate, int attno,
             GISTENTRY *orig, bool isNullOrig,
             GISTENTRY *add, bool isNullAdd)
 {
+  DBUG_TRACE;
   float   penalty = 0.0;
 
   if (giststate->penaltyFn[attno].fn_strict == false ||
@@ -710,6 +776,7 @@ gistpenalty(GISTSTATE *giststate, int attno,
     penalty = get_float4_infinity();
   }
 
+  DBUG_PRINT("info", "penalty:%g for attno:%d", penalty, attno);
   return penalty;
 }
 
@@ -719,6 +786,7 @@ gistpenalty(GISTSTATE *giststate, int attno,
 void
 gistinitpage(Page page, uint32 f)
 {
+  DBUG_TRACE;
   GISTPageOpaque opaque;
 
   PageInit(page, BLCKSZ, sizeof(GISTPageOpaqueData));
@@ -735,6 +803,7 @@ gistinitpage(Page page, uint32 f)
 void
 GISTInitBuffer(Buffer b, uint32 f)
 {
+  DBUG_TRACE;
   Page    page;
 
   page = BufferGetPage(b);
@@ -786,6 +855,7 @@ gistcheckpage(Relation rel, Buffer buf)
 Buffer
 gistNewBuffer(Relation r, Relation heaprel)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* First, try to get a page from FSM */
@@ -847,6 +917,8 @@ gistNewBuffer(Relation r, Relation heaprel)
 bool
 gistPageRecyclable(Page page)
 {
+  DBUG_TRACE;
+
   if (PageIsNew(page))
     return true;
 
@@ -895,6 +967,7 @@ gistproperty(Oid index_oid, int attno,
              IndexAMProperty prop, const char *propname,
              bool *res, bool *isnull)
 {
+  DBUG_TRACE;
   Oid     opclass,
           opfamily,
           opcintype;
@@ -975,6 +1048,8 @@ gistproperty(Oid index_oid, int attno,
 XLogRecPtr
 gistGetFakeLSN(Relation rel)
 {
+  DBUG_TRACE;
+
   if (rel->rd_rel->relpersistence == RELPERSISTENCE_TEMP) {
     /*
      * Temporary relations are only accessible in our session, so a simple

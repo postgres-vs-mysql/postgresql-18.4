@@ -30,6 +30,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xlog.h"
 #include "libpq/pqsignal.h"
@@ -87,6 +88,7 @@ static XLogRecPtr last_snapshot_lsn = InvalidXLogRecPtr;
 void
 BackgroundWriterMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   MemoryContext bgwriter_context;
   bool    prev_hibernate;
@@ -231,6 +233,7 @@ BackgroundWriterMain(const void *startup_data, size_t startup_data_len)
     /*
      * Do one cycle of dirty-buffer writing.
      */
+    DBUG_PRINT("info", "do one cycle of dirty-buffer writing");
     can_hibernate = BgBufferSync(&wb_context);
 
     /* Report pending statistics to the cumulative stats system */

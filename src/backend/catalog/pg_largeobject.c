@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "catalog/catalog.h"
@@ -35,6 +36,7 @@
 Oid
 LargeObjectCreate(Oid loid)
 {
+  DBUG_TRACE;
   Relation  pg_lo_meta;
   HeapTuple ntup;
   Oid     loid_new;
@@ -95,6 +97,7 @@ LargeObjectCreate(Oid loid)
 void
 LargeObjectDrop(Oid loid)
 {
+  DBUG_TRACE;
   Relation  pg_lo_meta;
   Relation  pg_largeobject;
   ScanKeyData skey[1];
@@ -121,10 +124,12 @@ LargeObjectDrop(Oid loid)
 
   tuple = systable_getnext(scan);
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "large object %u does not exist", loid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("large object %u does not exist", loid)));
+  }
 
   CatalogTupleDelete(pg_lo_meta, &tuple->t_self);
 
@@ -177,6 +182,7 @@ LargeObjectExists(Oid loid)
 bool
 LargeObjectExistsWithSnapshot(Oid loid, Snapshot snapshot)
 {
+  DBUG_TRACE;
   Relation  pg_lo_meta;
   ScanKeyData skey[1];
   SysScanDesc sd;

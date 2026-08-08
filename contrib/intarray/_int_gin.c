@@ -2,6 +2,7 @@
  * contrib/intarray/_int_gin.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "_int.h"
 #include "access/gin.h"
@@ -12,6 +13,7 @@ PG_FUNCTION_INFO_V1(ginint4_queryextract);
 Datum
 ginint4_queryextract(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
   int32    *searchMode = (int32 *) PG_GETARG_POINTER(6);
@@ -110,6 +112,7 @@ PG_FUNCTION_INFO_V1(ginint4_consistent);
 Datum
 ginint4_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
   int32   nkeys = PG_GETARG_INT32(3);
@@ -178,6 +181,12 @@ ginint4_consistent(PG_FUNCTION_ARGS)
     default:
       elog(ERROR, "ginint4_consistent: unknown strategy number: %d",
            strategy);
+  }
+
+  if (res) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
   }
 
   PG_RETURN_BOOL(res);

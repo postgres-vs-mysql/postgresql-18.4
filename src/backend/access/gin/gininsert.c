@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/gin_tuple.h"
@@ -210,6 +211,7 @@ addItemPointersToLeafTuple(GinState *ginstate,
                            ItemPointerData *items, uint32 nitem,
                            GinStatsData *buildStats, Buffer buffer)
 {
+  DBUG_TRACE;
   OffsetNumber attnum;
   Datum   key;
   GinNullCategory category;
@@ -291,6 +293,7 @@ buildFreshLeafTuple(GinState *ginstate,
                     ItemPointerData *items, uint32 nitem,
                     GinStatsData *buildStats, Buffer buffer)
 {
+  DBUG_TRACE;
   IndexTuple  res = NULL;
   GinPostingList *compressedList;
 
@@ -341,6 +344,7 @@ ginEntryInsert(GinState *ginstate,
                ItemPointerData *items, uint32 nitem,
                GinStatsData *buildStats)
 {
+  DBUG_TRACE;
   GinBtreeData btree;
   GinBtreeEntryInsertData insertdata;
   GinBtreeStack *stack;
@@ -413,6 +417,7 @@ ginHeapTupleBulkInsert(GinBuildState *buildstate, OffsetNumber attnum,
                        Datum value, bool isNull,
                        ItemPointer heapptr)
 {
+  DBUG_TRACE;
   Datum    *entries;
   GinNullCategory *categories;
   int32   nentries;
@@ -436,6 +441,7 @@ static void
 ginBuildCallback(Relation index, ItemPointer tid, Datum *values,
                  bool *isnull, bool tupleIsAlive, void *state)
 {
+  DBUG_TRACE;
   GinBuildState *buildstate = (GinBuildState *) state;
   MemoryContext oldCtx;
   int     i;
@@ -599,6 +605,7 @@ ginBuildCallbackParallel(Relation index, ItemPointer tid, Datum *values,
 IndexBuildResult *
 ginbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   double    reltuples;
   GinBuildState buildstate;
@@ -790,6 +797,7 @@ ginbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 void
 ginbuildempty(Relation index)
 {
+  DBUG_TRACE;
   Buffer    RootBuffer,
             MetaBuffer;
 
@@ -823,6 +831,7 @@ ginHeapTupleInsert(GinState *ginstate, OffsetNumber attnum,
                    Datum value, bool isNull,
                    ItemPointer item)
 {
+  DBUG_TRACE;
   Datum    *entries;
   GinNullCategory *categories;
   int32   i,
@@ -843,6 +852,7 @@ gininsert(Relation index, Datum *values, bool *isnull,
           bool indexUnchanged,
           IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   GinState   *ginstate = (GinState *) indexInfo->ii_AmCache;
   MemoryContext oldCtx;
   MemoryContext insertCtx;

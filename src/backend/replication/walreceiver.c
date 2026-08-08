@@ -48,6 +48,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -1407,6 +1408,7 @@ WalRcvGetStateString(WalRcvState state)
 Datum
 pg_stat_get_wal_receiver(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   Datum    *values;
   bool     *nulls;

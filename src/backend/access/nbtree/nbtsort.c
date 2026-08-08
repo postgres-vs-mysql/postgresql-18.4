@@ -39,6 +39,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/parallel.h"
@@ -69,7 +70,7 @@
  * DISABLE_LEADER_PARTICIPATION disables the leader's participation in
  * parallel index builds.  This may be useful as a debugging aid.
 #undef DISABLE_LEADER_PARTICIPATION
- */
+*/
 
 /*
  * Status record for spooling/sorting phase.  (Note we may have two of
@@ -288,6 +289,7 @@ static void _bt_parallel_scan_and_sort(BTSpool *btspool, BTSpool *btspool2,
 IndexBuildResult *
 btbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   BTBuildState buildstate;
   double    reltuples;
@@ -364,6 +366,7 @@ static double
 _bt_spools_heapscan(Relation heap, Relation index, BTBuildState *buildstate,
                     IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   BTSpool    *btspool = (BTSpool *) palloc0(sizeof(BTSpool));
   SortCoordinate coordinate = NULL;
   double    reltuples = 0;
@@ -532,6 +535,7 @@ _bt_spool(BTSpool *btspool, ItemPointer self, Datum *values, bool *isnull)
 static void
 _bt_leafbuild(BTSpool *btspool, BTSpool *btspool2)
 {
+  DBUG_TRACE;
   BTWriteState wstate;
 
 #ifdef BTREE_BUILD_STATS
@@ -680,6 +684,7 @@ _bt_pagestate(BTWriteState *wstate, uint32 level)
 static void
 _bt_slideleft(Page rightmostpage)
 {
+  DBUG_TRACE;
   OffsetNumber off;
   OffsetNumber maxoff;
   ItemId    previi;
@@ -782,6 +787,7 @@ static void
 _bt_buildadd(BTWriteState *wstate, BTPageState *state, IndexTuple itup,
              Size truncextra)
 {
+  DBUG_TRACE;
   BulkWriteBuffer nbuf;
   Page    npage;
   BlockNumber nblkno;
@@ -1027,6 +1033,7 @@ static void
 _bt_sort_dedup_finish_pending(BTWriteState *wstate, BTPageState *state,
                               BTDedupState dstate)
 {
+  DBUG_TRACE;
   Assert(dstate->nitems > 0);
 
   if (dstate->nitems == 1)
@@ -1059,6 +1066,7 @@ _bt_sort_dedup_finish_pending(BTWriteState *wstate, BTPageState *state,
 static void
 _bt_uppershutdown(BTWriteState *wstate, BTPageState *state)
 {
+  DBUG_TRACE;
   BTPageState *s;
   BlockNumber rootblkno = P_NONE;
   uint32    rootlevel = 0;
@@ -1127,6 +1135,7 @@ _bt_uppershutdown(BTWriteState *wstate, BTPageState *state)
 static void
 _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
 {
+  DBUG_TRACE;
   BTPageState *state = NULL;
   bool    merge = (btspool2 != NULL);
   IndexTuple  itup,
@@ -1138,7 +1147,10 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
   SortSupport sortKeys;
   int64   tuples_done = 0;
   bool    deduplicate;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
+  DBUG_PRINT("info", "read tuples in correct sort order from tuplesort, and load them into btree leaves");
   wstate->bulkstate = smgr_bulk_start_rel(wstate->index, MAIN_FORKNUM);
 
   deduplicate = wstate->inskey->allequalimage && !btspool->isunique &&
@@ -1179,6 +1191,15 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
 
     for (;;) {
       load1 = true;   /* load BTSpool next ? */
+
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
 
       if (itup2 == NULL) {
         if (itup == NULL)
@@ -1236,9 +1257,18 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
         itup2 = tuplesort_getindextuple(btspool2->sortstate, true);
       }
 
+      count++;
       /* Report progress */
       pgstat_progress_update_param(PROGRESS_CREATEIDX_TUPLES_DONE,
                                    ++tuples_done);
+    }
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
     }
 
     pfree(sortKeys);
@@ -1261,8 +1291,19 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
     dstate->phystupsize = 0;  /* unused */
     dstate->nintervals = 0; /* unused */
 
+    count = 0;
+
     while ((itup = tuplesort_getindextuple(btspool->sortstate,
                                            true)) != NULL) {
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
+
       /* When we see first tuple, create first index page */
       if (state == NULL) {
         state = _bt_pagestate(wstate, 0);
@@ -1309,10 +1350,20 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
                                 InvalidOffsetNumber);
       }
 
+      count++;
       /* Report progress */
       pgstat_progress_update_param(PROGRESS_CREATEIDX_TUPLES_DONE,
                                    ++tuples_done);
     }
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
+    }
+
 
     if (state) {
       /*
@@ -1365,6 +1416,7 @@ _bt_load(BTWriteState *wstate, BTSpool *btspool, BTSpool *btspool2)
 static void
 _bt_begin_parallel(BTBuildState *buildstate, bool isconcurrent, int request)
 {
+  DBUG_TRACE;
   ParallelContext *pcxt;
   int     scantuplesortstates;
   Snapshot  snapshot;
@@ -1620,6 +1672,7 @@ _bt_parallel_estimate_shared(Relation heap, Snapshot snapshot)
 static double
 _bt_parallel_heapscan(BTBuildState *buildstate, bool *brokenhotchain)
 {
+  DBUG_TRACE;
   BTShared   *btshared = buildstate->btleader->btshared;
   int     nparticipanttuplesorts;
   double    reltuples;
@@ -1655,6 +1708,7 @@ _bt_parallel_heapscan(BTBuildState *buildstate, bool *brokenhotchain)
 static void
 _bt_leader_participate_as_worker(BTBuildState *buildstate)
 {
+  DBUG_TRACE;
   BTLeader   *btleader = buildstate->btleader;
   BTSpool    *leaderworker;
   BTSpool    *leaderworker2;
@@ -1708,6 +1762,7 @@ _bt_leader_participate_as_worker(BTBuildState *buildstate)
 void
 _bt_parallel_build_main(dsm_segment *seg, shm_toc *toc)
 {
+  DBUG_TRACE;
   char     *sharedquery;
   BTSpool    *btspool;
   BTSpool    *btspool2;
@@ -1833,6 +1888,7 @@ _bt_parallel_scan_and_sort(BTSpool *btspool, BTSpool *btspool2,
                            BTShared *btshared, Sharedsort *sharedsort,
                            Sharedsort *sharedsort2, int sortmem, bool progress)
 {
+  DBUG_TRACE;
   SortCoordinate coordinate;
   BTBuildState buildstate;
   TableScanDesc scan;

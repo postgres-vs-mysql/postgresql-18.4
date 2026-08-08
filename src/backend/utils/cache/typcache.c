@@ -39,6 +39,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -374,6 +375,7 @@ type_cache_syshash(const void *key, Size keysize)
 TypeCacheEntry *
 lookup_type_cache(Oid type_id, int flags)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry;
   bool    found;
   int     in_progress_offset;
@@ -949,6 +951,7 @@ lookup_type_cache(Oid type_id, int flags)
 static void
 load_typcache_tupdesc(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Relation  rel;
 
   if (!OidIsValid(typentry->typrelid))  /* should not happen */
@@ -984,6 +987,7 @@ load_typcache_tupdesc(TypeCacheEntry *typentry)
 static void
 load_rangetype_info(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Form_pg_range pg_range;
   HeapTuple tup;
   Oid     subtypeOid;
@@ -1047,6 +1051,7 @@ load_rangetype_info(TypeCacheEntry *typentry)
 static void
 load_multirangetype_info(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Oid     rangetypeOid;
 
   rangetypeOid = get_multirange_range(typentry->type_id);
@@ -1070,6 +1075,7 @@ load_multirangetype_info(TypeCacheEntry *typentry)
 static void
 load_domaintype_info(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Oid     typeOid = typentry->type_id;
   DomainConstraintCache *dcc;
   bool    notNull = false;
@@ -1313,6 +1319,7 @@ dcs_cmp(const void *a, const void *b)
 static void
 decr_dcc_refcount(DomainConstraintCache *dcc)
 {
+  DBUG_TRACE;
   Assert(dcc->dccRefCount > 0);
 
   if (--(dcc->dccRefCount) <= 0)
@@ -1325,6 +1332,7 @@ decr_dcc_refcount(DomainConstraintCache *dcc)
 static void
 dccref_deletion_callback(void *arg)
 {
+  DBUG_TRACE;
   DomainConstraintRef *ref = (DomainConstraintRef *) arg;
   DomainConstraintCache *dcc = ref->dcc;
 
@@ -1345,6 +1353,7 @@ dccref_deletion_callback(void *arg)
 static List *
 prep_domain_constraints(List *constraints, MemoryContext execctx)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   MemoryContext oldcxt;
   ListCell   *lc;
@@ -1383,6 +1392,7 @@ void
 InitDomainConstraintRef(Oid type_id, DomainConstraintRef *ref,
                         MemoryContext refctx, bool need_exprstate)
 {
+  DBUG_TRACE;
   /* Look up the typcache entry --- we assume it survives indefinitely */
   ref->tcache = lookup_type_cache(type_id, TYPECACHE_DOMAIN_CONSTR_INFO);
   ref->need_exprstate = need_exprstate;
@@ -1420,6 +1430,7 @@ InitDomainConstraintRef(Oid type_id, DomainConstraintRef *ref,
 void
 UpdateDomainConstraintRef(DomainConstraintRef *ref)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry = ref->tcache;
 
   /* Make sure typcache entry's data is up to date */
@@ -1469,6 +1480,7 @@ UpdateDomainConstraintRef(DomainConstraintRef *ref)
 bool
 DomainHasConstraints(Oid type_id)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry;
 
   /*
@@ -1496,6 +1508,8 @@ DomainHasConstraints(Oid type_id)
 static bool
 array_element_has_equality(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_array_element_properties(typentry);
 
@@ -1505,6 +1519,8 @@ array_element_has_equality(TypeCacheEntry *typentry)
 static bool
 array_element_has_compare(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_array_element_properties(typentry);
 
@@ -1514,6 +1530,8 @@ array_element_has_compare(TypeCacheEntry *typentry)
 static bool
 array_element_has_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_array_element_properties(typentry);
 
@@ -1523,6 +1541,8 @@ array_element_has_hashing(TypeCacheEntry *typentry)
 static bool
 array_element_has_extended_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_array_element_properties(typentry);
 
@@ -1532,6 +1552,7 @@ array_element_has_extended_hashing(TypeCacheEntry *typentry)
 static void
 cache_array_element_properties(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Oid     elem_type = get_base_element_type(typentry->type_id);
 
   if (OidIsValid(elem_type)) {
@@ -1566,6 +1587,8 @@ cache_array_element_properties(TypeCacheEntry *typentry)
 static bool
 record_fields_have_equality(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_FIELD_PROPERTIES))
     cache_record_field_properties(typentry);
 
@@ -1575,6 +1598,8 @@ record_fields_have_equality(TypeCacheEntry *typentry)
 static bool
 record_fields_have_compare(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_FIELD_PROPERTIES))
     cache_record_field_properties(typentry);
 
@@ -1584,6 +1609,8 @@ record_fields_have_compare(TypeCacheEntry *typentry)
 static bool
 record_fields_have_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_FIELD_PROPERTIES))
     cache_record_field_properties(typentry);
 
@@ -1593,6 +1620,8 @@ record_fields_have_hashing(TypeCacheEntry *typentry)
 static bool
 record_fields_have_extended_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_FIELD_PROPERTIES))
     cache_record_field_properties(typentry);
 
@@ -1602,6 +1631,8 @@ record_fields_have_extended_hashing(TypeCacheEntry *typentry)
 static void
 cache_record_field_properties(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   /*
    * For type RECORD, we can't really tell what will work, since we don't
    * have access here to the specific anonymous type.  Just assume that
@@ -1709,6 +1740,8 @@ cache_record_field_properties(TypeCacheEntry *typentry)
 static bool
 range_element_has_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_range_element_properties(typentry);
 
@@ -1718,6 +1751,8 @@ range_element_has_hashing(TypeCacheEntry *typentry)
 static bool
 range_element_has_extended_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_range_element_properties(typentry);
 
@@ -1727,6 +1762,8 @@ range_element_has_extended_hashing(TypeCacheEntry *typentry)
 static void
 cache_range_element_properties(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   /* load up subtype link if we didn't already */
   if (typentry->rngelemtype == NULL &&
       typentry->typtype == TYPTYPE_RANGE)
@@ -1753,6 +1790,8 @@ cache_range_element_properties(TypeCacheEntry *typentry)
 static bool
 multirange_element_has_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_multirange_element_properties(typentry);
 
@@ -1762,6 +1801,8 @@ multirange_element_has_hashing(TypeCacheEntry *typentry)
 static bool
 multirange_element_has_extended_hashing(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   if (!(typentry->flags & TCFLAGS_CHECKED_ELEM_PROPERTIES))
     cache_multirange_element_properties(typentry);
 
@@ -1771,6 +1812,8 @@ multirange_element_has_extended_hashing(TypeCacheEntry *typentry)
 static void
 cache_multirange_element_properties(TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
+
   /* load up range link if we didn't already */
   if (typentry->rngtype == NULL &&
       typentry->typtype == TYPTYPE_MULTIRANGE)
@@ -1801,6 +1844,8 @@ cache_multirange_element_properties(TypeCacheEntry *typentry)
 static void
 ensure_record_cache_typmod_slot_exists(int32 typmod)
 {
+  DBUG_TRACE;
+
   if (RecordCacheArray == NULL) {
     RecordCacheArray = (RecordCacheArrayEntry *)
                        MemoryContextAllocZero(CacheMemoryContext,
@@ -1828,6 +1873,8 @@ ensure_record_cache_typmod_slot_exists(int32 typmod)
 static TupleDesc
 lookup_rowtype_tupdesc_internal(Oid type_id, int32 typmod, bool noError)
 {
+  DBUG_TRACE;
+
   if (type_id != RECORDOID) {
     /*
      * It's a named composite type, so use the regular typcache.
@@ -1920,6 +1967,7 @@ lookup_rowtype_tupdesc_internal(Oid type_id, int32 typmod, bool noError)
 TupleDesc
 lookup_rowtype_tupdesc(Oid type_id, int32 typmod)
 {
+  DBUG_TRACE;
   TupleDesc tupDesc;
 
   tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
@@ -1937,6 +1985,7 @@ lookup_rowtype_tupdesc(Oid type_id, int32 typmod)
 TupleDesc
 lookup_rowtype_tupdesc_noerror(Oid type_id, int32 typmod, bool noError)
 {
+  DBUG_TRACE;
   TupleDesc tupDesc;
 
   tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, noError);
@@ -1956,6 +2005,7 @@ lookup_rowtype_tupdesc_noerror(Oid type_id, int32 typmod, bool noError)
 TupleDesc
 lookup_rowtype_tupdesc_copy(Oid type_id, int32 typmod)
 {
+  DBUG_TRACE;
   TupleDesc tmp;
 
   tmp = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
@@ -1978,6 +2028,7 @@ lookup_rowtype_tupdesc_copy(Oid type_id, int32 typmod)
 TupleDesc
 lookup_rowtype_tupdesc_domain(Oid type_id, int32 typmod, bool noError)
 {
+  DBUG_TRACE;
   TupleDesc tupDesc;
 
   if (type_id != RECORDOID) {
@@ -2045,6 +2096,7 @@ record_type_typmod_compare(const void *a, const void *b, size_t size)
 void
 assign_record_type_typmod(TupleDesc tupDesc)
 {
+  DBUG_TRACE;
   RecordCacheEntry *recentry;
   TupleDesc entDesc;
   bool    found;
@@ -2134,6 +2186,8 @@ assign_record_type_typmod(TupleDesc tupDesc)
 uint64
 assign_record_type_identifier(Oid type_id, int32 typmod)
 {
+  DBUG_TRACE;
+
   if (type_id != RECORDOID) {
     /*
      * It's a named composite type, so use the regular typcache.
@@ -2197,6 +2251,7 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
                                dsm_segment *segment,
                                dsa_area *area)
 {
+  DBUG_TRACE;
   MemoryContext old_context;
   dshash_table *record_table;
   dshash_table *typmod_table;
@@ -2297,6 +2352,7 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 void
 SharedRecordTypmodRegistryAttach(SharedRecordTypmodRegistry *registry)
 {
+  DBUG_TRACE;
   MemoryContext old_context;
   dshash_table *record_table;
   dshash_table *typmod_table;
@@ -2509,6 +2565,7 @@ TypeCacheRelCallback(Datum arg, Oid relid)
 static void
 TypeCacheTypCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   TypeCacheEntry *typentry;
 
@@ -2565,6 +2622,7 @@ TypeCacheTypCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 TypeCacheOpcCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   TypeCacheEntry *typentry;
 
@@ -2603,6 +2661,7 @@ TypeCacheOpcCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 TypeCacheConstrCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry;
 
   /*
@@ -2626,6 +2685,7 @@ TypeCacheConstrCallback(Datum arg, int cacheid, uint32 hashvalue)
 static inline bool
 enum_known_sorted(TypeCacheEnumData *enumdata, Oid arg)
 {
+  DBUG_TRACE;
   Oid     offset;
 
   if (arg < enumdata->bitmap_base)
@@ -2731,6 +2791,7 @@ compare_values_of_enum(TypeCacheEntry *tcache, Oid arg1, Oid arg2)
 static void
 load_enum_cache_data(TypeCacheEntry *tcache)
 {
+  DBUG_TRACE;
   TypeCacheEnumData *enumdata;
   Relation  enum_rel;
   SysScanDesc enum_scan;
@@ -2883,6 +2944,7 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 static EnumItem *
 find_enumitem(TypeCacheEnumData *enumdata, Oid arg)
 {
+  DBUG_TRACE;
   EnumItem  srch;
 
   /* On some versions of Solaris, bsearch of zero items dumps core */
@@ -2934,6 +2996,7 @@ share_tupledesc(dsa_area *area, TupleDesc tupdesc, uint32 typmod)
 static TupleDesc
 find_or_make_matching_shared_tupledesc(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   TupleDesc result;
   SharedRecordTableKey key;
   SharedRecordTableEntry *record_table_entry;
@@ -3047,6 +3110,8 @@ find_or_make_matching_shared_tupledesc(TupleDesc tupdesc)
 static void
 shared_record_typmod_registry_detach(dsm_segment *segment, Datum datum)
 {
+  DBUG_TRACE;
+
   /* Be cautious here: maybe we didn't finish initializing. */
   if (CurrentSession->shared_record_table != NULL) {
     dshash_detach(CurrentSession->shared_record_table);

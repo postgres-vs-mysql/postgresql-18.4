@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
@@ -106,8 +107,10 @@ static void checkWellFormedSelectStmt(SelectStmt *stmt, CteState *cstate);
 List *
 transformWithClause(ParseState *pstate, WithClause *withClause)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "transform the list of WITH clause 'common table expressions' into Query nodes");
   /* Only one WITH clause per query level */
   Assert(pstate->p_ctenamespace == NIL);
   Assert(pstate->p_future_ctes == NIL);
@@ -126,12 +129,14 @@ transformWithClause(ParseState *pstate, WithClause *withClause)
     for_each_cell(rest, withClause->ctes, lnext(withClause->ctes, lc)) {
       CommonTableExpr *cte2 = (CommonTableExpr *) lfirst(rest);
 
-      if (strcmp(cte->ctename, cte2->ctename) == 0)
+      if (strcmp(cte->ctename, cte2->ctename) == 0) {
+        DBUG_INSTANT_PRINT("info", "WITH query name \"%s\" specified more than once", cte2->ctename);
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_ALIAS),
                  errmsg("WITH query name \"%s\" specified more than once",
                         cte2->ctename),
                  parser_errposition(pstate, cte2->location)));
+      }
     }
 
     cte->cterecursive = false;
@@ -230,10 +235,12 @@ transformWithClause(ParseState *pstate, WithClause *withClause)
 static void
 analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
 {
+  DBUG_TRACE;
   Query    *query;
   CTESearchClause *search_clause = cte->search_clause;
   CTECycleClause *cycle_clause = cte->cycle_clause;
 
+  DBUG_PRINT("info", "perform the actual parse analysis transformation of one CTE");
   /* Analysis not done already */
   Assert(!IsA(cte->ctequery, Query));
 
@@ -285,19 +292,25 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
     typentry = lookup_type_cache(cycle_clause->cycle_mark_type,
                                  TYPECACHE_EQ_OPR);
 
-    if (!OidIsValid(typentry->eq_opr))
+    if (!OidIsValid(typentry->eq_opr)) {
+      char *format1 = format_type_be(cycle_clause->cycle_mark_type);
+      DBUG_INSTANT_PRINT("info", "could not identify an equality operator for type %s", format1);
       ereport(ERROR,
               errcode(ERRCODE_UNDEFINED_FUNCTION),
               errmsg("could not identify an equality operator for type %s",
-                     format_type_be(cycle_clause->cycle_mark_type)));
+                     format1));
+    }
 
     op = get_negator(typentry->eq_opr);
 
-    if (!OidIsValid(op))
+    if (!OidIsValid(op)) {
+      char *format1 = format_type_be(cycle_clause->cycle_mark_type);
+      DBUG_INSTANT_PRINT("info", "could not identify an inequality operator for type %s", format1);
       ereport(ERROR,
               errcode(ERRCODE_UNDEFINED_FUNCTION),
               errmsg("could not identify an inequality operator for type %s",
-                     format_type_be(cycle_clause->cycle_mark_type)));
+                     format1));
+    }
 
     cycle_clause->cycle_mark_neop = op;
   }
@@ -321,11 +334,13 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
    * because it's not clear when such a modification should be executed.
    */
   if (query->commandType != CMD_SELECT &&
-      pstate->parentParseState != NULL)
+      pstate->parentParseState != NULL) {
+    DBUG_INSTANT_PRINT("info", "WITH clause containing a data-modifying statement must be at the top level");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("WITH clause containing a data-modifying statement must be at the top level"),
              parser_errposition(pstate, cte->location)));
+  }
 
   /*
    * CTE queries are always marked not canSetTag.  (Currently this only
@@ -371,7 +386,10 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
       texpr = (Node *) te->expr;
 
       if (exprType(texpr) != lfirst_oid(lctyp) ||
-          exprTypmod(texpr) != lfirst_int(lctypmod))
+          exprTypmod(texpr) != lfirst_int(lctypmod)) {
+        DBUG_INSTANT_PRINT("info", "recursive query \"%s\" column %d has type %s in non-recursive term but type %s overall",
+                           cte->ctename, varattno, format_type_with_typemod(lfirst_oid(lctyp), lfirst_int(lctypmod)),
+                           format_type_with_typemod(exprType(texpr), exprTypmod(texpr)));
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("recursive query \"%s\" column %d has type %s in non-recursive term but type %s overall",
@@ -382,16 +400,22 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
                             exprTypmod(texpr))),
                  errhint("Cast the output of the non-recursive term to the correct type."),
                  parser_errposition(pstate, exprLocation(texpr))));
+      }
 
-      if (exprCollation(texpr) != lfirst_oid(lccoll))
+      if (exprCollation(texpr) != lfirst_oid(lccoll)) {
+        char *collation_name1 = get_collation_name(lfirst_oid(lccoll));
+        char *collation_name2 = get_collation_name(exprCollation(texpr));
+        DBUG_INSTANT_PRINT("info", "recursive query \"%s\" column %d has collation \"%s\" in non-recursive term but collation \"%s\" overall",
+                           cte->ctename, varattno, collation_name1, collation_name2);
         ereport(ERROR,
                 (errcode(ERRCODE_COLLATION_MISMATCH),
                  errmsg("recursive query \"%s\" column %d has collation \"%s\" in non-recursive term but collation \"%s\" overall",
                         cte->ctename, varattno,
-                        get_collation_name(lfirst_oid(lccoll)),
-                        get_collation_name(exprCollation(texpr))),
+                        collation_name1,
+                        collation_name2),
                  errhint("Use the COLLATE clause to set the collation of the non-recursive term."),
                  parser_errposition(pstate, exprLocation(texpr))));
+      }
 
       lctyp = lnext(cte->ctecoltypes, lctyp);
       lctypmod = lnext(cte->ctecoltypmods, lctypmod);
@@ -409,11 +433,13 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
     Query    *ctequery;
     SetOperationStmt *sos;
 
-    if (!cte->cterecursive)
+    if (!cte->cterecursive) {
+      DBUG_INSTANT_PRINT("info", "WITH query is not recursive");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("WITH query is not recursive"),
                parser_errposition(pstate, cte->location)));
+    }
 
     /*
      * SQL requires a WITH list element (CTE) to be "expandable" in order
@@ -440,15 +466,19 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
      * rewriteSearchAndCycle() doesn't currently have support for it, so
      * we catch it here.
      */
-    if (!IsA(sos->larg, RangeTblRef))
+    if (!IsA(sos->larg, RangeTblRef)) {
+      DBUG_INSTANT_PRINT("info", "with a SEARCH or CYCLE clause, the left side of the UNION must be a SELECT");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("with a SEARCH or CYCLE clause, the left side of the UNION must be a SELECT")));
+    }
 
-    if (!IsA(sos->rarg, RangeTblRef))
+    if (!IsA(sos->rarg, RangeTblRef)) {
+      DBUG_INSTANT_PRINT("info", "with a SEARCH or CYCLE clause, the right side of the UNION must be a SELECT");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("with a SEARCH or CYCLE clause, the right side of the UNION must be a SELECT")));
+    }
   }
 
   if (search_clause) {
@@ -458,29 +488,36 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
     foreach(lc, search_clause->search_col_list) {
       String     *colname = lfirst_node(String, lc);
 
-      if (!list_member(cte->ctecolnames, colname))
+      if (!list_member(cte->ctecolnames, colname)) {
+        DBUG_INSTANT_PRINT("info", "search column \"%s\" not in WITH query column list", strVal(colname));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("search column \"%s\" not in WITH query column list",
                         strVal(colname)),
                  parser_errposition(pstate, search_clause->location)));
+      }
 
-      if (list_member(seen, colname))
+      if (list_member(seen, colname)) {
+        DBUG_INSTANT_PRINT("info", "search column \"%s\" specified more than once", strVal(colname));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("search column \"%s\" specified more than once",
                         strVal(colname)),
                  parser_errposition(pstate, search_clause->location)));
+      }
 
       seen = lappend(seen, colname);
     }
 
-    if (list_member(cte->ctecolnames, makeString(search_clause->search_seq_column)))
+    if (list_member(cte->ctecolnames, makeString(search_clause->search_seq_column))) {
+      DBUG_INSTANT_PRINT("info", "search sequence column name \"%s\" already used in WITH query column list",
+                         search_clause->search_seq_column);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("search sequence column name \"%s\" already used in WITH query column list",
                      search_clause->search_seq_column),
               parser_errposition(pstate, search_clause->location));
+    }
   }
 
   if (cycle_clause) {
@@ -490,59 +527,73 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
     foreach(lc, cycle_clause->cycle_col_list) {
       String     *colname = lfirst_node(String, lc);
 
-      if (!list_member(cte->ctecolnames, colname))
+      if (!list_member(cte->ctecolnames, colname)) {
+        DBUG_INSTANT_PRINT("info", "cycle column \"%s\" not in WITH query column list", strVal(colname));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("cycle column \"%s\" not in WITH query column list",
                         strVal(colname)),
                  parser_errposition(pstate, cycle_clause->location)));
+      }
 
-      if (list_member(seen, colname))
+      if (list_member(seen, colname)) {
+        DBUG_INSTANT_PRINT("info", "cycle column \"%s\" specified more than once", strVal(colname));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("cycle column \"%s\" specified more than once",
                         strVal(colname)),
                  parser_errposition(pstate, cycle_clause->location)));
+      }
 
       seen = lappend(seen, colname);
     }
 
-    if (list_member(cte->ctecolnames, makeString(cycle_clause->cycle_mark_column)))
+    if (list_member(cte->ctecolnames, makeString(cycle_clause->cycle_mark_column))) {
+      DBUG_INSTANT_PRINT("info", "cycle mark column name \"%s\" already used in WITH query column list", cycle_clause->cycle_mark_column);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("cycle mark column name \"%s\" already used in WITH query column list",
                      cycle_clause->cycle_mark_column),
               parser_errposition(pstate, cycle_clause->location));
+    }
 
-    if (list_member(cte->ctecolnames, makeString(cycle_clause->cycle_path_column)))
+    if (list_member(cte->ctecolnames, makeString(cycle_clause->cycle_path_column))) {
+      DBUG_INSTANT_PRINT("info", "cycle path column name \"%s\" already used in WITH query column list", cycle_clause->cycle_path_column);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("cycle path column name \"%s\" already used in WITH query column list",
                      cycle_clause->cycle_path_column),
               parser_errposition(pstate, cycle_clause->location));
+    }
 
     if (strcmp(cycle_clause->cycle_mark_column,
-               cycle_clause->cycle_path_column) == 0)
+               cycle_clause->cycle_path_column) == 0) {
+      DBUG_INSTANT_PRINT("info", "cycle mark column name and cycle path column name are the same");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("cycle mark column name and cycle path column name are the same"),
               parser_errposition(pstate, cycle_clause->location));
+    }
   }
 
   if (search_clause && cycle_clause) {
     if (strcmp(search_clause->search_seq_column,
-               cycle_clause->cycle_mark_column) == 0)
+               cycle_clause->cycle_mark_column) == 0) {
+      DBUG_INSTANT_PRINT("info", "search sequence column name and cycle mark column name are the same");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("search sequence column name and cycle mark column name are the same"),
               parser_errposition(pstate, search_clause->location));
+    }
 
     if (strcmp(search_clause->search_seq_column,
-               cycle_clause->cycle_path_column) == 0)
+               cycle_clause->cycle_path_column) == 0) {
+      DBUG_INSTANT_PRINT("info", "search sequence column name and cycle path column name are the same");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("search sequence column name and cycle path column name are the same"),
               parser_errposition(pstate, search_clause->location));
+    }
   }
 }
 
@@ -561,10 +612,12 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
 void
 analyzeCTETargetList(ParseState *pstate, CommonTableExpr *cte, List *tlist)
 {
+  DBUG_TRACE;
   int     numaliases;
   int     varattno;
   ListCell   *tlistitem;
 
+  DBUG_PRINT("info", "compute derived fields of a CTE, given the transformed output targetlist");
   /* Not done already ... */
   Assert(cte->ctecolnames == NIL);
 
@@ -626,12 +679,15 @@ analyzeCTETargetList(ParseState *pstate, CommonTableExpr *cte, List *tlist)
     cte->ctecolcollations = lappend_oid(cte->ctecolcollations, colcoll);
   }
 
-  if (varattno < numaliases)
+  if (varattno < numaliases) {
+    DBUG_INSTANT_PRINT("info", "WITH query \"%s\" has %d columns available but %d columns specified",
+                       cte->ctename, varattno, numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("WITH query \"%s\" has %d columns available but %d columns specified",
                     cte->ctename, varattno, numaliases),
              parser_errposition(pstate, cte->location)));
+  }
 }
 
 
@@ -642,7 +698,11 @@ analyzeCTETargetList(ParseState *pstate, CommonTableExpr *cte, List *tlist)
 static void
 makeDependencyGraph(CteState *cstate)
 {
+  DBUG_TRACE;
   int     i;
+
+  DBUG_PRINT("info", "identify the cross-references of a list of WITH RECURSIVE items");
+  DBUG_PRINT("info", "and sort into an order that has no forward references");
 
   for (i = 0; i < cstate->numitems; i++) {
     CommonTableExpr *cte = cstate->items[i].cte;
@@ -663,6 +723,8 @@ makeDependencyGraph(CteState *cstate)
 static bool
 makeDependencyGraphWalker(Node *node, CteState *cstate)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -840,8 +902,11 @@ WalkInnerWith(Node *stmt, WithClause *withClause, CteState *cstate)
 static void
 TopologicalSort(ParseState *pstate, CteItem *items, int numitems)
 {
+  DBUG_TRACE;
   int     i,
           j;
+
+  DBUG_PRINT("info", "sort by dependencies, using a standard topological sort operation");
 
   /* for each position in sequence ... */
   for (i = 0; i < numitems; i++) {
@@ -852,11 +917,13 @@ TopologicalSort(ParseState *pstate, CteItem *items, int numitems)
     }
 
     /* if we didn't find one, the dependency graph has a cycle */
-    if (j >= numitems)
+    if (j >= numitems) {
+      DBUG_INSTANT_PRINT("info", "mutual recursion between WITH items is not implemented");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("mutual recursion between WITH items is not implemented"),
                parser_errposition(pstate, items[i].cte->location)));
+    }
 
     /*
      * Found one.  Move it to front and remove it from every other item's
@@ -888,7 +955,10 @@ TopologicalSort(ParseState *pstate, CteItem *items, int numitems)
 static void
 checkWellFormedRecursion(CteState *cstate)
 {
+  DBUG_TRACE;
   int     i;
+
+  DBUG_PRINT("info", "check that recursive queries are well-formed");
 
   for (i = 0; i < cstate->numitems; i++) {
     CommonTableExpr *cte = cstate->items[i].cte;
@@ -901,20 +971,24 @@ checkWellFormedRecursion(CteState *cstate)
       continue;
 
     /* Must be a SELECT statement */
-    if (!IsA(stmt, SelectStmt))
+    if (!IsA(stmt, SelectStmt)) {
+      DBUG_INSTANT_PRINT("info", "recursive query \"%s\" must not contain data-modifying statements", cte->ctename);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_RECURSION),
                errmsg("recursive query \"%s\" must not contain data-modifying statements",
                       cte->ctename),
                parser_errposition(cstate->pstate, cte->location)));
+    }
 
     /* Must have top-level UNION */
-    if (stmt->op != SETOP_UNION)
+    if (stmt->op != SETOP_UNION) {
+      DBUG_INSTANT_PRINT("info", "recursive query \"%s\" does not have the form non-recursive-term UNION [ALL] recursive-term", cte->ctename);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_RECURSION),
                errmsg("recursive query \"%s\" does not have the form non-recursive-term UNION [ALL] recursive-term",
                       cte->ctename),
                parser_errposition(cstate->pstate, cte->location)));
+    }
 
     /*
      * Really, we should insist that there not be a top-level WITH, since
@@ -943,33 +1017,41 @@ checkWellFormedRecursion(CteState *cstate)
      * examining the UNION arms, to avoid issuing confusing errors if
      * there is a recursive reference here.)
      */
-    if (stmt->sortClause)
+    if (stmt->sortClause) {
+      DBUG_INSTANT_PRINT("info", "ORDER BY in a recursive query is not implemented");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("ORDER BY in a recursive query is not implemented"),
                parser_errposition(cstate->pstate,
                                   exprLocation((Node *) stmt->sortClause))));
+    }
 
-    if (stmt->limitOffset)
+    if (stmt->limitOffset) {
+      DBUG_INSTANT_PRINT("info", "OFFSET in a recursive query is not implemented");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("OFFSET in a recursive query is not implemented"),
                parser_errposition(cstate->pstate,
                                   exprLocation(stmt->limitOffset))));
+    }
 
-    if (stmt->limitCount)
+    if (stmt->limitCount) {
+      DBUG_INSTANT_PRINT("info", "LIMIT in a recursive query is not implemented");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("LIMIT in a recursive query is not implemented"),
                parser_errposition(cstate->pstate,
                                   exprLocation(stmt->limitCount))));
+    }
 
-    if (stmt->lockingClause)
+    if (stmt->lockingClause) {
+      DBUG_INSTANT_PRINT("info", "FOR UPDATE/SHARE in a recursive query is not implemented");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("FOR UPDATE/SHARE in a recursive query is not implemented"),
                parser_errposition(cstate->pstate,
                                   exprLocation((Node *) stmt->lockingClause))));
+    }
 
     /*
      * Now we can get on with checking the UNION operands themselves.
@@ -1002,7 +1084,10 @@ checkWellFormedRecursion(CteState *cstate)
 static bool
 checkWellFormedRecursionWalker(Node *node, CteState *cstate)
 {
+  DBUG_TRACE;
   RecursionContext save_context = cstate->context;
+
+  DBUG_PRINT("info", "tree walker function to detect invalid self-references in a recursive query");
 
   if (node == NULL)
     return false;
@@ -1033,22 +1118,26 @@ checkWellFormedRecursionWalker(Node *node, CteState *cstate)
 
       if (strcmp(rv->relname, mycte->ctename) == 0) {
         /* Found a recursive reference to the active query */
-        if (cstate->context != RECURSION_OK)
+        if (cstate->context != RECURSION_OK) {
+          DBUG_INSTANT_PRINT("info", "invalid recursion");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_RECURSION),
                    errmsg(recursion_errormsgs[cstate->context],
                           mycte->ctename),
                    parser_errposition(cstate->pstate,
                                       rv->location)));
+        }
 
         /* Count references */
-        if (++(cstate->selfrefcount) > 1)
+        if (++(cstate->selfrefcount) > 1) {
+          DBUG_INSTANT_PRINT("info", "recursive reference to query \"%s\" must not appear more than once", mycte->ctename);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_RECURSION),
                    errmsg("recursive reference to query \"%s\" must not appear more than once",
                           mycte->ctename),
                    parser_errposition(cstate->pstate,
                                       rv->location)));
+        }
       }
     }
 
@@ -1188,7 +1277,10 @@ checkWellFormedRecursionWalker(Node *node, CteState *cstate)
 static void
 checkWellFormedSelectStmt(SelectStmt *stmt, CteState *cstate)
 {
+  DBUG_TRACE;
   RecursionContext save_context = cstate->context;
+
+  DBUG_PRINT("info", "process a SelectStmt without worrying about its WITH clause");
 
   if (save_context != RECURSION_OK) {
     /* just recurse without changing state */

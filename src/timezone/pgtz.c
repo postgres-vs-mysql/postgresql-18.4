@@ -10,6 +10,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -42,6 +43,7 @@ static bool scan_directory_ci(const char *dirname,
 static const char *
 pg_TZDIR(void)
 {
+  DBUG_TRACE;
 #ifndef SYSTEMTZDIR
   /* normal case: timezone stuff is under our share dir */
   static bool done_tzdir = false;
@@ -75,6 +77,7 @@ pg_TZDIR(void)
 int
 pg_open_tzfile(const char *name, char *canonname)
 {
+  DBUG_TRACE;
   const char *fname;
   char    fullname[MAXPGPATH];
   int     fullnamelen;
@@ -156,6 +159,7 @@ static bool
 scan_directory_ci(const char *dirname, const char *fname, int fnamelen,
                   char *canonname, int canonnamelen)
 {
+  DBUG_TRACE;
   bool    found = false;
   DIR      *dirdesc;
   struct dirent *direntry;
@@ -203,6 +207,7 @@ static HTAB *timezone_cache = NULL;
 static bool
 init_timezone_hashtable(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   hash_ctl.keysize = TZ_STRLEN_MAX + 1;
@@ -236,11 +241,14 @@ init_timezone_hashtable(void)
 pg_tz *
 pg_tzset(const char *tzname)
 {
+  DBUG_TRACE;
   pg_tz_cache *tzp;
   struct state tzstate;
   char    uppername[TZ_STRLEN_MAX + 1];
   char    canonname[TZ_STRLEN_MAX + 1];
   char     *p;
+
+  DBUG_PRINT("info", "tzname:'%s'", tzname);
 
   if (strlen(tzname) > TZ_STRLEN_MAX)
     return NULL;      /* not going to fit */
@@ -269,6 +277,7 @@ pg_tzset(const char *tzname)
 
   if (tzp) {
     /* Timezone found in cache, nothing more to do */
+    DBUG_PRINT("info", "timezone found in cache, nothing more to do");
     return &tzp->tz;
   }
 
@@ -293,6 +302,7 @@ pg_tzset(const char *tzname)
     strcpy(canonname, uppername);
   }
 
+  DBUG_PRINT("info", "save timezone in the cache");
   /* Save timezone in the cache */
   tzp = (pg_tz_cache *) hash_search(timezone_cache,
                                     uppername,
@@ -321,6 +331,7 @@ pg_tzset(const char *tzname)
 pg_tz *
 pg_tzset_offset(long gmtoffset)
 {
+  DBUG_TRACE;
   long    absoffset = (gmtoffset < 0) ? -gmtoffset : gmtoffset;
   char    offsetstr[64];
   char    tzname[128];
@@ -364,6 +375,7 @@ pg_tzset_offset(long gmtoffset)
 void
 pg_timezone_initialize(void)
 {
+  DBUG_TRACE;
   /*
    * We may not yet know where PGSHAREDIR is (in particular this is true in
    * an EXEC_BACKEND subprocess).  So use "GMT", which pg_tzset forces to be
@@ -399,6 +411,7 @@ struct pg_tzenum {
 pg_tzenum *
 pg_tzenumerate_start(void)
 {
+  DBUG_TRACE;
   pg_tzenum  *ret = (pg_tzenum *) palloc0(sizeof(pg_tzenum));
   char     *startdir = pstrdup(pg_TZDIR());
 
@@ -418,6 +431,8 @@ pg_tzenumerate_start(void)
 void
 pg_tzenumerate_end(pg_tzenum *dir)
 {
+  DBUG_TRACE;
+
   while (dir->depth >= 0) {
     FreeDir(dir->dirdesc[dir->depth]);
     pfree(dir->dirname[dir->depth]);
@@ -430,6 +445,8 @@ pg_tzenumerate_end(pg_tzenum *dir)
 pg_tz *
 pg_tzenumerate_next(pg_tzenum *dir)
 {
+  DBUG_TRACE;
+
   while (dir->depth >= 0) {
     struct dirent *direntry;
     char    fullname[MAXPGPATH * 2];

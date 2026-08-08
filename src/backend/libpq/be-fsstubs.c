@@ -36,6 +36,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <fcntl.h>
@@ -86,6 +87,7 @@ static Oid  lo_import_internal(text *filename, Oid lobjOid);
 Datum
 be_lo_open(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lobjId = PG_GETARG_OID(0);
   int32   mode = PG_GETARG_INT32(1);
   LargeObjectDesc *lobjDesc;
@@ -125,6 +127,7 @@ be_lo_open(PG_FUNCTION_ARGS)
 Datum
 be_lo_close(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
 
   if (fd < 0 || fd >= cookies_size || cookies[fd] == NULL)
@@ -207,6 +210,7 @@ lo_write(int fd, const char *buf, int len)
 Datum
 be_lo_lseek(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int32   offset = PG_GETARG_INT32(1);
   int32   whence = PG_GETARG_INT32(2);
@@ -232,6 +236,7 @@ be_lo_lseek(PG_FUNCTION_ARGS)
 Datum
 be_lo_lseek64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int64   offset = PG_GETARG_INT64(1);
   int32   whence = PG_GETARG_INT32(2);
@@ -250,6 +255,7 @@ be_lo_lseek64(PG_FUNCTION_ARGS)
 Datum
 be_lo_creat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lobjId;
 
   PreventCommandIfReadOnly("lo_creat()");
@@ -263,6 +269,7 @@ be_lo_creat(PG_FUNCTION_ARGS)
 Datum
 be_lo_create(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lobjId = PG_GETARG_OID(0);
 
   PreventCommandIfReadOnly("lo_create()");
@@ -276,6 +283,7 @@ be_lo_create(PG_FUNCTION_ARGS)
 Datum
 be_lo_tell(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int64   offset;
 
@@ -299,6 +307,7 @@ be_lo_tell(PG_FUNCTION_ARGS)
 Datum
 be_lo_tell64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int64   offset;
 
@@ -315,6 +324,7 @@ be_lo_tell64(PG_FUNCTION_ARGS)
 Datum
 be_lo_unlink(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lobjId = PG_GETARG_OID(0);
 
   PreventCommandIfReadOnly("lo_unlink()");
@@ -361,6 +371,7 @@ be_lo_unlink(PG_FUNCTION_ARGS)
 Datum
 be_loread(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int32   len = PG_GETARG_INT32(1);
   bytea    *retval;
@@ -379,6 +390,7 @@ be_loread(PG_FUNCTION_ARGS)
 Datum
 be_lowrite(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   bytea    *wbuf = PG_GETARG_BYTEA_PP(1);
   int     bytestowrite;
@@ -402,6 +414,7 @@ be_lowrite(PG_FUNCTION_ARGS)
 Datum
 be_lo_import(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename = PG_GETARG_TEXT_PP(0);
 
   PG_RETURN_OID(lo_import_internal(filename, InvalidOid));
@@ -414,6 +427,7 @@ be_lo_import(PG_FUNCTION_ARGS)
 Datum
 be_lo_import_with_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename = PG_GETARG_TEXT_PP(0);
   Oid     oid = PG_GETARG_OID(1);
 
@@ -485,6 +499,7 @@ lo_import_internal(text *filename, Oid lobjOid)
 Datum
 be_lo_export(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lobjId = PG_GETARG_OID(0);
   text     *filename = PG_GETARG_TEXT_PP(1);
   int     fd;
@@ -580,6 +595,7 @@ lo_truncate_internal(int32 fd, int64 len)
 Datum
 be_lo_truncate(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int32   len = PG_GETARG_INT32(1);
 
@@ -592,6 +608,7 @@ be_lo_truncate(PG_FUNCTION_ARGS)
 Datum
 be_lo_truncate64(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   fd = PG_GETARG_INT32(0);
   int64   len = PG_GETARG_INT64(1);
 
@@ -793,6 +810,7 @@ lo_get_fragment_internal(Oid loOid, int64 offset, int32 nbytes)
 Datum
 be_lo_get(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     loOid = PG_GETARG_OID(0);
   bytea    *result;
 
@@ -807,6 +825,7 @@ be_lo_get(PG_FUNCTION_ARGS)
 Datum
 be_lo_get_fragment(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     loOid = PG_GETARG_OID(0);
   int64   offset = PG_GETARG_INT64(1);
   int32   nbytes = PG_GETARG_INT32(2);
@@ -828,6 +847,7 @@ be_lo_get_fragment(PG_FUNCTION_ARGS)
 Datum
 be_lo_from_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     loOid = PG_GETARG_OID(0);
   bytea    *str = PG_GETARG_BYTEA_PP(1);
   LargeObjectDesc *loDesc;
@@ -851,6 +871,7 @@ be_lo_from_bytea(PG_FUNCTION_ARGS)
 Datum
 be_lo_put(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     loOid = PG_GETARG_OID(0);
   int64   offset = PG_GETARG_INT64(1);
   bytea    *str = PG_GETARG_BYTEA_PP(2);

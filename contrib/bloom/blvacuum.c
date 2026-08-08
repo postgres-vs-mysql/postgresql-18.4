@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "bloom.h"
@@ -30,6 +31,7 @@ IndexBulkDeleteResult *
 blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
              IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   Relation  index = info->index;
   BlockNumber blkno,
               npages;
@@ -40,6 +42,8 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
   Page    page;
   BloomMetaPageData *metaData;
   GenericXLogState *gxlogState;
+
+  DBUG_PRINT("bloom", "bulk deletion of all index entries pointing to a set of heap tuples");
 
   if (stats == NULL)
     stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
@@ -160,9 +164,12 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 IndexBulkDeleteResult *
 blvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Relation  index = info->index;
   BlockNumber npages,
               blkno;
+
+  DBUG_PRINT("bloom", "Post-VACUUM cleanup");
 
   if (info->analyze_only)
     return stats;
@@ -175,6 +182,7 @@ blvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
    * statistics.
    */
   npages = RelationGetNumberOfBlocks(index);
+  DBUG_PRINT("bloom", "iterate over the pages(%u): insert deleted pages into FSM and collect", npages);
   stats->num_pages = npages;
   stats->pages_free = 0;
   stats->num_index_tuples = 0;

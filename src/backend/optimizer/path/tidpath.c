@@ -37,6 +37,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "catalog/pg_operator.h"
@@ -154,17 +155,23 @@ IsTidEqualClause(RestrictInfo *rinfo, RelOptInfo *rel)
 static bool
 IsTidRangeClause(RestrictInfo *rinfo, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Oid     opno;
 
-  if (!IsBinaryTidClause(rinfo, rel))
+  if (!IsBinaryTidClause(rinfo, rel)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   opno = ((OpExpr *) rinfo->clause)->opno;
 
   if (opno == TIDLessOperator || opno == TIDLessEqOperator ||
-      opno == TIDGreaterOperator || opno == TIDGreaterEqOperator)
+      opno == TIDGreaterOperator || opno == TIDGreaterEqOperator) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -177,6 +184,7 @@ IsTidRangeClause(RestrictInfo *rinfo, RelOptInfo *rel)
 static bool
 IsTidEqualAnyClause(PlannerInfo *root, RestrictInfo *rinfo, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   ScalarArrayOpExpr *node;
   Node     *arg1,
            *arg2;
@@ -242,28 +250,38 @@ IsCurrentOfClause(RestrictInfo *rinfo, RelOptInfo *rel)
 static bool
 RestrictInfoIsTidQual(PlannerInfo *root, RestrictInfo *rinfo, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   /*
    * We may ignore pseudoconstant clauses (they can't contain Vars, so could
    * not match anyway).
    */
-  if (rinfo->pseudoconstant)
+  DBUG_PRINT("info", "is the RestrictInfo usable as a CTID qual for the specified rel?");
+
+  if (rinfo->pseudoconstant) {
+    DBUG_PRINT("info", "we may ignore pseudoconstant clauses and return false");
     return false;
+  }
 
   /*
    * If clause must wait till after some lower-security-level restriction
    * clause, reject it.
    */
-  if (!restriction_is_securely_promotable(rinfo, rel))
+  if (!restriction_is_securely_promotable(rinfo, rel)) {
+    DBUG_PRINT("info", "clause must wait till after some lower-security-level restriction clause, reject it");
     return false;
+  }
 
   /*
    * Check all base cases.
    */
   if (IsTidEqualClause(rinfo, rel) ||
       IsTidEqualAnyClause(root, rinfo, rel) ||
-      IsCurrentOfClause(rinfo, rel))
+      IsCurrentOfClause(rinfo, rel)) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -289,10 +307,12 @@ static List *
 TidQualFromRestrictInfoList(PlannerInfo *root, List *rlist, RelOptInfo *rel,
                             bool *isCurrentOf)
 {
+  DBUG_TRACE;
   RestrictInfo *tidclause = NULL; /* best simple CTID qual so far */
   List     *orlist = NIL; /* best OR'ed CTID qual so far */
   ListCell   *l;
 
+  DBUG_PRINT("info", "extract a set of CTID conditions from implicit-AND List of RestrictInfos");
   *isCurrentOf = false;
 
   foreach(l, rlist) {
@@ -396,8 +416,11 @@ TidQualFromRestrictInfoList(PlannerInfo *root, List *rlist, RelOptInfo *rel,
 static List *
 TidRangeQualFromRestrictInfoList(List *rlist, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *rlst = NIL;
   ListCell   *l;
+
+  DBUG_PRINT("info", "extract a set of CTID range conditions from implicit-AND List of RestrictInfos");
 
   if ((rel->amflags & AMFLAG_HAS_TID_RANGE) == 0)
     return NIL;
@@ -423,7 +446,9 @@ TidRangeQualFromRestrictInfoList(List *rlist, RelOptInfo *rel)
 static void
 BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
 {
+  DBUG_TRACE;
   ListCell   *l;
+  bool build_ok = false;
 
   foreach(l, clauses) {
     RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
@@ -446,16 +471,20 @@ BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
      */
     if (rinfo->pseudoconstant ||
         !restriction_is_securely_promotable(rinfo, rel) ||
-        !IsTidEqualClause(rinfo, rel))
+        !IsTidEqualClause(rinfo, rel)) {
+      DBUG_PRINT("info", "continue");
       continue;
+    }
 
     /*
      * Check if clause can be moved to this rel; this is probably
      * redundant when considering EC-derived clauses, but we must check it
      * for "loose" join clauses.
      */
-    if (!join_clause_is_movable_to(rinfo, rel))
+    if (!join_clause_is_movable_to(rinfo, rel)) {
+      DBUG_PRINT("info", "it is not a movable join clause and continue");
       continue;
+    }
 
     /* OK, make list of clauses for this path */
     tidquals = list_make1(rinfo);
@@ -464,8 +493,13 @@ BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
     required_outer = bms_union(rinfo->required_relids, rel->lateral_relids);
     required_outer = bms_del_member(required_outer, rel->relid);
 
-    add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
+    build_ok = true;
+    add_path(root, rel, (Path *) create_tidscan_path(root, rel, tidquals,
              required_outer));
+  }
+
+  if (!build_ok) {
+    DBUG_PRINT("info", "skip creating a parameterized TidPath");
   }
 }
 
@@ -495,10 +529,12 @@ ec_member_matches_ctid(PlannerInfo *root, RelOptInfo *rel,
 bool
 create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *tidquals;
   List     *tidrangequals;
   bool    isCurrentOf;
 
+  DBUG_PRINT("info", "create paths corresponding to direct TID scans of the given rel");
   /*
    * If any suitable quals exist in the rel's baserestrict list, generate a
    * plain (unparameterized) TidPath with them.
@@ -516,7 +552,7 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
      */
     Relids    required_outer = rel->lateral_relids;
 
-    add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
+    add_path(root, rel, (Path *) create_tidscan_path(root, rel, tidquals,
              required_outer));
 
     /*
@@ -530,8 +566,10 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
   }
 
   /* Skip the rest if TID scans are disabled. */
-  if (!enable_tidscan)
+  if (!enable_tidscan) {
+    DBUG_PRINT("info", "skip the rest if TID scans are disabled");
     return false;
+  }
 
   /*
    * If there are range quals in the baserestrict list, generate a
@@ -547,9 +585,11 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
      */
     Relids    required_outer = rel->lateral_relids;
 
-    add_path(rel, (Path *) create_tidrangescan_path(root, rel,
+    add_path(root, rel, (Path *) create_tidrangescan_path(root, rel,
              tidrangequals,
              required_outer));
+  } else {
+    DBUG_PRINT("info", "no range quals exist in the baserestrict list");
   }
 
   /*
@@ -569,6 +609,8 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 
     /* Generate a path for each usable join clause */
     BuildParameterizedTidPaths(root, rel, clauses);
+  } else {
+    DBUG_PRINT("info", "joininfo is complete");
   }
 
   /*

@@ -53,8 +53,7 @@
 /* Context data for MD5 */
 typedef struct
 {
-  union
-  {
+  union {
     uint32    md5_state32[4];
     uint8   md5_state8[16];
   }     md5_st;
@@ -65,8 +64,7 @@ typedef struct
 #define md5_std     md5_st.md5_state32[3]
 #define md5_st8     md5_st.md5_state8
 
-  union
-  {
+  union {
     uint64    md5_count64;
     uint8   md5_count8[8];
   }     md5_count;

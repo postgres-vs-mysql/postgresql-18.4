@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -45,6 +46,7 @@ typedef struct {
 void
 ResetUnloggedRelations(int op)
 {
+  DBUG_TRACE;
   char    temp_path[MAXPGPATH + sizeof(PG_TBLSPC_DIR) + sizeof(TABLESPACE_VERSION_DIRECTORY)];
   DIR      *spc_dir;
   struct dirent *spc_de;
@@ -103,6 +105,7 @@ ResetUnloggedRelations(int op)
 static void
 ResetUnloggedRelationsInTablespaceDir(const char *tsdirname, int op)
 {
+  DBUG_TRACE;
   DIR      *ts_dir;
   struct dirent *de;
   char    dbspace_path[MAXPGPATH * 2];
@@ -156,6 +159,7 @@ ResetUnloggedRelationsInTablespaceDir(const char *tsdirname, int op)
 static void
 ResetUnloggedRelationsInDbspaceDir(const char *dbspacedirname, int op)
 {
+  DBUG_TRACE;
   DIR      *dbspace_dir;
   struct dirent *de;
   char    rm_path[MAXPGPATH * 2];
@@ -373,6 +377,7 @@ bool
 parse_filename_for_nontemp_relation(const char *name, RelFileNumber *relnumber,
                                     ForkNumber *fork, unsigned *segno)
 {
+  DBUG_TRACE;
   unsigned long n,
            s;
   ForkNumber  f;

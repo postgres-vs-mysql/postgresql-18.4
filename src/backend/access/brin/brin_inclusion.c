@@ -23,6 +23,7 @@
  *    src/backend/access/brin/brin_inclusion.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_internal.h"
 #include "access/brin_tuple.h"
@@ -92,6 +93,7 @@ static FmgrInfo *inclusion_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno,
 Datum
 brin_inclusion_opcinfo(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
   BrinOpcInfo *result;
   TypeCacheEntry *bool_typcache = lookup_type_cache(BOOLOID, 0);
@@ -136,6 +138,7 @@ brin_inclusion_opcinfo(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_add_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   Datum   newval = PG_GETARG_DATUM(2);
@@ -248,6 +251,7 @@ brin_inclusion_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   ScanKey   key = (ScanKey) PG_GETARG_POINTER(2);
@@ -259,6 +263,7 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
   FmgrInfo   *finfo;
   Datum   result;
 
+  DBUG_PRINT("info", "BRIN inclusion consistent function");
   /* This opclass uses the old signature with only three arguments. */
   Assert(PG_NARGS() == 3);
 
@@ -266,8 +271,11 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
   Assert(!column->bv_allnulls);
 
   /* It has to be checked, if it contains elements that are not mergeable. */
-  if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE]))
+  if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE])) {
+    DBUG_PRINT("info", "it has to be checked, if it contains elements that are not mergeable");
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   attno = key->sk_attno;
   subtype = key->sk_subtype;
@@ -292,48 +300,104 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTOverRightStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTOverLeftStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTRightStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTOverRightStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTLeftStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTRightStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTOverLeftStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTBelowStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTOverAboveStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTOverBelowStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTAboveStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTOverAboveStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTBelowStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     case RTAboveStrategyNumber:
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTOverBelowStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     /*
@@ -352,6 +416,13 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               key->sk_strategy);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (DatumGetBool(result)) {
+        DBUG_PRINT("info", "result:true");
+      } else {
+        DBUG_PRINT("info", "result:false");
+      }
+
       PG_RETURN_DATUM(result);
 
     /*
@@ -372,8 +443,10 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
                                               RTOverlapStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-      if (DatumGetBool(result))
+      if (DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
@@ -392,12 +465,21 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
                                               RTOverlapStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-      if (DatumGetBool(result))
+      if (DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTAdjacentStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (DatumGetBool(result)) {
+        DBUG_PRINT("info", "result:true");
+      } else {
+        DBUG_PRINT("info", "result:false");
+      }
+
       PG_RETURN_DATUM(result);
 
     /*
@@ -428,8 +510,10 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
                                               RTRightStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-      if (!DatumGetBool(result))
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
@@ -439,8 +523,10 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
                                               RTContainsStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-      if (DatumGetBool(result))
+      if (DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
@@ -449,8 +535,10 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
                                               RTLeftStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-      if (!DatumGetBool(result))
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
@@ -459,6 +547,13 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
       finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
                                               RTLeftStrategyNumber);
       result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result)) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!DatumGetBool(result));
 
     default:
@@ -477,6 +572,7 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
   BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
@@ -548,6 +644,7 @@ static FmgrInfo *
 inclusion_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum,
                        bool missing_ok)
 {
+  DBUG_TRACE;
   InclusionOpaque *opaque;
   uint16    basenum = procnum - PROCNUM_BASE;
 
@@ -610,6 +707,7 @@ static FmgrInfo *
 inclusion_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno, Oid subtype,
                                 uint16 strategynum)
 {
+  DBUG_TRACE;
   InclusionOpaque *opaque;
 
   Assert(strategynum >= 1 &&

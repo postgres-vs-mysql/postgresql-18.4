@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_operator.h"
@@ -97,6 +98,7 @@ Oid
 LookupOperName(ParseState *pstate, List *opername, Oid oprleft, Oid oprright,
                bool noError, int location)
 {
+  DBUG_TRACE;
   Oid     result;
 
   result = OpernameGetOprid(opername, oprleft, oprright);
@@ -106,12 +108,15 @@ LookupOperName(ParseState *pstate, List *opername, Oid oprleft, Oid oprright,
 
   /* we don't use op_error here because only an exact match is wanted */
   if (!noError) {
-    if (!OidIsValid(oprright))
+    if (!OidIsValid(oprright)) {
+      DBUG_INSTANT_PRINT("info", "postfix operators are not supported");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("postfix operators are not supported"),
                parser_errposition(pstate, location)));
+    }
 
+    DBUG_INSTANT_PRINT("info", "operator does not exist: %s", op_signature_string(opername, oprleft, oprright));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator does not exist: %s",
@@ -130,6 +135,7 @@ LookupOperName(ParseState *pstate, List *opername, Oid oprleft, Oid oprright,
 Oid
 LookupOperWithArgs(ObjectWithArgs *oper, bool noError)
 {
+  DBUG_TRACE;
   TypeName   *oprleft,
              *oprright;
   Oid     leftoid,
@@ -180,6 +186,7 @@ get_sort_group_operators(Oid argtype,
                          Oid *ltOpr, Oid *eqOpr, Oid *gtOpr,
                          bool *isHashable)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry;
   int     cache_flags;
   Oid     lt_opr;
@@ -207,31 +214,50 @@ get_sort_group_operators(Oid argtype,
 
   /* Report errors if needed */
   if ((needLT && !OidIsValid(lt_opr)) ||
-      (needGT && !OidIsValid(gt_opr)))
+      (needGT && !OidIsValid(gt_opr))) {
+    char *format1 = format_type_be(argtype);
+    DBUG_INSTANT_PRINT("info", "could not identify an ordering operator for type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("could not identify an ordering operator for type %s",
-                    format_type_be(argtype)),
+                    format1),
              errhint("Use an explicit ordering operator or modify the query.")));
+  }
 
-  if (needEQ && !OidIsValid(eq_opr))
+  if (needEQ && !OidIsValid(eq_opr)) {
+    char *format1 = format_type_be(argtype);
+    DBUG_INSTANT_PRINT("info", "could not identify an equality operator for type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("could not identify an equality operator for type %s",
-                    format_type_be(argtype))));
+                    format1)));
+  }
 
   /* Return results as needed */
-  if (ltOpr)
+  if (ltOpr) {
+    DBUG_PRINT("info", "the less-than operator:%u is set", lt_opr);
     *ltOpr = lt_opr;
+  }
 
-  if (eqOpr)
+  if (eqOpr) {
+    DBUG_PRINT("info", "the equality operator:%u is set", eq_opr);
     *eqOpr = eq_opr;
+  }
 
-  if (gtOpr)
+  if (gtOpr) {
+    DBUG_PRINT("info", "the greater-than operator:%u is set", gt_opr);
     *gtOpr = gt_opr;
+  }
 
-  if (isHashable)
+  if (isHashable) {
+    if (hashable) {
+      DBUG_PRINT("info", "isHashable is set to true");
+    } else {
+      DBUG_PRINT("info", "isHashable is set to false");
+    }
+
     *isHashable = hashable;
+  }
 }
 
 
@@ -263,6 +289,7 @@ oprfuncid(Operator op)
 static Oid
 binary_oper_exact(List *opname, Oid arg1, Oid arg2)
 {
+  DBUG_TRACE;
   Oid     result;
   bool    was_unknown = false;
 
@@ -313,6 +340,7 @@ oper_select_candidate(int nargs,
                       FuncCandidateList candidates,
                       Oid *operOid) /* output argument */
 {
+  DBUG_TRACE;
   int     ncandidates;
 
   /*
@@ -367,6 +395,7 @@ Operator
 oper(ParseState *pstate, List *opname, Oid ltypeId, Oid rtypeId,
      bool noError, int location)
 {
+  DBUG_TRACE;
   Oid     operOid;
   OprCacheKey key;
   bool    key_ok;
@@ -445,6 +474,7 @@ Operator
 compatible_oper(ParseState *pstate, List *op, Oid arg1, Oid arg2,
                 bool noError, int location)
 {
+  DBUG_TRACE;
   Operator  optup;
   Form_pg_operator opform;
 
@@ -464,12 +494,14 @@ compatible_oper(ParseState *pstate, List *op, Oid arg1, Oid arg2,
   /* nope... */
   ReleaseSysCache(optup);
 
-  if (!noError)
+  if (!noError) {
+    DBUG_INSTANT_PRINT("info", "operator requires run-time type coercion: %s", op_signature_string(op, arg1, arg2));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator requires run-time type coercion: %s",
                     op_signature_string(op, arg1, arg2)),
              parser_errposition(pstate, location)));
+  }
 
   return (Operator) NULL;
 }
@@ -483,6 +515,7 @@ compatible_oper(ParseState *pstate, List *op, Oid arg1, Oid arg2,
 Oid
 compatible_oper_opid(List *op, Oid arg1, Oid arg2, bool noError)
 {
+  DBUG_TRACE;
   Operator  optup;
   Oid     result;
 
@@ -515,6 +548,7 @@ compatible_oper_opid(List *op, Oid arg1, Oid arg2, bool noError)
 Operator
 left_oper(ParseState *pstate, List *op, Oid arg, bool noError, int location)
 {
+  DBUG_TRACE;
   Oid     operOid;
   OprCacheKey key;
   bool    key_ok;
@@ -595,6 +629,7 @@ left_oper(ParseState *pstate, List *op, Oid arg, bool noError, int location)
 const char *
 op_signature_string(List *op, Oid arg1, Oid arg2)
 {
+  DBUG_TRACE;
   StringInfoData argbuf;
 
   initStringInfo(&argbuf);
@@ -606,6 +641,7 @@ op_signature_string(List *op, Oid arg1, Oid arg2)
 
   appendStringInfo(&argbuf, " %s", format_type_be(arg2));
 
+  DBUG_PRINT("info", "result: '%s'", argbuf.data);
   return argbuf.data;     /* return palloc'd string buffer */
 }
 
@@ -617,7 +653,8 @@ op_error(ParseState *pstate, List *op,
          Oid arg1, Oid arg2,
          FuncDetailCode fdresult, int location)
 {
-  if (fdresult == FUNCDETAIL_MULTIPLE)
+  if (fdresult == FUNCDETAIL_MULTIPLE) {
+    DBUG_INSTANT_PRINT("info", "operator is not unique: %s", op_signature_string(op, arg1, arg2));
     ereport(ERROR,
             (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
              errmsg("operator is not unique: %s",
@@ -625,7 +662,8 @@ op_error(ParseState *pstate, List *op,
              errhint("Could not choose a best candidate operator. "
                      "You might need to add explicit type casts."),
              parser_errposition(pstate, location)));
-  else
+  } else {
+    DBUG_INSTANT_PRINT("info", "operator does not exist: %s", op_signature_string(op, arg1, arg2));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator does not exist: %s",
@@ -636,6 +674,7 @@ op_error(ParseState *pstate, List *op,
              errhint("No operator matches the given name and argument types. "
                      "You might need to add explicit type casts."),
              parser_errposition(pstate, location)));
+  }
 }
 
 /*
@@ -654,6 +693,7 @@ Expr *
 make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
         Node *last_srf, int location)
 {
+  DBUG_TRACE;
   Oid     ltypeId,
           rtypeId;
   Operator  tup;
@@ -666,10 +706,12 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
   OpExpr     *result;
 
   /* Check it's not a postfix operator */
-  if (rtree == NULL)
+  if (rtree == NULL) {
+    DBUG_INSTANT_PRINT("info", "postfix operators are not supported");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("postfix operators are not supported")));
+  }
 
   /* Select the operator */
   if (ltree == NULL) {
@@ -677,17 +719,20 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
     rtypeId = exprType(rtree);
     ltypeId = InvalidOid;
     tup = left_oper(pstate, opname, rtypeId, false, location);
+    DBUG_PRINT("info", "select the operator: prefix operator");
   } else {
     /* otherwise, binary operator */
     ltypeId = exprType(ltree);
     rtypeId = exprType(rtree);
     tup = oper(pstate, opname, ltypeId, rtypeId, false, location);
+    DBUG_PRINT("info", "select the operator: binary operator");
   }
 
   opform = (Form_pg_operator) GETSTRUCT(tup);
 
   /* Check it's not a shell */
-  if (!RegProcedureIsValid(opform->oprcode))
+  if (!RegProcedureIsValid(opform->oprcode)) {
+    DBUG_INSTANT_PRINT("info", "operator is only a shell: %s", op_signature_string(opname, opform->oprleft, opform->oprright));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator is only a shell: %s",
@@ -695,16 +740,21 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
                                         opform->oprleft,
                                         opform->oprright)),
              parser_errposition(pstate, location)));
+  }
 
   /* Do typecasting and build the expression tree */
+  DBUG_PRINT("info", "do typecasting and build the expression tree");
+
   if (ltree == NULL) {
     /* prefix operator */
+    DBUG_PRINT("info", "prefix operator");
     args = list_make1(rtree);
     actual_arg_types[0] = rtypeId;
     declared_arg_types[0] = opform->oprright;
     nargs = 1;
   } else {
     /* otherwise, binary operator */
+    DBUG_PRINT("info", "binary operator");
     args = list_make2(ltree, rtree);
     actual_arg_types[0] = ltypeId;
     actual_arg_types[1] = rtypeId;
@@ -736,9 +786,11 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
   /* opcollid and inputcollid will be set by parse_collate.c */
   result->args = args;
   result->location = location;
+  DBUG_PRINT("info", "build the expression node(opno:%u, opfuncid:%u, opresulttype:%u)", result->opno, result->opfuncid, result->opresulttype);
 
   /* if it returns a set, check that's OK */
   if (result->opretset) {
+    DBUG_PRINT("info", "if it returns a set, check that's OK");
     check_srf_call_placement(pstate, last_srf, location);
     /* ... and remember it for error checks at higher levels */
     pstate->p_last_srf = (Node *) result;
@@ -759,6 +811,7 @@ make_scalar_array_op(ParseState *pstate, List *opname,
                      Node *ltree, Node *rtree,
                      int location)
 {
+  DBUG_TRACE;
   Oid     ltypeId,
           rtypeId,
           atypeId,
@@ -784,11 +837,13 @@ make_scalar_array_op(ParseState *pstate, List *opname,
   else {
     rtypeId = get_base_element_type(atypeId);
 
-    if (!OidIsValid(rtypeId))
+    if (!OidIsValid(rtypeId)) {
+      DBUG_INSTANT_PRINT("info", "");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("op ANY/ALL (array) requires array on right side"),
                parser_errposition(pstate, location)));
+    }
   }
 
   /* Now resolve the operator */
@@ -796,7 +851,8 @@ make_scalar_array_op(ParseState *pstate, List *opname,
   opform = (Form_pg_operator) GETSTRUCT(tup);
 
   /* Check it's not a shell */
-  if (!RegProcedureIsValid(opform->oprcode))
+  if (!RegProcedureIsValid(opform->oprcode)) {
+    DBUG_INSTANT_PRINT("info", "operator is only a shell: %s", op_signature_string(opname, opform->oprleft, opform->oprright));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator is only a shell: %s",
@@ -804,6 +860,7 @@ make_scalar_array_op(ParseState *pstate, List *opname,
                                         opform->oprleft,
                                         opform->oprright)),
              parser_errposition(pstate, location)));
+  }
 
   args = list_make2(ltree, rtree);
   actual_arg_types[0] = ltypeId;
@@ -825,17 +882,21 @@ make_scalar_array_op(ParseState *pstate, List *opname,
   /*
    * Check that operator result is boolean
    */
-  if (rettype != BOOLOID)
+  if (rettype != BOOLOID) {
+    DBUG_INSTANT_PRINT("info", "op ANY/ALL (array) requires operator to yield boolean");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("op ANY/ALL (array) requires operator to yield boolean"),
              parser_errposition(pstate, location)));
+  }
 
-  if (get_func_retset(opform->oprcode))
+  if (get_func_retset(opform->oprcode)) {
+    DBUG_INSTANT_PRINT("info", "op ANY/ALL (array) requires operator not to return a set");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("op ANY/ALL (array) requires operator not to return a set"),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * Now switch back to the array type on the right, arranging for any
@@ -849,12 +910,15 @@ make_scalar_array_op(ParseState *pstate, List *opname,
   } else {
     res_atypeId = get_array_type(declared_arg_types[1]);
 
-    if (!OidIsValid(res_atypeId))
+    if (!OidIsValid(res_atypeId)) {
+      char *format1 = format_type_be(declared_arg_types[1]);
+      DBUG_INSTANT_PRINT("info", "could not find array type for data type %s", format1);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("could not find array type for data type %s",
-                      format_type_be(declared_arg_types[1])),
+                      format1),
                parser_errposition(pstate, location)));
+    }
   }
 
   actual_arg_types[1] = atypeId;
@@ -924,6 +988,7 @@ static bool
 make_oper_cache_key(ParseState *pstate, OprCacheKey *key, List *opname,
                     Oid ltypeId, Oid rtypeId, int location)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *opername;
 
@@ -964,6 +1029,7 @@ make_oper_cache_key(ParseState *pstate, OprCacheKey *key, List *opname,
 static Oid
 find_oper_cache_entry(OprCacheKey *key)
 {
+  DBUG_TRACE;
   OprCacheEntry *oprentry;
 
   if (OprCacheHash == NULL) {
@@ -989,9 +1055,12 @@ find_oper_cache_entry(OprCacheKey *key)
              key,
              HASH_FIND, NULL);
 
-  if (oprentry == NULL)
+  if (oprentry == NULL) {
+    DBUG_PRINT("info", "look for an existing entry: null");
     return InvalidOid;
+  }
 
+  DBUG_PRINT("info", "look for an existing entry (opr_oid:%u)", oprentry->opr_oid);
   return oprentry->opr_oid;
 }
 
@@ -1003,6 +1072,7 @@ find_oper_cache_entry(OprCacheKey *key)
 static void
 make_oper_cache_entry(OprCacheKey *key, Oid opr_oid)
 {
+  DBUG_TRACE;
   OprCacheEntry *oprentry;
 
   Assert(OprCacheHash != NULL);
@@ -1011,6 +1081,7 @@ make_oper_cache_entry(OprCacheKey *key, Oid opr_oid)
              key,
              HASH_ENTER, NULL);
   oprentry->opr_oid = opr_oid;
+  DBUG_PRINT("info", "insert a cache entry for the given key (opr_oid:%u)", opr_oid);
 }
 
 /*

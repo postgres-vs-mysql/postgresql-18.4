@@ -73,7 +73,7 @@ injection_stats_fixed_init_shmem_cb(void *stats)
   PgStatShared_InjectionPointFixed *stats_shmem =
     (PgStatShared_InjectionPointFixed *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 static void

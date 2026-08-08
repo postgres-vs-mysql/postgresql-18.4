@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "utils/fmgrprotos.h"
 
@@ -47,12 +48,16 @@
 Datum
 areasel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "selectivity for operators that depend on area, such as 'overlap': 0.005");
   PG_RETURN_FLOAT8(0.005);
 }
 
 Datum
 areajoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return 0.005");
   PG_RETURN_FLOAT8(0.005);
 }
 
@@ -66,12 +71,16 @@ areajoinsel(PG_FUNCTION_ARGS)
 Datum
 positionsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "how likely is a box to be strictly left of (right of, above, below) a given box? 0.1");
   PG_RETURN_FLOAT8(0.1);
 }
 
 Datum
 positionjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return 0.1");
   PG_RETURN_FLOAT8(0.1);
 }
 
@@ -85,11 +94,15 @@ positionjoinsel(PG_FUNCTION_ARGS)
 Datum
 contsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "how likely is a box to contain (be contained by) a given box? 0.001");
   PG_RETURN_FLOAT8(0.001);
 }
 
 Datum
 contjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return 0.001");
   PG_RETURN_FLOAT8(0.001);
 }

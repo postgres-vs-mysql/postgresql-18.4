@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -109,6 +110,7 @@ analyze_rel(Oid relid, RangeVar *relation,
             VacuumParams *params, List *va_cols, bool in_outer_xact,
             BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   Relation  onerel;
   int     elevel;
   AcquireSampleRowsFunc acquirefunc = NULL;
@@ -203,6 +205,7 @@ analyze_rel(Oid relid, RangeVar *relation,
                                            &relpages);
 
     if (!ok) {
+      DBUG_INSTANT_PRINT("info", "skipping \"%s\" --- cannot analyze this foreign table", RelationGetRelationName(onerel));
       ereport(WARNING,
               (errmsg("skipping \"%s\" --- cannot analyze this foreign table",
                       RelationGetRelationName(onerel))));
@@ -215,10 +218,12 @@ analyze_rel(Oid relid, RangeVar *relation,
      */
   } else {
     /* No need for a WARNING if we already complained during VACUUM */
-    if (!(params->options & VACOPT_VACUUM))
+    if (!(params->options & VACOPT_VACUUM)) {
+      DBUG_INSTANT_PRINT("info", "skipping \"%s\" --- cannot analyze non-tables or special system table", RelationGetRelationName(onerel));
       ereport(WARNING,
               (errmsg("skipping \"%s\" --- cannot analyze non-tables or special system tables",
                       RelationGetRelationName(onerel))));
+    }
 
     relation_close(onerel, ShareUpdateExclusiveLock);
     return;
@@ -269,6 +274,7 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
                BlockNumber relpages, bool inh, bool in_outer_xact,
                int elevel)
 {
+  DBUG_TRACE;
   int     attr_cnt,
           tcnt,
           i,
@@ -302,16 +308,17 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
   instrument = (verbose || (AmAutoVacuumWorkerProcess() &&
                             params->log_min_duration >= 0));
 
-  if (inh)
+  if (inh) {
     ereport(elevel,
             (errmsg("analyzing \"%s.%s\" inheritance tree",
                     get_namespace_name(RelationGetNamespace(onerel)),
                     RelationGetRelationName(onerel))));
-  else
+  } else {
     ereport(elevel,
             (errmsg("analyzing \"%s.%s\"",
                     get_namespace_name(RelationGetNamespace(onerel)),
                     RelationGetRelationName(onerel))));
+  }
 
   /*
    * Set up a working context so that we can easily free whatever junk gets
@@ -370,17 +377,21 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
 
       i = attnameAttNum(onerel, col, false);
 
-      if (i == InvalidAttrNumber)
+      if (i == InvalidAttrNumber) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", col, RelationGetRelationName(onerel));
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("column \"%s\" of relation \"%s\" does not exist",
                         col, RelationGetRelationName(onerel))));
+      }
 
-      if (bms_is_member(i, unique_cols))
+      if (bms_is_member(i, unique_cols)) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" appears more than once", col, RelationGetRelationName(onerel));
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("column \"%s\" of relation \"%s\" appears more than once",
                         col, RelationGetRelationName(onerel))));
+      }
 
       unique_cols = bms_add_member(unique_cols, i);
 
@@ -847,6 +858,7 @@ compute_index_stats(Relation onerel, double totalrows,
                     HeapTuple *rows, int numrows,
                     MemoryContext col_context)
 {
+  DBUG_TRACE;
   MemoryContext ind_context,
                 old_context;
   Datum   values[INDEX_MAX_KEYS];
@@ -1009,6 +1021,7 @@ compute_index_stats(Relation onerel, double totalrows,
 static VacAttrStats *
 examine_attribute(Relation onerel, int attnum, Node *index_expr)
 {
+  DBUG_TRACE;
   Form_pg_attribute attr = TupleDescAttr(onerel->rd_att, attnum - 1);
   int     attstattarget;
   HeapTuple atttuple;
@@ -1173,7 +1186,10 @@ acquire_sample_rows(Relation onerel, int elevel,
                     HeapTuple *rows, int targrows,
                     double *totalrows, double *totaldeadrows)
 {
+  DBUG_TRACE;
   int     numrows = 0;  /* # rows now in reservoir */
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
   double    samplerows = 0; /* total # rows collected */
   double    liverows = 0; /* # live rows seen */
   double    deadrows = 0; /* # dead rows seen */
@@ -1240,6 +1256,15 @@ acquire_sample_rows(Relation onerel, int elevel,
        * passed over so far, so when we fall off the end of the relation
        * we're done.
        */
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
+
       if (numrows < targrows)
         rows[numrows++] = ExecCopySlotHeapTuple(slot);
       else {
@@ -1267,12 +1292,22 @@ acquire_sample_rows(Relation onerel, int elevel,
       }
 
       samplerows += 1;
+      count++;
     }
 
     pgstat_progress_update_param(PROGRESS_ANALYZE_BLOCKS_DONE,
                                  ++blksdone);
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
+  DBUG_PRINT("info", "sample rows:%g", samplerows);
   read_stream_end(stream);
 
   ExecDropSingleTupleTableSlot(slot);
@@ -1362,6 +1397,7 @@ acquire_inherited_sample_rows(Relation onerel, int elevel,
                               HeapTuple *rows, int targrows,
                               double *totalrows, double *totaldeadrows)
 {
+  DBUG_TRACE;
   List     *tableOIDs;
   Relation   *rels;
   AcquireSampleRowsFunc *acquirefuncs;
@@ -1615,6 +1651,7 @@ acquire_inherited_sample_rows(Relation onerel, int elevel,
 static void
 update_attstats(Oid relid, bool inh, int natts, VacAttrStats **vacattrstats)
 {
+  DBUG_TRACE;
   Relation  sd;
   int     attno;
   CatalogIndexState indstate = NULL;
@@ -1844,6 +1881,7 @@ static int  analyze_mcv_list(int *mcv_counts,
 bool
 std_typanalyze(VacAttrStats *stats)
 {
+  DBUG_TRACE;
   Oid     ltopr;
   Oid     eqopr;
   StdAnalyzeData *mystats;
@@ -1920,6 +1958,7 @@ compute_trivial_stats(VacAttrStatsP stats,
                       int samplerows,
                       double totalrows)
 {
+  DBUG_TRACE;
   int     i;
   int     null_cnt = 0;
   int     nonnull_cnt = 0;
@@ -2007,6 +2046,7 @@ compute_distinct_stats(VacAttrStatsP stats,
                        int samplerows,
                        double totalrows)
 {
+  DBUG_TRACE;
   int     i;
   int     null_cnt = 0;
   int     nonnull_cnt = 0;
@@ -2339,6 +2379,7 @@ compute_scalar_stats(VacAttrStatsP stats,
                      int samplerows,
                      double totalrows)
 {
+  DBUG_TRACE;
   int     i;
   int     null_cnt = 0;
   int     nonnull_cnt = 0;
@@ -2348,6 +2389,7 @@ compute_scalar_stats(VacAttrStatsP stats,
                         stats->attrtype->typlen == -1);
   bool    is_varwidth = (!stats->attrtype->typbyval &&
                          stats->attrtype->typlen < 0);
+  bool tmp_trace_disabled = false;
   double    corr_xysum;
   SortSupportData ssup;
   ScalarItem *values;
@@ -2358,7 +2400,9 @@ compute_scalar_stats(VacAttrStatsP stats,
   int     num_mcv = stats->attstattarget;
   int     num_bins = stats->attstattarget;
   StdAnalyzeData *mystats = (StdAnalyzeData *) stats->extra_data;
+  size_t count = 0;
 
+  DBUG_PRINT("info", "compute column statistics (samplerows:%d, totalrows:%g)", samplerows, totalrows);
   values = (ScalarItem *) palloc(samplerows * sizeof(ScalarItem));
   tupnoLink = (int *) palloc(samplerows * sizeof(int));
   track = (ScalarMCVItem *) palloc(num_mcv * sizeof(ScalarMCVItem));
@@ -2382,8 +2426,18 @@ compute_scalar_stats(VacAttrStatsP stats,
     Datum   value;
     bool    isnull;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     vacuum_delay_point(true);
 
+    count++;
     value = fetchfunc(stats, i, &isnull);
 
     /* Check for null/nonnull */
@@ -2427,6 +2481,16 @@ compute_scalar_stats(VacAttrStatsP stats,
     tupnoLink[values_cnt] = values_cnt;
     values_cnt++;
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
+  DBUG_PRINT("info", "we can only compute real stats if we found some sortable values");
 
   /* We can only compute real stats if we found some sortable values. */
   if (values_cnt > 0) {
@@ -2912,6 +2976,7 @@ analyze_mcv_list(int *mcv_counts,
                  int samplerows,
                  double totalrows)
 {
+  DBUG_TRACE;
   double    ndistinct_table;
   double    sumcount;
   int     i;

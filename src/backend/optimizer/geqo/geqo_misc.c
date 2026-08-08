@@ -19,6 +19,7 @@
    =*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "optimizer/geqo_misc.h"
@@ -33,6 +34,7 @@
 static double
 avg_pool(Pool *pool)
 {
+  DBUG_TRACE;
   int     i;
   double    cumulative = 0.0;
 
@@ -48,6 +50,7 @@ avg_pool(Pool *pool)
   for (i = 0; i < pool->size; i++)
     cumulative += pool->data[i].worth / pool->size;
 
+  DBUG_PRINT("info", "cumulative:%g", cumulative);
   return cumulative;
 }
 

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -39,6 +40,7 @@ BlockNumber
 BlockSampler_Init(BlockSampler bs, BlockNumber nblocks, int samplesize,
                   uint32 randseed)
 {
+  DBUG_TRACE;
   bs->N = nblocks;      /* measured table size */
 
   /*
@@ -57,12 +59,14 @@ BlockSampler_Init(BlockSampler bs, BlockNumber nblocks, int samplesize,
 bool
 BlockSampler_HasMore(BlockSampler bs)
 {
+  DBUG_TRACE;
   return (bs->t < bs->N) && (bs->m < bs->n);
 }
 
 BlockNumber
 BlockSampler_Next(BlockSampler bs)
 {
+  DBUG_TRACE;
   BlockNumber K = bs->N - bs->t;  /* remaining blocks */
   int     k = bs->n - bs->m;  /* blocks still to sample */
   double    p;        /* probability to skip block */
@@ -131,6 +135,7 @@ BlockSampler_Next(BlockSampler bs)
 void
 reservoir_init_selection_state(ReservoirState rs, int n)
 {
+  DBUG_TRACE;
   /*
    * Reservoir sampling is not used anywhere where it would need to return
    * repeatable results so we can initialize it randomly.
@@ -145,6 +150,7 @@ reservoir_init_selection_state(ReservoirState rs, int n)
 double
 reservoir_get_next_S(ReservoirState rs, double t, int n)
 {
+  DBUG_TRACE;
   double    S;
 
   /* The magic constant here is T from Vitter's paper */
@@ -277,6 +283,8 @@ anl_random_fract(void)
 double
 anl_init_selection_state(int n)
 {
+  DBUG_TRACE;
+
   /* initialize if first time through */
   if (unlikely(!oldrs_initialized)) {
     sampler_random_init_state(pg_prng_uint32(&pg_global_prng_state),
@@ -291,6 +299,7 @@ anl_init_selection_state(int n)
 double
 anl_get_next_S(double t, int n, double *stateptr)
 {
+  DBUG_TRACE;
   double    result;
 
   oldrs.W = *stateptr;

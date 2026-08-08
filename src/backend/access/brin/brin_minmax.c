@@ -9,6 +9,7 @@
  *    src/backend/access/brin/brin_minmax.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_internal.h"
 #include "access/brin_tuple.h"
@@ -32,6 +33,7 @@ static FmgrInfo *minmax_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno,
 Datum
 brin_minmax_opcinfo(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typoid = PG_GETARG_OID(0);
   BrinOpcInfo *result;
 
@@ -62,6 +64,7 @@ brin_minmax_opcinfo(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_add_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   Datum   newval = PG_GETARG_DATUM(2);
@@ -136,6 +139,7 @@ brin_minmax_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   ScanKey   key = (ScanKey) PG_GETARG_POINTER(2);
@@ -202,6 +206,12 @@ brin_minmax_consistent(PG_FUNCTION_ARGS)
       break;
   }
 
+  if (DatumGetBool(matches)) {
+    DBUG_PRINT("info", "matches:true");
+  } else {
+    DBUG_PRINT("info", "matches:false");
+  }
+
   PG_RETURN_DATUM(matches);
 }
 
@@ -212,6 +222,7 @@ brin_minmax_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
   BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
@@ -268,6 +279,7 @@ static FmgrInfo *
 minmax_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno, Oid subtype,
                              uint16 strategynum)
 {
+  DBUG_TRACE;
   MinmaxOpaque *opaque;
 
   Assert(strategynum >= 1 &&

@@ -29,8 +29,7 @@
  * BKI_BOOTSTRAP catalogs, since only those rows appear in pg_class.dat.
  * ----------------
  */
-CATALOG(pg_class, 1259, RelationRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(83, RelationRelation_Rowtype_Id) BKI_SCHEMA_MACRO
-{
+CATALOG(pg_class, 1259, RelationRelationId) BKI_BOOTSTRAP BKI_ROWTYPE_OID(83, RelationRelation_Rowtype_Id) BKI_SCHEMA_MACRO {
   /* oid */
   Oid     oid;
 

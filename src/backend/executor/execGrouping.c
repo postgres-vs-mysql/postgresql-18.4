@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "common/hashfn.h"
@@ -62,6 +63,7 @@ execTuplesMatchPrepare(TupleDesc desc,
                        const Oid *collations,
                        PlanState *parent)
 {
+  DBUG_TRACE;
   Oid      *eqFunctions;
   int     i;
   ExprState  *expr;
@@ -99,6 +101,7 @@ execTuplesHashPrepare(int numCols,
                       Oid **eqFuncOids,
                       FmgrInfo **hashFunctions)
 {
+  DBUG_TRACE;
   int     i;
 
   *eqFuncOids = (Oid *) palloc(numCols * sizeof(Oid));
@@ -180,6 +183,7 @@ BuildTupleHashTable(PlanState *parent,
                     MemoryContext tempcxt,
                     bool use_variable_hash_iv)
 {
+  DBUG_TRACE;
   TupleHashTable hashtable;
   Size    entrysize;
   Size    hash_mem_limit;
@@ -303,6 +307,7 @@ TupleHashEntry
 LookupTupleHashEntry(TupleHashTable hashtable, TupleTableSlot *slot,
                      bool *isnew, uint32 *hash)
 {
+  DBUG_TRACE;
   TupleHashEntry entry;
   MemoryContext oldContext;
   uint32    local_hash;
@@ -334,6 +339,7 @@ LookupTupleHashEntry(TupleHashTable hashtable, TupleTableSlot *slot,
 uint32
 TupleHashTableHash(TupleHashTable hashtable, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MemoryContext oldContext;
   uint32    hash;
 
@@ -358,6 +364,7 @@ TupleHashEntry
 LookupTupleHashEntryHash(TupleHashTable hashtable, TupleTableSlot *slot,
                          bool *isnew, uint32 hash)
 {
+  DBUG_TRACE;
   TupleHashEntry entry;
   MemoryContext oldContext;
 
@@ -391,6 +398,7 @@ FindTupleHashEntry(TupleHashTable hashtable, TupleTableSlot *slot,
                    ExprState *eqcomp,
                    ExprState *hashexpr)
 {
+  DBUG_TRACE;
   TupleHashEntry entry;
   MemoryContext oldContext;
   MinimalTuple key;
@@ -423,6 +431,7 @@ static uint32
 TupleHashTableHash_internal(struct tuplehash_hash *tb,
                             const MinimalTuple tuple)
 {
+  DBUG_TRACE;
   TupleHashTable hashtable = (TupleHashTable) tb->private_data;
   uint32    hashkey;
   TupleTableSlot *slot;
@@ -468,6 +477,7 @@ static inline TupleHashEntry
 LookupTupleHashEntry_internal(TupleHashTable hashtable, TupleTableSlot *slot,
                               bool *isnew, uint32 hash)
 {
+  DBUG_TRACE;
   TupleHashEntryData *entry;
   bool    found;
   MinimalTuple key;
@@ -512,6 +522,7 @@ LookupTupleHashEntry_internal(TupleHashTable hashtable, TupleTableSlot *slot,
 static int
 TupleHashTableMatch(struct tuplehash_hash *tb, const MinimalTuple tuple1, const MinimalTuple tuple2)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot1;
   TupleTableSlot *slot2;
   TupleHashTable hashtable = (TupleHashTable) tb->private_data;

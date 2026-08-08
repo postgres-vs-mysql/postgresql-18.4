@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/visibilitymap.h"
 #include "access/xact.h"
@@ -35,6 +36,7 @@
 #include "utils/hsearch.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
+#include "utils/lsyscache.h"
 
 /* GUC variables */
 int     wal_skip_threshold = 2048;  /* in kilobytes */
@@ -83,6 +85,7 @@ static HTAB *pendingSyncHash = NULL;
 static void
 AddPendingSync(const RelFileLocator *rlocator)
 {
+  DBUG_TRACE;
   PendingRelSync *pending;
   bool    found;
 
@@ -119,6 +122,7 @@ SMgrRelation
 RelationCreateStorage(RelFileLocator rlocator, char relpersistence,
                       bool register_delete)
 {
+  DBUG_TRACE;
   SMgrRelation srel;
   ProcNumber  procNumber;
   bool    needs_wal;
@@ -183,6 +187,7 @@ RelationCreateStorage(RelFileLocator rlocator, char relpersistence,
 void
 log_smgrcreate(const RelFileLocator *rlocator, ForkNumber forkNum)
 {
+  DBUG_TRACE;
   xl_smgr_create xlrec;
 
   /*
@@ -203,9 +208,13 @@ log_smgrcreate(const RelFileLocator *rlocator, ForkNumber forkNum)
 void
 RelationDropStorage(Relation rel)
 {
+  DBUG_TRACE;
   PendingRelDelete *pending;
+  char *relation;
 
   /* Add the relation to the list of stuff to delete at commit */
+  relation = RelationGetRelationName(rel);
+  DBUG_PRINT("info", "add the relation:%s to the list of stuff to delete at commit", relation);
   pending = (PendingRelDelete *)
             MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
   pending->rlocator = rel->rd_locator;
@@ -248,6 +257,7 @@ RelationDropStorage(Relation rel)
 void
 RelationPreserveStorage(RelFileLocator rlocator, bool atCommit)
 {
+  DBUG_TRACE;
   PendingRelDelete *pending;
   PendingRelDelete *prev;
   PendingRelDelete *next;
@@ -284,6 +294,7 @@ RelationPreserveStorage(RelFileLocator rlocator, bool atCommit)
 void
 RelationTruncate(Relation rel, BlockNumber nblocks)
 {
+  DBUG_TRACE;
   bool    fsm;
   bool    vm;
   bool    need_fsm_vacuum = false;
@@ -475,6 +486,7 @@ void
 RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
                     ForkNumber forkNum, char relpersistence)
 {
+  DBUG_TRACE;
   bool    use_wal;
   bool    copying_initfork;
   BlockNumber nblocks;
@@ -541,6 +553,7 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
                                            src->smgr_rlocator.backend,
                                            forkNum);
 
+      DBUG_INSTANT_PRINT("info", "invalid page in block %u of relation %s", blkno, relpath.str);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg("invalid page in block %u of relation \"%s\"",
@@ -597,6 +610,7 @@ EstimatePendingSyncsSpace(void)
 void
 SerializePendingSyncs(Size maxSize, char *startAddress)
 {
+  DBUG_TRACE;
   HTAB     *tmphash;
   HASHCTL   ctl;
   HASH_SEQ_STATUS scan;
@@ -623,6 +637,8 @@ SerializePendingSyncs(Size maxSize, char *startAddress)
     (void) hash_search(tmphash, &sync->rlocator, HASH_ENTER, NULL);
 
   /* remove deleted rnodes */
+  DBUG_PRINT("info", "remove deleted rnodes");
+
   for (delete = pendingDeletes; delete != NULL; delete = delete->next)
     if (delete->atCommit)
       (void) hash_search(tmphash, &delete->rlocator,
@@ -673,6 +689,7 @@ RestorePendingSyncs(char *startAddress)
 void
 smgrDoPendingDeletes(bool isCommit)
 {
+  DBUG_TRACE;
   int     nestLevel = GetCurrentTransactionNestLevel();
   PendingRelDelete *pending;
   PendingRelDelete *prev;
@@ -681,6 +698,7 @@ smgrDoPendingDeletes(bool isCommit)
           maxrels = 0;
   SMgrRelation *srels = NULL;
 
+  DBUG_PRINT("info", "take care of relation deletes at end of xact");
   prev = NULL;
 
   for (pending = pendingDeletes; pending != NULL; pending = next) {
@@ -721,6 +739,12 @@ smgrDoPendingDeletes(bool isCommit)
   }
 
   if (nrels > 0) {
+    if (isCommit) {
+      DBUG_PRINT("info", "commit true and nrels:%d", nrels);
+    } else {
+      DBUG_PRINT("info", "commit false and nrels:%d", nrels);
+    }
+
     smgrdounlinkall(srels, nrels, false);
 
     for (int i = 0; i < nrels; i++)
@@ -736,6 +760,7 @@ smgrDoPendingDeletes(bool isCommit)
 void
 smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 {
+  DBUG_TRACE;
   PendingRelDelete *pending;
   int     nrels = 0,
           maxrels = 0;
@@ -745,11 +770,14 @@ smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 
   Assert(GetCurrentTransactionNestLevel() == 1);
 
-  if (!pendingSyncHash)
+  if (!pendingSyncHash) {
+    DBUG_PRINT("info", "no relation needs sync");
     return;         /* no relation needs sync */
+  }
 
   /* Abort -- just throw away all pending syncs */
   if (!isCommit) {
+    DBUG_PRINT("info", "abort -- just throw away all pending syncs");
     pendingSyncHash = NULL;
     return;
   }
@@ -758,6 +786,7 @@ smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 
   /* Parallel worker -- just throw away all pending syncs */
   if (isParallelWorker) {
+    DBUG_PRINT("info", "parallel worker -- just throw away all pending syncs");
     pendingSyncHash = NULL;
     return;
   }
@@ -874,6 +903,7 @@ smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 int
 smgrGetPendingDeletes(bool forCommit, RelFileLocator **ptr)
 {
+  DBUG_TRACE;
   int     nestLevel = GetCurrentTransactionNestLevel();
   int     nrels;
   RelFileLocator *rptr;
@@ -889,6 +919,7 @@ smgrGetPendingDeletes(bool forCommit, RelFileLocator **ptr)
 
   if (nrels == 0) {
     *ptr = NULL;
+    DBUG_PRINT("info", "the number of relations scheduled for termination is zero");
     return 0;
   }
 
@@ -903,6 +934,7 @@ smgrGetPendingDeletes(bool forCommit, RelFileLocator **ptr)
     }
   }
 
+  DBUG_PRINT("info", "the number of relations scheduled for termination:%d", nrels);
   return nrels;
 }
 
@@ -961,6 +993,7 @@ AtSubAbort_smgr(void)
 void
 smgr_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
@@ -971,6 +1004,7 @@ smgr_redo(XLogReaderState *record)
     xl_smgr_create *xlrec = (xl_smgr_create *) XLogRecGetData(record);
     SMgrRelation reln;
 
+    DBUG_PRINT("info", "XLOG_SMGR_CREATE");
     reln = smgropen(xlrec->rlocator, INVALID_PROC_NUMBER);
     smgrcreate(reln, xlrec->forkNum, true);
   } else if (info == XLOG_SMGR_TRUNCATE) {
@@ -983,6 +1017,7 @@ smgr_redo(XLogReaderState *record)
     int     nforks = 0;
     bool    need_fsm_vacuum = false;
 
+    DBUG_PRINT("info", "XLOG_SMGR_TRUNCATE");
     reln = smgropen(xlrec->rlocator, INVALID_PROC_NUMBER);
 
     /*
@@ -1022,6 +1057,7 @@ smgr_redo(XLogReaderState *record)
     }
 
     /* Prepare for truncation of FSM and VM too */
+    DBUG_PRINT("info", "prepare for truncation of FSM and VM too");
     rel = CreateFakeRelcacheEntry(xlrec->rlocator);
 
     if ((xlrec->flags & SMGR_TRUNCATE_FSM) != 0 &&
@@ -1049,6 +1085,7 @@ smgr_redo(XLogReaderState *record)
 
     /* Do the real work to truncate relation forks */
     if (nforks > 0) {
+      DBUG_PRINT("info", "do the real work to truncate relation forks");
       START_CRIT_SECTION();
       smgrtruncate(reln, forks, nforks, old_blocks, blocks);
       END_CRIT_SECTION();

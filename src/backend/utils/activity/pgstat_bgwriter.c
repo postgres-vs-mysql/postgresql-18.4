@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "utils/memutils.h"
 #include "utils/pgstat_internal.h"
@@ -30,6 +31,7 @@ PgStat_BgWriterStats PendingBgWriterStats = {0};
 void
 pgstat_report_bgwriter(void)
 {
+  DBUG_TRACE;
   PgStatShared_BgWriter *stats_shmem = &pgStatLocal.shmem->bgwriter;
 
   Assert(!pgStatLocal.shmem->is_shutdown);
@@ -81,7 +83,7 @@ pgstat_bgwriter_init_shmem_cb(void *stats)
 {
   PgStatShared_BgWriter *stats_shmem = (PgStatShared_BgWriter *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 void

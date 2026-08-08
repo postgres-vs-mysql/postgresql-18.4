@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -74,6 +75,7 @@ static TypeFuncClass get_type_func_class(Oid typid, Oid *base_typeid);
 void
 InitMaterializedSRF(FunctionCallInfo fcinfo, bits32 flags)
 {
+  DBUG_TRACE;
   bool    random_access;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Tuplestorestate *tupstore;
@@ -131,6 +133,7 @@ InitMaterializedSRF(FunctionCallInfo fcinfo, bits32 flags)
 FuncCallContext *
 init_MultiFuncCall(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *retval;
 
   /*
@@ -203,6 +206,7 @@ init_MultiFuncCall(PG_FUNCTION_ARGS)
 FuncCallContext *
 per_MultiFuncCall(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *retval = (FuncCallContext *) fcinfo->flinfo->fn_extra;
 
   return retval;
@@ -215,6 +219,7 @@ per_MultiFuncCall(PG_FUNCTION_ARGS)
 void
 end_MultiFuncCall(PG_FUNCTION_ARGS, FuncCallContext *funcctx)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi = (ReturnSetInfo *) fcinfo->resultinfo;
 
   /* Deregister the shutdown callback */
@@ -273,6 +278,7 @@ get_call_result_type(FunctionCallInfo fcinfo,
                      Oid *resultTypeId,
                      TupleDesc *resultTupleDesc)
 {
+  DBUG_TRACE;
   return internal_get_result_type(fcinfo->flinfo->fn_oid,
                                   fcinfo->flinfo->fn_expr,
                                   (ReturnSetInfo *) fcinfo->resultinfo,
@@ -296,6 +302,7 @@ get_expr_result_type(Node *expr,
                      Oid *resultTypeId,
                      TupleDesc *resultTupleDesc)
 {
+  DBUG_TRACE;
   TypeFuncClass result;
 
   if (expr && IsA(expr, FuncExpr))
@@ -430,6 +437,7 @@ internal_get_result_type(Oid funcid,
                          Oid *resultTypeId,
                          TupleDesc *resultTupleDesc)
 {
+  DBUG_TRACE;
   TypeFuncClass result;
   HeapTuple tp;
   Form_pg_proc procform;
@@ -557,6 +565,7 @@ internal_get_result_type(Oid funcid,
 TupleDesc
 get_expr_result_tupdesc(Node *expr, bool noError)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc;
   TypeFuncClass functypclass;
 
@@ -594,6 +603,8 @@ get_expr_result_tupdesc(Node *expr, bool noError)
 static void
 resolve_anyelement_from_others(polymorphic_actuals *actuals)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(actuals->anyarray_type)) {
     /* Use the element type corresponding to actual type */
     Oid     array_base_type = getBaseType(actuals->anyarray_type);
@@ -658,6 +669,8 @@ resolve_anyelement_from_others(polymorphic_actuals *actuals)
 static void
 resolve_anyarray_from_others(polymorphic_actuals *actuals)
 {
+  DBUG_TRACE;
+
   /* If we don't know ANYELEMENT, resolve that first */
   if (!OidIsValid(actuals->anyelement_type))
     resolve_anyelement_from_others(actuals);
@@ -683,6 +696,8 @@ resolve_anyarray_from_others(polymorphic_actuals *actuals)
 static void
 resolve_anyrange_from_others(polymorphic_actuals *actuals)
 {
+  DBUG_TRACE;
+
   /*
    * We can't deduce a range type from other polymorphic array or base
    * types, because there may be multiple range types with the same subtype,
@@ -711,6 +726,8 @@ resolve_anyrange_from_others(polymorphic_actuals *actuals)
 static void
 resolve_anymultirange_from_others(polymorphic_actuals *actuals)
 {
+  DBUG_TRACE;
+
   /*
    * We can't deduce a multirange type from polymorphic array or base types,
    * because there may be multiple range types with the same subtype, but we
@@ -745,6 +762,7 @@ static bool
 resolve_polymorphic_tupdesc(TupleDesc tupdesc, oidvector *declared_args,
                             Node *call_expr)
 {
+  DBUG_TRACE;
   int     natts = tupdesc->natts;
   int     nargs = declared_args->dim1;
   bool    have_polymorphic_result = false;
@@ -1091,6 +1109,7 @@ bool
 resolve_polymorphic_argtypes(int numargs, Oid *argtypes, char *argmodes,
                              Node *call_expr)
 {
+  DBUG_TRACE;
   bool    have_polymorphic_result = false;
   bool    have_anyelement_result = false;
   bool    have_anyarray_result = false;
@@ -1360,6 +1379,7 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, char *argmodes,
 static TypeFuncClass
 get_type_func_class(Oid typid, Oid *base_typeid)
 {
+  DBUG_TRACE;
   *base_typeid = typid;
 
   switch (get_typtype(typid)) {
@@ -1417,6 +1437,7 @@ int
 get_func_arg_info(HeapTuple procTup,
                   Oid **p_argtypes, char ***p_argnames, char **p_argmodes)
 {
+  DBUG_TRACE;
   Form_pg_proc procStruct = (Form_pg_proc) GETSTRUCT(procTup);
   Datum   proallargtypes;
   Datum   proargmodes;
@@ -1518,6 +1539,7 @@ int
 get_func_trftypes(HeapTuple procTup,
                   Oid **p_trftypes)
 {
+  DBUG_TRACE;
   Datum   protrftypes;
   ArrayType  *arr;
   int     nelems;
@@ -1566,6 +1588,7 @@ int
 get_func_input_arg_names(Datum proargnames, Datum proargmodes,
                          char ***arg_names)
 {
+  DBUG_TRACE;
   ArrayType  *arr;
   int     numargs;
   Datum    *argnames;
@@ -1651,6 +1674,7 @@ get_func_input_arg_names(Datum proargnames, Datum proargmodes,
 char *
 get_func_result_name(Oid functionId)
 {
+  DBUG_TRACE;
   char     *result;
   HeapTuple procTuple;
   Datum   proargmodes;
@@ -1755,6 +1779,7 @@ get_func_result_name(Oid functionId)
 TupleDesc
 build_function_result_tupdesc_t(HeapTuple procTuple)
 {
+  DBUG_TRACE;
   Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(procTuple);
   Datum   proallargtypes;
   Datum   proargmodes;
@@ -1805,6 +1830,7 @@ build_function_result_tupdesc_d(char prokind,
                                 Datum proargmodes,
                                 Datum proargnames)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   ArrayType  *arr;
   int     numargs;
@@ -1930,6 +1956,7 @@ build_function_result_tupdesc_d(char prokind,
 TupleDesc
 RelationNameGetTupleDesc(const char *relname)
 {
+  DBUG_TRACE;
   RangeVar   *relvar;
   Relation  rel;
   TupleDesc tupdesc;
@@ -1963,6 +1990,7 @@ RelationNameGetTupleDesc(const char *relname)
 TupleDesc
 TypeGetTupleDesc(Oid typeoid, List *colaliases)
 {
+  DBUG_TRACE;
   Oid     base_typeoid;
   TypeFuncClass functypclass = get_type_func_class(typeoid, &base_typeoid);
   TupleDesc tupdesc = NULL;
@@ -2058,6 +2086,7 @@ extract_variadic_args(FunctionCallInfo fcinfo, int variadic_start,
                       bool convert_unknown, Datum **args, Oid **types,
                       bool **nulls)
 {
+  DBUG_TRACE;
   bool    variadic = get_fn_expr_variadic(fcinfo->flinfo);
   Datum    *args_res;
   bool     *nulls_res;

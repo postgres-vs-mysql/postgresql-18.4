@@ -53,8 +53,7 @@ extern int  compareWordEntryPos(const void *a, const void *b);
 
 /*
  * Equivalent to
- * typedef struct 
-
+ * typedef struct
 {
  *    uint16
  *      weight:2,
@@ -207,8 +206,7 @@ typedef struct
  * Note: TSQuery is 4-bytes aligned, so make sure there's no fields
  * inside QueryItem requiring 8-byte alignment, like int64.
  */
-typedef union
-{
+typedef union {
   QueryItemType type;
   QueryOperator qoperator;
   QueryOperand qoperand;

@@ -33,6 +33,7 @@
 #include "mbuf.h"
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 int
 pgp_key_alloc(PGP_PubKey **pk_p)
@@ -85,6 +86,7 @@ pgp_key_free(PGP_PubKey *pk)
 static int
 calc_key_id(PGP_PubKey *pk)
 {
+  DBUG_TRACE;
   int     res;
   PX_MD    *md;
   int     len;
@@ -163,6 +165,7 @@ calc_key_id(PGP_PubKey *pk)
 int
 _pgp_read_public_key(PullFilter *pkt, PGP_PubKey **pk_p)
 {
+  DBUG_TRACE;
   int     res;
   PGP_PubKey *pk;
 
@@ -276,6 +279,7 @@ out:
 static int
 check_key_sha1(PullFilter *src, PGP_PubKey *pk)
 {
+  DBUG_TRACE;
   int     res;
   uint8   got_sha1[20];
   uint8   my_sha1[20];
@@ -327,6 +331,7 @@ err:
 static int
 check_key_cksum(PullFilter *src, PGP_PubKey *pk)
 {
+  DBUG_TRACE;
   int     res;
   unsigned  got_cksum,
             my_cksum = 0;
@@ -370,6 +375,7 @@ static int
 process_secret_key(PullFilter *pkt, PGP_PubKey **pk_p,
                    const uint8 *key, int key_len)
 {
+  DBUG_TRACE;
   int     res;
   int     hide_type;
   int     cipher_algo;
@@ -509,6 +515,7 @@ static int
 internal_read_key(PullFilter *src, PGP_PubKey **pk_p,
                   const uint8 *psw, int psw_len, int pubtype)
 {
+  DBUG_TRACE;
   PullFilter *pkt = NULL;
   int     res;
   uint8   tag;
@@ -619,6 +626,7 @@ int
 pgp_set_pubkey(PGP_Context *ctx, MBuf *keypkt,
                const uint8 *key, int key_len, int pubtype)
 {
+  DBUG_TRACE;
   int     res;
   PullFilter *src;
   PGP_PubKey *pk = NULL;

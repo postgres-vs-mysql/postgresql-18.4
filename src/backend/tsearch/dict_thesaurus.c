@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/namespace.h"
@@ -346,6 +347,7 @@ cmpTheLexeme(const void *a, const void *b)
 static void
 compileTheLexeme(DictThesaurus *d)
 {
+  DBUG_TRACE;
   int     i,
           nnw = 0,
           tnm = 16;
@@ -448,6 +450,7 @@ compileTheLexeme(DictThesaurus *d)
 static void
 compileTheSubstitute(DictThesaurus *d)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < d->nsubst; i++) {
@@ -532,6 +535,7 @@ compileTheSubstitute(DictThesaurus *d)
 Datum
 thesaurus_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   DictThesaurus *d;
   char     *subdictname = NULL;
@@ -718,6 +722,7 @@ checkMatch(DictThesaurus *d, LexemeInfo *info, uint16 curpos, bool *moreres)
 Datum
 thesaurus_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DictThesaurus *d = (DictThesaurus *) PG_GETARG_POINTER(0);
   DictSubState *dstate = (DictSubState *) PG_GETARG_POINTER(3);
   TSLexeme   *res = NULL;

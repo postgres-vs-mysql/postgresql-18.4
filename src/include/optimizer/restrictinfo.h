@@ -14,6 +14,7 @@
 #ifndef RESTRICTINFO_H
 #define RESTRICTINFO_H
 
+#include "debug_trace.h"
 #include "nodes/pathnodes.h"
 
 
@@ -73,21 +74,22 @@ static inline bool
 clause_sides_match_join(RestrictInfo *rinfo, Relids outerrelids,
                         Relids innerrelids)
 {
+  DBUG_TRACE;
   if (bms_is_subset(rinfo->left_relids, outerrelids) &&
-      bms_is_subset(rinfo->right_relids, innerrelids))
-  {
+      bms_is_subset(rinfo->right_relids, innerrelids)) {
     /* lefthand side is outer */
     rinfo->outer_is_left = true;
+    DBUG_PRINT("info", "lefthand side is outer and return true");
     return true;
-  }
-  else if (bms_is_subset(rinfo->left_relids, innerrelids) &&
-           bms_is_subset(rinfo->right_relids, outerrelids))
-  {
+  } else if (bms_is_subset(rinfo->left_relids, innerrelids) &&
+             bms_is_subset(rinfo->right_relids, outerrelids)) {
     /* righthand side is outer */
     rinfo->outer_is_left = false;
+    DBUG_PRINT("info", "righthand side is outer and return true");
     return true;
   }
 
+  DBUG_PRINT("info", "no good for these input relations and return false");
   return false;       /* no good for these input relations */
 }
 

@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -146,6 +147,7 @@ static void RemoveReindexPending(Oid indexOid);
 static bool
 relationHasPrimaryKey(Relation rel)
 {
+  DBUG_TRACE;
   bool    result = false;
   List     *indexoidlist;
   ListCell   *indexoidscan;
@@ -174,6 +176,12 @@ relationHasPrimaryKey(Relation rel)
   }
 
   list_free(indexoidlist);
+
+  if (result) {
+    DBUG_PRINT("info", "this relation has a primary key");
+  } else {
+    DBUG_PRINT("info", "this relation has not a primary key");
+  }
 
   return result;
 }
@@ -205,6 +213,7 @@ index_check_primary_key(Relation heapRel,
                         bool is_alter_table,
                         const IndexStmt *stmt)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -215,6 +224,7 @@ index_check_primary_key(Relation heapRel,
    */
   if ((is_alter_table || heapRel->rd_rel->relispartition) &&
       relationHasPrimaryKey(heapRel)) {
+    DBUG_INSTANT_PRINT("info", "multiple primary keys for table \"%s\" are not allowed", RelationGetRelationName(heapRel));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
              errmsg("multiple primary keys for table \"%s\" are not allowed",
@@ -228,6 +238,7 @@ index_check_primary_key(Relation heapRel,
    * USING INDEX.
    */
   if (indexInfo->ii_NullsNotDistinct) {
+    DBUG_INSTANT_PRINT("info", "primary keys cannot use NULLS NOT DISTINCT indexes");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
              errmsg("primary keys cannot use NULLS NOT DISTINCT indexes")));
@@ -243,10 +254,12 @@ index_check_primary_key(Relation heapRel,
     HeapTuple atttuple;
     Form_pg_attribute attform;
 
-    if (attnum == 0)
+    if (attnum == 0) {
+      DBUG_INSTANT_PRINT("info", "primary keys cannot be expressions");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("primary keys cannot be expressions")));
+    }
 
     /* System attributes are never null, so no need to check */
     if (attnum < 0)
@@ -256,17 +269,22 @@ index_check_primary_key(Relation heapRel,
                                ObjectIdGetDatum(RelationGetRelid(heapRel)),
                                Int16GetDatum(attnum));
 
-    if (!HeapTupleIsValid(atttuple))
+    if (!HeapTupleIsValid(atttuple)) {
+      DBUG_INSTANT_PRINT("info", "cache lookup failed for attribute %d of relation %u",
+                         attnum, RelationGetRelid(heapRel));
       elog(ERROR, "cache lookup failed for attribute %d of relation %u",
            attnum, RelationGetRelid(heapRel));
+    }
 
     attform = (Form_pg_attribute) GETSTRUCT(atttuple);
 
-    if (!attform->attnotnull)
+    if (!attform->attnotnull) {
+      DBUG_INSTANT_PRINT("info", "primary key column \"%s\" is not marked NOT NULL", NameStr(attform->attname));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("primary key column \"%s\" is not marked NOT NULL",
                       NameStr(attform->attname))));
+    }
 
     ReleaseSysCache(atttuple);
   }
@@ -285,6 +303,7 @@ ConstructTupleDescriptor(Relation heapRelation,
                          const Oid *collationIds,
                          const Oid *opclassIds)
 {
+  DBUG_TRACE;
   int     numatts = indexInfo->ii_NumIndexAttrs;
   int     numkeyatts = indexInfo->ii_NumIndexKeyAttrs;
   ListCell   *colnames_item = list_head(indexColNames);
@@ -515,6 +534,7 @@ InitializeAttributeOids(Relation indexRelation,
 static void
 AppendAttributeTuples(Relation indexRelation, const Datum *attopts, const NullableDatum *stattargets)
 {
+  DBUG_TRACE;
   Relation  pg_attribute;
   CatalogIndexState indstate;
   TupleDesc indexTupDesc;
@@ -575,6 +595,7 @@ UpdateIndexRelation(Oid indexoid,
                     bool isvalid,
                     bool isready)
 {
+  DBUG_TRACE;
   int2vector *indkey;
   oidvector  *indcollation;
   oidvector  *indclass;
@@ -748,6 +769,7 @@ index_create(Relation heapRelation,
              bool is_internal,
              Oid *constraintId)
 {
+  DBUG_TRACE;
   Oid     heapRelationId = RelationGetRelid(heapRelation);
   Relation  pg_class;
   Relation  indexRelation;
@@ -797,10 +819,12 @@ index_create(Relation heapRelation,
 
   if (!allow_system_table_mods &&
       IsSystemRelation(heapRelation) &&
-      IsNormalProcessingMode())
+      IsNormalProcessingMode()) {
+    DBUG_INSTANT_PRINT("info", "user-defined indexes on system catalog tables are not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("user-defined indexes on system catalog tables are not supported")));
+  }
 
   /*
    * Btree text_pattern_ops uses text_eq as the equality operator, which is
@@ -837,6 +861,8 @@ index_create(Relation heapRelation,
         if (!HeapTupleIsValid(classtup))
           elog(ERROR, "cache lookup failed for operator class %u", opclass);
 
+        DBUG_INSTANT_PRINT("info", "nondeterministic collations are not supported for operator class \"%s\"",
+                           NameStr(((Form_pg_opclass) GETSTRUCT(classtup))->opcname));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("nondeterministic collations are not supported for operator class \"%s\"",
@@ -851,34 +877,42 @@ index_create(Relation heapRelation,
    * release locks before committing in catalogs.
    */
   if (concurrent &&
-      IsCatalogRelation(heapRelation))
+      IsCatalogRelation(heapRelation)) {
+    DBUG_INSTANT_PRINT("info", "concurrent index creation on system catalog tables is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("concurrent index creation on system catalog tables is not supported")));
+  }
 
   /*
    * This case is currently not supported.  There's no way to ask for it in
    * the grammar with CREATE INDEX, but it can happen with REINDEX.
    */
-  if (concurrent && is_exclusion)
+  if (concurrent && is_exclusion) {
+    DBUG_INSTANT_PRINT("info", "concurrent index creation for exclusion constraints is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("concurrent index creation for exclusion constraints is not supported")));
+  }
 
   /*
    * We cannot allow indexing a shared relation after initdb (because
    * there's no way to make the entry in other databases' pg_class).
    */
-  if (shared_relation && !IsBootstrapProcessingMode())
+  if (shared_relation && !IsBootstrapProcessingMode()) {
+    DBUG_INSTANT_PRINT("info", "shared indexes cannot be created after initdb");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("shared indexes cannot be created after initdb")));
+  }
 
   /*
    * Shared relations must be in pg_global, too (last-ditch check)
    */
-  if (shared_relation && tableSpaceId != GLOBALTABLESPACE_OID)
+  if (shared_relation && tableSpaceId != GLOBALTABLESPACE_OID) {
+    DBUG_INSTANT_PRINT("info", "shared relations must be placed in pg_global tablespace");
     elog(ERROR, "shared relations must be placed in pg_global tablespace");
+  }
 
   /*
    * Check for duplicate name (both as to the index, and as to the
@@ -896,6 +930,7 @@ index_create(Relation heapRelation,
       return InvalidOid;
     }
 
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" already exists", indexRelationName);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_TABLE),
              errmsg("relation \"%s\" already exists",
@@ -909,6 +944,8 @@ index_create(Relation heapRelation,
      * INDEX_CREATE_IF_NOT_EXISTS does not apply here, since the
      * conflicting constraint is not an index.
      */
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for relation \"%s\" already exists",
+                       indexRelationName, RelationGetRelationName(heapRelation));
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("constraint \"%s\" for relation \"%s\" already exists",
@@ -934,20 +971,24 @@ index_create(Relation heapRelation,
   if (!OidIsValid(indexRelationId)) {
     /* Use binary-upgrade override for pg_class.oid and relfilenumber */
     if (IsBinaryUpgrade) {
-      if (!OidIsValid(binary_upgrade_next_index_pg_class_oid))
+      if (!OidIsValid(binary_upgrade_next_index_pg_class_oid)) {
+        DBUG_INSTANT_PRINT("info", "pg_class index OID value not set when in binary upgrade mode");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("pg_class index OID value not set when in binary upgrade mode")));
+      }
 
       indexRelationId = binary_upgrade_next_index_pg_class_oid;
       binary_upgrade_next_index_pg_class_oid = InvalidOid;
 
       /* Override the index relfilenumber */
       if ((relkind == RELKIND_INDEX) &&
-          (!RelFileNumberIsValid(binary_upgrade_next_index_pg_class_relfilenumber)))
+          (!RelFileNumberIsValid(binary_upgrade_next_index_pg_class_relfilenumber))) {
+        DBUG_INSTANT_PRINT("info", "index relfilenumber value not set when in binary upgrade mode");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("index relfilenumber value not set when in binary upgrade mode")));
+      }
 
       relFileNumber = binary_upgrade_next_index_pg_class_relfilenumber;
       binary_upgrade_next_index_pg_class_relfilenumber = InvalidRelFileNumber;
@@ -1275,6 +1316,7 @@ Oid
 index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
                                Oid tablespaceOid, const char *newName)
 {
+  DBUG_TRACE;
   Relation  indexRelation;
   IndexInfo  *oldInfo,
              *newInfo;
@@ -1302,10 +1344,12 @@ index_concurrently_create_copy(Relation heapRelation, Oid oldIndexId,
    * Concurrent build of an index with exclusion constraints is not
    * supported.
    */
-  if (oldInfo->ii_ExclusionOps != NULL)
+  if (oldInfo->ii_ExclusionOps != NULL) {
+    DBUG_INSTANT_PRINT("info", "concurrent index creation for exclusion constraints is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("concurrent index creation for exclusion constraints is not supported")));
+  }
 
   /* Get the array of class and column options IDs from index info */
   indexTuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(oldIndexId));
@@ -1465,6 +1509,7 @@ void
 index_concurrently_build(Oid heapRelationId,
                          Oid indexRelationId)
 {
+  DBUG_TRACE;
   Relation  heapRel;
   Oid     save_userid;
   int     save_sec_context;
@@ -1531,6 +1576,7 @@ index_concurrently_build(Oid heapRelationId,
 void
 index_concurrently_swap(Oid newIndexId, Oid oldIndexId, const char *oldName)
 {
+  DBUG_TRACE;
   Relation  pg_class,
             pg_index,
             pg_constraint,
@@ -1804,6 +1850,7 @@ index_concurrently_swap(Oid newIndexId, Oid oldIndexId, const char *oldName)
 void
 index_concurrently_set_dead(Oid heapId, Oid indexId)
 {
+  DBUG_TRACE;
   Relation  userHeapRelation;
   Relation  userIndexRelation;
 
@@ -1874,6 +1921,7 @@ index_constraint_create(Relation heapRelation,
                         bool allow_system_table_mods,
                         bool is_internal)
 {
+  DBUG_TRACE;
   Oid     namespaceId = RelationGetNamespace(heapRelation);
   ObjectAddress myself,
                 idxaddr;
@@ -1897,10 +1945,12 @@ index_constraint_create(Relation heapRelation,
   /* enforce system-table restriction */
   if (!allow_system_table_mods &&
       IsSystemRelation(heapRelation) &&
-      IsNormalProcessingMode())
+      IsNormalProcessingMode()) {
+    DBUG_INSTANT_PRINT("info", "user-defined indexes on system catalog tables are not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("user-defined indexes on system catalog tables are not supported")));
+  }
 
   /* primary/unique constraints shouldn't have any expressions */
   if (indexInfo->ii_Expressions &&
@@ -2096,6 +2146,7 @@ index_constraint_create(Relation heapRelation,
 void
 index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 {
+  DBUG_TRACE;
   Oid     heapId;
   Relation  userHeapRelation;
   Relation  userIndexRelation;
@@ -2190,10 +2241,12 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
      * transaction has not executed any transactional updates by checking
      * that no XID has been assigned.
      */
-    if (GetTopTransactionIdIfAny() != InvalidTransactionId)
+    if (GetTopTransactionIdIfAny() != InvalidTransactionId) {
+      DBUG_INSTANT_PRINT("info", "DROP INDEX CONCURRENTLY must be first action in transaction");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("DROP INDEX CONCURRENTLY must be first action in transaction")));
+    }
 
     /*
      * Mark index invalid by updating its pg_index entry
@@ -2399,6 +2452,7 @@ index_drop(Oid indexId, bool concurrent, bool concurrent_lock_mode)
 IndexInfo *
 BuildIndexInfo(Relation index)
 {
+  DBUG_TRACE;
   IndexInfo  *ii;
   Form_pg_index indexStruct = index->rd_index;
   int     i;
@@ -2459,6 +2513,7 @@ BuildIndexInfo(Relation index)
 IndexInfo *
 BuildDummyIndexInfo(Relation index)
 {
+  DBUG_TRACE;
   IndexInfo  *ii;
   Form_pg_index indexStruct = index->rd_index;
   int     i;
@@ -2512,6 +2567,7 @@ CompareIndexInfo(const IndexInfo *info1, const IndexInfo *info2,
                  const Oid *opfamilies1, const Oid *opfamilies2,
                  const AttrMap *attmap)
 {
+  DBUG_TRACE;
   int     i;
 
   if (info1->ii_Unique != info2->ii_Unique)
@@ -2641,6 +2697,7 @@ CompareIndexInfo(const IndexInfo *info1, const IndexInfo *info2,
 void
 BuildSpeculativeIndexInfo(Relation index, IndexInfo *ii)
 {
+  DBUG_TRACE;
   int     indnkeyatts;
   int     i;
 
@@ -2707,6 +2764,7 @@ FormIndexDatum(IndexInfo *indexInfo,
                Datum *values,
                bool *isnull)
 {
+  DBUG_TRACE;
   ListCell   *indexpr_item;
   int     i;
 
@@ -2782,6 +2840,7 @@ index_update_stats(Relation rel,
                    bool hasindex,
                    double reltuples)
 {
+  DBUG_TRACE;
   bool    update_stats;
   BlockNumber relpages = 0; /* keep compiler quiet */
   BlockNumber relallvisible = 0;
@@ -2840,6 +2899,7 @@ index_update_stats(Relation rel,
    */
   if (update_stats) {
     relpages = RelationGetNumberOfBlocks(rel);
+    DBUG_PRINT("info", "relpages:%u", relpages);
 
     if (rel->rd_rel->relkind != RELKIND_INDEX)
       visibilitymap_count(rel, &relallvisible, &relallfrozen);
@@ -2969,10 +3029,12 @@ index_build(Relation heapRelation,
             bool isreindex,
             bool parallel)
 {
+  DBUG_TRACE;
   IndexBuildResult *stats;
   Oid     save_userid;
   int     save_sec_context;
   int     save_nestlevel;
+  char *rel_name, *idx_name;
 
   /*
    * sanity checks
@@ -2994,17 +3056,20 @@ index_build(Relation heapRelation,
       plan_create_index_workers(RelationGetRelid(heapRelation),
                                 RelationGetRelid(indexRelation));
 
-  if (indexInfo->ii_ParallelWorkers == 0)
+  rel_name = RelationGetRelationName(heapRelation);
+  idx_name = RelationGetRelationName(indexRelation);
+
+  if (indexInfo->ii_ParallelWorkers == 0) {
+    DBUG_PRINT("info", "building index \"%s\" on table \"%s\" serially", idx_name, rel_name);
     ereport(DEBUG1,
-            (errmsg_internal("building index \"%s\" on table \"%s\" serially",
-                             RelationGetRelationName(indexRelation),
-                             RelationGetRelationName(heapRelation))));
-  else
+            (errmsg_internal("building index \"%s\" on table \"%s\" serially", idx_name, rel_name)));
+  } else {
+    DBUG_PRINT("info", "building index \"%s\" on table \"%s\" with request for %d parallel workers", idx_name, rel_name, indexInfo->ii_ParallelWorkers);
     ereport(DEBUG1,
             (errmsg_internal("building index \"%s\" on table \"%s\" with request for %d parallel workers",
-                             RelationGetRelationName(indexRelation),
-                             RelationGetRelationName(heapRelation),
+                             idx_name, rel_name,
                              indexInfo->ii_ParallelWorkers)));
+  }
 
   /*
    * Switch to the table owner's userid, so that any index functions are run
@@ -3039,6 +3104,7 @@ index_build(Relation heapRelation,
   /*
    * Call the access method's build procedure
    */
+  DBUG_PRINT("info", "call the access method's build procedure");
   stats = indexRelation->rd_indam->ambuild(heapRelation, indexRelation,
           indexInfo);
   Assert(PointerIsValid(stats));
@@ -3119,10 +3185,12 @@ index_build(Relation heapRelation,
   index_update_stats(heapRelation,
                      true,
                      stats->heap_tuples);
+  DBUG_PRINT("info", "update heap pg_class rows:%g", stats->heap_tuples);
 
   index_update_stats(indexRelation,
                      false,
                      stats->index_tuples);
+  DBUG_PRINT("info", "update index pg_class rows:%g", stats->index_tuples);
 
   /* Make the updated catalog row versions visible */
   CommandCounterIncrement();
@@ -3160,6 +3228,7 @@ IndexCheckExclusion(Relation heapRelation,
                     Relation indexRelation,
                     IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   TableScanDesc scan;
   Datum   values[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];
@@ -3311,6 +3380,7 @@ IndexCheckExclusion(Relation heapRelation,
 void
 validate_index(Oid heapId, Oid indexId, Snapshot snapshot)
 {
+  DBUG_TRACE;
   Relation  heapRelation,
             indexRelation;
   IndexInfo  *indexInfo;
@@ -3444,6 +3514,7 @@ validate_index(Oid heapId, Oid indexId, Snapshot snapshot)
 static bool
 validate_index_callback(ItemPointer itemptr, void *opaque)
 {
+  DBUG_TRACE;
   ValidateIndexState *state = (ValidateIndexState *) opaque;
   int64   encoded = itemptr_encode(itemptr);
 
@@ -3464,6 +3535,7 @@ validate_index_callback(ItemPointer itemptr, void *opaque)
 void
 index_set_state_flags(Oid indexId, IndexStateFlagsAction action)
 {
+  DBUG_TRACE;
   Relation  pg_index;
   HeapTuple indexTuple;
   Form_pg_index indexForm;
@@ -3548,6 +3620,7 @@ index_set_state_flags(Oid indexId, IndexStateFlagsAction action)
 Oid
 IndexGetRelation(Oid indexId, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_index index;
   Oid     result;
@@ -3577,6 +3650,7 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
               bool skip_constraint_checks, char persistence,
               const ReindexParams *params)
 {
+  DBUG_TRACE;
   Relation  iRel,
             heapRelation;
   Oid     heapId;
@@ -3588,6 +3662,7 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
   PGRUsage  ru0;
   bool    progress = ((params->options & REINDEXOPT_REPORT_PROGRESS) != 0);
   bool    set_tablespace = false;
+  char   *heap_name, *index_name;
 
   pg_rusage_init(&ru0);
 
@@ -3689,10 +3764,12 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
    * Don't allow reindex on temp tables of other backends ... their local
    * buffer manager is not going to cope.
    */
-  if (RELATION_IS_OTHER_TEMP(iRel))
+  if (RELATION_IS_OTHER_TEMP(iRel)) {
+    DBUG_INSTANT_PRINT("info", "cannot reindex temporary tables of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot reindex temporary tables of other sessions")));
+  }
 
   /*
    * Don't allow reindex of an invalid index on TOAST table.  This is a
@@ -3700,10 +3777,12 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
    * not be possible to drop it anymore.
    */
   if (IsToastNamespace(RelationGetNamespace(iRel)) &&
-      !get_index_isvalid(indexId))
+      !get_index_isvalid(indexId)) {
+    DBUG_INSTANT_PRINT("info", "cannot reindex invalid index on TOAST table");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot reindex invalid index on TOAST table")));
+  }
 
   /*
    * System relations cannot be moved even if allow_system_table_mods is
@@ -3716,11 +3795,13 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
    * toast relations.
    */
   if (OidIsValid(params->tablespaceOid) &&
-      IsSystemRelation(iRel))
+      IsSystemRelation(iRel)) {
+    DBUG_INSTANT_PRINT("info", "cannot move system relation \"%s\"", RelationGetRelationName(iRel));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot move system relation \"%s\"",
                     RelationGetRelationName(iRel))));
+  }
 
   /* Check if the tablespace of this index needs to be changed */
   if (OidIsValid(params->tablespaceOid) &&
@@ -3773,6 +3854,14 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
 
   /* Create a new physical relation for the index */
   RelationSetNewRelfilenumber(iRel, persistence);
+
+  if (indexId && heapId) {
+    index_name = get_rel_name(indexId);
+    heap_name = get_rel_name(heapId);
+    DBUG_PRINT("info", "heap name:%s, index name:%s", heap_name, index_name);
+    pfree(index_name);
+    pfree(heap_name);
+  }
 
   /* Initialize the index and rebuild */
   /* Note: we do not need to re-establish pkey setting */
@@ -3855,12 +3944,13 @@ reindex_index(const ReindexStmt *stmt, Oid indexId,
   }
 
   /* Log what we did */
-  if ((params->options & REINDEXOPT_VERBOSE) != 0)
+  if ((params->options & REINDEXOPT_VERBOSE) != 0) {
     ereport(INFO,
             (errmsg("index \"%s\" was reindexed",
                     get_rel_name(indexId)),
              errdetail_internal("%s",
                                 pg_rusage_show(&ru0))));
+  }
 
   /* Roll back any GUC changes executed by index functions */
   AtEOXact_GUC(false, save_nestlevel);
@@ -3915,6 +4005,7 @@ bool
 reindex_relation(const ReindexStmt *stmt, Oid relid, int flags,
                  const ReindexParams *params)
 {
+  DBUG_TRACE;
   Relation  rel;
   Oid     toast_relid;
   List     *indexIds;
@@ -3956,6 +4047,7 @@ reindex_relation(const ReindexStmt *stmt, Oid relid, int flags,
 
   if (flags & REINDEX_REL_SUPPRESS_INDEX_USE) {
     /* Suppress use of all the indexes until they are rebuilt */
+    DBUG_PRINT("info", "suppress use of all the indexes until they are rebuilt");
     SetReindexPending(indexIds);
 
     /*
@@ -4005,6 +4097,8 @@ reindex_relation(const ReindexStmt *stmt, Oid relid, int flags,
     persistence = rel->rd_rel->relpersistence;
 
   /* Reindex all the indexes. */
+
+  DBUG_PRINT("info", "reindex all the indexes");
   i = 1;
 
   foreach(indexId, indexIds) {
@@ -4018,11 +4112,15 @@ reindex_relation(const ReindexStmt *stmt, Oid relid, int flags,
      */
     if (IsToastNamespace(indexNamespaceId) &&
         !get_index_isvalid(indexOid)) {
+      char *rel_name = get_rel_name(indexOid);
+      char *namespace_name = get_namespace_name(indexNamespaceId);
+      DBUG_INSTANT_PRINT("info", "cannot reindex invalid index \"%s.%s\" on TOAST table, skipping",
+                         namespace_name, rel_name);
       ereport(WARNING,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot reindex invalid index \"%s.%s\" on TOAST table, skipping",
-                      get_namespace_name(indexNamespaceId),
-                      get_rel_name(indexOid))));
+                      namespace_name,
+                      rel_name)));
 
       /*
        * Remove this invalid toast index from the reindex pending list,
@@ -4115,6 +4213,7 @@ ReindexIsProcessingIndex(Oid indexOid)
 static void
 SetReindexProcessing(Oid heapOid, Oid indexOid)
 {
+  DBUG_TRACE;
   Assert(OidIsValid(heapOid) && OidIsValid(indexOid));
 
   /* Reindexing is not re-entrant. */
@@ -4150,6 +4249,8 @@ ResetReindexProcessing(void)
 static void
 SetReindexPending(List *indexes)
 {
+  DBUG_TRACE;
+
   /* Reindexing is not re-entrant. */
   if (pendingReindexedIndexes)
     elog(ERROR, "cannot reindex while reindexing");
@@ -4168,6 +4269,8 @@ SetReindexPending(List *indexes)
 static void
 RemoveReindexPending(Oid indexOid)
 {
+  DBUG_TRACE;
+
   if (IsInParallelMode())
     elog(ERROR, "cannot modify reindex state during a parallel operation");
 
@@ -4182,6 +4285,8 @@ RemoveReindexPending(Oid indexOid)
 void
 ResetReindexState(int nestLevel)
 {
+  DBUG_TRACE;
+
   /*
    * Because reindexing is not re-entrant, we don't need to cope with nested
    * reindexing states.  We just need to avoid messing up the outer-level
@@ -4221,6 +4326,7 @@ EstimateReindexStateSpace(void)
 void
 SerializeReindexState(Size maxsize, char *start_address)
 {
+  DBUG_TRACE;
   SerializedReindexState *sistate = (SerializedReindexState *) start_address;
   int     c = 0;
   ListCell   *lc;
@@ -4240,6 +4346,7 @@ SerializeReindexState(Size maxsize, char *start_address)
 void
 RestoreReindexState(const void *reindexstate)
 {
+  DBUG_TRACE;
   const SerializedReindexState *sistate = (const SerializedReindexState *) reindexstate;
   int     c = 0;
   MemoryContext oldcontext;

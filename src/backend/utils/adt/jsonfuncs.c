@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -492,6 +493,7 @@ bool
 pg_parse_json_or_errsave(JsonLexContext *lex, const JsonSemAction *sem,
                          Node *escontext)
 {
+  DBUG_TRACE;
   JsonParseErrorType result;
 
   result = pg_parse_json(lex, sem);
@@ -513,6 +515,7 @@ pg_parse_json_or_errsave(JsonLexContext *lex, const JsonSemAction *sem,
 JsonLexContext *
 makeJsonLexContext(JsonLexContext *lex, text *json, bool need_escapes)
 {
+  DBUG_TRACE;
   /*
    * Most callers pass a detoasted datum, but it's not clear that they all
    * do.  pg_detoast_datum_packed() is cheap insurance.
@@ -541,6 +544,7 @@ makeJsonLexContext(JsonLexContext *lex, text *json, bool need_escapes)
 Datum
 jsonb_object_keys(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   OkeysState *state;
 
@@ -611,6 +615,8 @@ void
 json_errsave_error(JsonParseErrorType error, JsonLexContext *lex,
                    Node *escontext)
 {
+  DBUG_TRACE;
+
   if (error == JSON_UNICODE_HIGH_ESCAPE ||
       error == JSON_UNICODE_UNTRANSLATABLE ||
       error == JSON_UNICODE_CODE_POINT_ZERO)
@@ -644,6 +650,7 @@ json_errsave_error(JsonParseErrorType error, JsonLexContext *lex,
 static int
 report_json_context(JsonLexContext *lex)
 {
+  DBUG_TRACE;
   const char *context_start;
   const char *context_end;
   const char *line_start;
@@ -698,6 +705,7 @@ report_json_context(JsonLexContext *lex)
 Datum
 json_object_keys(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   OkeysState *state;
 
@@ -750,6 +758,7 @@ json_object_keys(PG_FUNCTION_ARGS)
 static JsonParseErrorType
 okeys_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   OkeysState *_state = (OkeysState *) state;
 
   /* only collecting keys for the top level object */
@@ -772,6 +781,7 @@ okeys_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 okeys_array_start(void *state)
 {
+  DBUG_TRACE;
   OkeysState *_state = (OkeysState *) state;
 
   /* top level must be a json object */
@@ -787,6 +797,7 @@ okeys_array_start(void *state)
 static JsonParseErrorType
 okeys_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   OkeysState *_state = (OkeysState *) state;
 
   /* top level must be a json object */
@@ -809,6 +820,7 @@ okeys_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 json_object_field(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   text     *fname = PG_GETARG_TEXT_PP(1);
   char     *fnamestr = text_to_cstring(fname);
@@ -825,6 +837,7 @@ json_object_field(PG_FUNCTION_ARGS)
 Datum
 jsonb_object_field(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   JsonbValue *v;
@@ -847,6 +860,7 @@ jsonb_object_field(PG_FUNCTION_ARGS)
 Datum
 json_object_field_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   text     *fname = PG_GETARG_TEXT_PP(1);
   char     *fnamestr = text_to_cstring(fname);
@@ -863,6 +877,7 @@ json_object_field_text(PG_FUNCTION_ARGS)
 Datum
 jsonb_object_field_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   JsonbValue *v;
@@ -885,6 +900,7 @@ jsonb_object_field_text(PG_FUNCTION_ARGS)
 Datum
 json_array_element(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   int     element = PG_GETARG_INT32(1);
   text     *result;
@@ -900,6 +916,7 @@ json_array_element(PG_FUNCTION_ARGS)
 Datum
 jsonb_array_element(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   int     element = PG_GETARG_INT32(1);
   JsonbValue *v;
@@ -928,6 +945,7 @@ jsonb_array_element(PG_FUNCTION_ARGS)
 Datum
 json_array_element_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   int     element = PG_GETARG_INT32(1);
   text     *result;
@@ -943,6 +961,7 @@ json_array_element_text(PG_FUNCTION_ARGS)
 Datum
 jsonb_array_element_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   int     element = PG_GETARG_INT32(1);
   JsonbValue *v;
@@ -971,12 +990,14 @@ jsonb_array_element_text(PG_FUNCTION_ARGS)
 Datum
 json_extract_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return get_path_all(fcinfo, false);
 }
 
 Datum
 json_extract_path_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return get_path_all(fcinfo, true);
 }
 
@@ -986,6 +1007,7 @@ json_extract_path_text(PG_FUNCTION_ARGS)
 static Datum
 get_path_all(FunctionCallInfo fcinfo, bool as_text)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
   text     *result;
@@ -1067,6 +1089,7 @@ get_worker(text *json,
            int npath,
            bool normalize_results)
 {
+  DBUG_TRACE;
   JsonSemAction *sem = palloc0(sizeof(JsonSemAction));
   GetState   *state = palloc0(sizeof(GetState));
 
@@ -1120,6 +1143,7 @@ get_worker(text *json,
 static JsonParseErrorType
 get_object_start(void *state)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   int     lex_level = _state->lex->lex_level;
 
@@ -1138,6 +1162,7 @@ get_object_start(void *state)
 static JsonParseErrorType
 get_object_end(void *state)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   int     lex_level = _state->lex->lex_level;
 
@@ -1155,6 +1180,7 @@ get_object_end(void *state)
 static JsonParseErrorType
 get_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   bool    get_next = false;
   int     lex_level = _state->lex->lex_level;
@@ -1194,6 +1220,7 @@ get_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 get_object_field_end(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   bool    get_last = false;
   int     lex_level = _state->lex->lex_level;
@@ -1239,6 +1266,7 @@ get_object_field_end(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 get_array_start(void *state)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   int     lex_level = _state->lex->lex_level;
 
@@ -1276,6 +1304,7 @@ get_array_start(void *state)
 static JsonParseErrorType
 get_array_end(void *state)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   int     lex_level = _state->lex->lex_level;
 
@@ -1293,6 +1322,7 @@ get_array_end(void *state)
 static JsonParseErrorType
 get_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   bool    get_next = false;
   int     lex_level = _state->lex->lex_level;
@@ -1333,6 +1363,7 @@ get_array_element_start(void *state, bool isnull)
 static JsonParseErrorType
 get_array_element_end(void *state, bool isnull)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   bool    get_last = false;
   int     lex_level = _state->lex->lex_level;
@@ -1371,6 +1402,7 @@ get_array_element_end(void *state, bool isnull)
 static JsonParseErrorType
 get_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   GetState   *_state = (GetState *) state;
   int     lex_level = _state->lex->lex_level;
 
@@ -1407,18 +1439,21 @@ get_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 jsonb_extract_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return get_jsonb_path_all(fcinfo, false);
 }
 
 Datum
 jsonb_extract_path_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return get_jsonb_path_all(fcinfo, true);
 }
 
 static Datum
 get_jsonb_path_all(FunctionCallInfo fcinfo, bool as_text)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
   Datum    *pathtext;
@@ -1450,6 +1485,7 @@ get_jsonb_path_all(FunctionCallInfo fcinfo, bool as_text)
 Datum
 jsonb_get_element(Jsonb *jb, Datum *path, int npath, bool *isnull, bool as_text)
 {
+  DBUG_TRACE;
   JsonbContainer *container = &jb->root;
   JsonbValue *jbvp = NULL;
   int     i;
@@ -1575,6 +1611,7 @@ Datum
 jsonb_set_element(Jsonb *jb, Datum *path, int path_len,
                   JsonbValue *newval)
 {
+  DBUG_TRACE;
   JsonbValue *res;
   JsonbParseState *state = NULL;
   JsonbIterator *it;
@@ -1597,6 +1634,7 @@ jsonb_set_element(Jsonb *jb, Datum *path, int path_len,
 static void
 push_null_elements(JsonbParseState **ps, int num)
 {
+  DBUG_TRACE;
   JsonbValue  null;
 
   null.type = jbvNull;
@@ -1617,6 +1655,7 @@ static void
 push_path(JsonbParseState **st, int level, Datum *path_elems,
           bool *path_nulls, int path_len, JsonbValue *newval)
 {
+  DBUG_TRACE;
   /*
    * tpath contains expected type of an empty jsonb created at each level
    * higher or equal to the current one, either jbvObject or jbvArray. Since
@@ -1694,6 +1733,8 @@ push_path(JsonbParseState **st, int level, Datum *path_elems,
 static text *
 JsonbValueAsText(JsonbValue *v)
 {
+  DBUG_TRACE;
+
   switch (v->type) {
     case jbvNull:
       return NULL;
@@ -1738,6 +1779,7 @@ JsonbValueAsText(JsonbValue *v)
 Datum
 json_array_length(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   AlenState  *state;
   JsonLexContext lex;
@@ -1758,12 +1800,15 @@ json_array_length(PG_FUNCTION_ARGS)
 
   pg_parse_json_or_ereport(state->lex, sem);
 
+  DBUG_PRINT("info", "result:%d", state->count);
   PG_RETURN_INT32(state->count);
 }
 
 Datum
 jsonb_array_length(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  int32 result;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
 
   if (JB_ROOT_IS_SCALAR(jb))
@@ -1775,7 +1820,9 @@ jsonb_array_length(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("cannot get array length of a non-array")));
 
-  PG_RETURN_INT32(JB_ROOT_COUNT(jb));
+  result = JB_ROOT_COUNT(jb);
+  DBUG_PRINT("info", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -1814,6 +1861,7 @@ alen_scalar(void *state, char *token, JsonTokenType tokentype)
 static JsonParseErrorType
 alen_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   AlenState  *_state = (AlenState *) state;
 
   /* just count up all the level 1 elements */
@@ -1836,30 +1884,35 @@ alen_array_element_start(void *state, bool isnull)
 Datum
 json_each(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return each_worker(fcinfo, false);
 }
 
 Datum
 jsonb_each(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return each_worker_jsonb(fcinfo, "jsonb_each", false);
 }
 
 Datum
 json_each_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return each_worker(fcinfo, true);
 }
 
 Datum
 jsonb_each_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return each_worker_jsonb(fcinfo, "jsonb_each_text", true);
 }
 
 static Datum
 each_worker_jsonb(FunctionCallInfo fcinfo, const char *funcname, bool as_text)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   ReturnSetInfo *rsi;
   MemoryContext old_cxt,
@@ -1937,6 +1990,7 @@ each_worker_jsonb(FunctionCallInfo fcinfo, const char *funcname, bool as_text)
 static Datum
 each_worker(FunctionCallInfo fcinfo, bool as_text)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   JsonLexContext lex;
   JsonSemAction *sem;
@@ -1977,6 +2031,7 @@ each_worker(FunctionCallInfo fcinfo, bool as_text)
 static JsonParseErrorType
 each_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   EachState  *_state = (EachState *) state;
 
   /* save a pointer to where the value starts */
@@ -1998,6 +2053,7 @@ each_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 each_object_field_end(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   EachState  *_state = (EachState *) state;
   MemoryContext old_cxt;
   int     len;
@@ -2041,6 +2097,7 @@ each_object_field_end(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 each_array_start(void *state)
 {
+  DBUG_TRACE;
   EachState  *_state = (EachState *) state;
 
   /* json structure check */
@@ -2055,6 +2112,7 @@ each_array_start(void *state)
 static JsonParseErrorType
 each_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   EachState  *_state = (EachState *) state;
 
   /* json structure check */
@@ -2081,12 +2139,14 @@ each_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 jsonb_array_elements(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return elements_worker_jsonb(fcinfo, "jsonb_array_elements", false);
 }
 
 Datum
 jsonb_array_elements_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return elements_worker_jsonb(fcinfo, "jsonb_array_elements_text", true);
 }
 
@@ -2094,6 +2154,7 @@ static Datum
 elements_worker_jsonb(FunctionCallInfo fcinfo, const char *funcname,
                       bool as_text)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   ReturnSetInfo *rsi;
   MemoryContext old_cxt,
@@ -2162,18 +2223,21 @@ elements_worker_jsonb(FunctionCallInfo fcinfo, const char *funcname,
 Datum
 json_array_elements(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return elements_worker(fcinfo, "json_array_elements", false);
 }
 
 Datum
 json_array_elements_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return elements_worker(fcinfo, "json_array_elements_text", true);
 }
 
 static Datum
 elements_worker(FunctionCallInfo fcinfo, const char *funcname, bool as_text)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   JsonLexContext lex;
   JsonSemAction *sem;
@@ -2216,6 +2280,7 @@ elements_worker(FunctionCallInfo fcinfo, const char *funcname, bool as_text)
 static JsonParseErrorType
 elements_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   ElementsState *_state = (ElementsState *) state;
 
   /* save a pointer to where the value starts */
@@ -2237,6 +2302,7 @@ elements_array_element_start(void *state, bool isnull)
 static JsonParseErrorType
 elements_array_element_end(void *state, bool isnull)
 {
+  DBUG_TRACE;
   ElementsState *_state = (ElementsState *) state;
   MemoryContext old_cxt;
   int     len;
@@ -2278,6 +2344,7 @@ elements_array_element_end(void *state, bool isnull)
 static JsonParseErrorType
 elements_object_start(void *state)
 {
+  DBUG_TRACE;
   ElementsState *_state = (ElementsState *) state;
 
   /* json structure check */
@@ -2293,6 +2360,7 @@ elements_object_start(void *state)
 static JsonParseErrorType
 elements_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   ElementsState *_state = (ElementsState *) state;
 
   /* json structure check */
@@ -2324,6 +2392,7 @@ elements_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 jsonb_populate_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_record_worker(fcinfo, "jsonb_populate_record",
                                 false, true, NULL);
 }
@@ -2337,6 +2406,7 @@ jsonb_populate_record(PG_FUNCTION_ARGS)
 Datum
 jsonb_populate_record_valid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
 
   (void) populate_record_worker(fcinfo, "jsonb_populate_record",
@@ -2348,6 +2418,7 @@ jsonb_populate_record_valid(PG_FUNCTION_ARGS)
 Datum
 jsonb_to_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_record_worker(fcinfo, "jsonb_to_record",
                                 false, false, NULL);
 }
@@ -2355,6 +2426,7 @@ jsonb_to_record(PG_FUNCTION_ARGS)
 Datum
 json_populate_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_record_worker(fcinfo, "json_populate_record",
                                 true, true, NULL);
 }
@@ -2362,6 +2434,7 @@ json_populate_record(PG_FUNCTION_ARGS)
 Datum
 json_to_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_record_worker(fcinfo, "json_to_record",
                                 true, false, NULL);
 }
@@ -2370,6 +2443,8 @@ json_to_record(PG_FUNCTION_ARGS)
 static void
 populate_array_report_expected_array(PopulateArrayContext *ctx, int ndim)
 {
+  DBUG_TRACE;
+
   if (ndim <= 0) {
     if (ctx->colname)
       errsave(ctx->escontext,
@@ -2419,9 +2494,12 @@ populate_array_report_expected_array(PopulateArrayContext *ctx, int ndim)
 static bool
 populate_array_assign_ndims(PopulateArrayContext *ctx, int ndims)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(ctx->ndims <= 0);
+
+  DBUG_PRINT("info", "ndims:%d", ndims);
 
   if (ndims <= 0) {
     populate_array_report_expected_array(ctx, ndims);
@@ -2448,6 +2526,7 @@ populate_array_assign_ndims(PopulateArrayContext *ctx, int ndims)
 static bool
 populate_array_check_dimension(PopulateArrayContext *ctx, int ndim)
 {
+  DBUG_TRACE;
   int     dim = ctx->sizes[ndim]; /* current dimension counter */
 
   if (ctx->dims[ndim] == -1)
@@ -2476,9 +2555,11 @@ populate_array_check_dimension(PopulateArrayContext *ctx, int ndim)
 static bool
 populate_array_element(PopulateArrayContext *ctx, int ndim, JsValue *jsv)
 {
+  DBUG_TRACE;
   Datum   element;
   bool    element_isnull;
 
+  DBUG_PRINT("info", "ndim:%d", ndim);
   /* populate the array element */
   element = populate_record_field(ctx->aio->element_info,
                                   ctx->aio->element_type,
@@ -2504,6 +2585,7 @@ populate_array_element(PopulateArrayContext *ctx, int ndim, JsValue *jsv)
 static JsonParseErrorType
 populate_array_object_start(void *_state)
 {
+  DBUG_TRACE;
   PopulateArrayState *state = (PopulateArrayState *) _state;
   int     ndim = state->lex->lex_level;
 
@@ -2524,6 +2606,7 @@ populate_array_object_start(void *_state)
 static JsonParseErrorType
 populate_array_array_end(void *_state)
 {
+  DBUG_TRACE;
   PopulateArrayState *state = (PopulateArrayState *) _state;
   PopulateArrayContext *ctx = state->ctx;
   int     ndim = state->lex->lex_level;
@@ -2546,6 +2629,7 @@ populate_array_array_end(void *_state)
 static JsonParseErrorType
 populate_array_element_start(void *_state, bool isnull)
 {
+  DBUG_TRACE;
   PopulateArrayState *state = (PopulateArrayState *) _state;
   int     ndim = state->lex->lex_level;
 
@@ -2563,6 +2647,7 @@ populate_array_element_start(void *_state, bool isnull)
 static JsonParseErrorType
 populate_array_element_end(void *_state, bool isnull)
 {
+  DBUG_TRACE;
   PopulateArrayState *state = (PopulateArrayState *) _state;
   PopulateArrayContext *ctx = state->ctx;
   int     ndim = state->lex->lex_level;
@@ -2600,6 +2685,7 @@ populate_array_element_end(void *_state, bool isnull)
 static JsonParseErrorType
 populate_array_scalar(void *_state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   PopulateArrayState *state = (PopulateArrayState *) _state;
   PopulateArrayContext *ctx = state->ctx;
   int     ndim = state->lex->lex_level;
@@ -2632,6 +2718,7 @@ populate_array_scalar(void *_state, char *token, JsonTokenType tokentype)
 static bool
 populate_array_json(PopulateArrayContext *ctx, const char *json, int len)
 {
+  DBUG_TRACE;
   PopulateArrayState state;
   JsonSemAction sem;
 
@@ -2669,6 +2756,7 @@ populate_array_dim_jsonb(PopulateArrayContext *ctx, /* context */
                          JsonbValue *jbv, /* jsonb sub-array */
                          int ndim)  /* current dimension */
 {
+  DBUG_TRACE;
   JsonbContainer *jbc = jbv->val.binary.data;
   JsonbIterator *it;
   JsonbIteratorToken tok;
@@ -2676,6 +2764,8 @@ populate_array_dim_jsonb(PopulateArrayContext *ctx, /* context */
   JsValue   jsv;
 
   check_stack_depth();
+
+  DBUG_PRINT("info", "ndim:%d", ndim);
 
   /* Even scalars can end up here thanks to ExecEvalJsonCoercion(). */
   if (jbv->type != jbvBinary || !JsonContainerIsArray(jbc) ||
@@ -2756,11 +2846,13 @@ populate_array(ArrayIOData *aio,
                bool *isnull,
                Node *escontext)
 {
+  DBUG_TRACE;
   PopulateArrayContext ctx;
   Datum   result;
   int      *lbs;
   int     i;
 
+  DBUG_PRINT("info", "recursively populate an array from json/jsonb");
   ctx.aio = aio;
   ctx.mcxt = mcxt;
   ctx.acxt = CurrentMemoryContext;
@@ -2855,6 +2947,8 @@ JsValueToJsObject(JsValue *jsv, JsObject *jso, Node *escontext)
 static void
 update_cached_tupdesc(CompositeIOData *io, MemoryContext mcxt)
 {
+  DBUG_TRACE;
+
   if (!io->tupdesc ||
       io->tupdesc->tdtypeid != io->base_typid ||
       io->tupdesc->tdtypmod != io->base_typmod) {
@@ -2890,8 +2984,10 @@ populate_composite(CompositeIOData *io,
                    bool *isnull,
                    Node *escontext)
 {
+  DBUG_TRACE;
   Datum   result;
 
+  DBUG_PRINT("info", "recursively populate a composite (row type) value from json/jsonb");
   /* acquire/update cached tuple descriptor */
   update_cached_tupdesc(io, mcxt);
 
@@ -2947,6 +3043,7 @@ static Datum
 populate_scalar(ScalarIOData *io, Oid typid, int32 typmod, JsValue *jsv,
                 bool *isnull, Node *escontext, bool omit_quotes)
 {
+  DBUG_TRACE;
   Datum   res;
   char     *str = NULL;
   const char *json = NULL;
@@ -3035,6 +3132,7 @@ populate_domain(DomainIOData *io,
                 Node *escontext,
                 bool omit_quotes)
 {
+  DBUG_TRACE;
   Datum   res;
 
   if (*isnull)
@@ -3064,6 +3162,7 @@ prepare_column_cache(ColumnIOData *column,
                      MemoryContext mcxt,
                      bool need_scalar)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_type type;
 
@@ -3149,6 +3248,7 @@ json_populate_type(Datum json_val, Oid json_type,
                    bool *isnull, bool omit_quotes,
                    Node *escontext)
 {
+  DBUG_TRACE;
   JsValue   jsv = {0};
   JsonbValue  jbv;
 
@@ -3207,6 +3307,7 @@ populate_record_field(ColumnIOData *col,
                       Node *escontext,
                       bool omit_scalar_quotes)
 {
+  DBUG_TRACE;
   TypeCat   typcat;
 
   check_stack_depth();
@@ -3313,6 +3414,7 @@ populate_record(TupleDesc tupdesc,
                 JsObject *obj,
                 Node *escontext)
 {
+  DBUG_TRACE;
   RecordIOData *record = *record_p;
   Datum    *values;
   bool     *nulls;
@@ -3419,6 +3521,7 @@ get_record_type_from_argument(FunctionCallInfo fcinfo,
                               const char *funcname,
                               PopulateRecordCache *cache)
 {
+  DBUG_TRACE;
   cache->argtype = get_fn_expr_argtype(fcinfo->flinfo, 0);
   prepare_column_cache(&cache->c,
                        cache->argtype, -1,
@@ -3446,6 +3549,7 @@ get_record_type_from_query(FunctionCallInfo fcinfo,
                            const char *funcname,
                            PopulateRecordCache *cache)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   MemoryContext old_cxt;
 
@@ -3483,6 +3587,7 @@ populate_record_worker(FunctionCallInfo fcinfo, const char *funcname,
                        bool is_json, bool have_record_arg,
                        Node *escontext)
 {
+  DBUG_TRACE;
   int     json_arg_num = have_record_arg ? 1 : 0;
   JsValue   jsv = {0};
   HeapTupleHeader rec;
@@ -3584,6 +3689,7 @@ static HTAB *
 get_json_object_as_hash(const char *json, int len, const char *funcname,
                         Node *escontext)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
   HTAB     *tab;
   JHashState *state;
@@ -3624,6 +3730,7 @@ get_json_object_as_hash(const char *json, int len, const char *funcname,
 static JsonParseErrorType
 hash_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   JHashState *_state = (JHashState *) state;
 
   if (_state->lex->lex_level > 1)
@@ -3647,6 +3754,7 @@ hash_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 hash_object_field_end(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   JHashState *_state = (JHashState *) state;
   JsonHashEntry *hashentry;
   bool    found;
@@ -3695,6 +3803,7 @@ hash_object_field_end(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 hash_array_start(void *state)
 {
+  DBUG_TRACE;
   JHashState *_state = (JHashState *) state;
 
   if (_state->lex->lex_level == 0)
@@ -3708,6 +3817,7 @@ hash_array_start(void *state)
 static JsonParseErrorType
 hash_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   JHashState *_state = (JHashState *) state;
 
   if (_state->lex->lex_level == 0)
@@ -3738,6 +3848,7 @@ hash_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 jsonb_populate_recordset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_recordset_worker(fcinfo, "jsonb_populate_recordset",
                                    false, true);
 }
@@ -3745,6 +3856,7 @@ jsonb_populate_recordset(PG_FUNCTION_ARGS)
 Datum
 jsonb_to_recordset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_recordset_worker(fcinfo, "jsonb_to_recordset",
                                    false, false);
 }
@@ -3752,6 +3864,7 @@ jsonb_to_recordset(PG_FUNCTION_ARGS)
 Datum
 json_populate_recordset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_recordset_worker(fcinfo, "json_populate_recordset",
                                    true, true);
 }
@@ -3759,6 +3872,7 @@ json_populate_recordset(PG_FUNCTION_ARGS)
 Datum
 json_to_recordset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return populate_recordset_worker(fcinfo, "json_to_recordset",
                                    true, false);
 }
@@ -3766,6 +3880,7 @@ json_to_recordset(PG_FUNCTION_ARGS)
 static void
 populate_recordset_record(PopulateRecordsetState *state, JsObject *obj)
 {
+  DBUG_TRACE;
   PopulateRecordCache *cache = state->cache;
   HeapTupleHeader tuphead;
   HeapTupleData tuple;
@@ -3806,6 +3921,7 @@ static Datum
 populate_recordset_worker(FunctionCallInfo fcinfo, const char *funcname,
                           bool is_json, bool have_record_arg)
 {
+  DBUG_TRACE;
   int     json_arg_num = have_record_arg ? 1 : 0;
   ReturnSetInfo *rsi;
   MemoryContext old_cxt;
@@ -3968,6 +4084,7 @@ populate_recordset_worker(FunctionCallInfo fcinfo, const char *funcname,
 static JsonParseErrorType
 populate_recordset_object_start(void *state)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
   int     lex_level = _state->lex->lex_level;
   HASHCTL   ctl;
@@ -3998,6 +4115,7 @@ populate_recordset_object_start(void *state)
 static JsonParseErrorType
 populate_recordset_object_end(void *state)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
   JsObject  obj;
 
@@ -4021,6 +4139,7 @@ populate_recordset_object_end(void *state)
 static JsonParseErrorType
 populate_recordset_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
 
   if (_state->lex->lex_level == 1 &&
@@ -4036,6 +4155,7 @@ populate_recordset_array_element_start(void *state, bool isnull)
 static JsonParseErrorType
 populate_recordset_array_start(void *state)
 {
+  DBUG_TRACE;
   /* nothing to do */
   return JSON_SUCCESS;
 }
@@ -4043,6 +4163,7 @@ populate_recordset_array_start(void *state)
 static JsonParseErrorType
 populate_recordset_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
 
   if (_state->lex->lex_level == 0)
@@ -4060,6 +4181,7 @@ populate_recordset_scalar(void *state, char *token, JsonTokenType tokentype)
 static JsonParseErrorType
 populate_recordset_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
 
   if (_state->lex->lex_level > 2)
@@ -4080,6 +4202,7 @@ populate_recordset_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 populate_recordset_object_field_end(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   PopulateRecordsetState *_state = (PopulateRecordsetState *) state;
   JsonHashEntry *hashentry;
   bool    found;
@@ -4137,6 +4260,7 @@ populate_recordset_object_field_end(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 sn_object_start(void *state)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   appendStringInfoCharMacro(_state->strval, '{');
@@ -4147,6 +4271,7 @@ sn_object_start(void *state)
 static JsonParseErrorType
 sn_object_end(void *state)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   appendStringInfoCharMacro(_state->strval, '}');
@@ -4157,6 +4282,7 @@ sn_object_end(void *state)
 static JsonParseErrorType
 sn_array_start(void *state)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   appendStringInfoCharMacro(_state->strval, '[');
@@ -4167,6 +4293,7 @@ sn_array_start(void *state)
 static JsonParseErrorType
 sn_array_end(void *state)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   appendStringInfoCharMacro(_state->strval, ']');
@@ -4177,6 +4304,7 @@ sn_array_end(void *state)
 static JsonParseErrorType
 sn_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   if (isnull) {
@@ -4206,6 +4334,7 @@ sn_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 sn_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   /* If strip_in_arrays is enabled and this is a null, mark it for skipping */
@@ -4226,6 +4355,7 @@ sn_array_element_start(void *state, bool isnull)
 static JsonParseErrorType
 sn_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   StripnullState *_state = (StripnullState *) state;
 
   if (_state->skip_next_null) {
@@ -4248,6 +4378,7 @@ sn_scalar(void *state, char *token, JsonTokenType tokentype)
 Datum
 json_strip_nulls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   bool    strip_in_arrays = PG_NARGS() == 2 ? PG_GETARG_BOOL(1) : false;
   StripnullState *state;
@@ -4283,6 +4414,7 @@ json_strip_nulls(PG_FUNCTION_ARGS)
 Datum
 jsonb_strip_nulls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   bool    strip_in_arrays = false;
   JsonbIterator *it;
@@ -4347,6 +4479,7 @@ jsonb_strip_nulls(PG_FUNCTION_ARGS)
 Datum
 jsonb_pretty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   StringInfo  str = makeStringInfo();
 
@@ -4363,6 +4496,7 @@ jsonb_pretty(PG_FUNCTION_ARGS)
 Datum
 jsonb_concat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb1 = PG_GETARG_JSONB_P(0);
   Jsonb    *jb2 = PG_GETARG_JSONB_P(1);
   JsonbParseState *state = NULL;
@@ -4403,6 +4537,7 @@ jsonb_concat(PG_FUNCTION_ARGS)
 Datum
 jsonb_delete(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   char     *keyptr = VARDATA_ANY(key);
@@ -4454,6 +4589,7 @@ jsonb_delete(PG_FUNCTION_ARGS)
 Datum
 jsonb_delete_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   ArrayType  *keys = PG_GETARG_ARRAYTYPE_P(1);
   Datum    *keys_elems;
@@ -4538,6 +4674,7 @@ jsonb_delete_array(PG_FUNCTION_ARGS)
 Datum
 jsonb_delete_idx(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   int     idx = PG_GETARG_INT32(1);
   JsonbParseState *state = NULL;
@@ -4599,6 +4736,7 @@ jsonb_delete_idx(PG_FUNCTION_ARGS)
 Datum
 jsonb_set(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
   Jsonb    *newjsonb = PG_GETARG_JSONB_P(2);
@@ -4648,6 +4786,7 @@ jsonb_set(PG_FUNCTION_ARGS)
 Datum
 jsonb_set_lax(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Jsonb     *in = PG_GETARG_JSONB_P(0); */
   /* ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1); */
   /* Jsonb    *newval = PG_GETARG_JSONB_P(2); */
@@ -4706,6 +4845,7 @@ jsonb_set_lax(PG_FUNCTION_ARGS)
 Datum
 jsonb_delete_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
   JsonbValue *res = NULL;
@@ -4749,6 +4889,7 @@ jsonb_delete_path(PG_FUNCTION_ARGS)
 Datum
 jsonb_insert(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   ArrayType  *path = PG_GETARG_ARRAYTYPE_P(1);
   Jsonb    *newjsonb = PG_GETARG_JSONB_P(2);
@@ -4799,6 +4940,7 @@ static JsonbValue *
 IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
                JsonbParseState **state)
 {
+  DBUG_TRACE;
   JsonbValue  v1,
               v2,
               *res = NULL;
@@ -4807,6 +4949,7 @@ IteratorConcat(JsonbIterator **it1, JsonbIterator **it2,
                      rk1,
                      rk2;
 
+  DBUG_PRINT("info", "iterate over all jsonb objects and merge them into one");
   rk1 = JsonbIteratorNext(it1, &v1, false);
   rk2 = JsonbIteratorNext(it2, &v2, false);
 
@@ -4922,6 +5065,7 @@ setPath(JsonbIterator **it, Datum *path_elems,
         bool *path_nulls, int path_len,
         JsonbParseState **st, int level, JsonbValue *newval, int op_type)
 {
+  DBUG_TRACE;
   JsonbValue  v;
   JsonbIteratorToken r;
   JsonbValue *res;
@@ -5006,6 +5150,7 @@ setPathObject(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
               int path_len, JsonbParseState **st, int level,
               JsonbValue *newval, uint32 npairs, int op_type)
 {
+  DBUG_TRACE;
   text     *pathelem = NULL;
   int     i;
   JsonbValue  k,
@@ -5134,6 +5279,7 @@ setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
              int path_len, JsonbParseState **st, int level,
              JsonbValue *newval, uint32 nelems, int op_type)
 {
+  DBUG_TRACE;
   JsonbValue  v;
   int     idx,
           i;
@@ -5288,6 +5434,7 @@ setPathArray(JsonbIterator **it, Datum *path_elems, bool *path_nulls,
 uint32
 parse_jsonb_index_flags(Jsonb *jb)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
   JsonbValue  v;
   JsonbIteratorToken type;
@@ -5357,6 +5504,7 @@ void
 iterate_jsonb_values(Jsonb *jb, uint32 flags, void *state,
                      JsonIterateStringValuesAction action)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
   JsonbValue  v;
   JsonbIteratorToken type;
@@ -5424,6 +5572,7 @@ void
 iterate_json_values(text *json, uint32 flags, void *action_state,
                     JsonIterateStringValuesAction action)
 {
+  DBUG_TRACE;
   JsonLexContext lex;
   JsonSemAction *sem = palloc0(sizeof(JsonSemAction));
   IterateJsonStringValuesState *state = palloc0(sizeof(IterateJsonStringValuesState));
@@ -5448,6 +5597,7 @@ iterate_json_values(text *json, uint32 flags, void *action_state,
 static JsonParseErrorType
 iterate_values_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   IterateJsonStringValuesState *_state = (IterateJsonStringValuesState *) state;
 
   switch (tokentype) {
@@ -5481,6 +5631,7 @@ iterate_values_scalar(void *state, char *token, JsonTokenType tokentype)
 static JsonParseErrorType
 iterate_values_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   IterateJsonStringValuesState *_state = (IterateJsonStringValuesState *) state;
 
   if (_state->flags & jtiKey) {
@@ -5502,6 +5653,7 @@ Jsonb *
 transform_jsonb_string_values(Jsonb *jsonb, void *action_state,
                               JsonTransformStringValuesAction transform_action)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
   JsonbValue  v,
               *res = NULL;
@@ -5545,6 +5697,7 @@ text *
 transform_json_string_values(text *json, void *action_state,
                              JsonTransformStringValuesAction transform_action)
 {
+  DBUG_TRACE;
   JsonLexContext lex;
   JsonSemAction *sem = palloc0(sizeof(JsonSemAction));
   TransformJsonStringValuesState *state = palloc0(sizeof(TransformJsonStringValuesState));
@@ -5577,6 +5730,7 @@ transform_json_string_values(text *json, void *action_state,
 static JsonParseErrorType
 transform_string_values_object_start(void *state)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   appendStringInfoCharMacro(_state->strval, '{');
@@ -5587,6 +5741,7 @@ transform_string_values_object_start(void *state)
 static JsonParseErrorType
 transform_string_values_object_end(void *state)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   appendStringInfoCharMacro(_state->strval, '}');
@@ -5597,6 +5752,7 @@ transform_string_values_object_end(void *state)
 static JsonParseErrorType
 transform_string_values_array_start(void *state)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   appendStringInfoCharMacro(_state->strval, '[');
@@ -5607,6 +5763,7 @@ transform_string_values_array_start(void *state)
 static JsonParseErrorType
 transform_string_values_array_end(void *state)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   appendStringInfoCharMacro(_state->strval, ']');
@@ -5617,6 +5774,7 @@ transform_string_values_array_end(void *state)
 static JsonParseErrorType
 transform_string_values_object_field_start(void *state, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   if (_state->strval->data[_state->strval->len - 1] != '{')
@@ -5635,6 +5793,7 @@ transform_string_values_object_field_start(void *state, char *fname, bool isnull
 static JsonParseErrorType
 transform_string_values_array_element_start(void *state, bool isnull)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   if (_state->strval->data[_state->strval->len - 1] != '[')
@@ -5646,6 +5805,7 @@ transform_string_values_array_element_start(void *state, bool isnull)
 static JsonParseErrorType
 transform_string_values_scalar(void *state, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   TransformJsonStringValuesState *_state = (TransformJsonStringValuesState *) state;
 
   if (tokentype == JSON_TOKEN_STRING) {
@@ -5661,6 +5821,7 @@ transform_string_values_scalar(void *state, char *token, JsonTokenType tokentype
 JsonTokenType
 json_get_first_token(text *json, bool throw_error)
 {
+  DBUG_TRACE;
   JsonLexContext lex;
   JsonParseErrorType result;
 
@@ -5689,6 +5850,7 @@ void
 json_categorize_type(Oid typoid, bool is_jsonb,
                      JsonTypeCategory *tcategory, Oid *outfuncoid)
 {
+  DBUG_TRACE;
   bool    typisvarlena;
 
   /* Look through any domain */

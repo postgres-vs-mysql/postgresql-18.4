@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #ifdef HAVE_COPYFILE_H
@@ -47,6 +48,7 @@ static void clone_file(const char *fromfile, const char *tofile);
 void
 copydir(const char *fromdir, const char *todir, bool recurse)
 {
+  DBUG_TRACE;
   DIR      *xldir;
   struct dirent *xlde;
   char    fromfile[MAXPGPATH * 2];
@@ -129,6 +131,7 @@ copydir(const char *fromdir, const char *todir, bool recurse)
 void
 copy_file(const char *fromfile, const char *tofile)
 {
+  DBUG_TRACE;
   char     *buffer;
   int     srcfd;
   int     dstfd;

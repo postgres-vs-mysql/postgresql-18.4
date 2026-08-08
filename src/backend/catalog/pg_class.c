@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_class.h"
@@ -23,6 +24,9 @@
 int
 errdetail_relkind_not_supported(char relkind)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "relkind:%d", relkind);
+
   switch (relkind) {
     case RELKIND_RELATION:
       return errdetail("This operation is not supported for tables.");

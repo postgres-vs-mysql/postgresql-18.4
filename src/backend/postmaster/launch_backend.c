@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -75,7 +76,7 @@
 #ifdef WIN32
 typedef struct {
   SOCKET    origsocket;   /* Original socket value, or PGINVALID_SOCKET
-                 * if not a socket */
+                           * if not a socket */
   WSAPROTOCOL_INFO wsainfo;
 } InheritableSocket;
 #else
@@ -210,22 +211,10 @@ PostmasterChildName(BackendType child_type)
   return child_process_kinds[child_type].name;
 }
 
-/*
- * Start a new postmaster child process.
- *
- * The child process will be restored to roughly the same state whether
- * EXEC_BACKEND is used or not: it will be attached to shared memory if
- * appropriate, and fds and other resources that we've inherited from
- * postmaster that are not needed in a child process have been closed.
- *
- * 'child_slot' is the PMChildFlags array index reserved for the child
- * process.  'startup_data' is an optional contiguous chunk of data that is
- * passed to the child process.
- */
 pid_t
-postmaster_child_launch(BackendType child_type, int child_slot,
+postmaster_child_launch_with_traced(BackendType child_type, int child_slot,
                         void *startup_data, size_t startup_data_len,
-                        ClientSocket *client_sock)
+                        ClientSocket *client_sock, bool debug_traced)
 {
   pid_t   pid;
 
@@ -243,6 +232,11 @@ postmaster_child_launch(BackendType child_type, int child_slot,
   pid = fork_process();
 
   if (pid == 0) {     /* child */
+    if (debug_traced) {
+      set_trace_enabled();
+    }
+    set_trace_ctx_null();
+
     /* Capture and transfer timings that may be needed for logging */
     if (IsExternalConnectionBackend(child_type)) {
       conn_timing.socket_create =
@@ -282,6 +276,92 @@ postmaster_child_launch(BackendType child_type, int child_slot,
     /*
      * Run the appropriate Main function
      */
+    DBUG_PRINT("info", "run the appropriate Main function");
+    child_process_kinds[child_type].main_fn(startup_data, startup_data_len);
+    pg_unreachable();   /* main_fn never returns */
+  }
+
+#endif              /* EXEC_BACKEND */
+  return pid;
+}
+
+
+/*
+ * Start a new postmaster child process.
+ *
+ * The child process will be restored to roughly the same state whether
+ * EXEC_BACKEND is used or not: it will be attached to shared memory if
+ * appropriate, and fds and other resources that we've inherited from
+ * postmaster that are not needed in a child process have been closed.
+ *
+ * 'child_slot' is the PMChildFlags array index reserved for the child
+ * process.  'startup_data' is an optional contiguous chunk of data that is
+ * passed to the child process.
+ */
+pid_t
+postmaster_child_launch(BackendType child_type, int child_slot,
+                        void *startup_data, size_t startup_data_len,
+                        ClientSocket *client_sock)
+{
+  DBUG_TRACE;
+  pid_t   pid;
+
+  Assert(IsPostmasterEnvironment && !IsUnderPostmaster);
+
+  /* Capture time Postmaster initiates process creation for logging */
+  if (IsExternalConnectionBackend(child_type))
+    ((BackendStartupData *) startup_data)->fork_started = GetCurrentTimestamp();
+
+#ifdef EXEC_BACKEND
+  pid = internal_forkexec(child_process_kinds[child_type].name, child_slot,
+                          startup_data, startup_data_len, client_sock);
+  /* the child process will arrive in SubPostmasterMain */
+#else             /* !EXEC_BACKEND */
+  pid = fork_process();
+
+  if (pid == 0) {     /* child */
+    set_trace_ctx_null();
+
+    /* Capture and transfer timings that may be needed for logging */
+    if (IsExternalConnectionBackend(child_type)) {
+      conn_timing.socket_create =
+        ((BackendStartupData *) startup_data)->socket_created;
+      conn_timing.fork_start =
+        ((BackendStartupData *) startup_data)->fork_started;
+      conn_timing.fork_end = GetCurrentTimestamp();
+    }
+
+    /* Close the postmaster's sockets */
+    ClosePostmasterPorts(child_type == B_LOGGER);
+
+    /* Detangle from postmaster */
+    InitPostmasterChild();
+
+    /* Detach shared memory if not needed. */
+    if (!child_process_kinds[child_type].shmem_attach) {
+      dsm_detach_all();
+      PGSharedMemoryDetach();
+    }
+
+    /*
+     * Enter the Main function with TopMemoryContext.  The startup data is
+     * allocated in PostmasterContext, so we cannot release it here yet.
+     * The Main function will do it after it's done handling the startup
+     * data.
+     */
+    MemoryContextSwitchTo(TopMemoryContext);
+
+    MyPMChildSlot = child_slot;
+
+    if (client_sock) {
+      MyClientSocket = palloc(sizeof(ClientSocket));
+      memcpy(MyClientSocket, client_sock, sizeof(ClientSocket));
+    }
+
+    /*
+     * Run the appropriate Main function
+     */
+    DBUG_PRINT("info", "run the appropriate Main function");
     child_process_kinds[child_type].main_fn(startup_data, startup_data_len);
     pg_unreachable();   /* main_fn never returns */
   }
@@ -303,6 +383,7 @@ static pid_t
 internal_forkexec(const char *child_kind, int child_slot,
                   const void *startup_data, size_t startup_data_len, ClientSocket *client_sock)
 {
+  DBUG_TRACE;
   static unsigned long tmpBackendFileNum = 0;
   pid_t   pid;
   char    tmpfilename[MAXPGPATH];
@@ -410,6 +491,7 @@ static pid_t
 internal_forkexec(const char *child_kind, int child_slot,
                   const void *startup_data, size_t startup_data_len, ClientSocket *client_sock)
 {
+  DBUG_TRACE;
   int     retry_count = 0;
   STARTUPINFO si;
   PROCESS_INFORMATION pi;
@@ -592,6 +674,7 @@ retry:
 void
 SubPostmasterMain(int argc, char *argv[])
 {
+  DBUG_TRACE;
   void     *startup_data;
   size_t    startup_data_len;
   char     *child_kind;
@@ -705,6 +788,7 @@ SubPostmasterMain(int argc, char *argv[])
   /*
    * Run the appropriate Main function
    */
+  DBUG_PRINT("info", "run the appropriate Main function");
   child_process_kinds[child_type].main_fn(startup_data, startup_data_len);
   pg_unreachable();     /* main_fn never returns */
 }

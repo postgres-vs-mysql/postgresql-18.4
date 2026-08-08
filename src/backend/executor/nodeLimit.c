@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeLimit.h"
@@ -39,6 +40,7 @@ static int64 compute_tuples_needed(LimitState *node);
 static TupleTableSlot *     /* return: a tuple or NULL */
 ExecLimit(PlanState *pstate)
 {
+  DBUG_TRACE;
   LimitState *node = castNode(LimitState, pstate);
   ExprContext *econtext = node->ps.ps_ExprContext;
   ScanDirection direction;
@@ -53,6 +55,8 @@ ExecLimit(PlanState *pstate)
   direction = node->ps.state->es_direction;
   outerPlan = outerPlanState(node);
 
+  DBUG_PRINT("info", "state machine status:%d", node->lstate);
+
   /*
    * The main logic is a simple state machine.
    */
@@ -65,6 +69,7 @@ ExecLimit(PlanState *pstate)
        * be set during ExecInitLimit.)  This also sets position = 0 and
        * changes the state to LIMIT_RESCAN.
        */
+      DBUG_PRINT("info", "first call for this node, so compute limit/offset");
       recompute_limits(node);
 
     /* FALL THRU */
@@ -74,16 +79,21 @@ ExecLimit(PlanState *pstate)
       /*
        * If backwards scan, just return NULL without changing state.
        */
-      if (!ScanDirectionIsForward(direction))
+      if (!ScanDirectionIsForward(direction)) {
+        DBUG_PRINT("info", "if backwards scan, just return NULL without changing state");
         return NULL;
+      }
 
       /*
        * Check for empty window; if so, treat like empty subplan.
        */
       if (node->count <= 0 && !node->noCount) {
         node->lstate = LIMIT_EMPTY;
+        DBUG_PRINT("info", "treat like empty subplan");
         return NULL;
       }
+
+      DBUG_PRINT("info", "fetch rows from subplan until we reach position > offset:%lu", node->offset);
 
       /*
        * Fetch rows from subplan until we reach position > offset.
@@ -97,6 +107,7 @@ ExecLimit(PlanState *pstate)
            * any output at all.
            */
           node->lstate = LIMIT_EMPTY;
+          DBUG_PRINT("info", "the subplan returns too few tuples for us to produce any output at all");
           return NULL;
         }
 
@@ -111,13 +122,16 @@ ExecLimit(PlanState *pstate)
 
         node->subSlot = slot;
 
-        if (++node->position > node->offset)
+        if (++node->position > node->offset) {
+          DBUG_PRINT("info", "begin exceeding the offset:%lu, position:%lu", node->offset, node->position);
           break;
+        }
       }
 
       /*
        * Okay, we have the first tuple of the window.
        */
+      DBUG_PRINT("info", "okey, we have the first tuple of the window");
       node->lstate = LIMIT_INWINDOW;
       break;
 
@@ -127,6 +141,7 @@ ExecLimit(PlanState *pstate)
        * The subplan is known to return no tuples (or not more than
        * OFFSET tuples, in general).  So we return no tuples.
        */
+      DBUG_PRINT("info", "the subplan is known to return no tuples");
       return NULL;
 
     case LIMIT_INWINDOW:
@@ -147,10 +162,14 @@ ExecLimit(PlanState *pstate)
          * need to find a way to pass down more information about
          * whether rescans are possible.
          */
+        DBUG_PRINT("info", "perform a forward scan with position:%lu, offset:%lu, count:%lu",
+                   node->position, node->offset, node->count);
+
         if (!node->noCount &&
             node->position - node->offset >= node->count) {
           if (node->limitOption == LIMIT_OPTION_COUNT) {
             node->lstate = LIMIT_WINDOWEND;
+            DBUG_PRINT("info", "lstate is set to LIMIT_WINDOWEND and return null");
             return NULL;
           } else {
             node->lstate = LIMIT_WINDOWEND_TIES;
@@ -164,6 +183,7 @@ ExecLimit(PlanState *pstate)
 
           if (TupIsNull(slot)) {
             node->lstate = LIMIT_SUBPLANEOF;
+            DBUG_PRINT("info", "lstate is set to LIMIT_SUBPLANEOF and return null");
             return NULL;
           }
 
@@ -182,12 +202,16 @@ ExecLimit(PlanState *pstate)
           break;
         }
       } else {
+        DBUG_PRINT("info", "perform a backward scan with position:%lu, offset:%lu, count:%lu",
+                   node->position, node->offset, node->count);
+
         /*
          * Backwards scan, so check for stepping off start of window.
          * As above, only change state-machine status if so.
          */
         if (node->position <= node->offset + 1) {
           node->lstate = LIMIT_WINDOWSTART;
+          DBUG_PRINT("info", "lstate is set to LIMIT_WINDOWSTART and return null");
           return NULL;
         }
 
@@ -218,6 +242,7 @@ ExecLimit(PlanState *pstate)
 
         if (TupIsNull(slot)) {
           node->lstate = LIMIT_SUBPLANEOF;
+          DBUG_PRINT("info", "lstate is set to LIMIT_SUBPLANEOF and return null");
           return NULL;
         }
 
@@ -233,6 +258,7 @@ ExecLimit(PlanState *pstate)
           node->position++;
         } else {
           node->lstate = LIMIT_WINDOWEND;
+          DBUG_PRINT("info", "lstate is set to LIMIT_WINDOWEND and return null");
           return NULL;
         }
       } else {
@@ -242,6 +268,7 @@ ExecLimit(PlanState *pstate)
          */
         if (node->position <= node->offset + 1) {
           node->lstate = LIMIT_WINDOWSTART;
+          DBUG_PRINT("info", "lstate is set to LIMIT_WINDOWSTART and return null");
           return NULL;
         }
 
@@ -262,8 +289,10 @@ ExecLimit(PlanState *pstate)
       break;
 
     case LIMIT_SUBPLANEOF:
-      if (ScanDirectionIsForward(direction))
+      if (ScanDirectionIsForward(direction)) {
+        DBUG_PRINT("info", "return null");
         return NULL;
+      }
 
       /*
        * Backing up from subplan EOF, so re-fetch previous tuple; there
@@ -280,8 +309,10 @@ ExecLimit(PlanState *pstate)
       break;
 
     case LIMIT_WINDOWEND:
-      if (ScanDirectionIsForward(direction))
+      if (ScanDirectionIsForward(direction)) {
+        DBUG_PRINT("info", "return null");
         return NULL;
+      }
 
       /*
        * We already past one position to detect ties so re-fetch
@@ -309,8 +340,10 @@ ExecLimit(PlanState *pstate)
       break;
 
     case LIMIT_WINDOWSTART:
-      if (!ScanDirectionIsForward(direction))
+      if (!ScanDirectionIsForward(direction)) {
+        DBUG_PRINT("info", "return null");
         return NULL;
+      }
 
       /*
        * Advancing after having backed off window start: simply
@@ -342,6 +375,7 @@ ExecLimit(PlanState *pstate)
 static void
 recompute_limits(LimitState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->ps.ps_ExprContext;
   Datum   val;
   bool    isNull;
@@ -432,6 +466,7 @@ compute_tuples_needed(LimitState *node)
 LimitState *
 ExecInitLimit(Limit *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   LimitState *limitstate;
   Plan     *outerPlan;
 
@@ -518,6 +553,7 @@ ExecInitLimit(Limit *node, EState *estate, int eflags)
 void
 ExecEndLimit(LimitState *node)
 {
+  DBUG_TRACE;
   ExecEndNode(outerPlanState(node));
 }
 
@@ -525,6 +561,7 @@ ExecEndLimit(LimitState *node)
 void
 ExecReScanLimit(LimitState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*

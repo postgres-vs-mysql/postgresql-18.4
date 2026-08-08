@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
@@ -79,6 +80,8 @@ static Node *remove_nulling_relids_mutator(Node *node,
 bool
 contain_aggs_of_level(Node *node, int levelsup)
 {
+  DBUG_TRACE;
+  bool result;
   contain_aggs_of_level_context context;
 
   context.sublevels_up = levelsup;
@@ -87,47 +90,77 @@ contain_aggs_of_level(Node *node, int levelsup)
    * Must be prepared to start with a Query or a bare expression tree; if
    * it's a Query, we don't want to increment sublevels_up.
    */
-  return query_or_expression_tree_walker(node,
-                                         contain_aggs_of_level_walker,
-                                         &context,
-                                         0);
+  result = query_or_expression_tree_walker(node,
+           contain_aggs_of_level_walker,
+           &context,
+           0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 static bool
 contain_aggs_of_level_walker(Node *node,
                              contain_aggs_of_level_context *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+  bool result;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   if (IsA(node, Aggref)) {
-    if (((Aggref *) node)->agglevelsup == context->sublevels_up)
+    if (((Aggref *) node)->agglevelsup == context->sublevels_up) {
+      DBUG_PRINT("info", "return true");
       return true;    /* abort the tree traversal and return true */
+    }
 
     /* else fall through to examine argument */
   }
 
   if (IsA(node, GroupingFunc)) {
-    if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up)
+    if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
 
     /* else fall through to examine argument */
   }
 
   if (IsA(node, Query)) {
     /* Recurse into subselects */
-    bool    result;
-
     context->sublevels_up++;
     result = query_tree_walker((Query *) node,
                                contain_aggs_of_level_walker,
                                context, 0);
     context->sublevels_up--;
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     return result;
   }
 
-  return expression_tree_walker(node, contain_aggs_of_level_walker,
-                                context);
+  result = expression_tree_walker(node, contain_aggs_of_level_walker,
+                                  context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -146,6 +179,7 @@ contain_aggs_of_level_walker(Node *node,
 int
 locate_agg_of_level(Node *node, int levelsup)
 {
+  DBUG_TRACE;
   locate_agg_of_level_context context;
 
   context.agg_location = -1;  /* in case we find nothing */
@@ -160,6 +194,7 @@ locate_agg_of_level(Node *node, int levelsup)
                                          &context,
                                          0);
 
+  DBUG_PRINT("info", "find the parse location of any aggregate of the specified query level:%d", context.agg_location);
   return context.agg_location;
 }
 
@@ -167,6 +202,8 @@ static bool
 locate_agg_of_level_walker(Node *node,
                            locate_agg_of_level_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -211,27 +248,52 @@ locate_agg_of_level_walker(Node *node,
 bool
 contain_windowfuncs(Node *node)
 {
+  DBUG_TRACE;
+
   /*
    * Must be prepared to start with a Query or a bare expression tree; if
    * it's a Query, we don't want to increment sublevels_up.
    */
-  return query_or_expression_tree_walker(node,
-                                         contain_windowfuncs_walker,
-                                         NULL,
-                                         0);
+  bool result = query_or_expression_tree_walker(node,
+                contain_windowfuncs_walker,
+                NULL,
+                0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 static bool
 contain_windowfuncs_walker(Node *node, void *context)
 {
-  if (node == NULL)
-    return false;
+  DBUG_TRACE;
+  bool result;
 
-  if (IsA(node, WindowFunc))
+  if (node == NULL) {
+    DBUG_PRINT("info", "return false");
+    return false;
+  }
+
+  if (IsA(node, WindowFunc)) {
+    DBUG_PRINT("info", "return true");
     return true;      /* abort the tree traversal and return true */
+  }
 
   /* Mustn't recurse into subselects */
-  return expression_tree_walker(node, contain_windowfuncs_walker, context);
+  result = expression_tree_walker(node, contain_windowfuncs_walker, context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -250,6 +312,7 @@ contain_windowfuncs_walker(Node *node, void *context)
 int
 locate_windowfunc(Node *node)
 {
+  DBUG_TRACE;
   locate_windowfunc_context context;
 
   context.win_location = -1;  /* in case we find nothing */
@@ -263,18 +326,25 @@ locate_windowfunc(Node *node)
                                          &context,
                                          0);
 
+  DBUG_PRINT("info", "find he parse location of any windowfunc of the current query level:%d", context.win_location);
   return context.win_location;
 }
 
 static bool
 locate_windowfunc_walker(Node *node, locate_windowfunc_context *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+  bool result;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   if (IsA(node, WindowFunc)) {
     if (((WindowFunc *) node)->location >= 0) {
       context->win_location = ((WindowFunc *) node)->location;
+      DBUG_PRINT("info", "return true");
       return true;    /* abort the tree traversal and return true */
     }
 
@@ -282,7 +352,15 @@ locate_windowfunc_walker(Node *node, locate_windowfunc_context *context)
   }
 
   /* Mustn't recurse into subselects */
-  return expression_tree_walker(node, locate_windowfunc_walker, context);
+  result = expression_tree_walker(node, locate_windowfunc_walker, context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -292,26 +370,46 @@ locate_windowfunc_walker(Node *node, locate_windowfunc_context *context)
 bool
 checkExprHasSubLink(Node *node)
 {
+  DBUG_TRACE;
   /*
    * If a Query is passed, examine it --- but we should not recurse into
    * sub-Queries that are in its rangetable or CTE list.
    */
-  return query_or_expression_tree_walker(node,
-                                         checkExprHasSubLink_walker,
-                                         NULL,
-                                         QTW_IGNORE_RC_SUBQUERIES);
+  bool result = query_or_expression_tree_walker(node,
+                checkExprHasSubLink_walker,
+                NULL,
+                QTW_IGNORE_RC_SUBQUERIES);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 static bool
 checkExprHasSubLink_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+  bool result;
+
   if (node == NULL)
     return false;
 
   if (IsA(node, SubLink))
     return true;      /* abort the tree traversal and return true */
 
-  return expression_tree_walker(node, checkExprHasSubLink_walker, context);
+  result = expression_tree_walker(node, checkExprHasSubLink_walker, context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -323,6 +421,9 @@ checkExprHasSubLink_walker(Node *node, void *context)
 static bool
 contains_multiexpr_param(Node *node, void *context)
 {
+  DBUG_TRACE;
+  bool result;
+
   if (node == NULL)
     return false;
 
@@ -333,7 +434,15 @@ contains_multiexpr_param(Node *node, void *context)
     return false;
   }
 
-  return expression_tree_walker(node, contains_multiexpr_param, context);
+  result = expression_tree_walker(node, contains_multiexpr_param, context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -352,6 +461,7 @@ void
 CombineRangeTables(List **dst_rtable, List **dst_perminfos,
                    List *src_rtable, List *src_perminfos)
 {
+  DBUG_TRACE;
   ListCell   *l;
   int     offset = list_length(*dst_perminfos);
 
@@ -389,6 +499,8 @@ typedef struct {
 static bool
 OffsetVarNodes_walker(Node *node, OffsetVarNodes_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -482,6 +594,7 @@ OffsetVarNodes_walker(Node *node, OffsetVarNodes_context *context)
 void
 OffsetVarNodes(Node *node, int offset, int sublevels_up)
 {
+  DBUG_TRACE;
   OffsetVarNodes_context context;
 
   context.offset = offset;
@@ -557,6 +670,8 @@ offset_relid_set(Relids relids, int offset)
 static bool
 ChangeVarNodes_walker(Node *node, ChangeVarNodes_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -690,6 +805,7 @@ void
 ChangeVarNodesExtended(Node *node, int rt_index, int new_index,
                        int sublevels_up, ChangeVarNodes_callback callback)
 {
+  DBUG_TRACE;
   ChangeVarNodes_context context;
 
   context.rt_index = rt_index;
@@ -781,6 +897,8 @@ ChangeVarNodesWalkExpression(Node *node, ChangeVarNodes_context *context)
 Relids
 adjust_relid_set(Relids relids, int oldrelid, int newrelid)
 {
+  DBUG_TRACE;
+
   if (!IS_SPECIAL_VARNO(oldrelid) && bms_is_member(oldrelid, relids)) {
     /* Ensure we have a modifiable copy */
     relids = bms_copy(relids);
@@ -822,6 +940,8 @@ static bool
 IncrementVarSublevelsUp_walker(Node *node,
                                IncrementVarSublevelsUp_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -909,6 +1029,7 @@ void
 IncrementVarSublevelsUp(Node *node, int delta_sublevels_up,
                         int min_sublevels_up)
 {
+  DBUG_TRACE;
   IncrementVarSublevelsUp_context context;
 
   context.delta_sublevels_up = delta_sublevels_up;
@@ -932,6 +1053,7 @@ void
 IncrementVarSublevelsUp_rtable(List *rtable, int delta_sublevels_up,
                                int min_sublevels_up)
 {
+  DBUG_TRACE;
   IncrementVarSublevelsUp_context context;
 
   context.delta_sublevels_up = delta_sublevels_up;
@@ -1018,6 +1140,8 @@ static bool
 rangeTableEntry_used_walker(Node *node,
                             rangeTableEntry_used_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -1120,6 +1244,7 @@ rangeTableEntry_used(Node *node, int rt_index, int sublevels_up)
 Query *
 getInsertSelectQuery(Query *parsetree, Query ***subquery_ptr)
 {
+  DBUG_TRACE;
   Query    *selectquery;
   RangeTblEntry *selectrte;
   RangeTblRef *rtr;
@@ -1188,6 +1313,7 @@ getInsertSelectQuery(Query *parsetree, Query ***subquery_ptr)
 void
 AddQual(Query *parsetree, Node *qual)
 {
+  DBUG_TRACE;
   Node     *copy;
 
   if (qual == NULL)
@@ -1254,6 +1380,7 @@ AddQual(Query *parsetree, Node *qual)
 void
 AddInvertedQual(Query *parsetree, Node *qual)
 {
+  DBUG_TRACE;
   BooleanTest *invqual;
 
   if (qual == NULL)
@@ -1280,6 +1407,7 @@ add_nulling_relids(Node *node,
                    const Bitmapset *target_relids,
                    const Bitmapset *added_relids)
 {
+  DBUG_TRACE;
   add_nulling_relids_context context;
 
   context.target_relids = target_relids;
@@ -1295,6 +1423,8 @@ static Node *
 add_nulling_relids_mutator(Node *node,
                            add_nulling_relids_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1365,6 +1495,7 @@ remove_nulling_relids(Node *node,
                       const Bitmapset *removable_relids,
                       const Bitmapset *except_relids)
 {
+  DBUG_TRACE;
   remove_nulling_relids_context context;
 
   context.removable_relids = removable_relids;
@@ -1380,6 +1511,8 @@ static Node *
 remove_nulling_relids_mutator(Node *node,
                               remove_nulling_relids_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1470,6 +1603,7 @@ replace_rte_variables(Node *node, int target_varno, int sublevels_up,
                       void *callback_arg,
                       bool *outer_hasSubLinks)
 {
+  DBUG_TRACE;
   Node     *result;
   replace_rte_variables_context context;
 
@@ -1514,6 +1648,8 @@ Node *
 replace_rte_variables_mutator(Node *node,
                               replace_rte_variables_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1593,6 +1729,8 @@ static Node *
 map_variable_attnos_mutator(Node *node,
                             map_variable_attnos_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1713,6 +1851,7 @@ map_variable_attnos(Node *node,
                     const AttrMap *attno_map,
                     Oid to_rowtype, bool *found_whole_row)
 {
+  DBUG_TRACE;
   map_variable_attnos_context context;
 
   context.target_varno = target_varno;
@@ -1779,6 +1918,7 @@ static Node *
 ReplaceVarsFromTargetList_callback(Var *var,
                                    replace_rte_variables_context *context)
 {
+  DBUG_TRACE;
   ReplaceVarsFromTargetList_context *rcon = (ReplaceVarsFromTargetList_context *) context->callback_arg;
   Node     *newnode;
 
@@ -1965,6 +2105,7 @@ ReplaceVarsFromTargetList(Node *node,
                           int nomatch_varno,
                           bool *outer_hasSubLinks)
 {
+  DBUG_TRACE;
   ReplaceVarsFromTargetList_context context;
 
   context.target_rte = target_rte;

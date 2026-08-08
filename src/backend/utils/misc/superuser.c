@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_authid.h"
@@ -45,6 +46,7 @@ static void RoleidCallback(Datum arg, int cacheid, uint32 hashvalue);
 bool
 superuser(void)
 {
+  DBUG_TRACE;
   return superuser_arg(GetUserId());
 }
 
@@ -55,6 +57,7 @@ superuser(void)
 bool
 superuser_arg(Oid roleid)
 {
+  DBUG_TRACE;
   bool    result;
   HeapTuple rtup;
 
@@ -99,6 +102,7 @@ superuser_arg(Oid roleid)
 static void
 RoleidCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   /* Invalidate our local cache in case role's superuserness changed */
   last_roleid = InvalidOid;
 }

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "access/xact.h"
@@ -52,6 +53,7 @@ static bool type_in_list_does_not_exist_skipping(List *typenames,
 void
 RemoveObjects(DropStmt *stmt)
 {
+  DBUG_TRACE;
   ObjectAddresses *objects;
   ListCell   *cell1;
 
@@ -87,12 +89,15 @@ RemoveObjects(DropStmt *stmt)
      * historically not allowed this for DROP FUNCTION.
      */
     if (stmt->removeType == OBJECT_FUNCTION) {
-      if (get_func_prokind(address.objectId) == PROKIND_AGGREGATE)
+      if (get_func_prokind(address.objectId) == PROKIND_AGGREGATE) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is an aggregate function",
+                           NameListToString(castNode(ObjectWithArgs, object)->objname));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is an aggregate function",
                         NameListToString(castNode(ObjectWithArgs, object)->objname)),
                  errhint("Use DROP AGGREGATE to drop aggregate functions.")));
+      }
     }
 
     /* Check permissions. */
@@ -136,6 +141,7 @@ RemoveObjects(DropStmt *stmt)
 static bool
 owningrel_does_not_exist_skipping(List *object, const char **msg, char **name)
 {
+  DBUG_TRACE;
   List     *parent_object;
   RangeVar   *parent_rel;
 
@@ -170,6 +176,7 @@ owningrel_does_not_exist_skipping(List *object, const char **msg, char **name)
 static bool
 schema_does_not_exist_skipping(List *object, const char **msg, char **name)
 {
+  DBUG_TRACE;
   RangeVar   *rel;
 
   rel = makeRangeVarFromNameList(object);
@@ -202,6 +209,7 @@ static bool
 type_in_list_does_not_exist_skipping(List *typenames, const char **msg,
                                      char **name)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, typenames) {
@@ -235,6 +243,7 @@ type_in_list_does_not_exist_skipping(List *typenames, const char **msg,
 static void
 does_not_exist_skipping(ObjectType objtype, Node *object)
 {
+  DBUG_TRACE;
   const char *msg = NULL;
   char     *name = NULL;
   char     *args = NULL;

@@ -44,6 +44,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "commands/tablespace.h"
 #include "executor/instrument.h"
@@ -191,6 +192,7 @@ extendBufFile(BufFile *file)
 BufFile *
 BufFileCreateTemp(bool interXact)
 {
+  DBUG_TRACE;
   BufFile    *file;
   File    pfile;
 
@@ -290,6 +292,7 @@ BufFile *
 BufFileOpenFileSet(FileSet *fileset, const char *name, int mode,
                    bool missing_ok)
 {
+  DBUG_TRACE;
   BufFile    *file;
   char    segment_name[MAXPGPATH];
   Size    capacity = 16;
@@ -362,6 +365,7 @@ BufFileOpenFileSet(FileSet *fileset, const char *name, int mode,
 void
 BufFileDeleteFileSet(FileSet *fileset, const char *name, bool missing_ok)
 {
+  DBUG_TRACE;
   char    segment_name[MAXPGPATH];
   int     segment = 0;
   bool    found = false;
@@ -411,6 +415,7 @@ BufFileExportFileSet(BufFile *file)
 void
 BufFileClose(BufFile *file)
 {
+  DBUG_TRACE;
   int     i;
 
   /* flush any unwritten data */
@@ -645,6 +650,7 @@ BufFileReadCommon(BufFile *file, void *ptr, size_t size, bool exact, bool eofOK)
 size_t
 BufFileRead(BufFile *file, void *ptr, size_t size)
 {
+  DBUG_TRACE;
   return BufFileReadCommon(file, ptr, size, false, false);
 }
 
@@ -676,6 +682,7 @@ BufFileReadMaybeEOF(BufFile *file, void *ptr, size_t size, bool eofOK)
 void
 BufFileWrite(BufFile *file, const void *ptr, size_t size)
 {
+  DBUG_TRACE;
   size_t    nthistime;
 
   Assert(!file->readOnly);
@@ -941,6 +948,7 @@ BufFileAppend(BufFile *target, BufFile *source)
 void
 BufFileTruncateFileSet(BufFile *file, int fileno, off_t offset)
 {
+  DBUG_TRACE;
   int     numFiles = file->numFiles;
   int     newFile = fileno;
   off_t   newOffset = file->curOffset;

@@ -115,6 +115,7 @@ WaitEventCustomShmemSize(void)
 void
 WaitEventCustomShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
   HASHCTL   info;
 

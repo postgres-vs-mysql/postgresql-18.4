@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "miscadmin.h"
 #include "storage/aio.h"
@@ -85,6 +86,7 @@ void
 pgaio_io_register_callbacks(PgAioHandle *ioh, PgAioHandleCallbackID cb_id,
                             uint8 cb_data)
 {
+  DBUG_TRACE;
   const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
   Assert(cb_id <= PGAIO_HCB_MAX);
@@ -103,6 +105,7 @@ pgaio_io_register_callbacks(PgAioHandle *ioh, PgAioHandleCallbackID cb_id,
   ioh->callbacks[ioh->num_callbacks] = cb_id;
   ioh->callbacks_data[ioh->num_callbacks] = cb_data;
 
+  DBUG_PRINT("info", "adding cb #%d, id %d/%s", ioh->num_callbacks + 1, cb_id, ce->name);
   pgaio_debug_io(DEBUG3, ioh,
                  "adding cb #%d, id %d/%s",
                  ioh->num_callbacks + 1,
@@ -177,6 +180,7 @@ pgaio_io_get_handle_data(PgAioHandle *ioh, uint8 *len)
 void
 pgaio_result_report(PgAioResult result, const PgAioTargetData *target_data, int elevel)
 {
+  DBUG_TRACE;
   PgAioHandleCallbackID cb_id = result.id;
   const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
@@ -203,6 +207,7 @@ pgaio_result_report(PgAioResult result, const PgAioTargetData *target_data, int 
 void
 pgaio_io_call_stage(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
   Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
 
@@ -214,6 +219,7 @@ pgaio_io_call_stage(PgAioHandle *ioh)
     if (!ce->cb->stage)
       continue;
 
+    DBUG_PRINT("info", "calling cb #%d %d/%s->stage(%u)", i, cb_id, ce->name, cb_data);
     pgaio_debug_io(DEBUG3, ioh,
                    "calling cb #%d %d/%s->stage(%u)",
                    i, cb_id, ce->name, cb_data);
@@ -228,6 +234,7 @@ pgaio_io_call_stage(PgAioHandle *ioh)
 void
 pgaio_io_call_complete_shared(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   PgAioResult result;
 
   START_CRIT_SECTION();
@@ -244,6 +251,7 @@ pgaio_io_call_complete_shared(PgAioHandle *ioh)
    * Call callbacks with the last registered (innermost) callback first.
    * Each callback can modify the result forwarded to the next callback.
    */
+  DBUG_PRINT("info", "num_callbacks:%d", ioh->num_callbacks);
   for (int i = ioh->num_callbacks; i > 0; i--) {
     PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
     uint8   cb_data = ioh->callbacks_data[i - 1];
@@ -252,6 +260,8 @@ pgaio_io_call_complete_shared(PgAioHandle *ioh)
     if (!ce->cb->complete_shared)
       continue;
 
+    DBUG_PRINT("info", "calling cb #%d, id %d/%s->complete_shared(%u) with distilled result: (status %s, id %u, error_data %d, result %d)",
+        i, cb_id, ce->name, cb_data, pgaio_result_status_string(result.status), result.id, result.error_data, result.result);
     pgaio_debug_io(DEBUG4, ioh,
                    "calling cb #%d, id %d/%s->complete_shared(%u) with distilled result: (status %s, id %u, error_data %d, result %d)",
                    i, cb_id, ce->name,
@@ -266,6 +276,8 @@ pgaio_io_call_complete_shared(PgAioHandle *ioh)
 
   ioh->distilled_result = result;
 
+  DBUG_PRINT("info", "after shared completion: distilled result: (status %s, id %u, error_data: %d, result %d), raw_result: %d",
+      pgaio_result_status_string(result.status), result.id, result.error_data, result.result, ioh->result);
   pgaio_debug_io(DEBUG3, ioh,
                  "after shared completion: distilled result: (status %s, id %u, error_data: %d, result %d), raw_result: %d",
                  pgaio_result_status_string(result.status),
@@ -287,6 +299,7 @@ pgaio_io_call_complete_shared(PgAioHandle *ioh)
 PgAioResult
 pgaio_io_call_complete_local(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   PgAioResult result;
 
   START_CRIT_SECTION();
@@ -306,6 +319,8 @@ pgaio_io_call_complete_local(PgAioHandle *ioh)
     if (!ce->cb->complete_local)
       continue;
 
+    DBUG_PRINT("info", "calling cb #%d, id %d/%s->complete_local(%u) with distilled result: status %s, id %u, error_data %d, result %d",
+        i, cb_id, ce->name, cb_data, pgaio_result_status_string(result.status), result.id, result.error_data, result.result);
     pgaio_debug_io(DEBUG4, ioh,
                    "calling cb #%d, id %d/%s->complete_local(%u) with distilled result: status %s, id %u, error_data %d, result %d",
                    i, cb_id, ce->name, cb_data,
@@ -328,6 +343,8 @@ pgaio_io_call_complete_local(PgAioHandle *ioh)
                  pgaio_result_status_string(result.status),
                  result.id, result.error_data, result.result,
                  ioh->result);
+  DBUG_PRINT("info", "after local completion: result: (status %s, id %u, error_data %d, result %d), raw_result: %d",
+      pgaio_result_status_string(result.status), result.id, result.error_data, result.result, ioh->result);
 
   END_CRIT_SECTION();
 

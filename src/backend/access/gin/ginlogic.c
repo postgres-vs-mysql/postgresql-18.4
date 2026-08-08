@@ -33,6 +33,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 
@@ -64,22 +65,32 @@ trueTriConsistentFn(GinScanKey key)
 static bool
 directBoolConsistentFn(GinScanKey key)
 {
+  DBUG_TRACE;
+  bool result;
   /*
    * Initialize recheckCurItem in case the consistentFn doesn't know it
    * should set it.  The safe assumption in that case is to force recheck.
    */
   key->recheckCurItem = true;
 
-  return DatumGetBool(FunctionCall8Coll(key->consistentFmgrInfo,
-                                        key->collation,
-                                        PointerGetDatum(key->entryRes),
-                                        UInt16GetDatum(key->strategy),
-                                        key->query,
-                                        UInt32GetDatum(key->nuserentries),
-                                        PointerGetDatum(key->extra_data),
-                                        PointerGetDatum(&key->recheckCurItem),
-                                        PointerGetDatum(key->queryValues),
-                                        PointerGetDatum(key->queryCategories)));
+  result = DatumGetBool(FunctionCall8Coll(key->consistentFmgrInfo,
+                                          key->collation,
+                                          PointerGetDatum(key->entryRes),
+                                          UInt16GetDatum(key->strategy),
+                                          key->query,
+                                          UInt32GetDatum(key->nuserentries),
+                                          PointerGetDatum(key->extra_data),
+                                          PointerGetDatum(&key->recheckCurItem),
+                                          PointerGetDatum(key->queryValues),
+                                          PointerGetDatum(key->queryCategories)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -88,15 +99,25 @@ directBoolConsistentFn(GinScanKey key)
 static GinTernaryValue
 directTriConsistentFn(GinScanKey key)
 {
-  return DatumGetGinTernaryValue(FunctionCall7Coll(key->triConsistentFmgrInfo,
-                                 key->collation,
-                                 PointerGetDatum(key->entryRes),
-                                 UInt16GetDatum(key->strategy),
-                                 key->query,
-                                 UInt32GetDatum(key->nuserentries),
-                                 PointerGetDatum(key->extra_data),
-                                 PointerGetDatum(key->queryValues),
-                                 PointerGetDatum(key->queryCategories)));
+  DBUG_TRACE;
+  bool result;
+  result = DatumGetGinTernaryValue(FunctionCall7Coll(key->triConsistentFmgrInfo,
+                                   key->collation,
+                                   PointerGetDatum(key->entryRes),
+                                   UInt16GetDatum(key->strategy),
+                                   key->query,
+                                   UInt32GetDatum(key->nuserentries),
+                                   PointerGetDatum(key->extra_data),
+                                   PointerGetDatum(key->queryValues),
+                                   PointerGetDatum(key->queryCategories)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -107,6 +128,7 @@ directTriConsistentFn(GinScanKey key)
 static bool
 shimBoolConsistentFn(GinScanKey key)
 {
+  DBUG_TRACE;
   GinTernaryValue result;
 
   result = DatumGetGinTernaryValue(FunctionCall7Coll(key->triConsistentFmgrInfo,
@@ -121,9 +143,19 @@ shimBoolConsistentFn(GinScanKey key)
 
   if (result == GIN_MAYBE) {
     key->recheckCurItem = true;
+    DBUG_PRINT("info", "set key->recheckCurItem to true");
+    DBUG_PRINT("info", "return true");
     return true;
   } else {
+    DBUG_PRINT("info", "set key->recheckCurItem to false");
     key->recheckCurItem = false;
+
+    if (result == GIN_TRUE) {
+      DBUG_PRINT("info", "item is present");
+    } else {
+      DBUG_PRINT("info", "item is not present");
+    }
+
     return result;
   }
 }
@@ -145,6 +177,7 @@ shimBoolConsistentFn(GinScanKey key)
 static GinTernaryValue
 shimTriConsistentFn(GinScanKey key)
 {
+  DBUG_TRACE;
   int     nmaybe;
   int     maybeEntries[MAX_MAYBE_ENTRIES];
   int     i;
@@ -179,6 +212,7 @@ shimTriConsistentFn(GinScanKey key)
   for (i = 0; i < nmaybe; i++)
     key->entryRes[maybeEntries[i]] = GIN_FALSE;
 
+  DBUG_PRINT("info", "call onsistent function with all the maybe-inputs set FALSE");
   curResult = directBoolConsistentFn(key);
   recheck = key->recheckCurItem;
 
@@ -221,6 +255,8 @@ shimTriConsistentFn(GinScanKey key)
 void
 ginInitConsistentFunction(GinState *ginstate, GinScanKey key)
 {
+  DBUG_TRACE;
+
   if (key->searchMode == GIN_SEARCH_MODE_EVERYTHING) {
     key->boolConsistentFn = trueConsistentFn;
     key->triConsistentFn = trueTriConsistentFn;

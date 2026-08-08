@@ -22,6 +22,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -52,6 +53,7 @@ Bitmapset *
 DiscreteKnapsack(int max_weight, int num_items,
                  int *item_weights, double *item_values)
 {
+  DBUG_TRACE;
   MemoryContext local_ctx = AllocSetContextCreate(CurrentMemoryContext,
                             "Knapsack",
                             ALLOCSET_SMALL_SIZES);

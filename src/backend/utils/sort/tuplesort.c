@@ -98,6 +98,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -638,10 +639,13 @@ qsort_tuple_int32_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 Tuplesortstate *
 tuplesort_begin_common(int workMem, SortCoordinate coordinate, int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state;
   MemoryContext maincontext;
   MemoryContext sortcontext;
   MemoryContext oldcontext;
+
+  DBUG_PRINT("info", "initialize for a tuple sort operation");
 
   /* See leader_takeover_tapes() remarks on random access support */
   if (coordinate && (sortopt & TUPLESORT_RANDOMACCESS))
@@ -743,6 +747,7 @@ tuplesort_begin_common(int workMem, SortCoordinate coordinate, int sortopt)
 static void
 tuplesort_begin_batch(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
 
   oldcontext = MemoryContextSwitchTo(state->base.maincontext);
@@ -829,6 +834,8 @@ tuplesort_begin_batch(Tuplesortstate *state)
 void
 tuplesort_set_bound(Tuplesortstate *state, int64 bound)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "advise tuplesort that at most the first N result tuples are required");
   /* Assert we're called before loading any tuples */
   Assert(state->status == TSS_INITIAL && state->memtupcount == 0);
   /* Assert we allow bounded sorts */
@@ -891,6 +898,8 @@ tuplesort_used_bound(Tuplesortstate *state)
 static void
 tuplesort_free(Tuplesortstate *state)
 {
+  DBUG_TRACE;
+  const char *tmp;
   /* context swap probably not needed, but let's be safe */
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
   int64   spaceUsed;
@@ -909,6 +918,18 @@ tuplesort_free(Tuplesortstate *state)
    */
   if (state->tapeset)
     LogicalTapeSetClose(state->tapeset);
+
+  if (state->tapeset) {
+    tmp = pg_rusage_show(&state->ru_start);
+    DBUG_PRINT("info", "%s of worker %d ended, %lld disk blocks used: %s",
+               SERIAL(state) ? "external sort" : "parallel external sort",
+               state->worker, (long long) spaceUsed, tmp);
+  } else {
+    tmp = pg_rusage_show(&state->ru_start);
+    DBUG_PRINT("info", "%s of worker %d ended, %lld KB used: %s",
+               SERIAL(state) ? "internal sort" : "unperformed parallel sort",
+               state->worker, (long long) spaceUsed, tmp);
+  }
 
   if (trace_sort) {
     if (state->tapeset)
@@ -944,6 +965,7 @@ tuplesort_free(Tuplesortstate *state)
 void
 tuplesort_end(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   tuplesort_free(state);
 
   /*
@@ -961,8 +983,11 @@ tuplesort_end(Tuplesortstate *state)
 static void
 tuplesort_updatemax(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int64   spaceUsed;
   bool    isSpaceDisk;
+
+  DBUG_PRINT("info", "update maximum resource usage statistics");
 
   /*
    * Note: it might seem we should provide both memory and disk usage for a
@@ -1008,6 +1033,7 @@ tuplesort_updatemax(Tuplesortstate *state)
 void
 tuplesort_reset(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   tuplesort_updatemax(state);
   tuplesort_free(state);
 
@@ -1041,13 +1067,15 @@ tuplesort_reset(Tuplesortstate *state)
 static bool
 grow_memtuples(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     newmemtupsize;
   int     memtupsize = state->memtupsize;
   int64   memNowUsed = state->allowedMem - state->availMem;
 
   /* Forget it if we've already maxed out memtuples, per comment above */
-  if (!state->growmemtuples)
+  if (!state->growmemtuples) {
     return false;
+  }
 
   /* Select new value of memtupsize */
   if (memNowUsed <= state->availMem) {
@@ -1133,6 +1161,8 @@ grow_memtuples(Tuplesortstate *state)
 
   /* OK, do it */
   FREEMEM(state, GetMemoryChunkSpace(state->memtuples));
+  DBUG_PRINT("info", "OK, do it");
+  DBUG_PRINT("info", "new memory tuple size:%d", newmemtupsize);
   state->memtupsize = newmemtupsize;
   state->memtuples = (SortTuple *)
                      repalloc_huge(state->memtuples,
@@ -1157,7 +1187,9 @@ void
 tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
                           bool useAbbrev, Size tuplen)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
+  const char *tmp;
 
   Assert(!LEADER(state));
 
@@ -1201,7 +1233,10 @@ tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
        * room to store the incoming tuple, and then we'll switch to
        * tape-based operation.
        */
+      DBUG_PRINT("info", "save the tuple into the unsorted array");
+
       if (state->memtupcount >= state->memtupsize - 1) {
+        DBUG_PRINT("info", "grow the array as needed");
         (void) grow_memtuples(state);
         Assert(state->memtupcount < state->memtupsize);
       }
@@ -1228,6 +1263,9 @@ tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
                state->memtupcount,
                pg_rusage_show(&state->ru_start));
 
+        tmp = pg_rusage_show(&state->ru_start);
+        DBUG_PRINT("info", "switching to bounded heapsort at %d tuples: %s",
+                   state->memtupcount, tmp);
         make_bounded_heap(state);
         MemoryContextSwitchTo(oldcontext);
         return;
@@ -1264,9 +1302,11 @@ tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
        */
       if (COMPARETUP(state, tuple, &state->memtuples[0]) <= 0) {
         /* new tuple <= top of the heap, so we can discard it */
+        DBUG_PRINT("info", "new tuple <= top of the heap, so we can discard it");
         free_sort_tuple(state, tuple);
         CHECK_FOR_INTERRUPTS();
       } else {
+        DBUG_PRINT("info", "discard top of heap, replacing it with the new tuple");
         /* discard top of heap, replacing it with the new tuple */
         free_sort_tuple(state, &state->memtuples[0]);
         tuplesort_heap_replace_top(state, tuple);
@@ -1279,6 +1319,7 @@ tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
       /*
        * Save the tuple into the unsorted array (there must be space)
        */
+      DBUG_PRINT("info", "save the tuple into the unsorted array");
       state->memtuples[state->memtupcount++] = *tuple;
 
       /*
@@ -1298,6 +1339,7 @@ tuplesort_puttuple_common(Tuplesortstate *state, SortTuple *tuple,
 static bool
 consider_abort_common(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   Assert(state->base.sortKeys[0].abbrev_converter != NULL);
   Assert(state->base.sortKeys[0].abbrev_abort != NULL);
   Assert(state->base.sortKeys[0].abbrev_full_comparator != NULL);
@@ -1341,12 +1383,19 @@ consider_abort_common(Tuplesortstate *state)
 void
 tuplesort_performsort(Tuplesortstate *state)
 {
+  DBUG_TRACE;
+  const char *tmp_str;
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
+
+
+  DBUG_PRINT("info", "all tuples have been provided; finish the sort");
 
   if (trace_sort)
     elog(LOG, "performsort of worker %d starting: %s",
          state->worker, pg_rusage_show(&state->ru_start));
 
+  tmp_str = pg_rusage_show(&state->ru_start);
+  DBUG_PRINT("info", "performsort of worker %d starting: %s", state->worker, tmp_str);
   switch (state->status) {
     case TSS_INITIAL:
 
@@ -1356,6 +1405,7 @@ tuplesort_performsort(Tuplesortstate *state)
        */
       if (SERIAL(state)) {
         /* Just qsort 'em and we're done */
+        DBUG_PRINT("info", "just qsort'em and we're done");
         tuplesort_sort_memtuples(state);
         state->status = TSS_SORTEDINMEM;
       } else if (WORKER(state)) {
@@ -1363,6 +1413,7 @@ tuplesort_performsort(Tuplesortstate *state)
          * Parallel workers must still dump out tuples to tape.  No
          * merge is required to produce single output run, though.
          */
+        DBUG_PRINT("info", "parallel workers must still dump out tuples to tape");
         inittapes(state, false);
         dumptuples(state, true);
         worker_nomergeruns(state);
@@ -1372,6 +1423,7 @@ tuplesort_performsort(Tuplesortstate *state)
          * Leader will take over worker tapes and merge worker runs.
          * Note that mergeruns sets the correct state->status.
          */
+        DBUG_PRINT("info", "leader will take over worker tapes and merge worker runs");
         leader_takeover_tapes(state);
         mergeruns(state);
       }
@@ -1391,6 +1443,7 @@ tuplesort_performsort(Tuplesortstate *state)
        * have to transform the heap to a properly-sorted array. Note
        * that sort_bounded_heap sets the correct state->status.
        */
+      DBUG_PRINT("info", "we were able to accumulate all the tuples required for output in memory");
       sort_bounded_heap(state);
       state->current = 0;
       state->eof_reached = false;
@@ -1406,6 +1459,7 @@ tuplesort_performsort(Tuplesortstate *state)
        * run (or, if !randomAccess and !WORKER(), one run per tape).
        * Note that mergeruns sets the correct state->status.
        */
+      DBUG_PRINT("info", "finish tape-based sort");
       dumptuples(state, true);
       mergeruns(state);
       state->eof_reached = false;
@@ -1417,6 +1471,17 @@ tuplesort_performsort(Tuplesortstate *state)
     default:
       elog(ERROR, "invalid tuplesort state");
       break;
+  }
+
+  if (state->status == TSS_FINALMERGE) {
+    const char *tmp = pg_rusage_show(&state->ru_start);
+    DBUG_PRINT("info", "performsort of worker %d done (except %d-way final merge): %s",
+               state->worker, state->nInputTapes,
+               tmp);
+  } else {
+    const char *tmp = pg_rusage_show(&state->ru_start);
+    DBUG_PRINT("info", "performsort of worker %d done: %s",
+               state->worker, tmp);
   }
 
   if (trace_sort) {
@@ -1677,8 +1742,10 @@ tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
 bool
 tuplesort_skiptuples(Tuplesortstate *state, int64 ntuples, bool forward)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
 
+  DBUG_PRINT("info", "advance over N tuples in either forward or back direction");
   /*
    * We don't actually support backwards skip yet, because no callers need
    * it.  The API is designed to allow for that later, though.
@@ -1745,8 +1812,10 @@ tuplesort_skiptuples(Tuplesortstate *state, int64 ntuples, bool forward)
 int
 tuplesort_merge_order(int64 allowedMem)
 {
+  DBUG_TRACE;
   int     mOrder;
 
+  DBUG_PRINT("info", "report merge order we'll use for given memory");
   /*----------
    * In the merge phase, we need buffer space for each input and output tape.
    * Each pass in the balanced merge algorithm reads from M input tapes, and
@@ -1801,9 +1870,12 @@ static int64
 merge_read_buffer_size(int64 avail_mem, int nInputTapes, int nInputRuns,
                        int maxOutputTapes)
 {
+  DBUG_TRACE;
   int     nOutputRuns;
   int     nOutputTapes;
+  int64       result;
 
+  DBUG_PRINT("info", "calculate how much memory to allocate for the read buffer of each input tape in a merge pass");
   /*
    * How many output tapes will we produce in this pass?
    *
@@ -1821,7 +1893,10 @@ merge_read_buffer_size(int64 avail_mem, int nInputTapes, int nInputRuns,
    * we derive the input buffer size from the amount of memory available,
    * and M and N.
    */
-  return Max((avail_mem - TAPE_BUFFER_OVERHEAD * nOutputTapes) / nInputTapes, 0);
+  result = Max((avail_mem - TAPE_BUFFER_OVERHEAD * nOutputTapes) / nInputTapes, 0);
+  DBUG_PRINT("info", "result:%ld", result);
+  return result;
+
 }
 
 /*
@@ -1832,6 +1907,8 @@ merge_read_buffer_size(int64 avail_mem, int nInputTapes, int nInputRuns,
 static void
 inittapes(Tuplesortstate *state, bool mergeruns)
 {
+  DBUG_TRACE;
+  const char *tmp;
   Assert(!LEADER(state));
 
   if (mergeruns) {
@@ -1847,6 +1924,9 @@ inittapes(Tuplesortstate *state, bool mergeruns)
     elog(LOG, "worker %d switching to external sort with %d tapes: %s",
          state->worker, state->maxTapes, pg_rusage_show(&state->ru_start));
 
+  tmp = pg_rusage_show(&state->ru_start);
+  DBUG_PRINT("info", "worker %d switching to external sort with %d tapes: %s",
+             state->worker, state->maxTapes, tmp);
   /* Create the tape set */
   inittapestate(state, state->maxTapes);
   state->tapeset =
@@ -1977,10 +2057,14 @@ init_slab_allocator(Tuplesortstate *state, int numSlots)
 static void
 mergeruns(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     tapenum;
+  const char *tmp;
 
   Assert(state->status == TSS_BUILDRUNS);
   Assert(state->memtupcount == 0);
+
+  DBUG_PRINT("info", "merge all the completed initial runs");
 
   if (state->base.sortKeys != NULL && state->base.sortKeys->abbrev_converter != NULL) {
     /*
@@ -2054,6 +2138,8 @@ mergeruns(Tuplesortstate *state)
     elog(LOG, "worker %d using %zu KB of memory for tape buffers",
          state->worker, state->tape_buffer_mem / 1024);
 
+  DBUG_PRINT("info", "worker %d using %zu KB of memory for tape buffers", state->worker, state->tape_buffer_mem / 1024);
+
   for (;;) {
     /*
      * On the first iteration, or if we have read all the runs from the
@@ -2099,6 +2185,10 @@ mergeruns(Tuplesortstate *state)
         elog(LOG, "starting merge pass of %d input runs on %d tapes, " INT64_FORMAT " KB of memory for each input tape: %s",
              state->nInputRuns, state->nInputTapes, input_buffer_size / 1024,
              pg_rusage_show(&state->ru_start));
+
+      tmp = pg_rusage_show(&state->ru_start);
+      DBUG_PRINT("info", "starting merge pass of %d input runs on %d tapes, " INT64_FORMAT " KB of memory for each input tape: %s",
+                 state->nInputRuns, state->nInputTapes, input_buffer_size / 1024,  tmp);
 
       /* Prepare the new input tapes for merge pass. */
       for (tapenum = 0; tapenum < state->nInputTapes; tapenum++)
@@ -2159,9 +2249,11 @@ mergeruns(Tuplesortstate *state)
 static void
 mergeonerun(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     srcTapeIndex;
   LogicalTape *srcTape;
 
+  DBUG_PRINT("info", "merge one run from each input tape");
   /*
    * Start the merge by loading one tuple from each active source tape into
    * the heap.
@@ -2215,13 +2307,17 @@ mergeonerun(Tuplesortstate *state)
 static void
 beginmerge(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     activeTapes;
   int     srcTapeIndex;
 
+  DBUG_PRINT("info", "initialize for a merge pass");
   /* Heap should be empty here */
   Assert(state->memtupcount == 0);
 
   activeTapes = Min(state->nInputTapes, state->nInputRuns);
+
+  DBUG_PRINT("info", "activeTapes:%d", activeTapes);
 
   for (srcTapeIndex = 0; srcTapeIndex < activeTapes; srcTapeIndex++) {
     SortTuple tup;
@@ -2261,8 +2357,12 @@ mergereadnext(Tuplesortstate *state, LogicalTape *srcTape, SortTuple *stup)
 static void
 dumptuples(Tuplesortstate *state, bool alltuples)
 {
+  DBUG_TRACE;
   int     memtupwrite;
   int     i;
+  const char *tmp;
+
+  DBUG_PRINT("info", "remove tuples from memtuples and write initial run to tape");
 
   /*
    * Nothing to do if we still fit in available memory and have array slots,
@@ -2300,6 +2400,10 @@ dumptuples(Tuplesortstate *state, bool alltuples)
 
   state->currentRun++;
 
+  tmp = pg_rusage_show(&state->ru_start);
+  DBUG_PRINT("info", "worker %d starting quicksort of run %d: %s",
+             state->worker, state->currentRun, tmp);
+
   if (trace_sort)
     elog(LOG, "worker %d starting quicksort of run %d: %s",
          state->worker, state->currentRun,
@@ -2316,6 +2420,9 @@ dumptuples(Tuplesortstate *state, bool alltuples)
          state->worker, state->currentRun,
          pg_rusage_show(&state->ru_start));
 
+  tmp = pg_rusage_show(&state->ru_start);
+  DBUG_PRINT("info", "worker %d finished quicksort of run %d: %s", state->worker, state->currentRun,
+             tmp);
   memtupwrite = state->memtupcount;
 
   for (i = 0; i < memtupwrite; i++) {
@@ -2344,6 +2451,11 @@ dumptuples(Tuplesortstate *state, bool alltuples)
 
   markrunend(state->destTape);
 
+  tmp = pg_rusage_show(&state->ru_start);
+  DBUG_PRINT("info", "worker %d finished writing run %d to tape %d: %s",
+             state->worker, state->currentRun, (state->currentRun - 1) % state->nOutputTapes + 1,
+             tmp);
+
   if (trace_sort)
     elog(LOG, "worker %d finished writing run %d to tape %d: %s",
          state->worker, state->currentRun, (state->currentRun - 1) % state->nOutputTapes + 1,
@@ -2356,8 +2468,10 @@ dumptuples(Tuplesortstate *state, bool alltuples)
 void
 tuplesort_rescan(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
 
+  DBUG_PRINT("info", "rewind and replay the scan");
   Assert(state->base.sortopt & TUPLESORT_RANDOMACCESS);
 
   switch (state->status) {
@@ -2390,9 +2504,12 @@ tuplesort_rescan(Tuplesortstate *state)
 void
 tuplesort_markpos(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
 
   Assert(state->base.sortopt & TUPLESORT_RANDOMACCESS);
+
+  DBUG_PRINT("info", "saves current position in the merged sort file");
 
   switch (state->status) {
     case TSS_SORTEDINMEM:
@@ -2422,9 +2539,12 @@ tuplesort_markpos(Tuplesortstate *state)
 void
 tuplesort_restorepos(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = MemoryContextSwitchTo(state->base.sortcontext);
 
   Assert(state->base.sortopt & TUPLESORT_RANDOMACCESS);
+
+  DBUG_PRINT("info", "restores current position in merged sort file to last saved position");
 
   switch (state->status) {
     case TSS_SORTEDINMEM:
@@ -2457,6 +2577,8 @@ void
 tuplesort_get_stats(Tuplesortstate *state,
                     TuplesortInstrumentation *stats)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "extract summary statistics");
   /*
    * Note: it might seem we should provide both memory and disk usage for a
    * disk-based sort.  However, the current code doesn't track memory space
@@ -2551,6 +2673,7 @@ tuplesort_space_type_name(TuplesortSpaceType t)
 static void
 make_bounded_heap(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     tupcount = state->memtupcount;
   int     i;
 
@@ -2559,6 +2682,9 @@ make_bounded_heap(Tuplesortstate *state)
   Assert(tupcount >= state->bound);
   Assert(SERIAL(state));
 
+  DBUG_PRINT("info", "convert the existing unordered array of SortTuples to a bounded heap");
+  DBUG_PRINT("info", "discarding all but the smallest 'state->bound' tuples");
+  DBUG_PRINT("info", "tuple count:%d", tupcount);
   /* Reverse sort direction so largest entry will be at root */
   reversedirection(state);
 
@@ -2595,8 +2721,10 @@ make_bounded_heap(Tuplesortstate *state)
 static void
 sort_bounded_heap(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   int     tupcount = state->memtupcount;
 
+  DBUG_PRINT("info", "convert the bounded heap to a properly-sorted array");
   Assert(state->status == TSS_BOUNDED);
   Assert(state->bounded);
   Assert(tupcount == state->bound);
@@ -2635,7 +2763,11 @@ sort_bounded_heap(Tuplesortstate *state)
 static void
 tuplesort_sort_memtuples(Tuplesortstate *state)
 {
+  DBUG_TRACE;
+  bool tmp_trace_disabled = false;
   Assert(!LEADER(state));
+
+  DBUG_PRINT("info", "sort all memtuples(%d) using specialized qsort() routines", state->memtupcount);
 
   if (state->memtupcount > 1) {
     /*
@@ -2669,13 +2801,36 @@ tuplesort_sort_memtuples(Tuplesortstate *state)
 
     /* Can we use the single-key sort function? */
     if (state->base.onlyKey != NULL) {
+      DBUG_PRINT("info", "use the single-key sort function");
+      DBUG_PRINT("info", "qsort ssup(memtupcount:%d)", state->memtupcount);
+      if (state->memtupcount >= min_trace_iterations) {
+        if (!trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
       qsort_ssup(state->memtuples, state->memtupcount,
-                 state->base.onlyKey);
+          state->base.onlyKey);
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+      }
     } else {
+      DBUG_PRINT("info", "qsort tuple(memtupcount:%d)", state->memtupcount);
+      if (state->memtupcount >= min_trace_iterations) {
+        if (!trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
       qsort_tuple(state->memtuples,
                   state->memtupcount,
                   state->base.comparetup,
                   state);
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+      }
     }
   }
 }
@@ -2692,8 +2847,10 @@ tuplesort_sort_memtuples(Tuplesortstate *state)
 static void
 tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple)
 {
+  DBUG_TRACE;
   SortTuple  *memtuples;
   int     j;
+  int count = 0;
 
   memtuples = state->memtuples;
   Assert(state->memtupcount < state->memtupsize);
@@ -2709,6 +2866,8 @@ tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple)
   while (j > 0) {
     int     i = (j - 1) >> 1;
 
+    count++;
+
     if (COMPARETUP(state, tuple, &memtuples[i]) >= 0)
       break;
 
@@ -2717,6 +2876,7 @@ tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple)
   }
 
   memtuples[j] = *tuple;
+  DBUG_PRINT("info", "%d comparisons were performed", count);
 }
 
 /*
@@ -2797,6 +2957,7 @@ tuplesort_heap_replace_top(Tuplesortstate *state, SortTuple *tuple)
 static void
 reversedirection(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   SortSupport sortKey = state->base.sortKeys;
   int     nkey;
 
@@ -2897,6 +3058,7 @@ tuplesort_estimate_shared(int nWorkers)
 void
 tuplesort_initialize_shared(Sharedsort *shared, int nWorkers, dsm_segment *seg)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(nWorkers > 0);
@@ -2940,6 +3102,7 @@ tuplesort_attach_shared(Sharedsort *shared, dsm_segment *seg)
 static int
 worker_get_identifier(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   Sharedsort *shared = state->shared;
   int     worker;
 
@@ -2949,6 +3112,7 @@ worker_get_identifier(Tuplesortstate *state)
   worker = shared->currentWorker++;
   SpinLockRelease(&shared->mutex);
 
+  DBUG_PRINT("info", "assign and return ordinal identifier for worker:%d", worker);
   return worker;
 }
 
@@ -2968,9 +3132,11 @@ worker_get_identifier(Tuplesortstate *state)
 static void
 worker_freeze_result_tape(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   Sharedsort *shared = state->shared;
   TapeShare output;
 
+  DBUG_PRINT("info", "freeze worker's result tape for leader");
   Assert(WORKER(state));
   Assert(state->result_tape != NULL);
   Assert(state->memtupcount == 0);
@@ -3028,11 +3194,13 @@ worker_nomergeruns(Tuplesortstate *state)
 static void
 leader_takeover_tapes(Tuplesortstate *state)
 {
+  DBUG_TRACE;
   Sharedsort *shared = state->shared;
   int     nParticipants = state->nParticipants;
   int     workersFinished;
   int     j;
 
+  DBUG_PRINT("info", "create tapeset for leader from worker tapes");
   Assert(LEADER(state));
   Assert(nParticipants >= 1);
 
@@ -3072,6 +3240,8 @@ leader_takeover_tapes(Tuplesortstate *state)
   state->outputTapes = palloc0(nParticipants * sizeof(LogicalTape *));
   state->nOutputTapes = nParticipants;
   state->nOutputRuns = nParticipants;
+
+  DBUG_PRINT("info", "set currentRun to reflect the number of runs we will merge:%d", nParticipants);
 
   for (j = 0; j < nParticipants; j++) {
     state->outputTapes[j] = LogicalTapeImport(state->tapeset, j, &shared->tapes[j]);
@@ -3119,6 +3289,7 @@ ssup_datum_signed_cmp(Datum x, Datum y, SortSupport ssup)
     return 0;
 }
 #endif
+
 
 int
 ssup_datum_int32_cmp(Datum x, Datum y, SortSupport ssup)

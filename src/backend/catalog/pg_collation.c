@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -51,6 +52,7 @@ CollationCreate(const char *collname, Oid collnamespace,
                 bool if_not_exists,
                 bool quiet)
 {
+  DBUG_TRACE;
   Relation  rel;
   TupleDesc tupDesc;
   HeapTuple tup;
@@ -92,6 +94,7 @@ CollationCreate(const char *collname, Oid collnamespace,
        */
       ObjectAddressSet(myself, CollationRelationId, oid);
       checkMembershipInCurrentExtension(&myself);
+      DBUG_PRINT("info", "collation \"%s\" already exists, skipping", collname);
 
       /* OK to skip */
       ereport(NOTICE,
@@ -102,7 +105,8 @@ CollationCreate(const char *collname, Oid collnamespace,
                : errmsg("collation \"%s\" for encoding \"%s\" already exists, skipping",
                         collname, pg_encoding_to_char(collencoding))));
       return InvalidOid;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "collation \"%s\" already exists", collname);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                collencoding == -1
@@ -110,6 +114,7 @@ CollationCreate(const char *collname, Oid collnamespace,
                         collname)
                : errmsg("collation \"%s\" for encoding \"%s\" already exists",
                         collname, pg_encoding_to_char(collencoding))));
+    }
   }
 
   /* open pg_collation; see below about the lock level */

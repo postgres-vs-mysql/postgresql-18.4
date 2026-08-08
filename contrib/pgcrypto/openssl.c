@@ -37,6 +37,7 @@
 #include <openssl/rand.h>
 
 #include "px.h"
+#include "debug_trace.h"
 #include "utils/memutils.h"
 #include "utils/resowner.h"
 
@@ -87,6 +88,7 @@ ResourceOwnerForgetOSSLDigest(ResourceOwner owner, OSSLDigest *digest)
 static void
 free_openssl_digest(OSSLDigest *digest)
 {
+  DBUG_TRACE;
   EVP_MD_CTX_destroy(digest->ctx);
 
   if (digest->owner != NULL)
@@ -98,12 +100,14 @@ free_openssl_digest(OSSLDigest *digest)
 static unsigned
 digest_result_size(PX_MD *h)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) h->p.ptr;
   int     result = EVP_MD_CTX_size(digest->ctx);
 
   if (result < 0)
     elog(ERROR, "EVP_MD_CTX_size() failed");
 
+  DBUG_PRINT("pgcrypto", "EVP_MD_CTX_size returns:%d", result);
   return result;
 }
 
@@ -122,6 +126,7 @@ digest_block_size(PX_MD *h)
 static void
 digest_reset(PX_MD *h)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) h->p.ptr;
 
   if (!EVP_DigestInit_ex(digest->ctx, digest->algo, NULL))
@@ -131,7 +136,10 @@ digest_reset(PX_MD *h)
 static void
 digest_update(PX_MD *h, const uint8 *data, unsigned dlen)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) h->p.ptr;
+
+  DBUG_PRINT("pgcrypto", "invoke EVP_DigestUpdate");
 
   if (!EVP_DigestUpdate(digest->ctx, data, dlen))
     elog(ERROR, "EVP_DigestUpdate() failed");
@@ -140,7 +148,10 @@ digest_update(PX_MD *h, const uint8 *data, unsigned dlen)
 static void
 digest_finish(PX_MD *h, uint8 *dst)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) h->p.ptr;
+
+  DBUG_PRINT("pgcrypto", "invoke EVP_DigestFinal_ex");
 
   if (!EVP_DigestFinal_ex(digest->ctx, dst, NULL))
     elog(ERROR, "EVP_DigestFinal_ex() failed");
@@ -149,6 +160,7 @@ digest_finish(PX_MD *h, uint8 *dst)
 static void
 digest_free(PX_MD *h)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) h->p.ptr;
 
   free_openssl_digest(digest);
@@ -160,11 +172,13 @@ digest_free(PX_MD *h)
 int
 px_find_digest(const char *name, PX_MD **res)
 {
+  DBUG_TRACE;
   const EVP_MD *md;
   EVP_MD_CTX *ctx;
   PX_MD    *h;
   OSSLDigest *digest;
 
+  DBUG_PRINT("pgcrypto", "invoke EVP_get_digestbyname(name:%s)", name);
   md = EVP_get_digestbyname(name);
 
   if (md == NULL)
@@ -216,6 +230,7 @@ px_find_digest(const char *name, PX_MD **res)
 static void
 ResOwnerReleaseOSSLDigest(Datum res)
 {
+  DBUG_TRACE;
   OSSLDigest *digest = (OSSLDigest *) DatumGetPointer(res);
 
   digest->owner = NULL;
@@ -289,6 +304,7 @@ ResourceOwnerForgetOSSLCipher(ResourceOwner owner, OSSLCipher *od)
 static void
 free_openssl_cipher(OSSLCipher *od)
 {
+  DBUG_TRACE;
   EVP_CIPHER_CTX_free(od->evp_ctx);
 
   if (od->owner != NULL)
@@ -328,6 +344,7 @@ gen_ossl_iv_size(PX_Cipher *c)
 static void
 gen_ossl_free(PX_Cipher *c)
 {
+  DBUG_TRACE;
   OSSLCipher *od = (OSSLCipher *) c->ptr;
 
   free_openssl_cipher(od);
@@ -338,6 +355,7 @@ static int
 gen_ossl_decrypt(PX_Cipher *c, int padding, const uint8 *data, unsigned dlen,
                  uint8 *res, unsigned *rlen)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   int     outlen,
           outlen2;
@@ -373,6 +391,7 @@ static int
 gen_ossl_encrypt(PX_Cipher *c, int padding, const uint8 *data, unsigned dlen,
                  uint8 *res, unsigned *rlen)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   int     outlen,
           outlen2;
@@ -414,6 +433,7 @@ gen_ossl_encrypt(PX_Cipher *c, int padding, const uint8 *data, unsigned dlen,
 static int
 bf_check_supported_key_len(void)
 {
+  DBUG_TRACE;
   static const uint8 key[56] = {
     0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5, 0x96, 0x87, 0x78, 0x69,
     0x5a, 0x4b, 0x3c, 0x2d, 0x1e, 0x0f, 0x00, 0x11, 0x22, 0x33,
@@ -462,6 +482,7 @@ leave:
 static int
 bf_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   unsigned  bs = gen_ossl_block_size(c);
   static int  bf_is_strong = -1;
@@ -495,6 +516,7 @@ bf_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 static int
 ossl_des_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   unsigned  bs = gen_ossl_block_size(c);
 
@@ -515,6 +537,7 @@ ossl_des_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 static int
 ossl_des3_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   unsigned  bs = gen_ossl_block_size(c);
 
@@ -535,6 +558,7 @@ ossl_des3_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 static int
 ossl_cast_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   unsigned  bs = gen_ossl_block_size(c);
 
@@ -554,6 +578,7 @@ ossl_cast_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 static int
 ossl_aes_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   unsigned  bs = gen_ossl_block_size(c);
 
@@ -579,6 +604,7 @@ ossl_aes_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 static int
 ossl_aes_ecb_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   int     err;
 
@@ -612,6 +638,7 @@ ossl_aes_ecb_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv
 static int
 ossl_aes_cbc_init(PX_Cipher *c, const uint8 *key, unsigned klen, const uint8 *iv)
 {
+  DBUG_TRACE;
   OSSLCipher *od = c->ptr;
   int     err;
 
@@ -802,6 +829,7 @@ static const struct ossl_cipher_lookup ossl_cipher_types[] = {
 int
 px_find_cipher(const char *name, PX_Cipher **res)
 {
+  DBUG_TRACE;
   const struct ossl_cipher_lookup *i;
   PX_Cipher  *c = NULL;
   EVP_CIPHER_CTX *ctx;
@@ -861,6 +889,7 @@ px_find_cipher(const char *name, PX_Cipher **res)
 static void
 ResOwnerReleaseOSSLCipher(Datum res)
 {
+  DBUG_TRACE;
   free_openssl_cipher((OSSLCipher *) DatumGetPointer(res));
 }
 

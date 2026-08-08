@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/reloptions.h"
@@ -64,6 +65,7 @@ static void import_error_callback(void *arg);
 static Datum
 optionListToArray(List *options)
 {
+  DBUG_TRACE;
   ArrayBuildState *astate = NULL;
   ListCell   *cell;
 
@@ -121,6 +123,7 @@ transformGenericOptions(Oid catalogId,
                         List *options,
                         Oid fdwvalidator)
 {
+  DBUG_TRACE;
   List     *resultOptions = untransformRelOptions(oldOptions);
   ListCell   *optcell;
   Datum   result;
@@ -148,32 +151,38 @@ transformGenericOptions(Oid catalogId,
      */
     switch (od->defaction) {
       case DEFELEM_DROP:
-        if (!cell)
+        if (!cell) {
+          DBUG_INSTANT_PRINT("info", "option \"%s\" not found", od->defname);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_OBJECT),
                    errmsg("option \"%s\" not found",
                           od->defname)));
+        }
 
         resultOptions = list_delete_cell(resultOptions, cell);
         break;
 
       case DEFELEM_SET:
-        if (!cell)
+        if (!cell) {
+          DBUG_INSTANT_PRINT("info", "option \"%s\" not found", od->defname);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_OBJECT),
                    errmsg("option \"%s\" not found",
                           od->defname)));
+        }
 
         lfirst(cell) = od;
         break;
 
       case DEFELEM_ADD:
       case DEFELEM_UNSPEC:
-        if (cell)
+        if (cell) {
+          DBUG_INSTANT_PRINT("info", "option \"%s\" provided more than once", od->defname);
           ereport(ERROR,
                   (errcode(ERRCODE_DUPLICATE_OBJECT),
                    errmsg("option \"%s\" provided more than once",
                           od->defname)));
+        }
 
         resultOptions = lappend(resultOptions, od);
         break;
@@ -213,6 +222,7 @@ transformGenericOptions(Oid catalogId,
 static void
 AlterForeignDataWrapperOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_foreign_data_wrapper form;
   Datum   repl_val[Natts_pg_foreign_data_wrapper];
   bool    repl_null[Natts_pg_foreign_data_wrapper];
@@ -224,20 +234,24 @@ AlterForeignDataWrapperOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerI
   form = (Form_pg_foreign_data_wrapper) GETSTRUCT(tup);
 
   /* Must be a superuser to change a FDW owner */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to change owner of foreign-data wrapper \"%s\"", NameStr(form->fdwname));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to change owner of foreign-data wrapper \"%s\"",
                     NameStr(form->fdwname)),
              errhint("Must be superuser to change owner of a foreign-data wrapper.")));
+  }
 
   /* New owner must also be a superuser */
-  if (!superuser_arg(newOwnerId))
+  if (!superuser_arg(newOwnerId)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to change owner of foreign-data wrapper \"%s\"", NameStr(form->fdwname));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to change owner of foreign-data wrapper \"%s\"",
                     NameStr(form->fdwname)),
              errhint("The owner of a foreign-data wrapper must be a superuser.")));
+  }
 
   if (form->fdwowner != newOwnerId) {
     memset(repl_null, false, sizeof(repl_null));
@@ -282,6 +296,7 @@ AlterForeignDataWrapperOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerI
 ObjectAddress
 AlterForeignDataWrapperOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     fdwId;
   HeapTuple tup;
   Relation  rel;
@@ -293,10 +308,12 @@ AlterForeignDataWrapperOwner(const char *name, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(FOREIGNDATAWRAPPERNAME, CStringGetDatum(name));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("foreign-data wrapper \"%s\" does not exist", name)));
+  }
 
   form = (Form_pg_foreign_data_wrapper) GETSTRUCT(tup);
   fdwId = form->oid;
@@ -320,6 +337,7 @@ AlterForeignDataWrapperOwner(const char *name, Oid newOwnerId)
 void
 AlterForeignDataWrapperOwner_oid(Oid fwdId, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
@@ -327,10 +345,12 @@ AlterForeignDataWrapperOwner_oid(Oid fwdId, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(FOREIGNDATAWRAPPEROID, ObjectIdGetDatum(fwdId));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper with OID %u does not exist", fwdId);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("foreign-data wrapper with OID %u does not exist", fwdId)));
+  }
 
   AlterForeignDataWrapperOwner_internal(rel, tup, newOwnerId);
 
@@ -345,6 +365,7 @@ AlterForeignDataWrapperOwner_oid(Oid fwdId, Oid newOwnerId)
 static void
 AlterForeignServerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_foreign_server form;
   Datum   repl_val[Natts_pg_foreign_server];
   bool    repl_null[Natts_pg_foreign_server];
@@ -420,6 +441,7 @@ AlterForeignServerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterForeignServerOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     servOid;
   HeapTuple tup;
   Relation  rel;
@@ -430,10 +452,12 @@ AlterForeignServerOwner(const char *name, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(FOREIGNSERVERNAME, CStringGetDatum(name));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "server \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("server \"%s\" does not exist", name)));
+  }
 
   form = (Form_pg_foreign_server) GETSTRUCT(tup);
   servOid = form->oid;
@@ -455,6 +479,7 @@ AlterForeignServerOwner(const char *name, Oid newOwnerId)
 void
 AlterForeignServerOwner_oid(Oid srvId, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
@@ -462,10 +487,12 @@ AlterForeignServerOwner_oid(Oid srvId, Oid newOwnerId)
 
   tup = SearchSysCacheCopy1(FOREIGNSERVEROID, ObjectIdGetDatum(srvId));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "foreign server with OID %u does not exist", srvId);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("foreign server with OID %u does not exist", srvId)));
+  }
 
   AlterForeignServerOwner_internal(rel, tup, newOwnerId);
 
@@ -480,6 +507,7 @@ AlterForeignServerOwner_oid(Oid srvId, Oid newOwnerId)
 static Oid
 lookup_fdw_handler_func(DefElem *handler)
 {
+  DBUG_TRACE;
   Oid     handlerOid;
 
   if (handler == NULL || handler->arg == NULL)
@@ -489,11 +517,13 @@ lookup_fdw_handler_func(DefElem *handler)
   handlerOid = LookupFuncName((List *) handler->arg, 0, NULL, false);
 
   /* check that handler has correct return type */
-  if (get_func_rettype(handlerOid) != FDW_HANDLEROID)
+  if (get_func_rettype(handlerOid) != FDW_HANDLEROID) {
+    DBUG_INSTANT_PRINT("info", "function %s must return type %s", NameListToString((List *) handler->arg), "fdw_handler");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("function %s must return type %s",
                     NameListToString((List *) handler->arg), "fdw_handler")));
+  }
 
   return handlerOid;
 }
@@ -504,6 +534,7 @@ lookup_fdw_handler_func(DefElem *handler)
 static Oid
 lookup_fdw_validator_func(DefElem *validator)
 {
+  DBUG_TRACE;
   Oid     funcargtypes[2];
 
   if (validator == NULL || validator->arg == NULL)
@@ -525,6 +556,7 @@ parse_func_options(ParseState *pstate, List *func_options,
                    bool *handler_given, Oid *fdwhandler,
                    bool *validator_given, Oid *fdwvalidator)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   *handler_given = false;
@@ -560,6 +592,7 @@ parse_func_options(ParseState *pstate, List *func_options,
 ObjectAddress
 CreateForeignDataWrapper(ParseState *pstate, CreateFdwStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   Datum   values[Natts_pg_foreign_data_wrapper];
   bool    nulls[Natts_pg_foreign_data_wrapper];
@@ -577,12 +610,14 @@ CreateForeignDataWrapper(ParseState *pstate, CreateFdwStmt *stmt)
   rel = table_open(ForeignDataWrapperRelationId, RowExclusiveLock);
 
   /* Must be superuser */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to create foreign-data wrapper \"%s\"", stmt->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create foreign-data wrapper \"%s\"",
                     stmt->fdwname),
              errhint("Must be superuser to create a foreign-data wrapper.")));
+  }
 
   /* For now the owner cannot be specified on create. Use effective user ID. */
   ownerId = GetUserId();
@@ -590,11 +625,13 @@ CreateForeignDataWrapper(ParseState *pstate, CreateFdwStmt *stmt)
   /*
    * Check that there is no other foreign-data wrapper by this name.
    */
-  if (GetForeignDataWrapperByName(stmt->fdwname, true) != NULL)
+  if (GetForeignDataWrapperByName(stmt->fdwname, true) != NULL) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper \"%s\" already exists", stmt->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("foreign-data wrapper \"%s\" already exists",
                     stmt->fdwname)));
+  }
 
   /*
    * Insert tuple into pg_foreign_data_wrapper.
@@ -674,6 +711,7 @@ CreateForeignDataWrapper(ParseState *pstate, CreateFdwStmt *stmt)
 ObjectAddress
 AlterForeignDataWrapper(ParseState *pstate, AlterFdwStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tp;
   Form_pg_foreign_data_wrapper fdwForm;
@@ -692,20 +730,24 @@ AlterForeignDataWrapper(ParseState *pstate, AlterFdwStmt *stmt)
   rel = table_open(ForeignDataWrapperRelationId, RowExclusiveLock);
 
   /* Must be superuser */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to alter foreign-data wrapper \"%s\"", stmt->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to alter foreign-data wrapper \"%s\"",
                     stmt->fdwname),
              errhint("Must be superuser to alter a foreign-data wrapper.")));
+  }
 
   tp = SearchSysCacheCopy1(FOREIGNDATAWRAPPERNAME,
                            CStringGetDatum(stmt->fdwname));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper \"%s\" does not exist", stmt->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("foreign-data wrapper \"%s\" does not exist", stmt->fdwname)));
+  }
 
   fdwForm = (Form_pg_foreign_data_wrapper) GETSTRUCT(tp);
   fdwId = fdwForm->oid;
@@ -742,10 +784,11 @@ AlterForeignDataWrapper(ParseState *pstate, AlterFdwStmt *stmt)
      * USER MAPPING or FOREIGN TABLE objects are no longer valid according
      * to the new validator.  Warn about this.
      */
-    if (OidIsValid(fdwvalidator))
+    if (OidIsValid(fdwvalidator)) {
       ereport(WARNING,
               (errmsg("changing the foreign-data wrapper validator can cause "
                       "the options for dependent objects to become invalid")));
+    }
   } else {
     /*
      * Validator is not changed, but we need it for validating options.
@@ -834,6 +877,7 @@ AlterForeignDataWrapper(ParseState *pstate, AlterFdwStmt *stmt)
 ObjectAddress
 CreateForeignServer(CreateForeignServerStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   Datum   srvoptions;
   Datum   values[Natts_pg_foreign_server];
@@ -867,17 +911,20 @@ CreateForeignServer(CreateForeignServerStmt *stmt)
       checkMembershipInCurrentExtension(&myself);
 
       /* OK to skip */
+      DBUG_PRINT("info", "server \"%s\" already exists, skipping", stmt->servername);
       ereport(NOTICE,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("server \"%s\" already exists, skipping",
                       stmt->servername)));
       table_close(rel, RowExclusiveLock);
       return InvalidObjectAddress;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "server \"%s\" already exists", stmt->servername);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("server \"%s\" already exists",
                       stmt->servername)));
+    }
   }
 
   /*
@@ -969,6 +1016,7 @@ CreateForeignServer(CreateForeignServerStmt *stmt)
 ObjectAddress
 AlterForeignServer(AlterForeignServerStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tp;
   Datum   repl_val[Natts_pg_foreign_server];
@@ -983,10 +1031,12 @@ AlterForeignServer(AlterForeignServerStmt *stmt)
   tp = SearchSysCacheCopy1(FOREIGNSERVERNAME,
                            CStringGetDatum(stmt->servername));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_INSTANT_PRINT("info", "server \"%s\" does not exist", stmt->servername);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("server \"%s\" does not exist", stmt->servername)));
+  }
 
   srvForm = (Form_pg_foreign_server) GETSTRUCT(tp);
   srvId = srvForm->oid;
@@ -1069,6 +1119,7 @@ AlterForeignServer(AlterForeignServerStmt *stmt)
 static void
 user_mapping_ddl_aclcheck(Oid umuserid, Oid serverid, const char *servername)
 {
+  DBUG_TRACE;
   Oid     curuserid = GetUserId();
 
   if (!object_ownercheck(ForeignServerRelationId, serverid, curuserid)) {
@@ -1092,6 +1143,7 @@ user_mapping_ddl_aclcheck(Oid umuserid, Oid serverid, const char *servername)
 ObjectAddress
 CreateUserMapping(CreateUserMappingStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   Datum   useoptions;
   Datum   values[Natts_pg_user_mapping];
@@ -1130,6 +1182,7 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
        * Since user mappings aren't members of extensions (see comments
        * below), no need for checkMembershipInCurrentExtension here.
        */
+      DBUG_PRINT("info", "user mapping for \"%s\" already exists for server \"%s\", skipping", MappingUserName(useId), stmt->servername);
       ereport(NOTICE,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("user mapping for \"%s\" already exists for server \"%s\", skipping",
@@ -1138,12 +1191,14 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
 
       table_close(rel, RowExclusiveLock);
       return InvalidObjectAddress;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "user mapping for \"%s\" already exists for server \"%s\"", MappingUserName(useId), stmt->servername);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("user mapping for \"%s\" already exists for server \"%s\"",
                       MappingUserName(useId),
                       stmt->servername)));
+    }
   }
 
   fdw = GetForeignDataWrapper(srv->fdwid);
@@ -1214,6 +1269,7 @@ CreateUserMapping(CreateUserMappingStmt *stmt)
 ObjectAddress
 AlterUserMapping(AlterUserMappingStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tp;
   Datum   repl_val[Natts_pg_user_mapping];
@@ -1238,11 +1294,13 @@ AlterUserMapping(AlterUserMappingStmt *stmt)
                          ObjectIdGetDatum(useId),
                          ObjectIdGetDatum(srv->serverid));
 
-  if (!OidIsValid(umId))
+  if (!OidIsValid(umId)) {
+    DBUG_INSTANT_PRINT("info", "user mapping for \"%s\" does not exist for server \"%s\"", MappingUserName(useId), stmt->servername);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("user mapping for \"%s\" does not exist for server \"%s\"",
                     MappingUserName(useId), stmt->servername)));
+  }
 
   user_mapping_ddl_aclcheck(useId, srv->serverid, stmt->servername);
 
@@ -1313,6 +1371,7 @@ AlterUserMapping(AlterUserMappingStmt *stmt)
 Oid
 RemoveUserMapping(DropUserMappingStmt *stmt)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   Oid     useId;
   Oid     umId;
@@ -1338,11 +1397,13 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
   srv = GetForeignServerByName(stmt->servername, true);
 
   if (!srv) {
-    if (!stmt->missing_ok)
+    if (!stmt->missing_ok) {
+      DBUG_INSTANT_PRINT("info", "server \"%s\" does not exist", stmt->servername);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("server \"%s\" does not exist",
                       stmt->servername)));
+    }
 
     /* IF EXISTS, just note it */
     ereport(NOTICE,
@@ -1356,11 +1417,13 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
                          ObjectIdGetDatum(srv->serverid));
 
   if (!OidIsValid(umId)) {
-    if (!stmt->missing_ok)
+    if (!stmt->missing_ok) {
+      DBUG_INSTANT_PRINT("info", "user mapping for \"%s\" does not exist for server \"%s\"", MappingUserName(useId), stmt->servername);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("user mapping for \"%s\" does not exist for server \"%s\"",
                       MappingUserName(useId), stmt->servername)));
+    }
 
     /* IF EXISTS specified, just note it */
     ereport(NOTICE,
@@ -1391,6 +1454,7 @@ RemoveUserMapping(DropUserMappingStmt *stmt)
 void
 CreateForeignTable(CreateForeignTableStmt *stmt, Oid relid)
 {
+  DBUG_TRACE;
   Relation  ftrel;
   Datum   ftoptions;
   Datum   values[Natts_pg_foreign_table];
@@ -1472,6 +1536,7 @@ CreateForeignTable(CreateForeignTableStmt *stmt, Oid relid)
 void
 ImportForeignSchema(ImportForeignSchemaStmt *stmt)
 {
+  DBUG_TRACE;
   ForeignServer *server;
   ForeignDataWrapper *fdw;
   FdwRoutine *fdw_routine;
@@ -1492,19 +1557,23 @@ ImportForeignSchema(ImportForeignSchemaStmt *stmt)
   /* Get the FDW and check it supports IMPORT */
   fdw = GetForeignDataWrapper(server->fdwid);
 
-  if (!OidIsValid(fdw->fdwhandler))
+  if (!OidIsValid(fdw->fdwhandler)) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper \"%s\" has no handler", fdw->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("foreign-data wrapper \"%s\" has no handler",
                     fdw->fdwname)));
+  }
 
   fdw_routine = GetFdwRoutine(fdw->fdwhandler);
 
-  if (fdw_routine->ImportForeignSchema == NULL)
+  if (fdw_routine->ImportForeignSchema == NULL) {
+    DBUG_INSTANT_PRINT("info", "foreign-data wrapper \"%s\" does not support IMPORT FOREIGN SCHEMA", fdw->fdwname);
     ereport(ERROR,
             (errcode(ERRCODE_FDW_NO_SCHEMAS),
              errmsg("foreign-data wrapper \"%s\" does not support IMPORT FOREIGN SCHEMA",
                     fdw->fdwname)));
+  }
 
   /* Call FDW to get a list of commands */
   cmd_list = fdw_routine->ImportForeignSchema(stmt, server->serverid);
@@ -1590,6 +1659,7 @@ ImportForeignSchema(ImportForeignSchemaStmt *stmt)
 static void
 import_error_callback(void *arg)
 {
+  DBUG_TRACE;
   import_error_callback_arg *callback_arg = (import_error_callback_arg *) arg;
   int     syntaxerrposition;
 

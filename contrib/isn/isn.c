@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "EAN13.h"
 #include "ISBN.h"
@@ -67,6 +68,7 @@ pg_attribute_unused()
 static bool
 check_table(const char *(*TABLE)[2], const unsigned TABLE_index[10][2])
 {
+  DBUG_TRACE;
   const char *aux1,
         *aux2;
   int     a,
@@ -148,6 +150,7 @@ invalidindex:
 static unsigned
 dehyphenate(char *bufO, char *bufI)
 {
+  DBUG_TRACE;
   unsigned  ret = 0;
 
   while (*bufI) {
@@ -173,6 +176,7 @@ dehyphenate(char *bufO, char *bufI)
 static unsigned
 hyphenate(char *bufO, char *bufI, const char *(*TABLE)[2], const unsigned TABLE_index[10][2])
 {
+  DBUG_TRACE;
   unsigned  ret = 0;
   const char *ean_aux1,
         *ean_aux2,
@@ -287,6 +291,7 @@ hyphenate(char *bufO, char *bufI, const char *(*TABLE)[2], const unsigned TABLE_
 static unsigned
 weight_checkdig(char *isn, unsigned size)
 {
+  DBUG_TRACE;
   unsigned  weight = 0;
 
   while (*isn && size > 1) {
@@ -315,6 +320,7 @@ weight_checkdig(char *isn, unsigned size)
 static unsigned
 checkdig(char *num, unsigned size)
 {
+  DBUG_TRACE;
   unsigned  check = 0,
             check3 = 0;
   unsigned  pos = 0;
@@ -356,6 +362,7 @@ checkdig(char *num, unsigned size)
 static bool
 ean2isn(ean13 ean, bool errorOK, ean13 *result, enum isn_type accept)
 {
+  DBUG_TRACE;
   enum isn_type type = INVALID;
 
   char    buf[MAXEAN13LEN + 1];
@@ -454,6 +461,7 @@ eantoobig:
 static inline void
 ean2ISBN(char *isn)
 {
+  DBUG_TRACE;
   char     *aux;
   unsigned  check;
 
@@ -480,6 +488,7 @@ ean2ISBN(char *isn)
 static inline void
 ean2ISMN(char *isn)
 {
+  DBUG_TRACE;
   /* the number should come in this format: 979-0-000-00000-0 */
   /* Just strip the first part and change the first digit ('0') to 'M' */
   hyphenate(isn, isn + 4, NULL, NULL);
@@ -489,6 +498,7 @@ ean2ISMN(char *isn)
 static inline void
 ean2ISSN(char *isn)
 {
+  DBUG_TRACE;
   unsigned  check;
 
   /* the number should come in this format: 977-0000-000-00-0 */
@@ -507,6 +517,7 @@ ean2ISSN(char *isn)
 static inline void
 ean2UPC(char *isn)
 {
+  DBUG_TRACE;
   /* the number should come in this format: 000-000000000-0 */
   /* Strip the first part, crop, and dehyphenate */
   dehyphenate(isn, isn + 1);
@@ -523,6 +534,7 @@ ean2UPC(char *isn)
 static ean13
 str2ean(const char *num)
 {
+  DBUG_TRACE;
   ean13   ean = 0;    /* current ean */
 
   while (*num) {
@@ -548,6 +560,7 @@ str2ean(const char *num)
 static bool
 ean2string(ean13 ean, bool errorOK, char *result, bool shortType)
 {
+  DBUG_TRACE;
   const char *(*TABLE)[2];
   const unsigned (*TABLE_index)[2];
   enum isn_type type = INVALID;
@@ -703,6 +716,7 @@ static bool
 string2ean(const char *str, struct Node *escontext, ean13 *result,
            enum isn_type accept)
 {
+  DBUG_TRACE;
   bool    digit,
           last;
   char    buf[17] = "                ";
@@ -935,6 +949,8 @@ eantoobig:
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
+
   if (ISN_DEBUG) {
     if (!check_table(EAN13_range, EAN13_index))
       elog(ERROR, "EAN13 failed check");
@@ -973,6 +989,7 @@ PG_FUNCTION_INFO_V1(isn_out);
 Datum
 isn_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   char     *result;
   char    buf[MAXEAN13LEN + 1];
@@ -989,6 +1006,7 @@ PG_FUNCTION_INFO_V1(ean13_out);
 Datum
 ean13_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   char     *result;
   char    buf[MAXEAN13LEN + 1];
@@ -1005,6 +1023,7 @@ PG_FUNCTION_INFO_V1(ean13_in);
 Datum
 ean13_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *str = PG_GETARG_CSTRING(0);
   ean13   result;
 
@@ -1020,6 +1039,7 @@ PG_FUNCTION_INFO_V1(isbn_in);
 Datum
 isbn_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *str = PG_GETARG_CSTRING(0);
   ean13   result;
 
@@ -1035,6 +1055,7 @@ PG_FUNCTION_INFO_V1(ismn_in);
 Datum
 ismn_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *str = PG_GETARG_CSTRING(0);
   ean13   result;
 
@@ -1050,6 +1071,7 @@ PG_FUNCTION_INFO_V1(issn_in);
 Datum
 issn_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *str = PG_GETARG_CSTRING(0);
   ean13   result;
 
@@ -1065,6 +1087,7 @@ PG_FUNCTION_INFO_V1(upc_in);
 Datum
 upc_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *str = PG_GETARG_CSTRING(0);
   ean13   result;
 
@@ -1080,6 +1103,7 @@ PG_FUNCTION_INFO_V1(isbn_cast_from_ean13);
 Datum
 isbn_cast_from_ean13(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   ean13   result;
 
@@ -1092,6 +1116,7 @@ PG_FUNCTION_INFO_V1(ismn_cast_from_ean13);
 Datum
 ismn_cast_from_ean13(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   ean13   result;
 
@@ -1104,6 +1129,7 @@ PG_FUNCTION_INFO_V1(issn_cast_from_ean13);
 Datum
 issn_cast_from_ean13(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   ean13   result;
 
@@ -1116,6 +1142,7 @@ PG_FUNCTION_INFO_V1(upc_cast_from_ean13);
 Datum
 upc_cast_from_ean13(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
   ean13   result;
 
@@ -1131,6 +1158,7 @@ PG_FUNCTION_INFO_V1(is_valid);
 Datum
 is_valid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
 
   PG_RETURN_BOOL((val & 1) == 0);
@@ -1142,6 +1170,7 @@ PG_FUNCTION_INFO_V1(make_valid);
 Datum
 make_valid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ean13   val = PG_GETARG_EAN13(0);
 
   val &= ~((ean13) 1);
@@ -1155,6 +1184,7 @@ PG_FUNCTION_INFO_V1(accept_weak_input);
 Datum
 accept_weak_input(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    newvalue = PG_GETARG_BOOL(0);
 
   (void) set_config_option("isn.weak", newvalue ? "on" : "off",
@@ -1167,5 +1197,6 @@ PG_FUNCTION_INFO_V1(weak_input_status);
 Datum
 weak_input_status(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(g_weak);
 }

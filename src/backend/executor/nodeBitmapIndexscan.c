@@ -20,6 +20,7 @@
  *    ExecEndBitmapIndexScan    releases all storage.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "executor/executor.h"
@@ -48,6 +49,7 @@ ExecBitmapIndexScan(PlanState *pstate)
 Node *
 MultiExecBitmapIndexScan(BitmapIndexScanState *node)
 {
+  DBUG_TRACE;
   TIDBitmap  *tbm;
   IndexScanDesc scandesc;
   double    nTuples = 0;
@@ -81,6 +83,8 @@ MultiExecBitmapIndexScan(BitmapIndexScanState *node)
    * node->biss_result, in which case we just OR our tuple IDs into the
    * existing bitmap.  (This saves needing explicit UNION steps.)
    */
+  DBUG_PRINT("info", "prepare the result bitmap");
+
   if (node->biss_result) {
     tbm = node->biss_result;
     node->biss_result = NULL; /* reset for next time */
@@ -94,6 +98,10 @@ MultiExecBitmapIndexScan(BitmapIndexScanState *node)
   /*
    * Get TIDs from index and insert into bitmap
    */
+  if (doscan) {
+    DBUG_PRINT("info", "get TIDs from index and insert into bitmap");
+  }
+
   while (doscan) {
     nTuples += (double) index_getbitmap(scandesc, tbm);
 
@@ -125,6 +133,7 @@ MultiExecBitmapIndexScan(BitmapIndexScanState *node)
 void
 ExecReScanBitmapIndexScan(BitmapIndexScanState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->biss_RuntimeContext;
 
   /*
@@ -170,6 +179,7 @@ ExecReScanBitmapIndexScan(BitmapIndexScanState *node)
 void
 ExecEndBitmapIndexScan(BitmapIndexScanState *node)
 {
+  DBUG_TRACE;
   Relation  indexRelationDesc;
   IndexScanDesc indexScanDesc;
 
@@ -218,6 +228,7 @@ ExecEndBitmapIndexScan(BitmapIndexScanState *node)
 BitmapIndexScanState *
 ExecInitBitmapIndexScan(BitmapIndexScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   BitmapIndexScanState *indexstate;
   LOCKMODE  lockmode;
 

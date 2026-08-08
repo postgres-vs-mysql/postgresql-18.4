@@ -78,8 +78,7 @@ typedef struct SERIALIZABLEXACT
   SerCommitSeqNo commitSeqNo;
 
   /* these values are not both interesting at the same time */
-  union
-  {
+  union {
     SerCommitSeqNo earliestOutConflictCommit; /* when committed with
                            * conflict out */
     SerCommitSeqNo lastCommitBeforeSnapshot;  /* when not committed or
@@ -454,8 +453,7 @@ typedef struct TwoPhasePredicateLockRecord
 typedef struct TwoPhasePredicateRecord
 {
   TwoPhasePredicateRecordType type;
-  union
-  {
+  union {
     TwoPhasePredicateXactRecord xactRecord;
     TwoPhasePredicateLockRecord lockRecord;
   }     data;

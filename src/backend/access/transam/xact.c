@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <time.h>
 #include <unistd.h>
@@ -632,6 +633,7 @@ GetStableLatestTransactionId(void)
 static void
 AssignTransactionId(TransactionState s)
 {
+  DBUG_TRACE;
   bool    isSubXact = (s->parent != NULL);
   ResourceOwner currentOwner;
   bool    log_unknown_top = false;
@@ -644,10 +646,12 @@ AssignTransactionId(TransactionState s)
    * Workers synchronize transaction state at the beginning of each parallel
    * operation, so we can't account for new XIDs at this point.
    */
-  if (IsInParallelMode() || IsParallelWorker())
+  if (IsInParallelMode() || IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot assign transaction IDs during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot assign transaction IDs during a parallel operation")));
+  }
 
   /*
    * Ensure parent(s) have XIDs, so that a child always has an XID later
@@ -833,10 +837,12 @@ GetCurrentCommandId(bool used)
      * could relax this restriction when currentCommandIdUsed was already
      * true at the start of the parallel operation.
      */
-    if (IsParallelWorker())
+    if (IsParallelWorker()) {
+      DBUG_INSTANT_PRINT("info", "cannot modify data in a parallel worker");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                errmsg("cannot modify data in a parallel worker")));
+    }
 
     currentCommandIdUsed = true;
   }
@@ -1112,15 +1118,18 @@ CommandCounterIncrement(void)
      * parallel operation, so we can't account for new commands after that
      * point.
      */
-    if (IsInParallelMode() || IsParallelWorker())
+    if (IsInParallelMode() || IsParallelWorker()) {
+      DBUG_INSTANT_PRINT("info", "cannot start commands during a parallel operation");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                errmsg("cannot start commands during a parallel operation")));
+    }
 
     currentCommandId += 1;
 
     if (currentCommandId == InvalidCommandId) {
       currentCommandId -= 1;
+      DBUG_INSTANT_PRINT("info", "cannot have more than 2^32-2 commands in a transaction");
       ereport(ERROR,
               (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                errmsg("cannot have more than 2^32-2 commands in a transaction")));
@@ -1315,6 +1324,7 @@ AtSubStart_ResourceOwner(void)
 static TransactionId
 RecordTransactionCommit(void)
 {
+  DBUG_TRACE;
   TransactionId xid = GetTopTransactionIdIfAny();
   bool    markXidCommitted = TransactionIdIsValid(xid);
   TransactionId latestXid = InvalidTransactionId;
@@ -1363,8 +1373,10 @@ RecordTransactionCommit(void)
      * Use a real test not just an Assert to check this, since it's a bit
      * fragile.
      */
-    if (nrels != 0 || ndroppedstats != 0)
+    if (nrels != 0 || ndroppedstats != 0) {
+      DBUG_INSTANT_PRINT("info", "cannot commit a transaction that deleted files but has no xid");
       elog(ERROR, "cannot commit a transaction that deleted files but has no xid");
+    }
 
     /* Can't have child XIDs either; AssignTransactionId enforces this */
     Assert(nchildren == 0);
@@ -1497,6 +1509,7 @@ RecordTransactionCommit(void)
   if ((wrote_xlog && markXidCommitted &&
        synchronous_commit > SYNCHRONOUS_COMMIT_OFF) ||
       forceSyncCommit || nrels > 0) {
+    DBUG_PRINT("info", "synchronous commit");
     XLogFlush(XactLastRecEnd);
 
     /*
@@ -1505,6 +1518,7 @@ RecordTransactionCommit(void)
     if (markXidCommitted)
       TransactionIdCommitTree(xid, nchildren, children);
   } else {
+    DBUG_PRINT("info", "asynchronous commit");
     /*
      * Asynchronous commit case:
      *
@@ -1659,6 +1673,7 @@ AtSubCommit_Memory(void)
 static void
 AtSubCommit_childXids(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   int     new_nChildXids;
 
@@ -1684,11 +1699,13 @@ AtSubCommit_childXids(void)
     new_maxChildXids = Min(new_nChildXids * 2,
                            (int) (MaxAllocSize / sizeof(TransactionId)));
 
-    if (new_maxChildXids < new_nChildXids)
+    if (new_maxChildXids < new_nChildXids) {
+      DBUG_INSTANT_PRINT("info", "maximum number of committed subtransactions (%d) exceeded", (int) (MaxAllocSize / sizeof(TransactionId)));
       ereport(ERROR,
               (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                errmsg("maximum number of committed subtransactions (%d) exceeded",
                       (int) (MaxAllocSize / sizeof(TransactionId)))));
+    }
 
     /*
      * We keep the child-XID arrays in TopTransactionContext; this avoids
@@ -1749,6 +1766,7 @@ AtSubCommit_childXids(void)
 static TransactionId
 RecordTransactionAbort(bool isSubXact)
 {
+  DBUG_TRACE;
   TransactionId xid = GetCurrentTransactionIdIfAny();
   TransactionId latestXid;
   int     nrels;
@@ -1759,6 +1777,8 @@ RecordTransactionAbort(bool isSubXact)
   TransactionId *children;
   TimestampTz xact_time;
   bool    replorigin;
+
+  DBUG_PRINT("info", "returns latest XID among xact and its children or InvalidTransactionId");
 
   /*
    * If we haven't been assigned an XID, nobody will care whether we aborted
@@ -1771,6 +1791,7 @@ RecordTransactionAbort(bool isSubXact)
     if (!isSubXact)
       XactLastRecEnd = 0;
 
+    DBUG_PRINT("info", "returns InvalidTransactionId");
     return InvalidTransactionId;
   }
 
@@ -1785,9 +1806,11 @@ RecordTransactionAbort(bool isSubXact)
   /*
    * Check that we haven't aborted halfway through RecordTransactionCommit.
    */
-  if (TransactionIdDidCommit(xid))
+  if (TransactionIdDidCommit(xid)) {
+    DBUG_INSTANT_PRINT("info", "cannot abort transaction %u, it was already committed", xid);
     elog(PANIC, "cannot abort transaction %u, it was already committed",
          xid);
+  }
 
   /*
    * Are we using the replication origins feature?  Or, in other words, are
@@ -1797,6 +1820,7 @@ RecordTransactionAbort(bool isSubXact)
                 replorigin_session_origin != DoNotReplicateId);
 
   /* Fetch the data we need for the abort record */
+  DBUG_INSTANT_PRINT("info", "fetch the data we need for the abort record");
   nrels = smgrGetPendingDeletes(false, &rels);
   nchildren = xactGetCommittedChildren(&children);
   ndroppedstats = pgstat_get_transactional_drops(false, &droppedstats);
@@ -1811,6 +1835,7 @@ RecordTransactionAbort(bool isSubXact)
     xact_time = GetCurrentTransactionStopTimestamp();
   }
 
+  DBUG_PRINT("info", "write the ABORT record");
   XactLogAbortRecord(xact_time,
                      nchildren, children,
                      nrels, rels,
@@ -1818,10 +1843,12 @@ RecordTransactionAbort(bool isSubXact)
                      MyXactFlags, InvalidTransactionId,
                      NULL);
 
-  if (replorigin)
+  if (replorigin) {
+    DBUG_PRINT("info", "move LSNs forward for this replication origin");
     /* Move LSNs forward for this replication origin */
     replorigin_session_advance(replorigin_session_origin_lsn,
                                XactLastRecEnd);
+  }
 
   /*
    * Report the latest async abort LSN, so that the WAL writer knows to
@@ -1832,8 +1859,10 @@ RecordTransactionAbort(bool isSubXact)
    * occur after the abort, increasing our window of data loss should
    * problems occur at that point.
    */
-  if (!isSubXact)
+  if (!isSubXact) {
+    DBUG_PRINT("info", "report the latest async abort LSN, so that the WAL writer knows to flush this abort");
     XLogSetAsyncXactLSN(XactLastRecEnd);
+  }
 
   /*
    * Mark the transaction aborted in clog.  This is not absolutely necessary
@@ -1843,6 +1872,7 @@ RecordTransactionAbort(bool isSubXact)
    * having flushed the ABORT record to disk, because in event of a crash
    * we'd be assumed to have aborted anyway.
    */
+  DBUG_PRINT("info", "mark the transaction aborted in clog");
   TransactionIdAbortTree(xid, nchildren, children);
 
   END_CRIT_SECTION();
@@ -1856,8 +1886,9 @@ RecordTransactionAbort(bool isSubXact)
    * subxacts, because we already have the child XID array at hand.  For
    * main xacts, the equivalent happens just after this function returns.
    */
-  if (isSubXact)
+  if (isSubXact) {
     XidCacheRemoveRunningXids(xid, nchildren, children, latestXid);
+  }
 
   /* Reset XactLastRecEnd until the next transaction writes something */
   if (!isSubXact)
@@ -1870,6 +1901,7 @@ RecordTransactionAbort(bool isSubXact)
   if (ndroppedstats)
     pfree(droppedstats);
 
+  DBUG_PRINT("info", "returns latest XID among xact:%u", latestXid);
   return latestXid;
 }
 
@@ -2061,6 +2093,7 @@ AtSubCleanup_Memory(void)
 static void
 StartTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s;
   VirtualTransactionId vxid;
 
@@ -2156,6 +2189,8 @@ StartTransaction(void)
    */
   vxid.procNumber = MyProcNumber;
   vxid.localTransactionId = GetNextLocalTransactionId();
+  DBUG_PRINT("info", "form a virtual transaction id, LocalTransactionId:%u, proc num:%u",
+             vxid.localTransactionId, MyProcNumber);
 
   /*
    * Lock the virtual transaction id before we announce it in the proc array
@@ -2222,6 +2257,7 @@ StartTransaction(void)
 static void
 CommitTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   TransactionId latestXid;
   bool    is_parallel_worker;
@@ -2237,9 +2273,11 @@ CommitTransaction(void)
   /*
    * check the current transaction state
    */
-  if (s->state != TRANS_INPROGRESS)
+  if (s->state != TRANS_INPROGRESS) {
+    DBUG_INSTANT_PRINT("info", "CommitTransaction while in %s state", TransStateAsString(s->state));
     elog(WARNING, "CommitTransaction while in %s state",
          TransStateAsString(s->state));
+  }
 
   Assert(s->parent == NULL);
 
@@ -2285,13 +2323,17 @@ CommitTransaction(void)
   AtEOXact_Parallel(true);
 
   if (is_parallel_worker) {
-    if (s->parallelModeLevel != 1)
+    if (s->parallelModeLevel != 1) {
+      DBUG_INSTANT_PRINT("info", "parallelModeLevel is %d not 1 at end of parallel worker transaction", s->parallelModeLevel);
       elog(WARNING, "parallelModeLevel is %d not 1 at end of parallel worker transaction",
            s->parallelModeLevel);
+    }
   } else {
-    if (s->parallelModeLevel != 0)
+    if (s->parallelModeLevel != 0) {
+      DBUG_INSTANT_PRINT("info", "parallelModeLevel is %d not 0 at end of transaction", s->parallelModeLevel);
       elog(WARNING, "parallelModeLevel is %d not 0 at end of transaction",
            s->parallelModeLevel);
+    }
   }
 
   /* Shut down the deferred-trigger manager */
@@ -2394,6 +2436,7 @@ CommitTransaction(void)
    * state.
    */
 
+  DBUG_PRINT("info", "this is all post-commit cleanup");
   CallXactCallbacks(is_parallel_worker ? XACT_EVENT_PARALLEL_COMMIT
                     : XACT_EVENT_COMMIT);
 
@@ -2504,6 +2547,7 @@ CommitTransaction(void)
 static void
 PrepareTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   TransactionId xid = GetCurrentTransactionId();
   GlobalTransaction gxact;
@@ -2516,9 +2560,11 @@ PrepareTransaction(void)
   /*
    * check the current transaction state
    */
-  if (s->state != TRANS_INPROGRESS)
+  if (s->state != TRANS_INPROGRESS) {
+    DBUG_INSTANT_PRINT("info", "PrepareTransaction while in %s state", TransStateAsString(s->state));
     elog(WARNING, "PrepareTransaction while in %s state",
          TransStateAsString(s->state));
+  }
 
   Assert(s->parent == NULL);
 
@@ -2600,20 +2646,24 @@ PrepareTransaction(void)
    * cases, such as a temp table created and dropped all within the
    * transaction.  That seems to require much more bookkeeping though.
    */
-  if ((MyXactFlags & XACT_FLAGS_ACCESSEDTEMPNAMESPACE))
+  if ((MyXactFlags & XACT_FLAGS_ACCESSEDTEMPNAMESPACE)) {
+    DBUG_INSTANT_PRINT("info", "cannot PREPARE a transaction that has operated on temporary objects");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot PREPARE a transaction that has operated on temporary objects")));
+  }
 
   /*
    * Likewise, don't allow PREPARE after pg_export_snapshot.  This could be
    * supported if we added cleanup logic to twophase.c, but for now it
    * doesn't seem worth the trouble.
    */
-  if (XactHasExportedSnapshots())
+  if (XactHasExportedSnapshots()) {
+    DBUG_INSTANT_PRINT("info", "cannot PREPARE a transaction that has exported snapshots");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot PREPARE a transaction that has exported snapshots")));
+  }
 
   /* Prevent cancel/die interrupt while cleaning up */
   HOLD_INTERRUPTS();
@@ -2798,6 +2848,7 @@ PrepareTransaction(void)
 static void
 AbortTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   TransactionId latestXid;
   bool    is_parallel_worker;
@@ -2863,9 +2914,11 @@ AbortTransaction(void)
    */
   is_parallel_worker = (s->blockState == TBLOCK_PARALLEL_INPROGRESS);
 
-  if (s->state != TRANS_INPROGRESS && s->state != TRANS_PREPARE)
+  if (s->state != TRANS_INPROGRESS && s->state != TRANS_PREPARE) {
+    DBUG_INSTANT_PRINT("info", "AbortTransaction while in %s state", TransStateAsString(s->state));
     elog(WARNING, "AbortTransaction while in %s state",
          TransStateAsString(s->state));
+  }
 
   Assert(s->parent == NULL);
 
@@ -2986,6 +3039,7 @@ AbortTransaction(void)
     pgstat_report_xact_timestamp(0);
   }
 
+  DBUG_INSTANT_PRINT("info", "state remains TRANS_ABORT until CleanupTransaction()");
   /*
    * State remains TRANS_ABORT until CleanupTransaction().
    */
@@ -2998,14 +3052,17 @@ AbortTransaction(void)
 static void
 CleanupTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   /*
    * State should still be TRANS_ABORT from AbortTransaction().
    */
-  if (s->state != TRANS_ABORT)
+  if (s->state != TRANS_ABORT) {
+    DBUG_INSTANT_PRINT("info", "CleanupTransaction: unexpected state %s", TransStateAsString(s->state));
     elog(FATAL, "CleanupTransaction: unexpected state %s",
          TransStateAsString(s->state));
+  }
 
   /*
    * do abort cleanup processing
@@ -3042,6 +3099,7 @@ CleanupTransaction(void)
    * default
    */
   s->state = TRANS_DEFAULT;
+  DBUG_INSTANT_PRINT("info", "done with abort processing");
 }
 
 /*
@@ -3050,6 +3108,7 @@ CleanupTransaction(void)
 void
 StartTransactionCommand(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   switch (s->blockState) {
@@ -3164,6 +3223,7 @@ CommitTransactionCommand(void)
 static bool
 CommitTransactionCommandInternal(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   SavedTransactionCharacteristics savetc;
 
@@ -3179,6 +3239,7 @@ CommitTransactionCommandInternal(void)
      */
     case TBLOCK_DEFAULT:
     case TBLOCK_PARALLEL_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "CommitTransactionCommand: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "CommitTransactionCommand: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -3188,6 +3249,8 @@ CommitTransactionCommandInternal(void)
      * transaction commit, and return to the idle state.
      */
     case TBLOCK_STARTED:
+      DBUG_PRINT("info", "state:TBLOCK_STARTED");
+      DBUG_PRINT("info", "just do our usual transaction commit, and return to the idle state");
       CommitTransaction();
       s->blockState = TBLOCK_DEFAULT;
       break;
@@ -3199,6 +3262,7 @@ CommitTransactionCommandInternal(void)
      * CommandCounterIncrement.)
      */
     case TBLOCK_BEGIN:
+      DBUG_PRINT("info", "state:TBLOCK_BEGIN");
       s->blockState = TBLOCK_INPROGRESS;
       break;
 
@@ -3218,6 +3282,7 @@ CommitTransactionCommandInternal(void)
      * idle state.
      */
     case TBLOCK_END:
+      DBUG_PRINT("info", "state:TBLOCK_END");
       CommitTransaction();
       s->blockState = TBLOCK_DEFAULT;
 
@@ -3245,6 +3310,7 @@ CommitTransactionCommandInternal(void)
      * already-aborted transaction and return to the idle state.
      */
     case TBLOCK_ABORT_END:
+      DBUG_PRINT("info", "state:TBLOCK_ABORT_END");
       CleanupTransaction();
       s->blockState = TBLOCK_DEFAULT;
 
@@ -3263,6 +3329,7 @@ CommitTransactionCommandInternal(void)
      * and then clean up.
      */
     case TBLOCK_ABORT_PENDING:
+      DBUG_PRINT("info", "state:TBLOCK_ABORT_PENDING");
       AbortTransaction();
       CleanupTransaction();
       s->blockState = TBLOCK_DEFAULT;
@@ -3281,6 +3348,7 @@ CommitTransactionCommandInternal(void)
      * return to the idle state.
      */
     case TBLOCK_PREPARE:
+      DBUG_PRINT("info", "state:TBLOCK_PREPARE");
       PrepareTransaction();
       s->blockState = TBLOCK_DEFAULT;
       break;
@@ -3291,6 +3359,7 @@ CommitTransactionCommandInternal(void)
      * so as to have someplace to put the SUBBEGIN state.)
      */
     case TBLOCK_SUBBEGIN:
+      DBUG_PRINT("info", "state:TBLOCK_SUBBEGIN");
       StartSubTransaction();
       s->blockState = TBLOCK_SUBINPROGRESS;
       break;
@@ -3302,6 +3371,8 @@ CommitTransactionCommandInternal(void)
      * transaction or subtransaction.
      */
     case TBLOCK_SUBRELEASE:
+      DBUG_PRINT("info", "state:TBLOCK_SUBRELEASE");
+
       do {
         CommitSubTransaction();
         s = CurrentTransactionState;  /* changed by pop */
@@ -3321,6 +3392,8 @@ CommitTransactionCommandInternal(void)
      * resource owners.
      */
     case TBLOCK_SUBCOMMIT:
+      DBUG_PRINT("info", "state:TBLOCK_SUBCOMMIT");
+
       do {
         CommitSubTransaction();
         s = CurrentTransactionState;  /* changed by pop */
@@ -3356,6 +3429,7 @@ CommitTransactionCommandInternal(void)
      * caller to do the next iteration.
      */
     case TBLOCK_SUBABORT_END:
+      DBUG_PRINT("info", "state:TBLOCK_SUBABORT_END");
       CleanupSubTransaction();
       return false;
 
@@ -3363,6 +3437,7 @@ CommitTransactionCommandInternal(void)
      * As above, but it's not dead yet, so abort first.
      */
     case TBLOCK_SUBABORT_PENDING:
+      DBUG_PRINT("info", "state:TBLOCK_SUBABORT_PENDING");
       AbortSubTransaction();
       CleanupSubTransaction();
       return false;
@@ -3376,11 +3451,14 @@ CommitTransactionCommandInternal(void)
       char     *name;
       int     savepointLevel;
 
+      DBUG_PRINT("info", "state:TBLOCK_SUBRESTART");
+      DBUG_PRINT("info", "the current subtransaction is the target of a ROLLBACK TO command");
       /* save name and keep Cleanup from freeing it */
       name = s->name;
       s->name = NULL;
       savepointLevel = s->savepointLevel;
 
+      DBUG_PRINT("info", "abort and pop it");
       AbortSubTransaction();
       CleanupSubTransaction();
 
@@ -3404,6 +3482,7 @@ CommitTransactionCommandInternal(void)
       char     *name;
       int     savepointLevel;
 
+      DBUG_PRINT("info", "state:TBLOCK_SUBABORT_RESTART");
       /* save name and keep Cleanup from freeing it */
       name = s->name;
       s->name = NULL;
@@ -3453,6 +3532,7 @@ AbortCurrentTransaction(void)
 static bool
 AbortCurrentTransactionInternal(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   switch (s->blockState) {
@@ -3633,36 +3713,44 @@ PreventInTransactionBlock(bool isTopLevel, const char *stmtType)
   /*
    * xact block already started?
    */
-  if (IsTransactionBlock())
+  if (IsTransactionBlock()) {
+    DBUG_INSTANT_PRINT("info", "%s cannot run inside a transaction block", stmtType);
     ereport(ERROR,
             (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
              /* translator: %s represents an SQL statement name */
              errmsg("%s cannot run inside a transaction block",
                     stmtType)));
+  }
 
   /*
    * subtransaction?
    */
-  if (IsSubTransaction())
+  if (IsSubTransaction()) {
+    DBUG_INSTANT_PRINT("info", "%s cannot run inside a subtransaction", stmtType);
     ereport(ERROR,
             (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
              /* translator: %s represents an SQL statement name */
              errmsg("%s cannot run inside a subtransaction",
                     stmtType)));
+  }
 
   /*
    * inside a function call?
    */
-  if (!isTopLevel)
+  if (!isTopLevel) {
+    DBUG_INSTANT_PRINT("info", "%s cannot be executed from a function", stmtType);
     ereport(ERROR,
             (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
              /* translator: %s represents an SQL statement name */
              errmsg("%s cannot be executed from a function", stmtType)));
+  }
 
   /* If we got past IsTransactionBlock test, should be in default state */
   if (CurrentTransactionState->blockState != TBLOCK_DEFAULT &&
-      CurrentTransactionState->blockState != TBLOCK_STARTED)
+      CurrentTransactionState->blockState != TBLOCK_STARTED) {
+    DBUG_INSTANT_PRINT("info", "cannot prevent transaction chain");
     elog(FATAL, "cannot prevent transaction chain");
+  }
 
   /* All okay.  Set the flag to make sure the right thing happens later. */
   MyXactFlags |= XACT_FLAGS_NEEDIMMEDIATECOMMIT;
@@ -3725,6 +3813,7 @@ CheckTransactionBlock(bool isTopLevel, bool throwError, const char *stmtType)
   if (!isTopLevel)
     return;
 
+  DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", stmtType);
   ereport(throwError ? ERROR : WARNING,
           (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
            /* translator: %s represents an SQL statement name */
@@ -3786,6 +3875,7 @@ IsInTransactionBlock(bool isTopLevel)
 void
 RegisterXactCallback(XactCallback callback, void *arg)
 {
+  DBUG_TRACE;
   XactCallbackItem *item;
 
   item = (XactCallbackItem *)
@@ -3799,6 +3889,7 @@ RegisterXactCallback(XactCallback callback, void *arg)
 void
 UnregisterXactCallback(XactCallback callback, void *arg)
 {
+  DBUG_TRACE;
   XactCallbackItem *item;
   XactCallbackItem *prev;
 
@@ -3820,6 +3911,7 @@ UnregisterXactCallback(XactCallback callback, void *arg)
 static void
 CallXactCallbacks(XactEvent event)
 {
+  DBUG_TRACE;
   XactCallbackItem *item;
   XactCallbackItem *next;
 
@@ -3845,6 +3937,7 @@ CallXactCallbacks(XactEvent event)
 void
 RegisterSubXactCallback(SubXactCallback callback, void *arg)
 {
+  DBUG_TRACE;
   SubXactCallbackItem *item;
 
   item = (SubXactCallbackItem *)
@@ -3858,6 +3951,7 @@ RegisterSubXactCallback(SubXactCallback callback, void *arg)
 void
 UnregisterSubXactCallback(SubXactCallback callback, void *arg)
 {
+  DBUG_TRACE;
   SubXactCallbackItem *item;
   SubXactCallbackItem *prev;
 
@@ -3881,6 +3975,7 @@ CallSubXactCallbacks(SubXactEvent event,
                      SubTransactionId mySubid,
                      SubTransactionId parentSubid)
 {
+  DBUG_TRACE;
   SubXactCallbackItem *item;
   SubXactCallbackItem *next;
 
@@ -3904,6 +3999,7 @@ CallSubXactCallbacks(SubXactEvent event,
 void
 BeginTransactionBlock(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   switch (s->blockState) {
@@ -3911,6 +4007,7 @@ BeginTransactionBlock(void)
      * We are not inside a transaction block, so allow one to begin.
      */
     case TBLOCK_STARTED:
+      DBUG_PRINT("info", "we are not inside a transaction block, so allow one to begin");
       s->blockState = TBLOCK_BEGIN;
       break;
 
@@ -3920,6 +4017,7 @@ BeginTransactionBlock(void)
      * commands, which is a bit odd but matches historical practice.)
      */
     case TBLOCK_IMPLICIT_INPROGRESS:
+      DBUG_PRINT("info", "BEGIN converts an implicit transaction block to a regular one");
       s->blockState = TBLOCK_BEGIN;
       break;
 
@@ -3931,6 +4029,7 @@ BeginTransactionBlock(void)
     case TBLOCK_SUBINPROGRESS:
     case TBLOCK_ABORT:
     case TBLOCK_SUBABORT:
+      DBUG_INSTANT_PRINT("info", "there is already a transaction in progress");
       ereport(WARNING,
               (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
                errmsg("there is already a transaction in progress")));
@@ -3950,6 +4049,7 @@ BeginTransactionBlock(void)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "BeginTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "BeginTransactionBlock: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -3971,9 +4071,11 @@ BeginTransactionBlock(void)
 bool
 PrepareTransactionBlock(const char *gid)
 {
+  DBUG_TRACE;
   TransactionState s;
   bool    result;
 
+  DBUG_PRINT("info", "this executes a PREPARE command");
   /* Set up to commit the current transaction */
   result = EndTransactionBlock(false);
 
@@ -4019,6 +4121,7 @@ PrepareTransactionBlock(const char *gid)
 bool
 EndTransactionBlock(bool chain)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   bool    result = false;
 
@@ -4038,16 +4141,19 @@ EndTransactionBlock(bool chain)
      * because there was no explicit BEGIN before this.
      */
     case TBLOCK_IMPLICIT_INPROGRESS:
-      if (chain)
+      if (chain) {
+        DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "COMMIT AND CHAIN");
         ereport(ERROR,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  /* translator: %s represents an SQL statement name */
                  errmsg("%s can only be used in transaction blocks",
                         "COMMIT AND CHAIN")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "there is no transaction in progress");
         ereport(WARNING,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  errmsg("there is no transaction in progress")));
+      }
 
       s->blockState = TBLOCK_END;
       result = true;
@@ -4067,20 +4173,24 @@ EndTransactionBlock(bool chain)
      */
     case TBLOCK_SUBINPROGRESS:
       while (s->parent != NULL) {
-        if (s->blockState == TBLOCK_SUBINPROGRESS)
+        if (s->blockState == TBLOCK_SUBINPROGRESS) {
           s->blockState = TBLOCK_SUBCOMMIT;
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "EndTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
           elog(FATAL, "EndTransactionBlock: unexpected state %s",
                BlockStateAsString(s->blockState));
+        }
 
         s = s->parent;
       }
 
-      if (s->blockState == TBLOCK_INPROGRESS)
+      if (s->blockState == TBLOCK_INPROGRESS) {
         s->blockState = TBLOCK_END;
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "EndTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
         elog(FATAL, "EndTransactionBlock: unexpected state %s",
              BlockStateAsString(s->blockState));
+      }
 
       result = true;
       break;
@@ -4092,13 +4202,15 @@ EndTransactionBlock(bool chain)
      */
     case TBLOCK_SUBABORT:
       while (s->parent != NULL) {
-        if (s->blockState == TBLOCK_SUBINPROGRESS)
+        if (s->blockState == TBLOCK_SUBINPROGRESS) {
           s->blockState = TBLOCK_SUBABORT_PENDING;
-        else if (s->blockState == TBLOCK_SUBABORT)
+        } else if (s->blockState == TBLOCK_SUBABORT) {
           s->blockState = TBLOCK_SUBABORT_END;
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "EndTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
           elog(FATAL, "EndTransactionBlock: unexpected state %s",
                BlockStateAsString(s->blockState));
+        }
 
         s = s->parent;
       }
@@ -4107,9 +4219,11 @@ EndTransactionBlock(bool chain)
         s->blockState = TBLOCK_ABORT_PENDING;
       else if (s->blockState == TBLOCK_ABORT)
         s->blockState = TBLOCK_ABORT_END;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "EndTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
         elog(FATAL, "EndTransactionBlock: unexpected state %s",
              BlockStateAsString(s->blockState));
+      }
 
       break;
 
@@ -4122,16 +4236,19 @@ EndTransactionBlock(bool chain)
      * error.
      */
     case TBLOCK_STARTED:
-      if (chain)
+      if (chain) {
+        DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "COMMIT AND CHAIN");
         ereport(ERROR,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  /* translator: %s represents an SQL statement name */
                  errmsg("%s can only be used in transaction blocks",
                         "COMMIT AND CHAIN")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "there is no transaction in progress");
         ereport(WARNING,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  errmsg("there is no transaction in progress")));
+      }
 
       result = true;
       break;
@@ -4141,6 +4258,7 @@ EndTransactionBlock(bool chain)
      * worker.  We can't cope with that.
      */
     case TBLOCK_PARALLEL_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "cannot commit during a parallel operation");
       ereport(FATAL,
               (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                errmsg("cannot commit during a parallel operation")));
@@ -4160,6 +4278,7 @@ EndTransactionBlock(bool chain)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "EndTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "EndTransactionBlock: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4184,6 +4303,7 @@ EndTransactionBlock(bool chain)
 void
 UserAbortTransactionBlock(bool chain)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   switch (s->blockState) {
@@ -4193,6 +4313,8 @@ UserAbortTransactionBlock(bool chain)
      * exit the transaction block.
      */
     case TBLOCK_INPROGRESS:
+      DBUG_PRINT("info", "we are inside a transaction block and we got a ROLLBACK command from the user");
+      DBUG_PRINT("info", "tell CommitTransactionCommand to abort and exit the transaction block");
       s->blockState = TBLOCK_ABORT_PENDING;
       break;
 
@@ -4203,6 +4325,8 @@ UserAbortTransactionBlock(bool chain)
      * idle state.
      */
     case TBLOCK_ABORT:
+      DBUG_PRINT("info", "we are inside a failed transaction block and we got a ROLLBACK command from the user");
+      DBUG_PRINT("info", "abort processing is already done, so CommitTransactionCommand just has to cleanup and go back to idle state");
       s->blockState = TBLOCK_ABORT_END;
       break;
 
@@ -4217,9 +4341,11 @@ UserAbortTransactionBlock(bool chain)
           s->blockState = TBLOCK_SUBABORT_PENDING;
         else if (s->blockState == TBLOCK_SUBABORT)
           s->blockState = TBLOCK_SUBABORT_END;
-        else
+        else {
+          DBUG_INSTANT_PRINT("info", "UserAbortTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
           elog(FATAL, "UserAbortTransactionBlock: unexpected state %s",
                BlockStateAsString(s->blockState));
+        }
 
         s = s->parent;
       }
@@ -4228,9 +4354,11 @@ UserAbortTransactionBlock(bool chain)
         s->blockState = TBLOCK_ABORT_PENDING;
       else if (s->blockState == TBLOCK_ABORT)
         s->blockState = TBLOCK_ABORT_END;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "UserAbortTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
         elog(FATAL, "UserAbortTransactionBlock: unexpected state %s",
              BlockStateAsString(s->blockState));
+      }
 
       break;
 
@@ -4247,16 +4375,19 @@ UserAbortTransactionBlock(bool chain)
      */
     case TBLOCK_STARTED:
     case TBLOCK_IMPLICIT_INPROGRESS:
-      if (chain)
+      if (chain) {
+        DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "ROLLBACK AND CHAIN");
         ereport(ERROR,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  /* translator: %s represents an SQL statement name */
                  errmsg("%s can only be used in transaction blocks",
                         "ROLLBACK AND CHAIN")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "there is no transaction in progress");
         ereport(WARNING,
                 (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                  errmsg("there is no transaction in progress")));
+      }
 
       s->blockState = TBLOCK_ABORT_PENDING;
       break;
@@ -4266,6 +4397,7 @@ UserAbortTransactionBlock(bool chain)
      * worker.  We can't cope with that.
      */
     case TBLOCK_PARALLEL_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "cannot abort during a parallel operation");
       ereport(FATAL,
               (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                errmsg("cannot abort during a parallel operation")));
@@ -4285,6 +4417,7 @@ UserAbortTransactionBlock(bool chain)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "UserAbortTransactionBlock: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "UserAbortTransactionBlock: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4355,6 +4488,7 @@ EndImplicitTransactionBlock(void)
 void
 DefineSavepoint(const char *name)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   /*
@@ -4364,10 +4498,12 @@ DefineSavepoint(const char *name)
    * is TBLOCK_PARALLEL_INPROGRESS, so we can treat that as an invalid case
    * below.)
    */
-  if (IsInParallelMode() || IsParallelWorker())
+  if (IsInParallelMode() || IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot define savepoints during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot define savepoints during a parallel operation")));
+  }
 
   switch (s->blockState) {
     case TBLOCK_INPROGRESS:
@@ -4400,6 +4536,7 @@ DefineSavepoint(const char *name)
      * perhaps could be improved.
      */
     case TBLOCK_IMPLICIT_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "SAVEPOINT");
       ereport(ERROR,
               (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
                /* translator: %s represents an SQL statement name */
@@ -4425,6 +4562,7 @@ DefineSavepoint(const char *name)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "DefineSavepoint: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "DefineSavepoint: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4440,6 +4578,7 @@ DefineSavepoint(const char *name)
 void
 ReleaseSavepoint(const char *name)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   TransactionState target,
                    xact;
@@ -4451,22 +4590,26 @@ ReleaseSavepoint(const char *name)
    * is TBLOCK_PARALLEL_INPROGRESS, so we can treat that as an invalid case
    * below.)
    */
-  if (IsInParallelMode() || IsParallelWorker())
+  if (IsInParallelMode() || IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot release savepoints during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot release savepoints during a parallel operation")));
+  }
 
   switch (s->blockState) {
     /*
      * We can't release a savepoint if there is no savepoint defined.
      */
     case TBLOCK_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist", name);
       ereport(ERROR,
               (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
                errmsg("savepoint \"%s\" does not exist", name)));
       break;
 
     case TBLOCK_IMPLICIT_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "RELEASE SAVEPOINT");
       /* See comment about implicit transactions in DefineSavepoint */
       ereport(ERROR,
               (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
@@ -4480,6 +4623,7 @@ ReleaseSavepoint(const char *name)
      * case.
      */
     case TBLOCK_SUBINPROGRESS:
+      DBUG_PRINT("info", "we are in a non-aborted subtransaction");
       break;
 
     /* These cases are invalid. */
@@ -4500,6 +4644,7 @@ ReleaseSavepoint(const char *name)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "ReleaseSavepoint: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "ReleaseSavepoint: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4510,16 +4655,20 @@ ReleaseSavepoint(const char *name)
       break;
   }
 
-  if (!PointerIsValid(target))
+  if (!PointerIsValid(target)) {
+    DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
              errmsg("savepoint \"%s\" does not exist", name)));
+  }
 
   /* disallow crossing savepoint level boundaries */
-  if (target->savepointLevel != s->savepointLevel)
+  if (target->savepointLevel != s->savepointLevel) {
+    DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist within current savepoint level", name);
     ereport(ERROR,
             (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
              errmsg("savepoint \"%s\" does not exist within current savepoint level", name)));
+  }
 
   /*
    * Mark "commit pending" all subtransactions up to the target
@@ -4549,9 +4698,12 @@ ReleaseSavepoint(const char *name)
 void
 RollbackToSavepoint(const char *name)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   TransactionState target,
                    xact;
+
+  DBUG_PRINT("info", "this executes a ROLLBACK TO <savepoint> command:%s", name);
 
   /*
    * Workers synchronize transaction state at the beginning of each parallel
@@ -4560,10 +4712,12 @@ RollbackToSavepoint(const char *name)
    * is TBLOCK_PARALLEL_INPROGRESS, so we can treat that as an invalid case
    * below.)
    */
-  if (IsInParallelMode() || IsParallelWorker())
+  if (IsInParallelMode() || IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot rollback to savepoints during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot rollback to savepoints during a parallel operation")));
+  }
 
   switch (s->blockState) {
     /*
@@ -4572,12 +4726,14 @@ RollbackToSavepoint(const char *name)
      */
     case TBLOCK_INPROGRESS:
     case TBLOCK_ABORT:
+      DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist", name);
       ereport(ERROR,
               (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
                errmsg("savepoint \"%s\" does not exist", name)));
       break;
 
     case TBLOCK_IMPLICIT_INPROGRESS:
+      DBUG_INSTANT_PRINT("info", "%s can only be used in transaction blocks", "ROLLBACK TO SAVEPOINT");
       /* See comment about implicit transactions in DefineSavepoint */
       ereport(ERROR,
               (errcode(ERRCODE_NO_ACTIVE_SQL_TRANSACTION),
@@ -4590,7 +4746,11 @@ RollbackToSavepoint(const char *name)
      * There is at least one savepoint, so proceed.
      */
     case TBLOCK_SUBINPROGRESS:
+      DBUG_PRINT("info", "TBLOCK_SUBINPROGRESS and there is at least one savepoint, so proceed");
+      break;
+
     case TBLOCK_SUBABORT:
+      DBUG_PRINT("info", "TBLOCK_SUBABORT and there is at least one savepoint, so proceed");
       break;
 
     /* These cases are invalid. */
@@ -4609,58 +4769,75 @@ RollbackToSavepoint(const char *name)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "RollbackToSavepoint: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "RollbackToSavepoint: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
   }
 
   for (target = s; PointerIsValid(target); target = target->parent) {
-    if (PointerIsValid(target->name) && strcmp(target->name, name) == 0)
+    if (PointerIsValid(target->name) && strcmp(target->name, name) == 0) {
       break;
+    }
   }
 
-  if (!PointerIsValid(target))
+  if (!PointerIsValid(target)) {
+    DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
              errmsg("savepoint \"%s\" does not exist", name)));
+  }
 
   /* disallow crossing savepoint level boundaries */
-  if (target->savepointLevel != s->savepointLevel)
+  if (target->savepointLevel != s->savepointLevel) {
+    DBUG_INSTANT_PRINT("info", "savepoint \"%s\" does not exist within current savepoint level", name);
     ereport(ERROR,
             (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
              errmsg("savepoint \"%s\" does not exist within current savepoint level", name)));
+  }
 
   /*
    * Mark "abort pending" all subtransactions up to the target
    * subtransaction.  The actual aborts will happen when control gets to
    * CommitTransactionCommand.
    */
+  DBUG_PRINT("info", "mark 'abort pending' all subtransactions up to the target subtransaction");
   xact = CurrentTransactionState;
 
   for (;;) {
     if (xact == target)
       break;
 
-    if (xact->blockState == TBLOCK_SUBINPROGRESS)
+    if (xact->blockState == TBLOCK_SUBINPROGRESS) {
+      DBUG_PRINT("info", "set block state:TBLOCK_SUBABORT_PENDING");
       xact->blockState = TBLOCK_SUBABORT_PENDING;
-    else if (xact->blockState == TBLOCK_SUBABORT)
+    } else if (xact->blockState == TBLOCK_SUBABORT) {
+      DBUG_PRINT("info", "set block state:TBLOCK_SUBABORT_END");
       xact->blockState = TBLOCK_SUBABORT_END;
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "RollbackToSavepoint: unexpected state %s", BlockStateAsString(xact->blockState));
       elog(FATAL, "RollbackToSavepoint: unexpected state %s",
            BlockStateAsString(xact->blockState));
+    }
 
     xact = xact->parent;
     Assert(PointerIsValid(xact));
   }
 
   /* And mark the target as "restart pending" */
-  if (xact->blockState == TBLOCK_SUBINPROGRESS)
+  DBUG_PRINT("info", "mark the target as 'restart pending'");
+
+  if (xact->blockState == TBLOCK_SUBINPROGRESS) {
+    DBUG_PRINT("info", "set block state:TBLOCK_SUBRESTART");
     xact->blockState = TBLOCK_SUBRESTART;
-  else if (xact->blockState == TBLOCK_SUBABORT)
+  } else if (xact->blockState == TBLOCK_SUBABORT) {
+    DBUG_PRINT("info", "set block state:TBLOCK_SUBABORT_RESTART");
     xact->blockState = TBLOCK_SUBABORT_RESTART;
-  else
+  } else {
+    DBUG_INSTANT_PRINT("info", "RollbackToSavepoint: unexpected state %s", BlockStateAsString(xact->blockState));
     elog(FATAL, "RollbackToSavepoint: unexpected state %s",
          BlockStateAsString(xact->blockState));
+  }
 }
 
 /*
@@ -4676,6 +4853,7 @@ RollbackToSavepoint(const char *name)
 void
 BeginInternalSubTransaction(const char *name)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
   bool    save_ExitOnAnyError = ExitOnAnyError;
 
@@ -4729,6 +4907,7 @@ BeginInternalSubTransaction(const char *name)
     case TBLOCK_SUBABORT_PENDING:
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
+      DBUG_INSTANT_PRINT("info", "BeginInternalSubTransaction: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "BeginInternalSubTransaction: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4779,6 +4958,7 @@ ReleaseCurrentSubTransaction(void)
 void
 RollbackAndReleaseCurrentSubTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   /*
@@ -4812,6 +4992,7 @@ RollbackAndReleaseCurrentSubTransaction(void)
     case TBLOCK_SUBRESTART:
     case TBLOCK_SUBABORT_RESTART:
     case TBLOCK_PREPARE:
+      DBUG_INSTANT_PRINT("info", "RollbackAndReleaseCurrentSubTransaction: unexpected state %s", BlockStateAsString(s->blockState));
       elog(FATAL, "RollbackAndReleaseCurrentSubTransaction: unexpected state %s",
            BlockStateAsString(s->blockState));
       break;
@@ -4844,6 +5025,7 @@ RollbackAndReleaseCurrentSubTransaction(void)
 void
 AbortOutOfAnyTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   /* Ensure we're not running in a doomed memory context */
@@ -4852,12 +5034,17 @@ AbortOutOfAnyTransaction(void)
   /*
    * Get out of any transaction or nested transaction
    */
+  DBUG_PRINT("info", "fullTransactionId:%lu", s->fullTransactionId.value);
+
   do {
     switch (s->blockState) {
       case TBLOCK_DEFAULT:
         if (s->state == TRANS_DEFAULT) {
+          DBUG_PRINT("info", "not in a transaction, do nothing");
           /* Not in a transaction, do nothing */
         } else {
+          DBUG_PRINT("info", "we can get here after an error during transaction start");
+
           /*
            * We can get here after an error during transaction start
            * (state will be TRANS_START).  Need to clean up the
@@ -4883,6 +5070,7 @@ AbortOutOfAnyTransaction(void)
       case TBLOCK_ABORT_PENDING:
       case TBLOCK_PREPARE:
         /* In a transaction, so clean up */
+        DBUG_PRINT("info", "in a transaction, so clean up");
         AbortTransaction();
         CleanupTransaction();
         s->blockState = TBLOCK_DEFAULT;
@@ -4897,6 +5085,7 @@ AbortOutOfAnyTransaction(void)
          * there will be an active portal running that command, which
          * we need to shut down before doing CleanupTransaction.
          */
+        DBUG_PRINT("info", "AbortTransaction is already done, still need Cleanup");
         AtAbort_Portals();
         CleanupTransaction();
         s->blockState = TBLOCK_DEFAULT;
@@ -4911,6 +5100,7 @@ AbortOutOfAnyTransaction(void)
       case TBLOCK_SUBCOMMIT:
       case TBLOCK_SUBABORT_PENDING:
       case TBLOCK_SUBRESTART:
+        DBUG_PRINT("info", "in a subtransaction, so clean it up and abort parent too");
         AbortSubTransaction();
         CleanupSubTransaction();
         s = CurrentTransactionState;  /* changed by pop */
@@ -4922,6 +5112,7 @@ AbortOutOfAnyTransaction(void)
 
         /* As above, but AbortSubTransaction already done */
         if (s->curTransactionOwner) {
+          DBUG_PRINT("info", "as in TBLOCK_ABORT, might have a live portal to zap");
           /* As in TBLOCK_ABORT, might have a live portal to zap */
           AtSubAbort_Portals(s->subTransactionId,
                              s->parent->subTransactionId,
@@ -5015,6 +5206,7 @@ TransactionBlockStatusCode(void)
       return 'E';     /* in failed transaction */
   }
 
+  DBUG_INSTANT_PRINT("info", "invalid transaction block state: %s", BlockStateAsString(s->blockState));
   /* should never get here */
   elog(FATAL, "invalid transaction block state: %s",
        BlockStateAsString(s->blockState));
@@ -5050,6 +5242,7 @@ IsSubTransaction(void)
 static void
 StartSubTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   if (s->state != TRANS_DEFAULT)
@@ -5087,6 +5280,7 @@ StartSubTransaction(void)
 static void
 CommitSubTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   ShowTransactionState("CommitSubTransaction");
@@ -5097,6 +5291,7 @@ CommitSubTransaction(void)
 
   /* Pre-commit processing goes here */
 
+  DBUG_PRINT("info", "pre-commit processing goes here");
   CallSubXactCallbacks(SUBXACT_EVENT_PRE_COMMIT_SUB, s->subTransactionId,
                        s->parent->subTransactionId);
 
@@ -5123,6 +5318,8 @@ CommitSubTransaction(void)
    * perform that step, if required, as part of the atomic update of the
    * whole transaction tree at top level commit or abort.
    */
+
+  DBUG_PRINT("info", "post-commit cleanup");
 
   /* Post-commit cleanup */
   if (FullTransactionIdIsValid(s->fullTransactionId))
@@ -5204,6 +5401,7 @@ CommitSubTransaction(void)
 static void
 AbortSubTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   /* Prevent cancel/die interrupt while cleaning up */
@@ -5213,6 +5411,7 @@ AbortSubTransaction(void)
   AtSubAbort_Memory();
   AtSubAbort_ResourceOwner();
 
+  DBUG_PRINT("info", "release any LW locks we might be holding as quickly as possible");
   /*
    * Release any LW locks we might be holding as quickly as possible.
    * (Regular locks, however, must be held till we finish aborting.)
@@ -5231,6 +5430,7 @@ AbortSubTransaction(void)
 
   UnlockBuffers();
 
+  DBUG_PRINT("info", "reset WAL record construction state");
   /* Reset WAL record construction state */
   XLogResetInsertion();
 
@@ -5268,6 +5468,7 @@ AbortSubTransaction(void)
     elog(WARNING, "AbortSubTransaction while in %s state",
          TransStateAsString(s->state));
 
+  DBUG_PRINT("info", "set state TRANS_ABORT");
   s->state = TRANS_ABORT;
 
   /*
@@ -5277,6 +5478,7 @@ AbortSubTransaction(void)
   SetUserIdAndSecContext(s->prevUser, s->prevSecContext);
 
   /* Forget about any active REINDEX. */
+  DBUG_PRINT("info", "forget about any active REINDEX");
   ResetReindexState(s->nestingLevel);
 
   /* Reset logical streaming state. */
@@ -5309,6 +5511,7 @@ AbortSubTransaction(void)
     AtSubAbort_Notify();
 
     /* Advertise the fact that we aborted in pg_xact. */
+    DBUG_PRINT("info", "advertise the fact that we aborted in pg_xact");
     (void) RecordTransactionAbort(true);
 
     /* Post-abort cleanup */
@@ -5367,6 +5570,7 @@ AbortSubTransaction(void)
 static void
 CleanupSubTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
 
   ShowTransactionState("CleanupSubTransaction");
@@ -5402,9 +5606,11 @@ CleanupSubTransaction(void)
 static void
 PushTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState p = CurrentTransactionState;
   TransactionState s;
 
+  DBUG_PRINT("info", "create transaction state stack entry for a subtransaction");
   /*
    * We keep subtransaction state nodes in TopTransactionContext.
    */
@@ -5420,6 +5626,7 @@ PushTransaction(void)
   if (currentSubTransactionId == InvalidSubTransactionId) {
     currentSubTransactionId -= 1;
     pfree(s);
+    DBUG_INSTANT_PRINT("info", "cannot have more than 2^32-1 subtransactions in a transaction");
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("cannot have more than 2^32-1 subtransactions in a transaction")));
@@ -5464,14 +5671,19 @@ PushTransaction(void)
 static void
 PopTransaction(void)
 {
+  DBUG_TRACE;
   TransactionState s = CurrentTransactionState;
+
+  DBUG_PRINT("info", "pop back to parent transaction state");
 
   if (s->state != TRANS_DEFAULT)
     elog(WARNING, "PopTransaction while in %s state",
          TransStateAsString(s->state));
 
-  if (s->parent == NULL)
+  if (s->parent == NULL) {
+    DBUG_INSTANT_PRINT("info", "PopTransaction with no parent");
     elog(FATAL, "PopTransaction with no parent");
+  }
 
   CurrentTransactionState = s->parent;
 
@@ -5499,6 +5711,7 @@ PopTransaction(void)
 Size
 EstimateTransactionStateSpace(void)
 {
+  DBUG_TRACE;
   TransactionState s;
   Size    nxids = 0;
   Size    size = SerializedTransactionStateHeaderSize;
@@ -5527,6 +5740,7 @@ EstimateTransactionStateSpace(void)
 void
 SerializeTransactionState(Size maxsize, char *start_address)
 {
+  DBUG_TRACE;
   TransactionState s;
   Size    nxids = 0;
   Size    i = 0;
@@ -5601,6 +5815,7 @@ SerializeTransactionState(Size maxsize, char *start_address)
 void
 StartParallelWorkerTransaction(char *tstatespace)
 {
+  DBUG_TRACE;
   SerializedTransactionState *tstate;
 
   Assert(CurrentTransactionState->blockState == TBLOCK_DEFAULT);
@@ -5658,12 +5873,14 @@ ShowTransactionStateRec(const char *str, TransactionState s)
      * This is just a debugging aid, so we can leave out some details
      * instead of erroring out with check_stack_depth().
      */
-    if (stack_is_too_deep())
+    if (stack_is_too_deep()) {
+      DBUG_PRINT("info", "%s(%d): parent omitted to avoid stack overflow", str, s->nestingLevel);
       ereport(DEBUG5,
               (errmsg_internal("%s(%d): parent omitted to avoid stack overflow",
                                str, s->nestingLevel)));
-    else
+    } else {
       ShowTransactionStateRec(str, s->parent);
+    }
   }
 
   initStringInfo(&buf);
@@ -5836,6 +6053,7 @@ XactLogCommitRecord(TimestampTz commit_time,
                     int xactflags, TransactionId twophase_xid,
                     const char *twophase_gid)
 {
+  DBUG_TRACE;
   xl_xact_commit xlrec;
   xl_xact_xinfo xl_xinfo;
   xl_xact_dbinfo xl_dbinfo;
@@ -5852,10 +6070,13 @@ XactLogCommitRecord(TimestampTz commit_time,
   xl_xinfo.xinfo = 0;
 
   /* decide between a plain and 2pc commit */
-  if (!TransactionIdIsValid(twophase_xid))
+  if (!TransactionIdIsValid(twophase_xid)) {
     info = XLOG_XACT_COMMIT;
-  else
+    DBUG_PRINT("info", "a plain commit will be emitted when twophase_xid is invalid");
+  } else {
     info = XLOG_XACT_COMMIT_PREPARED;
+    DBUG_PRINT("info", "a 2pc commit will be emitted when twophase_xid is valid");
+  }
 
   /* First figure out and collect all the information needed */
 
@@ -5997,6 +6218,7 @@ XactLogAbortRecord(TimestampTz abort_time,
                    int xactflags, TransactionId twophase_xid,
                    const char *twophase_gid)
 {
+  DBUG_TRACE;
   xl_xact_abort xlrec;
   xl_xact_xinfo xl_xinfo;
   xl_xact_subxacts xl_subxacts;
@@ -6013,11 +6235,13 @@ XactLogAbortRecord(TimestampTz abort_time,
   xl_xinfo.xinfo = 0;
 
   /* decide between a plain and 2pc abort */
-  if (!TransactionIdIsValid(twophase_xid))
+  if (!TransactionIdIsValid(twophase_xid)) {
     info = XLOG_XACT_ABORT;
-  else
+    DBUG_PRINT("info", "a plain abort will be emitted");
+  } else {
     info = XLOG_XACT_ABORT_PREPARED;
-
+    DBUG_PRINT("info", "a 2pc abort will be emitted when twophase_xid is valid");
+  }
 
   /* First figure out and collect all the information needed */
 
@@ -6130,6 +6354,7 @@ xact_redo_commit(xl_xact_parsed_commit *parsed,
                  XLogRecPtr lsn,
                  RepOriginId origin_id)
 {
+  DBUG_TRACE;
   TransactionId max_xid;
   TimestampTz commit_time;
 
@@ -6276,6 +6501,7 @@ static void
 xact_redo_abort(xl_xact_parsed_abort *parsed, TransactionId xid,
                 XLogRecPtr lsn, RepOriginId origin_id)
 {
+  DBUG_TRACE;
   TransactionId max_xid;
 
   Assert(TransactionIdIsValid(xid));
@@ -6348,6 +6574,7 @@ xact_redo_abort(xl_xact_parsed_abort *parsed, TransactionId xid,
 void
 xact_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & XLOG_XACT_OPMASK;
 
   /* Backup blocks are not used in xact records */
@@ -6357,6 +6584,7 @@ xact_redo(XLogReaderState *record)
     xl_xact_commit *xlrec = (xl_xact_commit *) XLogRecGetData(record);
     xl_xact_parsed_commit parsed;
 
+    DBUG_PRINT("info", "XLOG_XACT_COMMIT");
     ParseCommitRecord(XLogRecGetInfo(record), xlrec, &parsed);
     xact_redo_commit(&parsed, XLogRecGetXid(record),
                      record->EndRecPtr, XLogRecGetOrigin(record));
@@ -6364,10 +6592,12 @@ xact_redo(XLogReaderState *record)
     xl_xact_commit *xlrec = (xl_xact_commit *) XLogRecGetData(record);
     xl_xact_parsed_commit parsed;
 
+    DBUG_PRINT("info", "XLOG_XACT_COMMIT_PREPARED");
     ParseCommitRecord(XLogRecGetInfo(record), xlrec, &parsed);
     xact_redo_commit(&parsed, parsed.twophase_xid,
                      record->EndRecPtr, XLogRecGetOrigin(record));
 
+    DBUG_PRINT("info", "delete TwoPhaseState gxact entry and/or 2PC file");
     /* Delete TwoPhaseState gxact entry and/or 2PC file. */
     LWLockAcquire(TwoPhaseStateLock, LW_EXCLUSIVE);
     PrepareRedoRemove(parsed.twophase_xid, false);
@@ -6376,6 +6606,7 @@ xact_redo(XLogReaderState *record)
     xl_xact_abort *xlrec = (xl_xact_abort *) XLogRecGetData(record);
     xl_xact_parsed_abort parsed;
 
+    DBUG_PRINT("info", "info: XLOG_XACT_ABORT");
     ParseAbortRecord(XLogRecGetInfo(record), xlrec, &parsed);
     xact_redo_abort(&parsed, XLogRecGetXid(record),
                     record->EndRecPtr, XLogRecGetOrigin(record));
@@ -6383,10 +6614,12 @@ xact_redo(XLogReaderState *record)
     xl_xact_abort *xlrec = (xl_xact_abort *) XLogRecGetData(record);
     xl_xact_parsed_abort parsed;
 
+    DBUG_PRINT("info", "XLOG_XACT_ABORT_PREPARED");
     ParseAbortRecord(XLogRecGetInfo(record), xlrec, &parsed);
     xact_redo_abort(&parsed, parsed.twophase_xid,
                     record->EndRecPtr, XLogRecGetOrigin(record));
 
+    DBUG_PRINT("info", "delete TwoPhaseState gxact entry and/or 2PC file");
     /* Delete TwoPhaseState gxact entry and/or 2PC file. */
     LWLockAcquire(TwoPhaseStateLock, LW_EXCLUSIVE);
     PrepareRedoRemove(parsed.twophase_xid, false);
@@ -6396,6 +6629,8 @@ xact_redo(XLogReaderState *record)
      * Store xid and start/end pointers of the WAL record in TwoPhaseState
      * gxact entry.
      */
+    DBUG_PRINT("info", "XLOG_XACT_PREPARE");
+    DBUG_PRINT("info", "store xid and start/end pointers of the WAL record in TwoPhaseState gxact entry");
     LWLockAcquire(TwoPhaseStateLock, LW_EXCLUSIVE);
     PrepareRedoAdd(XLogRecGetData(record),
                    record->ReadRecPtr,
@@ -6404,6 +6639,8 @@ xact_redo(XLogReaderState *record)
     LWLockRelease(TwoPhaseStateLock);
   } else if (info == XLOG_XACT_ASSIGNMENT) {
     xl_xact_assignment *xlrec = (xl_xact_assignment *) XLogRecGetData(record);
+
+    DBUG_PRINT("info", "XLOG_XACT_ASSIGNMENT");
 
     if (standbyState >= STANDBY_INITIALIZED)
       ProcArrayApplyXidAssignment(xlrec->xtop,

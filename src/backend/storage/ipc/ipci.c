@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/clog.h"
@@ -73,6 +74,8 @@ static void CreateOrAttachShmemStructs(void);
 void
 RequestAddinShmemSpace(Size size)
 {
+  DBUG_TRACE;
+
   if (!process_shmem_requests_in_progress)
     elog(FATAL, "cannot request additional shared memory outside shmem_request_hook");
 
@@ -89,6 +92,7 @@ RequestAddinShmemSpace(Size size)
 Size
 CalculateShmemSize(int *num_semaphores)
 {
+  DBUG_TRACE;
   Size    size;
   int     numSemas;
 
@@ -158,6 +162,7 @@ CalculateShmemSize(int *num_semaphores)
   /* might as well round it off to a multiple of a typical page size */
   size = add_size(size, 8192 - (size % 8192));
 
+  DBUG_PRINT("info", "numSemas:%d and size:%lu", numSemas, size);
   return size;
 }
 
@@ -173,6 +178,7 @@ CalculateShmemSize(int *num_semaphores)
 void
 AttachSharedMemoryStructs(void)
 {
+  DBUG_TRACE;
   /* InitProcess must've been called already */
   Assert(MyProc != NULL);
   Assert(IsUnderPostmaster);
@@ -200,6 +206,7 @@ AttachSharedMemoryStructs(void)
 void
 CreateSharedMemoryAndSemaphores(void)
 {
+  DBUG_TRACE;
   PGShmemHeader *shim;
   PGShmemHeader *seghdr;
   Size    size;
@@ -268,15 +275,18 @@ CreateSharedMemoryAndSemaphores(void)
 static void
 CreateOrAttachShmemStructs(void)
 {
+  DBUG_TRACE;
   /*
    * Now initialize LWLocks, which do shared memory allocation and are
    * needed for InitShmemIndex.
    */
+  DBUG_PRINT("info", "now initialize LWLocks, which do shared memory allocation and are needed for InitShmemIndex");
   CreateLWLocks();
 
   /*
    * Set up shmem.c index hashtable
    */
+  DBUG_PRINT("info", "set up shmem.c index hashtable");
   InitShmemIndex();
 
   dsm_shmem_init();
@@ -285,6 +295,7 @@ CreateOrAttachShmemStructs(void)
   /*
    * Set up xlog, clog, and buffers
    */
+  DBUG_PRINT("info", "set up xlog, clog, and buffers");
   VarsupShmemInit();
   XLOGShmemInit();
   XLogPrefetchShmemInit();
@@ -298,16 +309,19 @@ CreateOrAttachShmemStructs(void)
   /*
    * Set up lock manager
    */
+  DBUG_PRINT("info", "set up lock manager");
   LockManagerShmemInit();
 
   /*
    * Set up predicate lock manager
    */
+  DBUG_PRINT("info", "set up predicate lock manager");
   PredicateLockShmemInit();
 
   /*
    * Set up process table
    */
+  DBUG_PRINT("info", "set up process table");
   if (!IsUnderPostmaster)
     InitProcGlobal();
 
@@ -319,11 +333,13 @@ CreateOrAttachShmemStructs(void)
   /*
    * Set up shared-inval messaging
    */
+  DBUG_PRINT("info", "set up shared-inval messaging");
   SharedInvalShmemInit();
 
   /*
    * Set up interprocess signaling mechanisms
    */
+  DBUG_PRINT("info", "set up interprocess signaling mechanisms");
   PMSignalShmemInit();
   ProcSignalShmemInit();
   CheckpointerShmemInit();
@@ -337,6 +353,7 @@ CreateOrAttachShmemStructs(void)
   ApplyLauncherShmemInit();
   SlotSyncShmemInit();
 
+  DBUG_PRINT("info", "set up other modules that need some shared memory space");
   /*
    * Set up other modules that need some shared memory space
    */
@@ -358,6 +375,7 @@ CreateOrAttachShmemStructs(void)
 void
 InitializeShmemGUCs(void)
 {
+  DBUG_TRACE;
   char    buf[64];
   Size    size_b;
   Size    size_mb;

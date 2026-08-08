@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <llvm-c/Analysis.h>
@@ -148,6 +149,7 @@ PG_MODULE_MAGIC_EXT(
 void
 _PG_jit_provider_init(JitProviderCallbacks *cb)
 {
+  DBUG_TRACE;
   cb->reset_after_error = llvm_reset_after_error;
   cb->release_context = llvm_release_context;
   cb->compile_expr = llvm_compile_expr;
@@ -170,6 +172,8 @@ _PG_jit_provider_init(JitProviderCallbacks *cb)
 static void
 llvm_recreate_llvm_context(void)
 {
+  DBUG_TRACE;
+
   if (!llvm_context)
     elog(ERROR, "Trying to recreate a non-existing context");
 
@@ -218,6 +222,7 @@ llvm_recreate_llvm_context(void)
 LLVMJitContext *
 llvm_create_context(int jitFlags)
 {
+  DBUG_TRACE;
   LLVMJitContext *context;
 
   llvm_assert_in_fatal_section();
@@ -247,6 +252,7 @@ llvm_create_context(int jitFlags)
 static void
 llvm_release_context(JitContext *context)
 {
+  DBUG_TRACE;
   LLVMJitContext *llvm_jit_context = (LLVMJitContext *) context;
   ListCell   *lc;
 
@@ -310,6 +316,7 @@ llvm_release_context(JitContext *context)
 LLVMModuleRef
 llvm_mutable_module(LLVMJitContext *context)
 {
+  DBUG_TRACE;
   llvm_assert_in_fatal_section();
 
   /*
@@ -334,6 +341,8 @@ llvm_mutable_module(LLVMJitContext *context)
 char *
 llvm_expand_funcname(struct LLVMJitContext *context, const char *basename)
 {
+  DBUG_TRACE;
+  char *result;
   Assert(context->module != NULL);
 
   context->base.instr.created_functions++;
@@ -342,10 +351,12 @@ llvm_expand_funcname(struct LLVMJitContext *context, const char *basename)
    * Previously we used dots to separate, but turns out some tools, e.g.
    * GDB, don't like that and truncate name.
    */
-  return psprintf("%s_%zu_%d",
-                  basename,
-                  context->module_generation,
-                  context->counter++);
+  result = psprintf("%s_%zu_%d",
+                    basename,
+                    context->module_generation,
+                    context->counter++);
+  DBUG_PRINT("info", "%s", result);
+  return result;
 }
 
 /*
@@ -355,8 +366,10 @@ llvm_expand_funcname(struct LLVMJitContext *context, const char *basename)
 void *
 llvm_get_function(LLVMJitContext *context, const char *funcname)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "funcname:'%s'", funcname);
   llvm_assert_in_fatal_section();
 
   /*
@@ -414,9 +427,11 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 LLVMTypeRef
 llvm_pg_var_type(const char *varname)
 {
+  DBUG_TRACE;
   LLVMValueRef v_srcvar;
   LLVMTypeRef typ;
 
+  DBUG_PRINT("info", "varname:'%s'", varname);
   /* this'll return a *pointer* to the global */
   v_srcvar = LLVMGetNamedGlobal(llvm_types_module, varname);
 
@@ -435,9 +450,11 @@ llvm_pg_var_type(const char *varname)
 LLVMTypeRef
 llvm_pg_var_func_type(const char *varname)
 {
+  DBUG_TRACE;
   LLVMValueRef v_srcvar;
   LLVMTypeRef typ;
 
+  DBUG_PRINT("info", "varname:'%s'", varname);
   v_srcvar = LLVMGetNamedFunction(llvm_types_module, varname);
 
   if (!v_srcvar)
@@ -458,9 +475,11 @@ llvm_pg_var_func_type(const char *varname)
 LLVMValueRef
 llvm_pg_func(LLVMModuleRef mod, const char *funcname)
 {
+  DBUG_TRACE;
   LLVMValueRef v_srcfn;
   LLVMValueRef v_fn;
 
+  DBUG_PRINT("info", "funcname:'%s'", funcname);
   /* don't repeatedly add function */
   v_fn = LLVMGetNamedFunction(mod, funcname);
 
@@ -487,16 +506,21 @@ llvm_pg_func(LLVMModuleRef mod, const char *funcname)
 static void
 llvm_copy_attributes_at_index(LLVMValueRef v_from, LLVMValueRef v_to, uint32 index)
 {
+  DBUG_TRACE;
   int     num_attributes;
   LLVMAttributeRef *attrs;
 
   num_attributes = LLVMGetAttributeCountAtIndex(v_from, index);
 
-  if (num_attributes == 0)
+  if (num_attributes == 0) {
+    DBUG_PRINT("info", "num_attributes = 0, returning");
     return;
+  }
 
   attrs = palloc(sizeof(LLVMAttributeRef) * num_attributes);
   LLVMGetAttributesAtIndex(v_from, index, attrs);
+
+  DBUG_PRINT("info", "num_attributes:%d, index:%u", num_attributes, index);
 
   for (int attno = 0; attno < num_attributes; attno++)
     LLVMAddAttributeAtIndex(v_to, index, attrs[attno]);
@@ -511,6 +535,7 @@ llvm_copy_attributes_at_index(LLVMValueRef v_from, LLVMValueRef v_to, uint32 ind
 void
 llvm_copy_attributes(LLVMValueRef v_from, LLVMValueRef v_to)
 {
+  DBUG_TRACE;
   uint32    param_count;
 
   /* copy function attributes */
@@ -537,6 +562,7 @@ llvm_function_reference(LLVMJitContext *context,
                         LLVMModuleRef mod,
                         FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   char     *modname;
   char     *basename;
   char     *funcname;
@@ -548,9 +574,11 @@ llvm_function_reference(LLVMJitContext *context,
   if (modname != NULL && basename != NULL) {
     /* external function in loadable library */
     funcname = psprintf("pgextern.%s.%s", modname, basename);
+    DBUG_PRINT("info", "external function:'%s' in loadable library", funcname);
   } else if (basename != NULL) {
     /* internal function */
     funcname = pstrdup(basename);
+    DBUG_PRINT("info", "internal function:'%s'", funcname);
   } else {
     /*
      * Function we don't know to handle, return pointer. We do so by
@@ -578,6 +606,7 @@ llvm_function_reference(LLVMJitContext *context,
   }
 
   /* check if function already has been added */
+  DBUG_PRINT("info", "check if function already has been added:'%s'", funcname);
   v_fn = LLVMGetNamedFunction(mod, funcname);
 
   if (v_fn != 0)
@@ -594,6 +623,7 @@ llvm_function_reference(LLVMJitContext *context,
 static void
 llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
 {
+  DBUG_TRACE;
 #if LLVM_VERSION_MAJOR < 17
   LLVMPassManagerBuilderRef llvm_pmb;
   LLVMPassManagerRef llvm_mpm;
@@ -629,6 +659,7 @@ llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
    * Do function level optimization. This could be moved to the point where
    * functions are emitted, to reduce memory usage a bit.
    */
+  DBUG_PRINT("info", "do function level optimization");
   LLVMInitializeFunctionPassManager(llvm_fpm);
 
   for (func = LLVMGetFirstFunction(context->module);
@@ -643,6 +674,7 @@ llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
    * Perform module level optimization. We do so even in the non-optimized
    * case, so always-inline functions etc get inlined. It's cheap enough.
    */
+  DBUG_PRINT("info", "perform module level optimization");
   llvm_mpm = LLVMCreatePassManager();
   LLVMPassManagerBuilderPopulateModulePassManager(llvm_pmb,
       llvm_mpm);
@@ -702,6 +734,7 @@ llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
 static void
 llvm_compile_module(LLVMJitContext *context)
 {
+  DBUG_TRACE;
   LLVMJitHandle *handle;
   MemoryContext oldcontext;
   instr_time  starttime;
@@ -815,6 +848,7 @@ llvm_compile_module(LLVMJitContext *context)
 static void
 llvm_session_initialize(void)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   char     *error = NULL;
   char     *cpu = NULL;
@@ -903,6 +937,8 @@ llvm_session_initialize(void)
 static void
 llvm_shutdown(int code, Datum arg)
 {
+  DBUG_TRACE;
+
   /*
    * If llvm_shutdown() is reached while in a fatal-on-oom section an error
    * has occurred in the middle of LLVM code. It is not safe to call back
@@ -942,6 +978,7 @@ llvm_shutdown(int code, Datum arg)
 static LLVMTypeRef
 load_return_type(LLVMModuleRef mod, const char *name)
 {
+  DBUG_TRACE;
   LLVMValueRef value;
   LLVMTypeRef typ;
 
@@ -1035,6 +1072,7 @@ llvm_create_types(void)
 void
 llvm_split_symbol_name(const char *name, char **modname, char **funcname)
 {
+  DBUG_TRACE;
   *modname = NULL;
   *funcname = NULL;
 
@@ -1066,6 +1104,7 @@ llvm_split_symbol_name(const char *name, char **modname, char **funcname)
 static uint64_t
 llvm_resolve_symbol(const char *symname, void *ctx)
 {
+  DBUG_TRACE;
   uintptr_t addr;
   char     *funcname;
   char     *modname;
@@ -1111,6 +1150,7 @@ llvm_resolve_symbols(LLVMOrcDefinitionGeneratorRef GeneratorObj, void *Ctx,
                      LLVMOrcJITDylibRef JD, LLVMOrcJITDylibLookupFlags JDLookupFlags,
                      LLVMOrcCLookupSet LookupSet, size_t LookupSetSize)
 {
+  DBUG_TRACE;
 #if LLVM_VERSION_MAJOR > 14
   LLVMOrcCSymbolMapPairs symbols = palloc0(sizeof(LLVMOrcCSymbolMapPair) * LookupSetSize);
 #else
@@ -1204,6 +1244,7 @@ llvm_create_object_layer(void *Ctx, LLVMOrcExecutionSessionRef ES, const char *T
 static LLVMOrcLLJITRef
 llvm_create_jit_instance(LLVMTargetMachineRef tm)
 {
+  DBUG_TRACE;
   LLVMOrcLLJITRef lljit;
   LLVMOrcJITTargetMachineBuilderRef tm_builder;
   LLVMOrcLLJITBuilderRef lljit_builder;

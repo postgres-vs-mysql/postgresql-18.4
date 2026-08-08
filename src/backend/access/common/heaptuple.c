@@ -56,6 +56,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heaptoast.h"
 #include "access/sysattr.h"
@@ -150,6 +151,7 @@ Datum
 getmissingattr(TupleDesc tupleDesc,
                int attnum, bool *isnull)
 {
+  DBUG_TRACE;
   CompactAttribute *att;
 
   Assert(attnum <= tupleDesc->natts);
@@ -218,6 +220,7 @@ heap_compute_data_size(TupleDesc tupleDesc,
                        const Datum *values,
                        const bool *isnull)
 {
+  DBUG_TRACE;
   Size    data_length = 0;
   int     i;
   int     numberOfAttributes = tupleDesc->natts;
@@ -255,6 +258,7 @@ heap_compute_data_size(TupleDesc tupleDesc,
     }
   }
 
+  DBUG_PRINT("info", "data length:%lu", data_length);
   return data_length;
 }
 
@@ -376,6 +380,7 @@ heap_fill_tuple(TupleDesc tupleDesc,
                 char *data, Size data_size,
                 uint16 *infomask, bits8 *bit)
 {
+  DBUG_TRACE;
   bits8    *bitP;
   int     bitmask;
   int     i;
@@ -395,6 +400,8 @@ heap_fill_tuple(TupleDesc tupleDesc,
   }
 
   *infomask &= ~(HEAP_HASNULL | HEAP_HASVARWIDTH | HEAP_HASEXTERNAL);
+
+  DBUG_PRINT("info", "load data portion of a tuple from attributes:%d", numberOfAttributes);
 
   for (i = 0; i < numberOfAttributes; i++) {
     CompactAttribute *attr = TupleDescCompactAttr(tupleDesc, i);
@@ -490,6 +497,7 @@ nocachegetattr(HeapTuple tup,
                int attnum,
                TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   HeapTupleHeader td = tup->t_data;
   char     *tp;       /* ptr to data part of tuple */
   bits8    *bp = td->t_bits;  /* ptr to null bitmap in tuple */
@@ -676,6 +684,7 @@ nocachegetattr(HeapTuple tup,
 Datum
 heap_getsysattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 {
+  DBUG_TRACE;
   Datum   result;
 
   Assert(tup);
@@ -788,6 +797,7 @@ expand_tuple(HeapTuple *targetHeapTuple,
              HeapTuple sourceTuple,
              TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   AttrMissing *attrmiss = NULL;
   int     attnum;
   int     firstmissingnum;
@@ -992,6 +1002,7 @@ expand_tuple(HeapTuple *targetHeapTuple,
 MinimalTuple
 minimal_expand_tuple(HeapTuple sourceTuple, TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   MinimalTuple minimalTuple;
 
   expand_tuple(NULL, &minimalTuple, sourceTuple, tupleDesc);
@@ -1004,6 +1015,7 @@ minimal_expand_tuple(HeapTuple sourceTuple, TupleDesc tupleDesc)
 HeapTuple
 heap_expand_tuple(HeapTuple sourceTuple, TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   HeapTuple heapTuple;
 
   expand_tuple(&heapTuple, NULL, sourceTuple, tupleDesc);
@@ -1019,6 +1031,7 @@ heap_expand_tuple(HeapTuple sourceTuple, TupleDesc tupleDesc)
 Datum
 heap_copy_tuple_as_datum(HeapTuple tuple, TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   HeapTupleHeader td;
 
   /*
@@ -1057,6 +1070,7 @@ heap_form_tuple(TupleDesc tupleDescriptor,
                 const Datum *values,
                 const bool *isnull)
 {
+  DBUG_TRACE;
   HeapTuple tuple;      /* return tuple */
   HeapTupleHeader td;     /* tuple data */
   Size    len,
@@ -1150,6 +1164,7 @@ heap_modify_tuple(HeapTuple tuple,
                   const bool *replIsnull,
                   const bool *doReplace)
 {
+  DBUG_TRACE;
   int     numberOfAttributes = tupleDesc->natts;
   int     attoff;
   Datum    *values;
@@ -1217,6 +1232,7 @@ heap_modify_tuple_by_cols(HeapTuple tuple,
                           const Datum *replValues,
                           const bool *replIsnull)
 {
+  DBUG_TRACE;
   int     numberOfAttributes = tupleDesc->natts;
   Datum    *values;
   bool     *isnull;
@@ -1281,6 +1297,7 @@ void
 heap_deform_tuple(HeapTuple tuple, TupleDesc tupleDesc,
                   Datum *values, bool *isnull)
 {
+  DBUG_TRACE;
   HeapTupleHeader tup = tuple->t_data;
   bool    hasnulls = HeapTupleHasNulls(tuple);
   int     tdesc_natts = tupleDesc->natts;
@@ -1384,6 +1401,7 @@ heap_form_minimal_tuple(TupleDesc tupleDescriptor,
                         const bool *isnull,
                         Size extra)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;     /* return tuple */
   char     *mem;
   Size    len,
@@ -1468,6 +1486,7 @@ heap_free_minimal_tuple(MinimalTuple mtup)
 MinimalTuple
 heap_copy_minimal_tuple(MinimalTuple mtup, Size extra)
 {
+  DBUG_TRACE;
   MinimalTuple result;
   char     *mem;
 

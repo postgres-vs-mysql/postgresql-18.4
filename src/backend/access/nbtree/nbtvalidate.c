@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/htup_details.h"
@@ -39,6 +40,7 @@
 bool
 btvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;
@@ -58,8 +60,10 @@ btvalidate(Oid opclassoid)
   /* Fetch opclass information */
   classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassoid));
 
-  if (!HeapTupleIsValid(classtup))
+  if (!HeapTupleIsValid(classtup)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for operator class %u", opclassoid);
     elog(ERROR, "cache lookup failed for operator class %u", opclassoid);
+  }
 
   classform = (Form_pg_opclass) GETSTRUCT(classtup);
 
@@ -117,6 +121,8 @@ btvalidate(Oid opclassoid)
         break;
 
       default:
+        DBUG_PRINT("info", "operator family \"%s\" of access method %s contains function %s with invalid support number %d",
+                   opfamilyname, "btree", format_procedure(procform->amproc), procform->amprocnum);
         ereport(INFO,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("operator family \"%s\" of access method %s contains function %s with invalid support number %d",
@@ -128,6 +134,8 @@ btvalidate(Oid opclassoid)
     }
 
     if (!ok) {
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s contains function %s with wrong signature for support number %d",
+                 opfamilyname, "btree", format_procedure(procform->amproc), procform->amprocnum);
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s contains function %s with wrong signature for support number %d",
@@ -146,6 +154,8 @@ btvalidate(Oid opclassoid)
     /* Check that only allowed strategy numbers exist */
     if (oprform->amopstrategy < 1 ||
         oprform->amopstrategy > BTMaxStrategyNumber) {
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s contains operator %s with invalid strategy number %d",
+                 opfamilyname, "btree", format_operator(oprform->amopopr), oprform->amopstrategy);
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s contains operator %s with invalid strategy number %d",
@@ -158,6 +168,8 @@ btvalidate(Oid opclassoid)
     /* btree doesn't support ORDER BY operators */
     if (oprform->amoppurpose != AMOP_SEARCH ||
         OidIsValid(oprform->amopsortfamily)) {
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s contains invalid ORDER BY specification for operator %s",
+                 opfamilyname, "btree", format_operator(oprform->amopopr));
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s contains invalid ORDER BY specification for operator %s",
@@ -170,6 +182,8 @@ btvalidate(Oid opclassoid)
     if (!check_amop_signature(oprform->amopopr, BOOLOID,
                               oprform->amoplefttype,
                               oprform->amoprighttype)) {
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s contains operator %s with wrong signature",
+                 opfamilyname, "btree", format_operator(oprform->amopopr));
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s contains operator %s with wrong signature",
@@ -227,22 +241,29 @@ btvalidate(Oid opclassoid)
          (1 << BTEqualStrategyNumber) |
          (1 << BTGreaterEqualStrategyNumber) |
          (1 << BTGreaterStrategyNumber))) {
+      char *format1 = format_type_be(thisgroup->lefttype);
+      char *format2 = format_type_be(thisgroup->righttype);
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s is missing operator(s) for types %s and %s",
+                 opfamilyname, "btree", format1, format2);
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s is missing operator(s) for types %s and %s",
                       opfamilyname, "btree",
-                      format_type_be(thisgroup->lefttype),
-                      format_type_be(thisgroup->righttype))));
+                      format1,
+                      format2)));
       result = false;
     }
 
     if ((thisgroup->functionset & (1 << BTORDER_PROC)) == 0) {
+      char *format1 = format_type_be(thisgroup->lefttype);
+      char *format2 = format_type_be(thisgroup->righttype);
+      DBUG_PRINT("info", "operator family \"%s\" of access method %s is missing support function for types %s and %s",
+                 opfamilyname, "btree", format1, format2);
       ereport(INFO,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("operator family \"%s\" of access method %s is missing support function for types %s and %s",
-                      opfamilyname, "btree",
-                      format_type_be(thisgroup->lefttype),
-                      format_type_be(thisgroup->righttype))));
+                      opfamilyname, "btree", format1,
+                      format2)));
       result = false;
     }
   }
@@ -250,6 +271,8 @@ btvalidate(Oid opclassoid)
   /* Check that the originally-named opclass is supported */
   /* (if group is there, we already checked it adequately above) */
   if (!opclassgroup) {
+    DBUG_PRINT("info", "operator class \"%s\" of access method %s is missing operator(s)",
+               opclassname, "btree");
     ereport(INFO,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("operator class \"%s\" of access method %s is missing operator(s)",
@@ -265,6 +288,8 @@ btvalidate(Oid opclassoid)
    * reasonable to insist that all built-in btree opfamilies be complete.
    */
   if (usefulgroups != (list_length(familytypes) * list_length(familytypes))) {
+    DBUG_PRINT("info", "operator family \"%s\" of access method %s is missing cross-type operator(s)",
+               opfamilyname, "btree");
     ereport(INFO,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("operator family \"%s\" of access method %s is missing cross-type operator(s)",
@@ -288,6 +313,7 @@ btadjustmembers(Oid opfamilyoid,
                 List *operators,
                 List *functions)
 {
+  DBUG_TRACE;
   Oid     opcintype;
   ListCell   *lc;
 

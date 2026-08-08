@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -178,6 +179,7 @@ static int  file_acquire_sample_rows(Relation onerel, int elevel,
 Datum
 file_fdw_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = makeNode(FdwRoutine);
 
   fdwroutine->GetForeignRelSize = fileGetForeignRelSize;
@@ -203,6 +205,7 @@ file_fdw_handler(PG_FUNCTION_ARGS)
 Datum
 file_fdw_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
   Oid     catalog = PG_GETARG_OID(1);
   char     *filename = NULL;
@@ -278,22 +281,26 @@ file_fdw_validator(PG_FUNCTION_ARGS)
        * otherwise there'd still be a security hole.
        */
       if (strcmp(def->defname, "filename") == 0 &&
-          !has_privs_of_role(GetUserId(), ROLE_PG_READ_SERVER_FILES))
+          !has_privs_of_role(GetUserId(), ROLE_PG_READ_SERVER_FILES)) {
+        DBUG_INSTANT_PRINT("file_fdw", "permission denied to set the filename option of a file_fdw foreign table");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to set the \"%s\" option of a file_fdw foreign table",
                         "filename"),
                  errdetail("Only roles with privileges of the \"%s\" role may set this option.",
                            "pg_read_server_files")));
+      }
 
       if (strcmp(def->defname, "program") == 0 &&
-          !has_privs_of_role(GetUserId(), ROLE_PG_EXECUTE_SERVER_PROGRAM))
+          !has_privs_of_role(GetUserId(), ROLE_PG_EXECUTE_SERVER_PROGRAM)) {
+        DBUG_INSTANT_PRINT("file_fdw", "permission denied to set the program option of a file_fdw foreign table");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to set the \"%s\" option of a file_fdw foreign table",
                         "program"),
                  errdetail("Only roles with privileges of the \"%s\" role may set this option.",
                            "pg_execute_server_program")));
+      }
 
       filename = defGetString(def);
     }
@@ -371,6 +378,7 @@ static void
 fileGetOptions(Oid foreigntableid,
                char **filename, bool *is_program, List **other_options)
 {
+  DBUG_TRACE;
   ForeignTable *table;
   ForeignServer *server;
   ForeignDataWrapper *wrapper;
@@ -438,6 +446,7 @@ fileGetOptions(Oid foreigntableid,
 static List *
 get_file_fdw_attribute_options(Oid relid)
 {
+  DBUG_TRACE;
   Relation  rel;
   TupleDesc tupleDesc;
   AttrNumber  natts;
@@ -508,8 +517,10 @@ fileGetForeignRelSize(PlannerInfo *root,
                       RelOptInfo *baserel,
                       Oid foreigntableid)
 {
+  DBUG_TRACE;
   FileFdwPlanState *fdw_private;
 
+  DBUG_PRINT("file_fdw", "obtain relation size estimates for a foreign table");
   /*
    * Fetch options.  We only need filename (or program) at this point, but
    * we might as well get everything and not need to re-fetch it later in
@@ -539,6 +550,7 @@ fileGetForeignPaths(PlannerInfo *root,
                     RelOptInfo *baserel,
                     Oid foreigntableid)
 {
+  DBUG_TRACE;
   FileFdwPlanState *fdw_private = (FileFdwPlanState *) baserel->fdw_private;
   Cost    startup_cost;
   Cost    total_cost;
@@ -565,7 +577,7 @@ fileGetForeignPaths(PlannerInfo *root,
    * it could still have required parameterization due to LATERAL refs in
    * its tlist.
    */
-  add_path(baserel, (Path *)
+  add_path(root, baserel, (Path *)
            create_foreignscan_path(root, baserel,
                                    NULL,  /* default pathtarget */
                                    baserel->rows,
@@ -598,6 +610,7 @@ fileGetForeignPlan(PlannerInfo *root,
                    List *scan_clauses,
                    Plan *outer_plan)
 {
+  DBUG_TRACE;
   Index   scan_relid = baserel->relid;
 
   /*
@@ -627,6 +640,7 @@ fileGetForeignPlan(PlannerInfo *root,
 static void
 fileExplainForeignScan(ForeignScanState *node, ExplainState *es)
 {
+  DBUG_TRACE;
   char     *filename;
   bool    is_program;
   List     *options;
@@ -658,6 +672,7 @@ fileExplainForeignScan(ForeignScanState *node, ExplainState *es)
 static void
 fileBeginForeignScan(ForeignScanState *node, int eflags)
 {
+  DBUG_TRACE;
   ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
   char     *filename;
   bool    is_program;
@@ -712,6 +727,7 @@ fileBeginForeignScan(ForeignScanState *node, int eflags)
 static TupleTableSlot *
 fileIterateForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   FileFdwExecutionState *festate = (FileFdwExecutionState *) node->fdw_state;
   EState     *estate = CreateExecutorState();
   ExprContext *econtext;
@@ -805,6 +821,7 @@ retry:
 static void
 fileReScanForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   FileFdwExecutionState *festate = (FileFdwExecutionState *) node->fdw_state;
 
   EndCopyFrom(festate->cstate);
@@ -826,6 +843,7 @@ fileReScanForeignScan(ForeignScanState *node)
 static void
 fileEndForeignScan(ForeignScanState *node)
 {
+  DBUG_TRACE;
   FileFdwExecutionState *festate = (FileFdwExecutionState *) node->fdw_state;
 
   /* if festate is NULL, we are in EXPLAIN; nothing to do */
@@ -853,6 +871,7 @@ fileAnalyzeForeignTable(Relation relation,
                         AcquireSampleRowsFunc *func,
                         BlockNumber *totalpages)
 {
+  DBUG_TRACE;
   char     *filename;
   bool    is_program;
   List     *options;
@@ -921,6 +940,7 @@ check_selective_binary_conversion(RelOptInfo *baserel,
                                   Oid foreigntableid,
                                   List **columns)
 {
+  DBUG_TRACE;
   ForeignTable *table;
   ListCell   *lc;
   Relation  rel;
@@ -1042,6 +1062,7 @@ static void
 estimate_size(PlannerInfo *root, RelOptInfo *baserel,
               FileFdwPlanState *fdw_private)
 {
+  DBUG_TRACE;
   struct stat stat_buf;
   BlockNumber pages;
   double    ntuples;
@@ -1111,6 +1132,7 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
   nrows = clamp_row_est(nrows);
 
   /* Save the output-rows estimate for the planner */
+  DBUG_PRINT("file_fdw", "estimate size of a foreign table:%g", nrows);
   baserel->rows = nrows;
 }
 
@@ -1124,11 +1146,13 @@ estimate_costs(PlannerInfo *root, RelOptInfo *baserel,
                FileFdwPlanState *fdw_private,
                Cost *startup_cost, Cost *total_cost)
 {
+  DBUG_TRACE;
   BlockNumber pages = fdw_private->pages;
   double    ntuples = fdw_private->ntuples;
   Cost    run_cost = 0;
   Cost    cpu_per_tuple;
 
+  DBUG_PRINT("file_fdw", "estimate costs of scanning a foreign table");
   /*
    * We estimate costs almost the same way as cost_seqscan(), thus assuming
    * that I/O costs are equivalent to a regular table file of the same size.
@@ -1146,6 +1170,7 @@ estimate_costs(PlannerInfo *root, RelOptInfo *baserel,
   cpu_per_tuple = cpu_tuple_cost * 10 + baserel->baserestrictcost.per_tuple;
   run_cost += cpu_per_tuple * ntuples;
   *total_cost = *startup_cost + run_cost;
+  DBUG_PRINT("file_fdw", "startup cost:%g, total_cost:%g", *startup_cost, *total_cost);
 }
 
 /*
@@ -1168,6 +1193,7 @@ file_acquire_sample_rows(Relation onerel, int elevel,
                          HeapTuple *rows, int targrows,
                          double *totalrows, double *totaldeadrows)
 {
+  DBUG_TRACE;
   int     numrows = 0;
   double    rowstoskip = -1;  /* -1 means not set yet */
   ReservoirStateData rstate;

@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #ifdef USE_LZ4
 #include <lz4.h>
@@ -74,12 +75,12 @@ typedef struct {
   const PageData *page;   /* page content */
   uint32    rdata_len;    /* total length of data in rdata chain */
   XLogRecData *rdata_head;  /* head of the chain of data registered with
-                 * this block */
+                             * this block */
   XLogRecData *rdata_tail;  /* last entry in the chain, or &rdata_head if
-                 * empty */
+                             * empty */
 
   XLogRecData bkp_rdatas[2];  /* temporary rdatas used to hold references to
-                 * backup block data in XLogRecordAssemble() */
+                               * backup block data in XLogRecordAssemble() */
 
   /* buffer to store a compressed version of backup block image */
   char    compressed_page[COMPRESS_BUFSIZE];
@@ -88,7 +89,7 @@ typedef struct {
 static registered_buffer *registered_buffers;
 static int  max_registered_buffers; /* allocated size */
 static int  max_registered_block_id = 0;  /* highest block_id + 1 currently
-                       * registered */
+                                           * registered */
 
 /*
  * A chain of XLogRecDatas to hold the "main data" of a WAL record, registered
@@ -147,16 +148,23 @@ static bool XLogCompressBackupBlock(const PageData *page, uint16 hole_offset,
 void
 XLogBeginInsert(void)
 {
+  DBUG_TRACE;
   Assert(max_registered_block_id == 0);
   Assert(mainrdata_last == (XLogRecData *) &mainrdata_head);
   Assert(mainrdata_len == 0);
 
-  /* cross-check on whether we should be here or not */
-  if (!XLogInsertAllowed())
-    elog(ERROR, "cannot make new WAL entries during recovery");
+  DBUG_PRINT("info", "begin constructing a WAL record");
 
-  if (begininsert_called)
+  /* cross-check on whether we should be here or not */
+  if (!XLogInsertAllowed()) {
+    DBUG_INSTANT_PRINT("info", "cannot make new WAL entries during recovery");
+    elog(ERROR, "cannot make new WAL entries during recovery");
+  }
+
+  if (begininsert_called) {
+    DBUG_INSTANT_PRINT("info", "XLogBeginInsert was already called");
     elog(ERROR, "XLogBeginInsert was already called");
+  }
 
   begininsert_called = true;
 }
@@ -173,6 +181,7 @@ XLogBeginInsert(void)
 void
 XLogEnsureRecordSpace(int max_block_id, int ndatas)
 {
+  DBUG_TRACE;
   int     nbuffers;
 
   /*
@@ -190,8 +199,10 @@ XLogEnsureRecordSpace(int max_block_id, int ndatas)
   if (ndatas < XLR_NORMAL_RDATAS)
     ndatas = XLR_NORMAL_RDATAS;
 
-  if (max_block_id > XLR_MAX_BLOCK_ID)
+  if (max_block_id > XLR_MAX_BLOCK_ID) {
+    DBUG_INSTANT_PRINT("info", "maximum number of WAL record block references exceeded");
     elog(ERROR, "maximum number of WAL record block references exceeded");
+  }
 
   nbuffers = max_block_id + 1;
 
@@ -240,8 +251,10 @@ XLogResetInsertion(void)
 void
 XLogRegisterBuffer(uint8 block_id, Buffer buffer, uint8 flags)
 {
+  DBUG_TRACE;
   registered_buffer *regbuf;
 
+  DBUG_PRINT("info", "register a reference to a buffer with the WAL record being constructed");
   /* NO_IMAGE doesn't make sense with FORCE_IMAGE */
   Assert(!((flags & REGBUF_FORCE_IMAGE) && (flags & (REGBUF_NO_IMAGE))));
   Assert(begininsert_called);
@@ -263,8 +276,10 @@ XLogRegisterBuffer(uint8 block_id, Buffer buffer, uint8 flags)
 #endif
 
   if (block_id >= max_registered_block_id) {
-    if (block_id >= max_registered_buffers)
+    if (block_id >= max_registered_buffers) {
+      DBUG_INSTANT_PRINT("info", "too many registered buffers");
       elog(ERROR, "too many registered buffers");
+    }
 
     max_registered_block_id = block_id + 1;
   }
@@ -309,15 +324,20 @@ void
 XLogRegisterBlock(uint8 block_id, RelFileLocator *rlocator, ForkNumber forknum,
                   BlockNumber blknum, const PageData *page, uint8 flags)
 {
+  DBUG_TRACE;
   registered_buffer *regbuf;
 
   Assert(begininsert_called);
 
+  DBUG_PRINT("info", "like XLogRegisterBuffer, but for registering a block that's not in the shared buffer pool");
+
   if (block_id >= max_registered_block_id)
     max_registered_block_id = block_id + 1;
 
-  if (block_id >= max_registered_buffers)
+  if (block_id >= max_registered_buffers) {
+    DBUG_INSTANT_PRINT("info", "too many registered buffers");
     elog(ERROR, "too many registered buffers");
+  }
 
   regbuf = &registered_buffers[block_id];
 
@@ -362,15 +382,20 @@ XLogRegisterBlock(uint8 block_id, RelFileLocator *rlocator, ForkNumber forknum,
 void
 XLogRegisterData(const void *data, uint32 len)
 {
+  DBUG_TRACE;
   XLogRecData *rdata;
 
   Assert(begininsert_called);
 
-  if (num_rdatas >= max_rdatas)
+  DBUG_PRINT("info", "add data to the WAL record that's being constructed");
+
+  if (num_rdatas >= max_rdatas) {
+    DBUG_INSTANT_PRINT("info", "too much WAL data");
     ereport(ERROR,
             (errmsg_internal("too much WAL data"),
              errdetail_internal("%d out of %d data segments are already in use.",
                                 num_rdatas, max_rdatas)));
+  }
 
   rdata = &rdatas[num_rdatas++];
 
@@ -404,17 +429,21 @@ XLogRegisterData(const void *data, uint32 len)
 void
 XLogRegisterBufData(uint8 block_id, const void *data, uint32 len)
 {
+  DBUG_TRACE;
   registered_buffer *regbuf;
   XLogRecData *rdata;
 
+  DBUG_PRINT("info", "add buffer-specific data to the WAL record that's being constructed");
   Assert(begininsert_called);
 
   /* find the registered buffer struct */
   regbuf = &registered_buffers[block_id];
 
-  if (!regbuf->in_use)
+  if (!regbuf->in_use) {
+    DBUG_INSTANT_PRINT("info", "no block with id %d registered with WAL insertion", block_id);
     elog(ERROR, "no block with id %d registered with WAL insertion",
          block_id);
+  }
 
   /*
    * Check against max_rdatas and ensure we do not register more data per
@@ -422,17 +451,24 @@ XLogRegisterBufData(uint8 block_id, const void *data, uint32 len)
    * regbuf->rdata_len does not grow beyond what
    * XLogRecordBlockHeader->data_length can hold.
    */
-  if (num_rdatas >= max_rdatas)
+  if (num_rdatas >= max_rdatas) {
+    DBUG_PRINT("info", "too much WAL data");
+    DBUG_INSTANT_PRINT("info", "%d out of %d data segments are already in use", num_rdatas, max_rdatas);
     ereport(ERROR,
             (errmsg_internal("too much WAL data"),
              errdetail_internal("%d out of %d data segments are already in use.",
                                 num_rdatas, max_rdatas)));
+  }
 
-  if (regbuf->rdata_len + len > UINT16_MAX || len > UINT16_MAX)
+  if (regbuf->rdata_len + len > UINT16_MAX || len > UINT16_MAX) {
+    DBUG_PRINT("info", "too much WAL data");
+    DBUG_INSTANT_PRINT("info", "registering more than maximum %u bytes allowed to block %u: current %u bytes, adding %u bytes",
+                       UINT16_MAX, block_id, regbuf->rdata_len, len);
     ereport(ERROR,
             (errmsg_internal("too much WAL data"),
              errdetail_internal("Registering more than maximum %u bytes allowed to block %u: current %u bytes, adding %u bytes.",
                                 UINT16_MAX, block_id, regbuf->rdata_len, len)));
+  }
 
   rdata = &rdatas[num_rdatas++];
 
@@ -475,11 +511,110 @@ XLogSetRecordFlags(uint8 flags)
 XLogRecPtr
 XLogInsert(RmgrId rmid, uint8 info)
 {
+  DBUG_TRACE;
   XLogRecPtr  EndPos;
 
   /* XLogBeginInsert() must have been called. */
-  if (!begininsert_called)
+  if (!begininsert_called) {
+    DBUG_INSTANT_PRINT("info", "XLogBeginInsert was not called");
     elog(ERROR, "XLogBeginInsert was not called");
+  }
+
+  switch(rmid) {
+    case RM_XLOG_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_XLOG_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_XACT_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_XACT_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_SMGR_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_SMGR_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_CLOG_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_CLOG_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_DBASE_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_DBASE_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_TBLSPC_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_TBLSPC_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_MULTIXACT_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_MULTIXACT_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_RELMAP_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_RELMAP_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_STANDBY_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_STANDBY_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_HEAP2_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_HEAP2_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_HEAP_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_HEAP_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_BTREE_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_BTREE_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_HASH_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_HASH_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_GIN_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_GIN_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_GIST_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_GIST_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_SEQ_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_SEQ_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_SPGIST_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_SPGIST_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_BRIN_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_BRIN_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_COMMIT_TS_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_COMMIT_TS_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_REPLORIGIN_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_REPLORIGIN_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_LOGICALMSG_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_LOGICALMSG_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    case RM_GENERIC_ID:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(RM_GENERIC_ID:%u) and info bytes(%u), with the", rmid, info);
+      break;
+
+    default:
+      DBUG_PRINT("info", "insert an XLOG record having the specified RMID(%u) and info bytes(%u), with the", rmid, info);
+      break;
+  }
+
+  DBUG_PRINT("info", "body of the record being the data and buffer references registered earlier with XLogRegister calls");
 
   /*
    * The caller can set rmgr bits, XLR_SPECIAL_REL_UPDATE and
@@ -487,8 +622,10 @@ XLogInsert(RmgrId rmid, uint8 info)
    */
   if ((info & ~(XLR_RMGR_INFO_MASK |
                 XLR_SPECIAL_REL_UPDATE |
-                XLR_CHECK_CONSISTENCY)) != 0)
+                XLR_CHECK_CONSISTENCY)) != 0) {
+    DBUG_INSTANT_PRINT("info", "invalid xlog info mask %02X", info);
     elog(PANIC, "invalid xlog info mask %02X", info);
+  }
 
   TRACE_POSTGRESQL_WAL_INSERT(rmid, info);
 
@@ -499,6 +636,7 @@ XLogInsert(RmgrId rmid, uint8 info)
   if (IsBootstrapProcessingMode() && rmid != RM_XLOG_ID) {
     XLogResetInsertion();
     EndPos = SizeOfXLogLongPHD; /* start of 1st chkpt record */
+    DBUG_PRINT("info", "in bootstrap mode, we don't actually log anything but XLOG resources; return a phony record pointer");
     return EndPos;
   }
 
@@ -519,6 +657,12 @@ XLogInsert(RmgrId rmid, uint8 info)
 
     rdt = XLogRecordAssemble(rmid, info, RedoRecPtr, doPageWrites,
                              &fpw_lsn, &num_fpi, &topxid_included);
+
+    if (doPageWrites) {
+      DBUG_PRINT("info", "do full-page writes");
+    } else {
+      DBUG_PRINT("info", "doPageWrites is false");
+    }
 
     EndPos = XLogInsertRecord(rdt, fpw_lsn, curinsert_flags, num_fpi,
                               topxid_included);
@@ -549,6 +693,7 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
                    XLogRecPtr RedoRecPtr, bool doPageWrites,
                    XLogRecPtr *fpw_lsn, int *num_fpi, bool *topxid_included)
 {
+  DBUG_TRACE;
   XLogRecData *rdt;
   uint64    total_len = 0;
   int     block_id;
@@ -649,6 +794,8 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
       const PageData *page = regbuf->page;
       uint16    compressed_len = 0;
 
+      DBUG_PRINT("info", "log a full-page write for the current block");
+
       /*
        * The page needs to be backed up, so calculate its hole length
        * and offset.
@@ -725,6 +872,7 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
 #ifdef USE_LZ4
             bimg.bimg_info |= BKPIMAGE_COMPRESS_LZ4;
 #else
+            DBUG_INSTANT_PRINT("info", "LZ4 is not supported by this build");
             elog(ERROR, "LZ4 is not supported by this build");
 #endif
             break;
@@ -733,6 +881,7 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
 #ifdef USE_ZSTD
             bimg.bimg_info |= BKPIMAGE_COMPRESS_ZSTD;
 #else
+            DBUG_INSTANT_PRINT("info", "zstd is not supported by this build");
             elog(ERROR, "zstd is not supported by this build");
 #endif
             break;
@@ -845,12 +994,14 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
     if (mainrdata_len > 255) {
       uint32    mainrdata_len_4b;
 
-      if (mainrdata_len > PG_UINT32_MAX)
+      if (mainrdata_len > PG_UINT32_MAX) {
+        DBUG_PRINT("info", "too much WAL data");
         ereport(ERROR,
                 (errmsg_internal("too much WAL data"),
                  errdetail_internal("Main data length is %" PRIu64 " bytes for a maximum of %u bytes.",
                                     mainrdata_len,
                                     PG_UINT32_MAX)));
+      }
 
       mainrdata_len_4b = (uint32) mainrdata_len;
       *(scratch++) = (char) XLR_BLOCK_ID_DATA_LONG;
@@ -879,6 +1030,7 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
    * the whole record in the order: rdata, then backup blocks, then record
    * header.
    */
+  DBUG_PRINT("info", "calculate CRC of the data");
   INIT_CRC32C(rdata_crc);
   COMP_CRC32C(rdata_crc, hdr_scratch + SizeOfXLogRecord, hdr_rdt.len - SizeOfXLogRecord);
 
@@ -892,17 +1044,20 @@ XLogRecordAssemble(RmgrId rmid, uint8 info,
    * size (ignoring machine resource limitations), so make sure that we will
    * not emit records larger than the sizes advertised to be supported.
    */
-  if (total_len > XLogRecordMaxSize)
+  if (total_len > XLogRecordMaxSize) {
+    DBUG_INSTANT_PRINT("info", "oversized WAL record");
     ereport(ERROR,
             (errmsg_internal("oversized WAL record"),
              errdetail_internal("WAL record would be %" PRIu64 " bytes (of maximum %u bytes); rmid %u flags %u.",
                                 total_len, XLogRecordMaxSize, rmid, info)));
+  }
 
   /*
    * Fill in the fields in the record header. Prev-link is filled in later,
    * once we know where in the WAL the record will be inserted. The CRC does
    * not include the record header yet.
    */
+  DBUG_PRINT("info", "fill in the fields in the record header (rmid:%u, info:%u, total_len:%lu)", rmid, info, total_len);
   rechdr->xl_xid = GetCurrentTransactionIdIfAny();
   rechdr->xl_tot_len = (uint32) total_len;
   rechdr->xl_info = info;
@@ -924,11 +1079,14 @@ static bool
 XLogCompressBackupBlock(const PageData *page, uint16 hole_offset, uint16 hole_length,
                         void *dest, uint16 *dlen)
 {
+  DBUG_TRACE;
   int32   orig_len = BLCKSZ - hole_length;
   int32   len = -1;
   int32   extra_bytes = 0;
   const void *source;
   PGAlignedBlock tmp;
+
+  DBUG_PRINT("info", "create a compressed version of a backup block image");
 
   if (hole_length != 0) {
     /* must skip the hole */
@@ -961,6 +1119,7 @@ XLogCompressBackupBlock(const PageData *page, uint16 hole_offset, uint16 hole_le
 
 #else
       elog(ERROR, "LZ4 is not supported by this build");
+      DBUG_INSTANT_PRINT("info", "LZ4 is not supported by this build");
 #endif
       break;
 
@@ -973,6 +1132,7 @@ XLogCompressBackupBlock(const PageData *page, uint16 hole_offset, uint16 hole_le
         len = -1;   /* failure */
 
 #else
+      DBUG_INSTANT_PRINT("info", "zstd is not supported by this build");
       elog(ERROR, "zstd is not supported by this build");
 #endif
       break;
@@ -1007,6 +1167,7 @@ XLogCompressBackupBlock(const PageData *page, uint16 hole_offset, uint16 hole_le
 bool
 XLogCheckBufferNeedsBackup(Buffer buffer)
 {
+  DBUG_TRACE;
   XLogRecPtr  RedoRecPtr;
   bool    doPageWrites;
   Page    page;
@@ -1015,9 +1176,12 @@ XLogCheckBufferNeedsBackup(Buffer buffer)
 
   page = BufferGetPage(buffer);
 
-  if (doPageWrites && PageGetLSN(page) <= RedoRecPtr)
+  if (doPageWrites && PageGetLSN(page) <= RedoRecPtr) {
+    DBUG_PRINT("info", "buffer requires backup");
     return true;      /* buffer requires backup */
+  }
 
+  DBUG_PRINT("info", "buffer does not need to be backed up");
   return false;       /* buffer does not need to be backed up */
 }
 
@@ -1045,10 +1209,12 @@ XLogCheckBufferNeedsBackup(Buffer buffer)
 XLogRecPtr
 XLogSaveBufferForHint(Buffer buffer, bool buffer_std)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr = InvalidXLogRecPtr;
   XLogRecPtr  lsn;
   XLogRecPtr  RedoRecPtr;
 
+  DBUG_PRINT("info", "write a backup block if needed when we are setting a hint");
   /*
    * Ensure no checkpoint can change our view of RedoRecPtr.
    */
@@ -1066,6 +1232,8 @@ XLogSaveBufferForHint(Buffer buffer, bool buffer_std)
    * lock when we look at the LSN.
    */
   lsn = BufferGetLSNAtomic(buffer);
+
+  DBUG_PRINT("info", "lsn:%lu, RedoRecPtr:%lu", lsn, RedoRecPtr);
 
   if (lsn <= RedoRecPtr) {
     int     flags = 0;
@@ -1121,9 +1289,11 @@ XLogRecPtr
 log_newpage(RelFileLocator *rlocator, ForkNumber forknum, BlockNumber blkno,
             Page page, bool page_std)
 {
+  DBUG_TRACE;
   int     flags;
   XLogRecPtr  recptr;
 
+  DBUG_PRINT("info", "write a WAL record containing a full image of a page");
   flags = REGBUF_FORCE_IMAGE;
 
   if (page_std)
@@ -1153,11 +1323,13 @@ void
 log_newpages(RelFileLocator *rlocator, ForkNumber forknum, int num_pages,
              BlockNumber *blknos, Page *pages, bool page_std)
 {
+  DBUG_TRACE;
   int     flags;
   XLogRecPtr  recptr;
   int     i;
   int     j;
 
+  DBUG_PRINT("info", "like log_newpage(), but allows logging multiple pages in one operation");
   flags = REGBUF_FORCE_IMAGE;
 
   if (page_std)
@@ -1171,6 +1343,7 @@ log_newpages(RelFileLocator *rlocator, ForkNumber forknum, int num_pages,
   XLogEnsureRecordSpace(XLR_MAX_BLOCK_ID - 1, 0);
 
   i = 0;
+  DBUG_PRINT("info", "iterate over all the pages(%d)", num_pages);
 
   while (i < num_pages) {
     int     batch_start = i;
@@ -1186,6 +1359,7 @@ log_newpages(RelFileLocator *rlocator, ForkNumber forknum, int num_pages,
       nbatch++;
     }
 
+    DBUG_PRINT("info", "they are collected into batches of %d pages, and a single WAL-record is written for each batch", nbatch);
     recptr = XLogInsert(RM_XLOG_ID, XLOG_FPI);
 
     for (j = batch_start; j < i; j++) {
@@ -1213,6 +1387,7 @@ log_newpages(RelFileLocator *rlocator, ForkNumber forknum, int num_pages,
 XLogRecPtr
 log_newpage_buffer(Buffer buffer, bool page_std)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   RelFileLocator rlocator;
   ForkNumber  forknum;
@@ -1223,6 +1398,7 @@ log_newpage_buffer(Buffer buffer, bool page_std)
 
   BufferGetTag(buffer, &rlocator, &forknum, &blkno);
 
+  DBUG_PRINT("info", "write a WAL record containing a full image of a page(blkno:%u)", blkno);
   return log_newpage(&rlocator, forknum, blkno, page, page_std);
 }
 
@@ -1248,9 +1424,11 @@ log_newpage_range(Relation rel, ForkNumber forknum,
                   BlockNumber startblk, BlockNumber endblk,
                   bool page_std)
 {
+  DBUG_TRACE;
   int     flags;
   BlockNumber blkno;
 
+  DBUG_PRINT("info", "WAL-log a range of blocks in a relation");
   flags = REGBUF_FORCE_IMAGE;
 
   if (page_std)
@@ -1264,6 +1442,7 @@ log_newpage_range(Relation rel, ForkNumber forknum,
   XLogEnsureRecordSpace(XLR_MAX_BLOCK_ID - 1, 0);
 
   blkno = startblk;
+  DBUG_PRINT("info", "startblk:%u, endblk:%u", startblk, endblk);
 
   while (blkno < endblk) {
     Buffer    bufpack[XLR_MAX_BLOCK_ID];
@@ -1296,9 +1475,12 @@ log_newpage_range(Relation rel, ForkNumber forknum,
     }
 
     /* Nothing more to do if all remaining blocks were empty. */
-    if (nbufs == 0)
+    if (nbufs == 0) {
+      DBUG_PRINT("info", "nothing more to do if all remaining blocks were empty");
       break;
+    }
 
+    DBUG_PRINT("info", "write WAL record for this batch(%d)", nbufs);
     /* Write WAL record for this batch. */
     XLogBeginInsert();
 
@@ -1326,6 +1508,7 @@ log_newpage_range(Relation rel, ForkNumber forknum,
 void
 InitXLogInsert(void)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
 
   /*
@@ -1339,6 +1522,8 @@ InitXLogInsert(void)
 
   Assert(AllocSizeIsValid(max_required));
 #endif
+
+  DBUG_PRINT("info", "allocate working buffers needed for WAL record construction");
 
   /* Initialize the working areas */
   if (xloginsert_cxt == NULL) {

@@ -124,6 +124,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -490,6 +491,7 @@ AsyncShmemSize(void)
 void
 AsyncShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
   Size    size;
 
@@ -593,21 +595,27 @@ Async_Notify(const char *channel, const char *payload)
   payload_len = payload ? strlen(payload) : 0;
 
   /* a channel name must be specified */
-  if (channel_len == 0)
+  if (channel_len == 0) {
+    DBUG_INSTANT_PRINT("info", "channel name cannot be empty");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("channel name cannot be empty")));
+  }
 
   /* enforce length limits */
-  if (channel_len >= NAMEDATALEN)
+  if (channel_len >= NAMEDATALEN) {
+    DBUG_INSTANT_PRINT("info", "channel name too long");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("channel name too long")));
+  }
 
-  if (payload_len >= NOTIFY_PAYLOAD_MAX_LENGTH)
+  if (payload_len >= NOTIFY_PAYLOAD_MAX_LENGTH) {
+    DBUG_INSTANT_PRINT("info", "payload string too long");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("payload string too long")));
+  }
 
   /*
    * We must construct the Notification entry, even if we end up not using
@@ -719,6 +727,7 @@ queue_listen(ListenActionKind action, const char *channel)
 void
 Async_Listen(const char *channel)
 {
+
   if (Trace_notify)
     elog(DEBUG1, "Async_Listen(%s,%d)", channel, MyProcPid);
 
@@ -733,6 +742,7 @@ Async_Listen(const char *channel)
 void
 Async_Unlisten(const char *channel)
 {
+
   if (Trace_notify)
     elog(DEBUG1, "Async_Unlisten(%s,%d)", channel, MyProcPid);
 
@@ -751,6 +761,7 @@ Async_Unlisten(const char *channel)
 void
 Async_UnlistenAll(void)
 {
+
   if (Trace_notify)
     elog(DEBUG1, "Async_UnlistenAll(%d)", MyProcPid);
 
@@ -815,11 +826,14 @@ Async_UnlistenOnExit(int code, Datum arg)
 void
 AtPrepare_Notify(void)
 {
+
   /* It's not allowed to have any pending LISTEN/UNLISTEN/NOTIFY actions */
-  if (pendingActions || pendingNotifies)
+  if (pendingActions || pendingNotifies) {
+    DBUG_INSTANT_PRINT("info", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY")));
+  }
 }
 
 /*
@@ -919,10 +933,12 @@ PreCommit_Notify(void)
       LWLockAcquire(NotifyQueueLock, LW_EXCLUSIVE);
       asyncQueueFillWarning();
 
-      if (asyncQueueIsFull())
+      if (asyncQueueIsFull()) {
+        DBUG_INSTANT_PRINT("info", "too many notifications in the NOTIFY queue");
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("too many notifications in the NOTIFY queue")));
+      }
 
       nextNotify = asyncQueueAddEntries(nextNotify);
       LWLockRelease(NotifyQueueLock);
@@ -1169,6 +1185,7 @@ Exec_UnlistenCommit(const char *channel)
 static void
 Exec_UnlistenAllCommit(void)
 {
+
   if (Trace_notify)
     elog(DEBUG1, "Exec_UnlistenAllCommit(%d)", MyProcPid);
 
@@ -1519,6 +1536,7 @@ asyncQueueFillWarning(void)
         minPid = QUEUE_BACKEND_PID(i);
     }
 
+    DBUG_INSTANT_PRINT("info", "NOTIFY queue is %.0f%% full", fillDegree * 100);
     ereport(WARNING,
             (errmsg("NOTIFY queue is %.0f%% full", fillDegree * 100),
              (minPid != InvalidPid ?
@@ -1638,6 +1656,7 @@ SignalBackends(void)
 void
 AtAbort_Notify(void)
 {
+
   /*
    * If we LISTEN but then roll back the transaction after PreCommit_Notify,
    * we have registered as a listener but have not made any entry in

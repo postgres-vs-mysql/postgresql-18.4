@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "mb/pg_wchar.h"
 #include "../../Unicode/utf8_to_koi8r.map"
@@ -47,6 +48,7 @@ PG_FUNCTION_INFO_V1(koi8u_to_utf8);
 Datum
 utf8_to_koi8r(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -68,6 +70,7 @@ utf8_to_koi8r(PG_FUNCTION_ARGS)
 Datum
 koi8r_to_utf8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -89,6 +92,7 @@ koi8r_to_utf8(PG_FUNCTION_ARGS)
 Datum
 utf8_to_koi8u(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -110,6 +114,7 @@ utf8_to_koi8u(PG_FUNCTION_ARGS)
 Datum
 koi8u_to_utf8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);

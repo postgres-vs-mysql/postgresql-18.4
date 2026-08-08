@@ -24,9 +24,11 @@
 IndexScanDesc
 blbeginscan(Relation r, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   BloomScanOpaque so;
 
+  DBUG_PRINT("bloom", "begin scan of bloom index");
   scan = RelationGetIndexScan(r, nkeys, norderbys);
 
   so = (BloomScanOpaque) palloc(sizeof(BloomScanOpaqueData));
@@ -45,8 +47,10 @@ void
 blrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
          ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
 
+  DBUG_PRINT("bloom", "rescan a bloom index");
   if (so->sign)
     pfree(so->sign);
 
@@ -62,7 +66,10 @@ blrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 blendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+
+  DBUG_PRINT("bloom", "end scan of bloom index");
 
   if (so->sign)
     pfree(so->sign);
@@ -76,12 +83,15 @@ blendscan(IndexScanDesc scan)
 int64
 blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   int64   ntids = 0;
   BlockNumber blkno = BLOOM_HEAD_BLKNO,
               npages;
   int     i;
   BufferAccessStrategy bas;
   BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+
+  DBUG_PRINT("bloom", "insert all matching tuples into a bitmap");
 
   if (so->sign == NULL) {
     /* New search: have to calculate search signature */
@@ -118,6 +128,8 @@ blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 
   if (scan->instrument)
     scan->instrument->nsearches++;
+
+  DBUG_PRINT("bloom", "we are going to read the whole index(from blkno:%u to blkno:%u)", blkno, npages);
 
   for (blkno = BLOOM_HEAD_BLKNO; blkno < npages; blkno++) {
     Buffer    buffer;
@@ -159,5 +171,6 @@ blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 
   FreeAccessStrategy(bas);
 
+  DBUG_PRINT("bloom", "insert all matching tuples(%ld) into a bitmap", ntids);
   return ntids;
 }

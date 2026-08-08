@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <float.h>
@@ -582,6 +583,7 @@ static void parse_one_reloption(relopt_value *option, char *text_str,
 static void
 initialize_reloptions(void)
 {
+  DBUG_TRACE;
   int     i;
   int     j;
 
@@ -682,6 +684,8 @@ initialize_reloptions(void)
 relopt_kind
 add_reloption_kind(void)
 {
+  DBUG_TRACE;
+
   /* don't hand out the last bit so that the enum's behavior is portable */
   if (last_assigned_kind >= RELOPT_KIND_MAX)
     ereport(ERROR,
@@ -700,6 +704,7 @@ add_reloption_kind(void)
 static void
 add_reloption(relopt_gen *newoption)
 {
+  DBUG_TRACE;
   static int  max_custom_options = 0;
 
   if (num_custom_options >= max_custom_options) {
@@ -732,6 +737,7 @@ add_reloption(relopt_gen *newoption)
 void
 init_local_reloptions(local_relopts *relopts, Size relopt_struct_size)
 {
+  DBUG_TRACE;
   relopts->options = NIL;
   relopts->validators = NIL;
   relopts->relopt_struct_size = relopt_struct_size;
@@ -745,6 +751,7 @@ init_local_reloptions(local_relopts *relopts, Size relopt_struct_size)
 void
 register_reloptions_validator(local_relopts *relopts, relopts_validator validator)
 {
+  DBUG_TRACE;
   relopts->validators = lappend(relopts->validators, validator);
 }
 
@@ -755,6 +762,7 @@ register_reloptions_validator(local_relopts *relopts, relopts_validator validato
 static void
 add_local_reloption(local_relopts *relopts, relopt_gen *newoption, int offset)
 {
+  DBUG_TRACE;
   local_relopt *opt = palloc(sizeof(*opt));
 
   Assert(offset < relopts->relopt_struct_size);
@@ -837,6 +845,7 @@ static relopt_bool *
 init_bool_reloption(bits32 kinds, const char *name, const char *desc,
                     bool default_val, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_bool *newoption;
 
   newoption = (relopt_bool *) allocate_reloption(kinds, RELOPT_TYPE_BOOL,
@@ -854,6 +863,7 @@ void
 add_bool_reloption(bits32 kinds, const char *name, const char *desc,
                    bool default_val, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_bool *newoption = init_bool_reloption(kinds, name, desc,
                            default_val, lockmode);
 
@@ -870,6 +880,7 @@ void
 add_local_bool_reloption(local_relopts *relopts, const char *name,
                          const char *desc, bool default_val, int offset)
 {
+  DBUG_TRACE;
   relopt_bool *newoption = init_bool_reloption(RELOPT_KIND_LOCAL,
                            name, desc,
                            default_val, 0);
@@ -887,6 +898,7 @@ init_int_reloption(bits32 kinds, const char *name, const char *desc,
                    int default_val, int min_val, int max_val,
                    LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_int *newoption;
 
   newoption = (relopt_int *) allocate_reloption(kinds, RELOPT_TYPE_INT,
@@ -906,6 +918,7 @@ void
 add_int_reloption(bits32 kinds, const char *name, const char *desc, int default_val,
                   int min_val, int max_val, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_int *newoption = init_int_reloption(kinds, name, desc,
                           default_val, min_val,
                           max_val, lockmode);
@@ -924,6 +937,7 @@ add_local_int_reloption(local_relopts *relopts, const char *name,
                         const char *desc, int default_val, int min_val,
                         int max_val, int offset)
 {
+  DBUG_TRACE;
   relopt_int *newoption = init_int_reloption(RELOPT_KIND_LOCAL,
                           name, desc, default_val,
                           min_val, max_val, 0);
@@ -940,6 +954,7 @@ init_real_reloption(bits32 kinds, const char *name, const char *desc,
                     double default_val, double min_val, double max_val,
                     LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_real *newoption;
 
   newoption = (relopt_real *) allocate_reloption(kinds, RELOPT_TYPE_REAL,
@@ -960,6 +975,7 @@ add_real_reloption(bits32 kinds, const char *name, const char *desc,
                    double default_val, double min_val, double max_val,
                    LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_real *newoption = init_real_reloption(kinds, name, desc,
                            default_val, min_val,
                            max_val, lockmode);
@@ -978,6 +994,7 @@ add_local_real_reloption(local_relopts *relopts, const char *name,
                          const char *desc, double default_val,
                          double min_val, double max_val, int offset)
 {
+  DBUG_TRACE;
   relopt_real *newoption = init_real_reloption(RELOPT_KIND_LOCAL,
                            name, desc,
                            default_val, min_val,
@@ -995,6 +1012,7 @@ init_enum_reloption(bits32 kinds, const char *name, const char *desc,
                     relopt_enum_elt_def *members, int default_val,
                     const char *detailmsg, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_enum *newoption;
 
   newoption = (relopt_enum *) allocate_reloption(kinds, RELOPT_TYPE_ENUM,
@@ -1024,6 +1042,7 @@ add_enum_reloption(bits32 kinds, const char *name, const char *desc,
                    relopt_enum_elt_def *members, int default_val,
                    const char *detailmsg, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_enum *newoption = init_enum_reloption(kinds, name, desc,
                            members, default_val,
                            detailmsg, lockmode);
@@ -1042,6 +1061,7 @@ add_local_enum_reloption(local_relopts *relopts, const char *name,
                          const char *desc, relopt_enum_elt_def *members,
                          int default_val, const char *detailmsg, int offset)
 {
+  DBUG_TRACE;
   relopt_enum *newoption = init_enum_reloption(RELOPT_KIND_LOCAL,
                            name, desc,
                            members, default_val,
@@ -1061,6 +1081,7 @@ init_string_reloption(bits32 kinds, const char *name, const char *desc,
                       fill_string_relopt filler,
                       LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_string *newoption;
 
   /* make sure the validator/default combination is sane */
@@ -1103,6 +1124,7 @@ add_string_reloption(bits32 kinds, const char *name, const char *desc,
                      const char *default_val, validate_string_relopt validator,
                      LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   relopt_string *newoption = init_string_reloption(kinds, name, desc,
                              default_val,
                              validator, NULL,
@@ -1124,6 +1146,7 @@ add_local_string_reloption(local_relopts *relopts, const char *name,
                            validate_string_relopt validator,
                            fill_string_relopt filler, int offset)
 {
+  DBUG_TRACE;
   relopt_string *newoption = init_string_reloption(RELOPT_KIND_LOCAL,
                              name, desc,
                              default_val,
@@ -1160,6 +1183,7 @@ Datum
 transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
                     const char *const validnsps[], bool acceptOidsOff, bool isReset)
 {
+  DBUG_TRACE;
   Datum   result;
   ArrayBuildState *astate;
   ListCell   *cell;
@@ -1330,6 +1354,7 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 List *
 untransformRelOptions(Datum options)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ArrayType  *array;
   Datum    *optiondatums;
@@ -1379,6 +1404,7 @@ bytea *
 extractRelOptions(HeapTuple tuple, TupleDesc tupdesc,
                   amoptions_function amoptions)
 {
+  DBUG_TRACE;
   bytea    *options;
   bool    isnull;
   Datum   datum;
@@ -1432,6 +1458,7 @@ static void
 parseRelOptionsInternal(Datum options, bool validate,
                         relopt_value *reloptions, int numoptions)
 {
+  DBUG_TRACE;
   ArrayType  *array = DatumGetArrayTypeP(options);
   Datum    *optiondatums;
   int     noptions;
@@ -1502,6 +1529,7 @@ static relopt_value *
 parseRelOptions(Datum options, bool validate, relopt_kind kind,
                 int *numrelopts)
 {
+  DBUG_TRACE;
   relopt_value *reloptions = NULL;
   int     numoptions = 0;
   int     i;
@@ -1540,6 +1568,7 @@ parseRelOptions(Datum options, bool validate, relopt_kind kind,
 static relopt_value *
 parseLocalRelOptions(local_relopts *relopts, Datum options, bool validate)
 {
+  DBUG_TRACE;
   int     nopts = list_length(relopts->options);
   relopt_value *values = palloc(sizeof(*values) * nopts);
   ListCell   *lc;
@@ -1568,6 +1597,7 @@ static void
 parse_one_reloption(relopt_value *option, char *text_str, int text_len,
                     bool validate)
 {
+  DBUG_TRACE;
   char     *value;
   int     value_len;
   bool    parsed;
@@ -1707,6 +1737,7 @@ parse_one_reloption(relopt_value *option, char *text_str, int text_len,
 static void *
 allocateReloptStruct(Size base, relopt_value *options, int numoptions)
 {
+  DBUG_TRACE;
   Size    size = base;
   int     i;
 
@@ -1746,6 +1777,7 @@ fillRelOptions(void *rdopts, Size basesize,
                bool validate,
                const relopt_parse_elt *elems, int numelems)
 {
+  DBUG_TRACE;
   int     i;
   int     offset = basesize;
 
@@ -1974,6 +2006,7 @@ build_reloptions(Datum reloptions, bool validate,
                  const relopt_parse_elt *relopt_elems,
                  int num_relopt_elems)
 {
+  DBUG_TRACE;
   int     numoptions;
   relopt_value *options;
   void     *rdopts;
@@ -2006,6 +2039,7 @@ build_reloptions(Datum reloptions, bool validate,
 void *
 build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 {
+  DBUG_TRACE;
   int     noptions = list_length(relopts->options);
   relopt_parse_elt *elems = palloc(sizeof(*elems) * noptions);
   relopt_value *vals;
@@ -2045,6 +2079,8 @@ build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 bytea *
 partitioned_table_reloptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
+
   if (validate && reloptions)
     ereport(ERROR,
             errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -2060,6 +2096,7 @@ partitioned_table_reloptions(Datum reloptions, bool validate)
 bytea *
 view_reloptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   static const relopt_parse_elt tab[] = {
     {
       "security_barrier", RELOPT_TYPE_BOOL,
@@ -2087,6 +2124,7 @@ view_reloptions(Datum reloptions, bool validate)
 bytea *
 heap_reloptions(char relkind, Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   StdRdOptions *rdopts;
 
   switch (relkind) {
@@ -2124,6 +2162,7 @@ heap_reloptions(char relkind, Datum reloptions, bool validate)
 bytea *
 index_reloptions(amoptions_function amoptions, Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   Assert(amoptions != NULL);
 
   /* Assume function is strict */
@@ -2139,6 +2178,7 @@ index_reloptions(amoptions_function amoptions, Datum reloptions, bool validate)
 bytea *
 attribute_reloptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   static const relopt_parse_elt tab[] = {
     {"n_distinct", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct)},
     {"n_distinct_inherited", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct_inherited)}
@@ -2178,6 +2218,7 @@ tablespace_reloptions(Datum reloptions, bool validate)
 LOCKMODE
 AlterTableGetRelOptionsLockLevel(List *defList)
 {
+  DBUG_TRACE;
   LOCKMODE  lockmode = NoLock;
   ListCell   *cell;
 

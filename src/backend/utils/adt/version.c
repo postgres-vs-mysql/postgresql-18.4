@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "utils/builtins.h"
 
@@ -20,5 +21,6 @@
 Datum
 pgsql_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(cstring_to_text(PG_VERSION_STR));
 }

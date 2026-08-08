@@ -68,12 +68,10 @@ pg_preadv(int fd, const struct iovec *iov, int iovcnt, off_t offset)
   ssize_t   sum = 0;
   ssize_t   part;
 
-  for (int i = 0; i < iovcnt; ++i)
-  {
+  for (int i = 0; i < iovcnt; ++i) {
     part = pg_pread(fd, iov[i].iov_base, iov[i].iov_len, offset);
 
-    if (part < 0)
-    {
+    if (part < 0) {
       if (i == 0)
         return -1;
       else
@@ -113,12 +111,10 @@ pg_pwritev(int fd, const struct iovec *iov, int iovcnt, off_t offset)
   ssize_t   sum = 0;
   ssize_t   part;
 
-  for (int i = 0; i < iovcnt; ++i)
-  {
+  for (int i = 0; i < iovcnt; ++i) {
     part = pg_pwrite(fd, iov[i].iov_base, iov[i].iov_len, offset);
 
-    if (part < 0)
-    {
+    if (part < 0) {
       if (i == 0)
         return -1;
       else

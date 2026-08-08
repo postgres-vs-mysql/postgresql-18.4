@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/toast_compression.h"
@@ -57,6 +58,7 @@ static bool needs_toast_table(Relation rel);
 void
 AlterTableCreateToastTable(Oid relOid, Datum reloptions, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   CheckAndCreateToastTable(relOid, reloptions, lockmode, true, InvalidOid);
 }
 
@@ -64,12 +66,14 @@ void
 NewHeapCreateToastTable(Oid relOid, Datum reloptions, LOCKMODE lockmode,
                         Oid OIDOldToast)
 {
+  DBUG_TRACE;
   CheckAndCreateToastTable(relOid, reloptions, lockmode, false, OIDOldToast);
 }
 
 void
 NewRelationCreateToastTable(Oid relOid, Datum reloptions)
 {
+  DBUG_TRACE;
   CheckAndCreateToastTable(relOid, reloptions, AccessExclusiveLock, false,
                            InvalidOid);
 }
@@ -78,6 +82,7 @@ static void
 CheckAndCreateToastTable(Oid relOid, Datum reloptions, LOCKMODE lockmode,
                          bool check, Oid OIDOldToast)
 {
+  DBUG_TRACE;
   Relation  rel;
 
   rel = table_open(relOid, lockmode);
@@ -97,6 +102,7 @@ CheckAndCreateToastTable(Oid relOid, Datum reloptions, LOCKMODE lockmode,
 void
 BootstrapToastTable(char *relName, Oid toastOid, Oid toastIndexOid)
 {
+  DBUG_TRACE;
   Relation  rel;
 
   rel = table_openrv(makeRangeVar(NULL, relName, -1), AccessExclusiveLock);
@@ -128,6 +134,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
                    Datum reloptions, LOCKMODE lockmode, bool check,
                    Oid OIDOldToast)
 {
+  DBUG_TRACE;
   Oid     relOid = RelationGetRelid(rel);
   HeapTuple reltup;
   TupleDesc tupdesc;
@@ -395,6 +402,8 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 static bool
 needs_toast_table(Relation rel)
 {
+  DBUG_TRACE;
+
   /*
    * No need to create a TOAST table for partitioned tables.
    */

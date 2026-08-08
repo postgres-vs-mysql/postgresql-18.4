@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -32,6 +33,7 @@
 void
 RemoveRewriteRuleById(Oid ruleOid)
 {
+  DBUG_TRACE;
   Relation  RewriteRelation;
   ScanKeyData skey[1];
   SysScanDesc rcscan;
@@ -68,11 +70,13 @@ RemoveRewriteRuleById(Oid ruleOid)
   eventRelationOid = ((Form_pg_rewrite) GETSTRUCT(tuple))->ev_class;
   event_relation = table_open(eventRelationOid, AccessExclusiveLock);
 
-  if (!allowSystemTableMods && IsSystemRelation(event_relation))
+  if (!allowSystemTableMods && IsSystemRelation(event_relation)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", RelationGetRelationName(event_relation));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     RelationGetRelationName(event_relation))));
+  }
 
   /*
    * Now delete the pg_rewrite tuple for the rule

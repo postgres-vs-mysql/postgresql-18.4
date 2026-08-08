@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -65,6 +66,7 @@ static bool parseNameAndArgTypes(const char *string, bool allowNone,
 Datum
 regprocin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *pro_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   RegProcedure result;
@@ -118,6 +120,7 @@ regprocin(PG_FUNCTION_ARGS)
 Datum
 to_regproc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -137,6 +140,7 @@ to_regproc(PG_FUNCTION_ARGS)
 Datum
 regprocout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RegProcedure proid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple proctup;
@@ -195,6 +199,7 @@ regprocout(PG_FUNCTION_ARGS)
 Datum
 regprocrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -205,6 +210,7 @@ regprocrecv(PG_FUNCTION_ARGS)
 Datum
 regprocsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -221,6 +227,7 @@ regprocsend(PG_FUNCTION_ARGS)
 Datum
 regprocedurein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *pro_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   RegProcedure result;
@@ -274,6 +281,7 @@ regprocedurein(PG_FUNCTION_ARGS)
 Datum
 to_regprocedure(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -429,6 +437,7 @@ format_procedure_parts(Oid procedure_oid, List **objnames, List **objargs,
 Datum
 regprocedureout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RegProcedure proid = PG_GETARG_OID(0);
   char     *result;
 
@@ -446,6 +455,7 @@ regprocedureout(PG_FUNCTION_ARGS)
 Datum
 regprocedurerecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -456,6 +466,7 @@ regprocedurerecv(PG_FUNCTION_ARGS)
 Datum
 regproceduresend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -472,6 +483,7 @@ regproceduresend(PG_FUNCTION_ARGS)
 Datum
 regoperin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *opr_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -522,6 +534,7 @@ regoperin(PG_FUNCTION_ARGS)
 Datum
 to_regoper(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *opr_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -541,6 +554,7 @@ to_regoper(PG_FUNCTION_ARGS)
 Datum
 regoperout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oprid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple opertup;
@@ -604,6 +618,7 @@ regoperout(PG_FUNCTION_ARGS)
 Datum
 regoperrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -614,6 +629,7 @@ regoperrecv(PG_FUNCTION_ARGS)
 Datum
 regopersend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -630,6 +646,7 @@ regopersend(PG_FUNCTION_ARGS)
 Datum
 regoperatorin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *opr_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -686,6 +703,7 @@ regoperatorin(PG_FUNCTION_ARGS)
 Datum
 to_regoperator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *opr_name_or_oid = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -829,6 +847,7 @@ format_operator_parts(Oid operator_oid, List **objnames, List **objargs,
 Datum
 regoperatorout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oprid = PG_GETARG_OID(0);
   char     *result;
 
@@ -846,6 +865,7 @@ regoperatorout(PG_FUNCTION_ARGS)
 Datum
 regoperatorrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -856,6 +876,7 @@ regoperatorrecv(PG_FUNCTION_ARGS)
 Datum
 regoperatorsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -872,6 +893,7 @@ regoperatorsend(PG_FUNCTION_ARGS)
 Datum
 regclassin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *class_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -916,6 +938,7 @@ regclassin(PG_FUNCTION_ARGS)
 Datum
 to_regclass(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *class_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -935,6 +958,7 @@ to_regclass(PG_FUNCTION_ARGS)
 Datum
 regclassout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     classid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple classtup;
@@ -987,6 +1011,7 @@ regclassout(PG_FUNCTION_ARGS)
 Datum
 regclassrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -997,6 +1022,7 @@ regclassrecv(PG_FUNCTION_ARGS)
 Datum
 regclasssend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1013,6 +1039,7 @@ regclasssend(PG_FUNCTION_ARGS)
 Datum
 regcollationin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *collation_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1056,6 +1083,7 @@ regcollationin(PG_FUNCTION_ARGS)
 Datum
 to_regcollation(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *collation_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -1075,6 +1103,7 @@ to_regcollation(PG_FUNCTION_ARGS)
 Datum
 regcollationout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     collationid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple collationtup;
@@ -1128,6 +1157,7 @@ regcollationout(PG_FUNCTION_ARGS)
 Datum
 regcollationrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1138,6 +1168,7 @@ regcollationrecv(PG_FUNCTION_ARGS)
 Datum
 regcollationsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1160,6 +1191,7 @@ regcollationsend(PG_FUNCTION_ARGS)
 Datum
 regtypein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *typ_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1193,6 +1225,7 @@ regtypein(PG_FUNCTION_ARGS)
 Datum
 to_regtype(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -1214,6 +1247,7 @@ to_regtype(PG_FUNCTION_ARGS)
 Datum
 to_regtypemod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Oid     typid;
   int32   typmod;
@@ -1232,6 +1266,7 @@ to_regtypemod(PG_FUNCTION_ARGS)
 Datum
 regtypeout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple typetup;
@@ -1274,6 +1309,7 @@ regtypeout(PG_FUNCTION_ARGS)
 Datum
 regtyperecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1284,6 +1320,7 @@ regtyperecv(PG_FUNCTION_ARGS)
 Datum
 regtypesend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1300,6 +1337,7 @@ regtypesend(PG_FUNCTION_ARGS)
 Datum
 regconfigin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *cfg_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1339,6 +1377,7 @@ regconfigin(PG_FUNCTION_ARGS)
 Datum
 regconfigout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple cfgtup;
@@ -1381,6 +1420,7 @@ regconfigout(PG_FUNCTION_ARGS)
 Datum
 regconfigrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1391,6 +1431,7 @@ regconfigrecv(PG_FUNCTION_ARGS)
 Datum
 regconfigsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1407,6 +1448,7 @@ regconfigsend(PG_FUNCTION_ARGS)
 Datum
 regdictionaryin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *dict_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1446,6 +1488,7 @@ regdictionaryin(PG_FUNCTION_ARGS)
 Datum
 regdictionaryout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     dictid = PG_GETARG_OID(0);
   char     *result;
   HeapTuple dicttup;
@@ -1489,6 +1532,7 @@ regdictionaryout(PG_FUNCTION_ARGS)
 Datum
 regdictionaryrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1499,6 +1543,7 @@ regdictionaryrecv(PG_FUNCTION_ARGS)
 Datum
 regdictionarysend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1514,6 +1559,7 @@ regdictionarysend(PG_FUNCTION_ARGS)
 Datum
 regrolein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *role_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1557,6 +1603,7 @@ regrolein(PG_FUNCTION_ARGS)
 Datum
 to_regrole(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *role_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -1576,6 +1623,7 @@ to_regrole(PG_FUNCTION_ARGS)
 Datum
 regroleout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     roleoid = PG_GETARG_OID(0);
   char     *result;
 
@@ -1604,6 +1652,7 @@ regroleout(PG_FUNCTION_ARGS)
 Datum
 regrolerecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1614,6 +1663,7 @@ regrolerecv(PG_FUNCTION_ARGS)
 Datum
 regrolesend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1629,6 +1679,7 @@ regrolesend(PG_FUNCTION_ARGS)
 Datum
 regnamespacein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *nsp_name_or_oid = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Oid     result;
@@ -1672,6 +1723,7 @@ regnamespacein(PG_FUNCTION_ARGS)
 Datum
 to_regnamespace(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *nsp_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   Datum   result;
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -1691,6 +1743,7 @@ to_regnamespace(PG_FUNCTION_ARGS)
 Datum
 regnamespaceout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     nspid = PG_GETARG_OID(0);
   char     *result;
 
@@ -1719,6 +1772,7 @@ regnamespaceout(PG_FUNCTION_ARGS)
 Datum
 regnamespacerecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidrecv, so share code */
   return oidrecv(fcinfo);
 }
@@ -1729,6 +1783,7 @@ regnamespacerecv(PG_FUNCTION_ARGS)
 Datum
 regnamespacesend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as oidsend, so share code */
   return oidsend(fcinfo);
 }
@@ -1743,6 +1798,7 @@ regnamespacesend(PG_FUNCTION_ARGS)
 Datum
 text_regclass(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Oid     result;
   RangeVar   *rv;

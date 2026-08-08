@@ -902,6 +902,7 @@ libpqrcv_create_slot(WalReceiverConn *conn, const char *slotname,
                      bool temporary, bool two_phase, bool failover,
                      CRSSnapshotAction snapshot_action, XLogRecPtr *lsn)
 {
+  DBUG_TRACE;
   PGresult   *res;
   StringInfoData cmd;
   char     *snapshot;

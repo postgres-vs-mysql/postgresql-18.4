@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -918,6 +919,7 @@ ObjectAddress
 get_object_address(ObjectType objtype, Node *object,
                    Relation *relp, LOCKMODE lockmode, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address = {InvalidOid, InvalidOid, 0};
   ObjectAddress old_address = {InvalidOid, InvalidOid, 0};
   Relation  relation = NULL;
@@ -1054,11 +1056,13 @@ get_object_address(ObjectType objtype, Node *object,
         address.objectSubId = 0;
 
         if (!LargeObjectExists(address.objectId)) {
-          if (!missing_ok)
+          if (!missing_ok) {
+            DBUG_INSTANT_PRINT("info", "large object %u does not exist", address.objectId);
             ereport(ERROR,
                     (errcode(ERRCODE_UNDEFINED_OBJECT),
                      errmsg("large object %u does not exist",
                             address.objectId)));
+          }
         }
 
         break;
@@ -1240,6 +1244,8 @@ get_object_address_rv(ObjectType objtype, RangeVar *rel, List *object,
                       Relation *relp, LOCKMODE lockmode,
                       bool missing_ok)
 {
+  DBUG_TRACE;
+
   if (rel) {
     object = lcons(makeString(rel->relname), object);
 
@@ -1262,6 +1268,7 @@ static ObjectAddress
 get_object_address_unqualified(ObjectType objtype,
                                String *strval, bool missing_ok)
 {
+  DBUG_TRACE;
   const char *name;
   ObjectAddress address;
 
@@ -1366,6 +1373,7 @@ get_relation_by_qualified_name(ObjectType objtype, List *object,
                                Relation *relp, LOCKMODE lockmode,
                                bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  relation;
   ObjectAddress address;
 
@@ -1382,57 +1390,69 @@ get_relation_by_qualified_name(ObjectType objtype, List *object,
   switch (objtype) {
     case OBJECT_INDEX:
       if (relation->rd_rel->relkind != RELKIND_INDEX &&
-          relation->rd_rel->relkind != RELKIND_PARTITIONED_INDEX)
+          relation->rd_rel->relkind != RELKIND_PARTITIONED_INDEX) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not an index", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not an index",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
     case OBJECT_SEQUENCE:
-      if (relation->rd_rel->relkind != RELKIND_SEQUENCE)
+      if (relation->rd_rel->relkind != RELKIND_SEQUENCE) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a sequence", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not a sequence",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
     case OBJECT_TABLE:
       if (relation->rd_rel->relkind != RELKIND_RELATION &&
-          relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+          relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a table", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not a table",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
     case OBJECT_VIEW:
-      if (relation->rd_rel->relkind != RELKIND_VIEW)
+      if (relation->rd_rel->relkind != RELKIND_VIEW) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a view", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not a view",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
     case OBJECT_MATVIEW:
-      if (relation->rd_rel->relkind != RELKIND_MATVIEW)
+      if (relation->rd_rel->relkind != RELKIND_MATVIEW) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a materialized view", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not a materialized view",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
     case OBJECT_FOREIGN_TABLE:
-      if (relation->rd_rel->relkind != RELKIND_FOREIGN_TABLE)
+      if (relation->rd_rel->relkind != RELKIND_FOREIGN_TABLE) {
+        DBUG_INSTANT_PRINT("info", "\"%s\" is not a foreign table", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is not a foreign table",
                         RelationGetRelationName(relation))));
+      }
 
       break;
 
@@ -1459,6 +1479,7 @@ static ObjectAddress
 get_object_address_relobject(ObjectType objtype, List *object,
                              Relation *relp, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Relation  relation = NULL;
   int     nnames;
@@ -1472,10 +1493,12 @@ get_object_address_relobject(ObjectType objtype, List *object,
   /* Separate relation name from dependent object name. */
   nnames = list_length(object);
 
-  if (nnames < 2)
+  if (nnames < 2) {
+    DBUG_INSTANT_PRINT("info", "must specify relation and object name");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("must specify relation and object name")));
+  }
 
   /* Extract relation name and open relation. */
   relname = list_copy_head(object, nnames - 1);
@@ -1542,6 +1565,7 @@ get_object_address_attribute(ObjectType objtype, List *object,
                              Relation *relp, LOCKMODE lockmode,
                              bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   List     *relname;
   Oid     reloid;
@@ -1550,10 +1574,12 @@ get_object_address_attribute(ObjectType objtype, List *object,
   AttrNumber  attnum;
 
   /* Extract relation name and open relation. */
-  if (list_length(object) < 2)
+  if (list_length(object) < 2) {
+    DBUG_INSTANT_PRINT("info", "column name must be qualified");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("column name must be qualified")));
+  }
 
   attname = strVal(llast(object));
   relname = list_copy_head(object, list_length(object) - 1);
@@ -1565,11 +1591,13 @@ get_object_address_attribute(ObjectType objtype, List *object,
   attnum = get_attnum(reloid, attname);
 
   if (attnum == InvalidAttrNumber) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", attname, NameListToString(relname));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column \"%s\" of relation \"%s\" does not exist",
                       attname, NameListToString(relname))));
+    }
 
     address.classId = RelationRelationId;
     address.objectId = InvalidOid;
@@ -1594,6 +1622,7 @@ get_object_address_attrdef(ObjectType objtype, List *object,
                            Relation *relp, LOCKMODE lockmode,
                            bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   List     *relname;
   Oid     reloid;
@@ -1605,10 +1634,11 @@ get_object_address_attrdef(ObjectType objtype, List *object,
 
   /* Extract relation name and open relation. */
   if (list_length(object) < 2)
-    ereport(ERROR,
-            (errcode(ERRCODE_SYNTAX_ERROR),
-             errmsg("column name must be qualified")));
+    DBUG_INSTANT_PRINT("info", "column name must be qualified");
 
+  ereport(ERROR,
+          (errcode(ERRCODE_SYNTAX_ERROR),
+           errmsg("column name must be qualified")));
   attname = strVal(llast(object));
   relname = list_copy_head(object, list_length(object) - 1);
   /* XXX no missing_ok support here */
@@ -1625,11 +1655,14 @@ get_object_address_attrdef(ObjectType objtype, List *object,
     defoid = GetAttrDefaultOid(reloid, attnum);
 
   if (!OidIsValid(defoid)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "default value for column \"%s\" of relation \"%s\" does not exist",
+                         attname, NameListToString(relname));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("default value for column \"%s\" of relation \"%s\" does not exist",
                       attname, NameListToString(relname))));
+    }
 
     address.classId = AttrDefaultRelationId;
     address.objectId = InvalidOid;
@@ -1652,6 +1685,7 @@ get_object_address_attrdef(ObjectType objtype, List *object,
 static ObjectAddress
 get_object_address_type(ObjectType objtype, TypeName *typename, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Type    tup;
 
@@ -1662,11 +1696,13 @@ get_object_address_type(ObjectType objtype, TypeName *typename, bool missing_ok)
   tup = LookupTypeName(NULL, typename, NULL, missing_ok);
 
   if (!HeapTupleIsValid(tup)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", TypeNameToString(typename));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("type \"%s\" does not exist",
                       TypeNameToString(typename))));
+    }
 
     return address;
   }
@@ -1674,11 +1710,13 @@ get_object_address_type(ObjectType objtype, TypeName *typename, bool missing_ok)
   address.objectId = typeTypeId(tup);
 
   if (objtype == OBJECT_DOMAIN) {
-    if (((Form_pg_type) GETSTRUCT(tup))->typtype != TYPTYPE_DOMAIN)
+    if (((Form_pg_type) GETSTRUCT(tup))->typtype != TYPTYPE_DOMAIN) {
+      DBUG_INSTANT_PRINT("info", "\"%s\" is not a domain", TypeNameToString(typename));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is not a domain",
                       TypeNameToString(typename))));
+    }
   }
 
   ReleaseSysCache(tup);
@@ -1692,6 +1730,7 @@ get_object_address_type(ObjectType objtype, TypeName *typename, bool missing_ok)
 static ObjectAddress
 get_object_address_opcf(ObjectType objtype, List *object, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     amoid;
   ObjectAddress address;
 
@@ -1732,6 +1771,7 @@ static ObjectAddress
 get_object_address_opf_member(ObjectType objtype,
                               List *object, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress famaddr;
   ObjectAddress address;
   ListCell   *cell;
@@ -1782,14 +1822,18 @@ get_object_address_opf_member(ObjectType objtype,
                            Int16GetDatum(membernum));
 
       if (!HeapTupleIsValid(tp)) {
-        if (!missing_ok)
+        if (!missing_ok) {
+          char *obj_descrip = getObjectDescription(&famaddr, false);
+          DBUG_INSTANT_PRINT("info", "operator %d (%s, %s) of %s does not exist",
+                             membernum, TypeNameToString(typenames[0]), TypeNameToString(typenames[1]), obj_descrip);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_OBJECT),
                    errmsg("operator %d (%s, %s) of %s does not exist",
                           membernum,
                           TypeNameToString(typenames[0]),
                           TypeNameToString(typenames[1]),
-                          getObjectDescription(&famaddr, false))));
+                          obj_descrip)));
+        }
       } else {
         address.objectId = ((Form_pg_amop) GETSTRUCT(tp))->oid;
         ReleaseSysCache(tp);
@@ -1810,14 +1854,18 @@ get_object_address_opf_member(ObjectType objtype,
                            Int16GetDatum(membernum));
 
       if (!HeapTupleIsValid(tp)) {
-        if (!missing_ok)
+        if (!missing_ok) {
+          char *obj_descrip = getObjectDescription(&famaddr, false);
+          DBUG_INSTANT_PRINT("info", "function %d (%s, %s) of %s does not exist", membernum,
+                             TypeNameToString(typenames[0]), TypeNameToString(typenames[1]), obj_descrip);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_OBJECT),
                    errmsg("function %d (%s, %s) of %s does not exist",
                           membernum,
                           TypeNameToString(typenames[0]),
                           TypeNameToString(typenames[1]),
-                          getObjectDescription(&famaddr, false))));
+                          obj_descrip)));
+        }
       } else {
         address.objectId = ((Form_pg_amproc) GETSTRUCT(tp))->oid;
         ReleaseSysCache(tp);
@@ -1838,6 +1886,7 @@ get_object_address_opf_member(ObjectType objtype,
 static ObjectAddress
 get_object_address_usermapping(List *object, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Oid     userid;
   char     *username;
@@ -1859,11 +1908,14 @@ get_object_address_usermapping(List *object, bool missing_ok)
                          CStringGetDatum(username));
 
     if (!HeapTupleIsValid(tp)) {
-      if (!missing_ok)
+      if (!missing_ok) {
+        DBUG_INSTANT_PRINT("info", "user mapping for user \"%s\" on server \"%s\" does not exist",
+                           username, servername);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("user mapping for user \"%s\" on server \"%s\" does not exist",
                         username, servername)));
+      }
 
       return address;
     }
@@ -1876,10 +1928,12 @@ get_object_address_usermapping(List *object, bool missing_ok)
   server = GetForeignServerByName(servername, true);
 
   if (!server) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "server \"%s\" does not exist", servername);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("server \"%s\" does not exist", servername)));
+    }
 
     return address;
   }
@@ -1889,11 +1943,14 @@ get_object_address_usermapping(List *object, bool missing_ok)
                        ObjectIdGetDatum(server->serverid));
 
   if (!HeapTupleIsValid(tp)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "user mapping for user \"%s\" on server \"%s\" does not exist",
+                         username, servername);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("user mapping for user \"%s\" on server \"%s\" does not exist",
                       username, servername)));
+    }
 
     return address;
   }
@@ -1914,6 +1971,7 @@ static ObjectAddress
 get_object_address_publication_rel(List *object,
                                    Relation *relp, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Relation  relation;
   List     *relname;
@@ -1947,11 +2005,14 @@ get_object_address_publication_rel(List *object,
                     ObjectIdGetDatum(pub->oid));
 
   if (!OidIsValid(address.objectId)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "publication relation \"%s\" in publication \"%s\" does not exist",
+                         RelationGetRelationName(relation), pubname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("publication relation \"%s\" in publication \"%s\" does not exist",
                       RelationGetRelationName(relation), pubname)));
+    }
 
     relation_close(relation, AccessShareLock);
     return address;
@@ -1968,6 +2029,7 @@ get_object_address_publication_rel(List *object,
 static ObjectAddress
 get_object_address_publication_schema(List *object, bool missing_ok)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Publication *pub;
   char     *pubname;
@@ -1998,11 +2060,14 @@ get_object_address_publication_schema(List *object, bool missing_ok)
                     ObjectIdGetDatum(schemaid),
                     ObjectIdGetDatum(pub->oid));
 
-  if (!OidIsValid(address.objectId) && !missing_ok)
+  if (!OidIsValid(address.objectId) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "publication schema \"%s\" in publication \"%s\" does not exist",
+                       schemaname, pubname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("publication schema \"%s\" in publication \"%s\" does not exist",
                     schemaname, pubname)));
+  }
 
   return address;
 }
@@ -2013,6 +2078,7 @@ get_object_address_publication_schema(List *object, bool missing_ok)
 static ObjectAddress
 get_object_address_defacl(List *object, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Oid     userid;
   Oid     schemaid;
@@ -2067,6 +2133,7 @@ get_object_address_defacl(List *object, bool missing_ok)
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "unrecognized default ACL object type \"%c\"", objtype);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("unrecognized default ACL object type \"%c\"", objtype),
@@ -2121,16 +2188,20 @@ get_object_address_defacl(List *object, bool missing_ok)
 not_found:
 
   if (!missing_ok) {
-    if (schema)
+    if (schema) {
+      DBUG_INSTANT_PRINT("info", "default ACL for user \"%s\" in schema \"%s\" on %s does not exist",
+                         username, schema, objtype_str);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("default ACL for user \"%s\" in schema \"%s\" on %s does not exist",
                       username, schema, objtype_str)));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "default ACL for user \"%s\" on %s does not exist", username, objtype_str);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("default ACL for user \"%s\" on %s does not exist",
                       username, objtype_str)));
+    }
   }
 
   return address;
@@ -2143,6 +2214,7 @@ not_found:
 static List *
 textarray_to_strvaluelist(ArrayType *arr)
 {
+  DBUG_TRACE;
   Datum    *elems;
   bool     *nulls;
   int     nelems;
@@ -2152,10 +2224,12 @@ textarray_to_strvaluelist(ArrayType *arr)
   deconstruct_array_builtin(arr, TEXTOID, &elems, &nulls, &nelems);
 
   for (i = 0; i < nelems; i++) {
-    if (nulls[i])
+    if (nulls[i]) {
+      DBUG_INSTANT_PRINT("info", "name or argument lists may not contain nulls");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("name or argument lists may not contain nulls")));
+    }
 
     list = lappend(list, makeString(TextDatumGetCString(elems[i])));
   }
@@ -2169,6 +2243,7 @@ textarray_to_strvaluelist(ArrayType *arr)
 Datum
 pg_get_object_address(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *ttype = TextDatumGetCString(PG_GETARG_DATUM(0));
   ArrayType  *namearr = PG_GETARG_ARRAYTYPE_P(1);
   ArrayType  *argsarr = PG_GETARG_ARRAYTYPE_P(2);
@@ -2188,10 +2263,12 @@ pg_get_object_address(PG_FUNCTION_ARGS)
   /* Decode object type, raise error if unknown */
   itype = read_objtype_from_string(ttype);
 
-  if (itype < 0)
+  if (itype < 0) {
+    DBUG_INSTANT_PRINT("info", "unsupported object type \"%s\"", ttype);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("unsupported object type \"%s\"", ttype)));
+  }
 
   type = (ObjectType) itype;
 
@@ -2208,15 +2285,19 @@ pg_get_object_address(PG_FUNCTION_ARGS)
 
     deconstruct_array_builtin(namearr, TEXTOID, &elems, &nulls, &nelems);
 
-    if (nelems != 1)
+    if (nelems != 1) {
+      DBUG_INSTANT_PRINT("info", "name list length must be exactly %d", 1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("name list length must be exactly %d", 1)));
+    }
 
-    if (nulls[0])
+    if (nulls[0]) {
+      DBUG_INSTANT_PRINT("info", "name or argument lists may not contain nulls");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("name or argument lists may not contain nulls")));
+    }
 
     typename = typeStringToTypeName(TextDatumGetCString(elems[0]), NULL);
   } else if (type == OBJECT_LARGEOBJECT) {
@@ -2226,24 +2307,30 @@ pg_get_object_address(PG_FUNCTION_ARGS)
 
     deconstruct_array_builtin(namearr, TEXTOID, &elems, &nulls, &nelems);
 
-    if (nelems != 1)
+    if (nelems != 1) {
+      DBUG_INSTANT_PRINT("info", "name list length must be exactly 1");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("name list length must be exactly %d", 1)));
+    }
 
-    if (nulls[0])
+    if (nulls[0]) {
+      DBUG_INSTANT_PRINT("info", "large object OID may not be null");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("large object OID may not be null")));
+    }
 
     objnode = (Node *) makeFloat(TextDatumGetCString(elems[0]));
   } else {
     name = textarray_to_strvaluelist(namearr);
 
-    if (name == NIL)
+    if (name == NIL) {
+      DBUG_INSTANT_PRINT("info", "name list length must be at least 1");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("name list length must be at least %d", 1)));
+    }
   }
 
   /*
@@ -2268,10 +2355,12 @@ pg_get_object_address(PG_FUNCTION_ARGS)
     args = NIL;
 
     for (i = 0; i < nelems; i++) {
-      if (nulls[i])
+      if (nulls[i]) {
+        DBUG_INSTANT_PRINT("info", "name or argument lists may not contain nulls");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("name or argument lists may not contain nulls")));
+      }
 
       args = lappend(args,
                      typeStringToTypeName(TextDatumGetCString(elems[i]),
@@ -2289,10 +2378,12 @@ pg_get_object_address(PG_FUNCTION_ARGS)
   switch (type) {
     case OBJECT_PUBLICATION_NAMESPACE:
     case OBJECT_USER_MAPPING:
-      if (list_length(name) != 1)
+      if (list_length(name) != 1) {
+        DBUG_INSTANT_PRINT("info", "name list length must be exactly 1");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("name list length must be exactly %d", 1)));
+      }
 
     /* fall through to check args length */
     /* FALLTHROUGH */
@@ -2301,36 +2392,44 @@ pg_get_object_address(PG_FUNCTION_ARGS)
     case OBJECT_PUBLICATION_REL:
     case OBJECT_DEFACL:
     case OBJECT_TRANSFORM:
-      if (list_length(args) != 1)
+      if (list_length(args) != 1) {
+        DBUG_INSTANT_PRINT("info", "argument list length must be exactly 1");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument list length must be exactly %d", 1)));
+      }
 
       break;
 
     case OBJECT_OPFAMILY:
     case OBJECT_OPCLASS:
-      if (list_length(name) < 2)
+      if (list_length(name) < 2) {
+        DBUG_INSTANT_PRINT("info", "name list length must be at least 2");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("name list length must be at least %d", 2)));
+      }
 
       break;
 
     case OBJECT_AMOP:
     case OBJECT_AMPROC:
-      if (list_length(name) < 3)
+      if (list_length(name) < 3) {
+        DBUG_INSTANT_PRINT("info", "name list length must be at least 3");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("name list length must be at least %d", 3)));
+      }
 
     /* fall through to check args length */
     /* FALLTHROUGH */
     case OBJECT_OPERATOR:
-      if (list_length(args) != 2)
+      if (list_length(args) != 2) {
+        DBUG_INSTANT_PRINT("info", "argument list length must be exactly 2");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument list length must be exactly %d", 2)));
+      }
 
       break;
 
@@ -2381,10 +2480,12 @@ pg_get_object_address(PG_FUNCTION_ARGS)
     case OBJECT_SCHEMA:
     case OBJECT_SUBSCRIPTION:
     case OBJECT_TABLESPACE:
-      if (list_length(name) != 1)
+      if (list_length(name) != 1) {
+        DBUG_INSTANT_PRINT("info", "name list length must be exactly 1");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("name list length must be exactly %d", 1)));
+      }
 
       objnode = linitial(name);
       break;
@@ -2469,6 +2570,8 @@ void
 check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
                        Node *object, Relation relation)
 {
+  DBUG_TRACE;
+
   switch (objtype) {
     case OBJECT_INDEX:
     case OBJECT_SEQUENCE:
@@ -2561,11 +2664,13 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 
     case OBJECT_LARGEOBJECT:
       if (!lo_compat_privileges &&
-          !object_ownercheck(address.classId, address.objectId, roleid))
+          !object_ownercheck(address.classId, address.objectId, roleid)) {
+        DBUG_INSTANT_PRINT("info", "must be owner of large object %u", address.objectId);
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("must be owner of large object %u",
                         address.objectId)));
+      }
 
       break;
 
@@ -2577,12 +2682,16 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
       Oid     targettypeid = typenameTypeId(NULL, targettype);
 
       if (!object_ownercheck(TypeRelationId, sourcetypeid, roleid)
-          && !object_ownercheck(TypeRelationId, targettypeid, roleid))
+          && !object_ownercheck(TypeRelationId, targettypeid, roleid)) {
+        char *format1 = format_type_be(sourcetypeid);
+        char *format2 = format_type_be(targettypeid);
+        DBUG_INSTANT_PRINT("info", "must be owner of type %s or type %s", format1, format2);
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("must be owner of type %s or type %s",
-                        format_type_be(sourcetypeid),
-                        format_type_be(targettypeid))));
+                        format1,
+                        format2)));
+      }
     }
     break;
 
@@ -2604,21 +2713,26 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
        * However, superusers are only owned by superusers.
        */
       if (superuser_arg(address.objectId)) {
-        if (!superuser_arg(roleid))
+        if (!superuser_arg(roleid)) {
+          DBUG_INSTANT_PRINT("info", "permission denied");
           ereport(ERROR,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("permission denied"),
                    errdetail("The current user must have the %s attribute.",
                              "SUPERUSER")));
+        }
       } else {
-        if (!has_createrole_privilege(roleid))
+        if (!has_createrole_privilege(roleid)) {
+          DBUG_INSTANT_PRINT("info", "permission denied");
           ereport(ERROR,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("permission denied"),
                    errdetail("The current user must have the %s attribute.",
                              "CREATEROLE")));
+        }
 
-        if (!is_admin_of_role(roleid, address.objectId))
+        if (!is_admin_of_role(roleid, address.objectId)) {
+          DBUG_INSTANT_PRINT("info", "permission denied");
           ereport(ERROR,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("permission denied"),
@@ -2626,6 +2740,7 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
                              "ADMIN",
                              GetUserNameFromId(address.objectId,
                                                true))));
+        }
       }
 
       break;
@@ -2636,10 +2751,12 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
     case OBJECT_PARAMETER_ACL:
 
       /* We treat these object types as being owned by superusers */
-      if (!superuser_arg(roleid))
+      if (!superuser_arg(roleid)) {
+        DBUG_INSTANT_PRINT("info", "must be superuser");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("must be superuser")));
+      }
 
       break;
 
@@ -2665,6 +2782,7 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 Oid
 get_object_namespace(const ObjectAddress *address)
 {
+  DBUG_TRACE;
   int     cache;
   HeapTuple tuple;
   Oid     oid;
@@ -2704,6 +2822,7 @@ get_object_namespace(const ObjectAddress *address)
 int
 read_objtype_from_string(const char *objtype)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < lengthof(ObjectTypeMap); i++) {
@@ -2711,6 +2830,7 @@ read_objtype_from_string(const char *objtype)
       return ObjectTypeMap[i].tm_type;
   }
 
+  DBUG_INSTANT_PRINT("info", "unrecognized object type \"%s\"", objtype);
   ereport(ERROR,
           (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
            errmsg("unrecognized object type \"%s\"", objtype)));
@@ -2724,6 +2844,7 @@ read_objtype_from_string(const char *objtype)
 const char *
 get_object_class_descr(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->class_descr;
@@ -2732,6 +2853,7 @@ get_object_class_descr(Oid class_id)
 Oid
 get_object_oid_index(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->oid_index_oid;
@@ -2740,6 +2862,7 @@ get_object_oid_index(Oid class_id)
 int
 get_object_catcache_oid(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->oid_catcache_id;
@@ -2748,6 +2871,7 @@ get_object_catcache_oid(Oid class_id)
 int
 get_object_catcache_name(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->name_catcache_id;
@@ -2756,6 +2880,7 @@ get_object_catcache_name(Oid class_id)
 AttrNumber
 get_object_attnum_oid(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->attnum_oid;
@@ -2764,6 +2889,7 @@ get_object_attnum_oid(Oid class_id)
 AttrNumber
 get_object_attnum_name(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->attnum_name;
@@ -2772,6 +2898,7 @@ get_object_attnum_name(Oid class_id)
 AttrNumber
 get_object_attnum_namespace(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->attnum_namespace;
@@ -2780,6 +2907,7 @@ get_object_attnum_namespace(Oid class_id)
 AttrNumber
 get_object_attnum_owner(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->attnum_owner;
@@ -2788,6 +2916,7 @@ get_object_attnum_owner(Oid class_id)
 AttrNumber
 get_object_attnum_acl(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->attnum_acl;
@@ -2803,6 +2932,7 @@ get_object_attnum_acl(Oid class_id)
 ObjectType
 get_object_type(Oid class_id, Oid object_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   if (prop->objtype == OBJECT_TABLE) {
@@ -2819,6 +2949,7 @@ get_object_type(Oid class_id, Oid object_id)
 bool
 get_object_namensp_unique(Oid class_id)
 {
+  DBUG_TRACE;
   const ObjectPropertyType *prop = get_object_property_data(class_id);
 
   return prop->is_nsp_name_unique;
@@ -2831,6 +2962,7 @@ get_object_namensp_unique(Oid class_id)
 bool
 is_objectclass_supported(Oid class_id)
 {
+  DBUG_TRACE;
   int     index;
 
   for (index = 0; index < lengthof(ObjectProperty); index++) {
@@ -2847,6 +2979,7 @@ is_objectclass_supported(Oid class_id)
 static const ObjectPropertyType *
 get_object_property_data(Oid class_id)
 {
+  DBUG_TRACE;
   static const ObjectPropertyType *prop_last = NULL;
   int     index;
 
@@ -2864,6 +2997,7 @@ get_object_property_data(Oid class_id)
     }
   }
 
+  DBUG_INSTANT_PRINT("info", "unrecognized class ID: %u", class_id);
   ereport(ERROR,
           (errmsg_internal("unrecognized class ID: %u", class_id)));
 
@@ -2896,6 +3030,7 @@ get_catalog_object_by_oid_extended(Relation catalog,
                                    Oid objectId,
                                    bool locktup)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Oid     classId = RelationGetRelid(catalog);
   int     oidCacheId = get_object_catcache_oid(classId);
@@ -2953,6 +3088,7 @@ static bool
 getPublicationSchemaInfo(const ObjectAddress *object, bool missing_ok,
                          char **pubname, char **nspname)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_publication_namespace pnform;
 
@@ -3003,6 +3139,7 @@ getPublicationSchemaInfo(const ObjectAddress *object, bool missing_ok,
 char *
 getObjectDescription(const ObjectAddress *object, bool missing_ok)
 {
+  DBUG_TRACE;
   StringInfoData buffer;
 
   initStringInfo(&buffer);
@@ -4175,6 +4312,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 char *
 getObjectDescriptionOids(Oid classid, Oid objid)
 {
+  DBUG_TRACE;
   ObjectAddress address;
 
   address.classId = classid;
@@ -4192,6 +4330,7 @@ getObjectDescriptionOids(Oid classid, Oid objid)
 static void
 getRelationDescription(StringInfo buffer, Oid relid, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple relTup;
   Form_pg_class relForm;
   char     *nspname;
@@ -4276,6 +4415,7 @@ getRelationDescription(StringInfo buffer, Oid relid, bool missing_ok)
 static void
 getOpFamilyDescription(StringInfo buffer, Oid opfid, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple opfTup;
   Form_pg_opfamily opfForm;
   HeapTuple amTup;
@@ -4322,6 +4462,7 @@ getOpFamilyDescription(StringInfo buffer, Oid opfid, bool missing_ok)
 Datum
 pg_describe_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     classid = PG_GETARG_OID(0);
   Oid     objid = PG_GETARG_OID(1);
   int32   objsubid = PG_GETARG_INT32(2);
@@ -4350,6 +4491,7 @@ pg_describe_object(PG_FUNCTION_ARGS)
 Datum
 pg_identify_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     classid = PG_GETARG_OID(0);
   Oid     objid = PG_GETARG_OID(1);
   int32   objsubid = PG_GETARG_INT32(2);
@@ -4462,6 +4604,7 @@ pg_identify_object(PG_FUNCTION_ARGS)
 Datum
 pg_identify_object_as_address(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     classid = PG_GETARG_OID(0);
   Oid     objid = PG_GETARG_OID(1);
   int32   objsubid = PG_GETARG_INT32(2);
@@ -4591,6 +4734,7 @@ pg_get_acl(PG_FUNCTION_ARGS)
 char *
 getObjectTypeDescription(const ObjectAddress *object, bool missing_ok)
 {
+  DBUG_TRACE;
   StringInfoData buffer;
 
   initStringInfo(&buffer);
@@ -4781,6 +4925,7 @@ static void
 getRelationTypeDescription(StringInfo buffer, Oid relid, int32 objectSubId,
                            bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple relTup;
   Form_pg_class relForm;
 
@@ -4851,6 +4996,7 @@ getRelationTypeDescription(StringInfo buffer, Oid relid, int32 objectSubId,
 static void
 getConstraintTypeDescription(StringInfo buffer, Oid constroid, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  constrRel;
   HeapTuple constrTup;
   Form_pg_constraint constrForm;
@@ -4889,6 +5035,7 @@ static void
 getProcedureTypeDescription(StringInfo buffer, Oid procid,
                             bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple procTup;
   Form_pg_proc procForm;
 
@@ -4926,6 +5073,7 @@ getProcedureTypeDescription(StringInfo buffer, Oid procid,
 char *
 getObjectIdentity(const ObjectAddress *object, bool missing_ok)
 {
+  DBUG_TRACE;
   return getObjectIdentityParts(object, NULL, NULL, missing_ok);
 }
 
@@ -4943,6 +5091,7 @@ getObjectIdentityParts(const ObjectAddress *object,
                        List **objname, List **objargs,
                        bool missing_ok)
 {
+  DBUG_TRACE;
   StringInfoData buffer;
 
   initStringInfo(&buffer);
@@ -6190,6 +6339,7 @@ static void
 getOpFamilyIdentity(StringInfo buffer, Oid opfid, List **object,
                     bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple opfTup;
   Form_pg_opfamily opfForm;
   HeapTuple amTup;
@@ -6238,6 +6388,7 @@ static void
 getRelationIdentity(StringInfo buffer, Oid relid, List **object,
                     bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple relTup;
   Form_pg_class relForm;
   char     *schema;
@@ -6274,6 +6425,7 @@ getRelationIdentity(StringInfo buffer, Oid relid, List **object,
 ArrayType *
 strlist_to_textarray(List *list)
 {
+  DBUG_TRACE;
   ArrayType  *arr;
   Datum    *datums;
   bool     *nulls;
@@ -6326,6 +6478,8 @@ strlist_to_textarray(List *list)
 ObjectType
 get_relkind_objtype(char relkind)
 {
+  DBUG_TRACE;
+
   switch (relkind) {
     case RELKIND_RELATION:
     case RELKIND_PARTITIONED_TABLE:

@@ -9,6 +9,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/htup_details.h"
@@ -57,6 +58,7 @@ typedef struct HashPageStat {
 static Page
 verify_hash_page(bytea *raw_page, int flags)
 {
+  DBUG_TRACE;
   Page    page = get_page_from_raw(raw_page);
   int     pagetype = LH_UNUSED_PAGE;
 
@@ -154,10 +156,12 @@ verify_hash_page(bytea *raw_page, int flags)
 static void
 GetHashPageStatistics(Page page, HashPageStat *stat)
 {
+  DBUG_TRACE;
   OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
   HashPageOpaque opaque = HashPageGetOpaque(page);
   int     off;
 
+  DBUG_PRINT("pageinspect", "collect statistics of single hash page");
   stat->dead_items = stat->live_items = 0;
   stat->page_size = PageGetPageSize(page);
 
@@ -179,6 +183,7 @@ GetHashPageStatistics(Page page, HashPageStat *stat)
   }
 
   stat->free_size = PageGetFreeSpace(page);
+  DBUG_PRINT("pageinspect", "live items:%d, dead items:%d, free size:%u", stat->live_items, stat->dead_items, stat->free_size);
 }
 
 /* ---------------------------------------------------
@@ -190,16 +195,19 @@ GetHashPageStatistics(Page page, HashPageStat *stat)
 Datum
 hash_page_type(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   HashPageOpaque opaque;
   int     pagetype;
   const char *type;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "build a tuple descriptor for our result type");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = verify_hash_page(raw_page, 0);
 
@@ -235,6 +243,7 @@ hash_page_type(PG_FUNCTION_ARGS)
 Datum
 hash_page_stats(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   int     j;
@@ -244,11 +253,14 @@ hash_page_stats(PG_FUNCTION_ARGS)
   HeapTuple tuple;
   TupleDesc tupleDesc;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
+  DBUG_PRINT("pageinspect", "get hash page stats");
   page = verify_hash_page(raw_page, LH_BUCKET_PAGE | LH_OVERFLOW_PAGE);
 
   /* keep compiler quiet */
@@ -298,6 +310,7 @@ struct user_args {
 Datum
 hash_page_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   Datum   result;
@@ -309,10 +322,14 @@ hash_page_items(PG_FUNCTION_ARGS)
   MemoryContext mctx;
   struct user_args *uargs;
 
-  if (!superuser())
+  DBUG_PRINT("pageinspect", "get IndexTupleData set in a hash page");
+
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     TupleDesc tupleDesc;
@@ -388,6 +405,7 @@ hash_page_items(PG_FUNCTION_ARGS)
 Datum
 hash_bitmap_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexRelid = PG_GETARG_OID(0);
   int64   ovflblkno = PG_GETARG_INT64(1);
   HashMetaPage metap;
@@ -408,10 +426,14 @@ hash_bitmap_info(PG_FUNCTION_ARGS)
   bool    nulls[3] = {0};
   uint32     *freep;
 
-  if (!superuser())
+  DBUG_PRINT("pageinspect", "get bitmap information for a particular overflow page");
+
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   indexRel = relation_open(indexRelid, AccessShareLock);
 
@@ -514,6 +536,7 @@ hash_bitmap_info(PG_FUNCTION_ARGS)
 Datum
 hash_metapage_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   HashMetaPageData *metad;
@@ -526,14 +549,20 @@ hash_metapage_info(PG_FUNCTION_ARGS)
   Datum   spares[HASH_MAX_SPLITPOINTS];
   Datum   mapp[HASH_MAX_BITMAPS];
 
-  if (!superuser())
+  DBUG_PRINT("pageinspect", "get the meta-page information for a hash index");
+
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = verify_hash_page(raw_page, LH_META_PAGE);
 
   /* Build a tuple descriptor for our result type */
+  DBUG_INSTANT_PRINT("pageinspect", "build a tuple descriptor for our result type");
+
   if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
     elog(ERROR, "return type must be a row type");
 

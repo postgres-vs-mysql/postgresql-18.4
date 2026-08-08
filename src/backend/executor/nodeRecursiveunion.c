@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeRecursiveunion.h"
@@ -31,6 +32,7 @@
 static void
 build_hash_table(RecursiveUnionState *rustate)
 {
+  DBUG_TRACE;
   RecursiveUnion *node = (RecursiveUnion *) rustate->ps.plan;
   TupleDesc desc = ExecGetResultType(outerPlanState(rustate));
 
@@ -80,6 +82,7 @@ build_hash_table(RecursiveUnionState *rustate)
 static TupleTableSlot *
 ExecRecursiveUnion(PlanState *pstate)
 {
+  DBUG_TRACE;
   RecursiveUnionState *node = castNode(RecursiveUnionState, pstate);
   PlanState  *outerPlan = outerPlanState(node);
   PlanState  *innerPlan = innerPlanState(node);
@@ -90,6 +93,8 @@ ExecRecursiveUnion(PlanState *pstate)
   CHECK_FOR_INTERRUPTS();
 
   /* 1. Evaluate non-recursive term */
+  DBUG_PRINT("info", "evaluate non-recursive term");
+
   if (!node->recursing) {
     for (;;) {
       slot = ExecProcNode(outerPlan);
@@ -116,6 +121,8 @@ ExecRecursiveUnion(PlanState *pstate)
 
     node->recursing = true;
   }
+
+  DBUG_PRINT("info", "execute recursive term");
 
   /* 2. Execute recursive term */
   for (;;) {
@@ -180,6 +187,7 @@ ExecRecursiveUnion(PlanState *pstate)
 RecursiveUnionState *
 ExecInitRecursiveUnion(RecursiveUnion *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   RecursiveUnionState *rustate;
   ParamExecData *prmdata;
 
@@ -283,6 +291,7 @@ ExecInitRecursiveUnion(RecursiveUnion *node, EState *estate, int eflags)
 void
 ExecEndRecursiveUnion(RecursiveUnionState *node)
 {
+  DBUG_TRACE;
   /* Release tuplestores */
   tuplestore_end(node->working_table);
   tuplestore_end(node->intermediate_table);
@@ -310,6 +319,7 @@ ExecEndRecursiveUnion(RecursiveUnionState *node)
 void
 ExecReScanRecursiveUnion(RecursiveUnionState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
   PlanState  *innerPlan = innerPlanState(node);
   RecursiveUnion *plan = (RecursiveUnion *) node->ps.plan;

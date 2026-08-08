@@ -8,6 +8,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -36,6 +37,7 @@
 void
 sepgsql_proc_post_create(Oid functionId)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey;
   SysScanDesc sscan;
@@ -157,6 +159,7 @@ sepgsql_proc_post_create(Oid functionId)
 void
 sepgsql_proc_drop(Oid functionId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
 
@@ -200,6 +203,7 @@ sepgsql_proc_drop(Oid functionId)
 void
 sepgsql_proc_relabel(Oid functionId, const char *seclabel)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
 
@@ -237,6 +241,7 @@ sepgsql_proc_relabel(Oid functionId, const char *seclabel)
 void
 sepgsql_proc_setattr(Oid functionId)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey;
   SysScanDesc sscan;
@@ -322,6 +327,7 @@ sepgsql_proc_setattr(Oid functionId)
 void
 sepgsql_proc_execute(Oid functionId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
 

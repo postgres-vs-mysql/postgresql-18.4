@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -178,6 +179,7 @@ process_equivalence(PlannerInfo *root,
                     RestrictInfo **p_restrictinfo,
                     JoinDomain *jdomain)
 {
+  DBUG_TRACE;
   RestrictInfo *restrictinfo = *p_restrictinfo;
   Expr     *clause = restrictinfo->clause;
   Oid     opno,
@@ -727,6 +729,7 @@ get_eclass_for_sort_expr(PlannerInfo *root,
                          Relids rel,
                          bool create_it)
 {
+  DBUG_TRACE;
   JoinDomain *jdomain;
   Relids    expr_relids;
   EquivalenceClass *newec;
@@ -975,6 +978,7 @@ find_computable_ec_member(PlannerInfo *root,
                           Relids relids,
                           bool require_parallel_safe)
 {
+  DBUG_TRACE;
   List     *exprvars;
   EquivalenceMemberIterator it;
   EquivalenceMember *em;
@@ -1060,6 +1064,7 @@ bool
 relation_can_be_sorted_early(PlannerInfo *root, RelOptInfo *rel,
                              EquivalenceClass *ec, bool require_parallel_safe)
 {
+  DBUG_TRACE;
   PathTarget *target = rel->reltarget;
   EquivalenceMember *em;
   ListCell   *lc;
@@ -1171,6 +1176,7 @@ relation_can_be_sorted_early(PlannerInfo *root, RelOptInfo *rel,
 void
 generate_base_implied_equalities(PlannerInfo *root)
 {
+  DBUG_TRACE;
   int     ec_index;
   ListCell   *lc;
 
@@ -1254,6 +1260,7 @@ static void
 generate_base_implied_equalities_const(PlannerInfo *root,
                                        EquivalenceClass *ec)
 {
+  DBUG_TRACE;
   EquivalenceMember *const_em = NULL;
   ListCell   *lc;
 
@@ -1352,6 +1359,7 @@ static void
 generate_base_implied_equalities_no_const(PlannerInfo *root,
     EquivalenceClass *ec)
 {
+  DBUG_TRACE;
   EquivalenceMember **prev_ems;
   ListCell   *lc;
 
@@ -1466,6 +1474,7 @@ static void
 generate_base_implied_equalities_broken(PlannerInfo *root,
                                         EquivalenceClass *ec)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, ec->ec_sources) {
@@ -1531,6 +1540,7 @@ generate_join_implied_equalities(PlannerInfo *root,
                                  RelOptInfo *inner_rel,
                                  SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relids    inner_relids = inner_rel->relids;
   Relids    nominal_inner_relids;
@@ -1628,6 +1638,7 @@ generate_join_implied_equalities_for_ecs(PlannerInfo *root,
     Relids outer_relids,
     RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relids    inner_relids = inner_rel->relids;
   Relids    nominal_inner_relids;
@@ -1695,6 +1706,7 @@ generate_join_implied_equalities_normal(PlannerInfo *root,
                                         Relids outer_relids,
                                         Relids inner_relids)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   List     *new_members = NIL;
   List     *outer_members = NIL;
@@ -1877,6 +1889,7 @@ generate_join_implied_equalities_broken(PlannerInfo *root,
                                         Relids nominal_inner_relids,
                                         RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -1920,6 +1933,7 @@ generate_join_implied_equalities_broken(PlannerInfo *root,
 static Oid
 select_equality_operator(EquivalenceClass *ec, Oid lefttype, Oid righttype)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, ec->ec_opfamilies) {
@@ -1962,6 +1976,7 @@ create_join_clause(PlannerInfo *root,
                    EquivalenceMember *rightem,
                    EquivalenceClass *parent_ec)
 {
+  DBUG_TRACE;
   RestrictInfo *rinfo;
   RestrictInfo *parent_rinfo = NULL;
   MemoryContext oldcontext;
@@ -2033,6 +2048,7 @@ create_join_clause(PlannerInfo *root,
   rinfo->left_em = leftem;
   rinfo->right_em = rightem;
   /* and save it for possible re-use */
+  DBUG_PRINT("info", "save it for possible re-use");
   ec_add_derived_clause(ec, rinfo);
 
   MemoryContextSwitchTo(oldcontext);
@@ -2111,6 +2127,7 @@ create_join_clause(PlannerInfo *root,
 void
 reconsider_outer_join_clauses(PlannerInfo *root)
 {
+  DBUG_TRACE;
   bool    found;
   ListCell   *cell;
 
@@ -2226,6 +2243,7 @@ static bool
 reconsider_outer_join_clause(PlannerInfo *root, OuterJoinClauseInfo *ojcinfo,
                              bool outer_on_left)
 {
+  DBUG_TRACE;
   RestrictInfo *rinfo = ojcinfo->rinfo;
   SpecialJoinInfo *sjinfo = ojcinfo->sjinfo;
   Expr     *outervar,
@@ -2358,6 +2376,7 @@ reconsider_outer_join_clause(PlannerInfo *root, OuterJoinClauseInfo *ojcinfo,
 static bool
 reconsider_full_join_clause(PlannerInfo *root, OuterJoinClauseInfo *ojcinfo)
 {
+  DBUG_TRACE;
   RestrictInfo *rinfo = ojcinfo->rinfo;
   SpecialJoinInfo *sjinfo = ojcinfo->sjinfo;
   Relids    fjrelids = bms_make_singleton(sjinfo->ojrelid);
@@ -2594,6 +2613,7 @@ rebuild_eclass_attr_needed(PlannerInfo *root)
 static JoinDomain *
 find_join_domain(PlannerInfo *root, Relids relids)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, root->join_domains) {
@@ -2625,6 +2645,7 @@ find_join_domain(PlannerInfo *root, Relids relids)
 bool
 exprs_known_equal(PlannerInfo *root, Node *item1, Node *item2, Oid opfamily)
 {
+  DBUG_TRACE;
   ListCell   *lc1;
 
   foreach(lc1, root->eq_classes) {
@@ -2690,6 +2711,7 @@ match_eclasses_to_foreign_key_col(PlannerInfo *root,
                                   ForeignKeyOptInfo *fkinfo,
                                   int colno)
 {
+  DBUG_TRACE;
   Index   var1varno = fkinfo->con_relid;
   AttrNumber  var1attno = fkinfo->conkey[colno];
   Index   var2varno = fkinfo->ref_relid;
@@ -2786,6 +2808,7 @@ find_derived_clause_for_ec_member(PlannerInfo *root,
                                   EquivalenceClass *ec,
                                   EquivalenceMember *em)
 {
+  DBUG_TRACE;
   Assert(ec->ec_has_const);
   Assert(!em->em_is_const);
 
@@ -2816,6 +2839,7 @@ add_child_rel_equivalences(PlannerInfo *root,
                            RelOptInfo *parent_rel,
                            RelOptInfo *child_rel)
 {
+  DBUG_TRACE;
   Relids    top_parent_relids = child_rel->top_parent_relids;
   Relids    child_relids = child_rel->relids;
   int     i;
@@ -2919,6 +2943,7 @@ add_child_join_rel_equivalences(PlannerInfo *root,
                                 RelOptInfo *parent_joinrel,
                                 RelOptInfo *child_joinrel)
 {
+  DBUG_TRACE;
   Relids    top_parent_relids = child_joinrel->top_parent_relids;
   Relids    child_relids = child_joinrel->relids;
   Bitmapset  *matching_ecs;
@@ -3055,6 +3080,7 @@ void
 add_setop_child_rel_equivalences(PlannerInfo *root, RelOptInfo *child_rel,
                                  List *child_tlist, List *setop_pathkeys)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   ListCell   *lc2 = list_head(setop_pathkeys);
 
@@ -3126,6 +3152,7 @@ void
 setup_eclass_member_iterator(EquivalenceMemberIterator *it,
                              EquivalenceClass *ec, Relids child_relids)
 {
+  DBUG_TRACE;
   it->ec = ec;
   /* no need to set this if the class has no child members array set */
   it->child_relids = ec->ec_childmembers != NULL ? child_relids : NULL;
@@ -3144,6 +3171,8 @@ setup_eclass_member_iterator(EquivalenceMemberIterator *it,
 EquivalenceMember *
 eclass_member_iterator_next(EquivalenceMemberIterator *it)
 {
+  DBUG_TRACE;
+
   while (it->current_list != NULL) {
     while (it->current_cell != NULL) {
       EquivalenceMember *em;
@@ -3209,6 +3238,7 @@ generate_implied_equalities_for_column(PlannerInfo *root,
                                        void *callback_arg,
                                        Relids prohibited_rels)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   bool    is_child_rel = (rel->reloptkind == RELOPT_OTHER_MEMBER_REL);
   Relids    parent_relids;
@@ -3337,6 +3367,7 @@ bool
 have_relevant_eclass_joinclause(PlannerInfo *root,
                                 RelOptInfo *rel1, RelOptInfo *rel2)
 {
+  DBUG_TRACE;
   Bitmapset  *matching_ecs;
   int     i;
 
@@ -3412,6 +3443,7 @@ have_relevant_eclass_joinclause(PlannerInfo *root,
 bool
 has_relevant_eclass_joinclause(PlannerInfo *root, RelOptInfo *rel1)
 {
+  DBUG_TRACE;
   Bitmapset  *matched_ecs;
   int     i;
 
@@ -3458,6 +3490,7 @@ eclass_useful_for_merging(PlannerInfo *root,
                           EquivalenceClass *eclass,
                           RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Relids    relids;
   ListCell   *lc;
 
@@ -3513,6 +3546,7 @@ eclass_useful_for_merging(PlannerInfo *root,
 bool
 is_redundant_derived_clause(RestrictInfo *rinfo, List *clauselist)
 {
+  DBUG_TRACE;
   EquivalenceClass *parent_ec = rinfo->parent_ec;
   ListCell   *lc;
 
@@ -3539,6 +3573,7 @@ is_redundant_derived_clause(RestrictInfo *rinfo, List *clauselist)
 bool
 is_redundant_with_indexclauses(RestrictInfo *rinfo, List *indexclauses)
 {
+  DBUG_TRACE;
   EquivalenceClass *parent_ec = rinfo->parent_ec;
   ListCell   *lc;
 
@@ -3575,6 +3610,7 @@ is_redundant_with_indexclauses(RestrictInfo *rinfo, List *indexclauses)
 static Bitmapset *
 get_eclass_indexes_for_relids(PlannerInfo *root, Relids relids)
 {
+  DBUG_TRACE;
   Bitmapset  *ec_indexes = NULL;
   int     i = -1;
 
@@ -3608,10 +3644,13 @@ get_eclass_indexes_for_relids(PlannerInfo *root, Relids relids)
 static Bitmapset *
 get_common_eclass_indexes(PlannerInfo *root, Relids relids1, Relids relids2)
 {
+  DBUG_TRACE;
   Bitmapset  *rel1ecs;
   Bitmapset  *rel2ecs;
   int     relid;
 
+  DBUG_PRINT("info", "build and return a Bitmapset containing the indexes into root's eq_classes list");
+  DBUG_PRINT("info", "for all eclasses that mention rels in both relids1 and relids2");
   rel1ecs = get_eclass_indexes_for_relids(root, relids1);
 
   /*
@@ -3634,6 +3673,7 @@ get_common_eclass_indexes(PlannerInfo *root, Relids relids1, Relids relids2)
 static void
 ec_build_derives_hash(PlannerInfo *root, EquivalenceClass *ec)
 {
+  DBUG_TRACE;
   Assert(!ec->ec_derives_hash);
 
   /*
@@ -3664,6 +3704,7 @@ ec_build_derives_hash(PlannerInfo *root, EquivalenceClass *ec)
 static void
 ec_add_derived_clause(EquivalenceClass *ec, RestrictInfo *clause)
 {
+  DBUG_TRACE;
   /*
    * Constant, if present, is always placed on the RHS; see
    * generate_base_implied_equalities_const(). LHS is never a constant.
@@ -3695,6 +3736,7 @@ ec_add_derived_clause(EquivalenceClass *ec, RestrictInfo *clause)
 static void
 ec_add_derived_clauses(EquivalenceClass *ec, List *clauses)
 {
+  DBUG_TRACE;
   ec->ec_derives_list = list_concat(ec->ec_derives_list, clauses);
 
   if (ec->ec_derives_hash)
@@ -3748,6 +3790,7 @@ fill_ec_derives_key(ECDerivesKey *key,
 static void
 ec_add_clause_to_derives_hash(EquivalenceClass *ec, RestrictInfo *rinfo)
 {
+  DBUG_TRACE;
   ECDerivesKey key;
   ECDerivesEntry *entry;
   bool    found;
@@ -3790,6 +3833,7 @@ ec_add_clause_to_derives_hash(EquivalenceClass *ec, RestrictInfo *rinfo)
 void
 ec_clear_derived_clauses(EquivalenceClass *ec)
 {
+  DBUG_TRACE;
   list_free(ec->ec_derives_list);
   ec->ec_derives_list = NIL;
 
@@ -3815,17 +3859,20 @@ ec_search_clause_for_ems(PlannerInfo *root, EquivalenceClass *ec,
                          EquivalenceMember *leftem, EquivalenceMember *rightem,
                          EquivalenceClass *parent_ec)
 {
+  DBUG_TRACE;
   /* Check original source clauses */
   foreach_node(RestrictInfo, rinfo, ec->ec_sources) {
     if (rinfo->left_em == leftem &&
         rinfo->right_em == rightem &&
-        rinfo->parent_ec == parent_ec)
+        rinfo->parent_ec == parent_ec) {
       return rinfo;
+    }
 
     if (rinfo->left_em == rightem &&
         rinfo->right_em == leftem &&
-        rinfo->parent_ec == parent_ec)
+        rinfo->parent_ec == parent_ec) {
       return rinfo;
+    }
   }
 
   /* Not found in ec_sources; search derived clauses */
@@ -3854,6 +3901,8 @@ ec_search_derived_clause_for_ems(PlannerInfo *root, EquivalenceClass *ec,
                                  EquivalenceMember *rightem,
                                  EquivalenceClass *parent_ec)
 {
+  DBUG_TRACE;
+
   /* Switch to using hash lookup when list grows "too long". */
   if (!ec->ec_derives_hash &&
       list_length(ec->ec_derives_list) >= EC_DERIVES_HASH_THRESHOLD)

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/table.h"
@@ -35,6 +36,7 @@ Oid
 StoreAttrDefault(Relation rel, AttrNumber attnum,
                  Node *expr, bool is_internal)
 {
+  DBUG_TRACE;
   char     *adbin;
   Relation  adrel;
   HeapTuple tuple;
@@ -154,6 +156,7 @@ void
 RemoveAttrDefault(Oid relid, AttrNumber attnum,
                   DropBehavior behavior, bool complain, bool internal)
 {
+  DBUG_TRACE;
   Relation  attrdef_rel;
   ScanKeyData scankeys[2];
   SysScanDesc scan;
@@ -207,6 +210,7 @@ RemoveAttrDefault(Oid relid, AttrNumber attnum,
 void
 RemoveAttrDefaultById(Oid attrdefId)
 {
+  DBUG_TRACE;
   Relation  attrdef_rel;
   Relation  attr_rel;
   Relation  myrel;
@@ -280,6 +284,7 @@ RemoveAttrDefaultById(Oid attrdefId)
 Oid
 GetAttrDefaultOid(Oid relid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   Relation  attrdef;
   ScanKeyData keys[2];
@@ -321,6 +326,7 @@ GetAttrDefaultOid(Oid relid, AttrNumber attnum)
 ObjectAddress
 GetAttrDefaultColumnAddress(Oid attrdefoid)
 {
+  DBUG_TRACE;
   ObjectAddress result = InvalidObjectAddress;
   Relation  attrdef;
   ScanKeyData skey[1];

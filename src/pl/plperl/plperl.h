@@ -108,8 +108,7 @@ sv2cstr(SV *sv)
       isGV_with_GP(sv) ||
       (SvTYPE(sv) > SVt_PVLV && SvTYPE(sv) != SVt_PVFM))
     sv = newSVsv(sv);
-  else
-  {
+  else {
     /*
      * increase the reference count so we can just SvREFCNT_dec() it when
      * we are done

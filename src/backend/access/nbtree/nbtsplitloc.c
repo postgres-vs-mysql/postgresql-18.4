@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "common/int.h"
@@ -130,6 +131,7 @@ _bt_findsplitloc(Relation rel,
                  IndexTuple newitem,
                  bool *newitemonleft)
 {
+  DBUG_TRACE;
   BTPageOpaque opaque;
   int     leftspace,
           rightspace,
@@ -147,6 +149,7 @@ _bt_findsplitloc(Relation rel,
   bool    usemult;
   SplitPoint  leftpage,
               rightpage;
+  int count = 0;
 
   opaque = BTPageGetOpaque(origpage);
   maxoff = PageGetMaxOffsetNumber(origpage);
@@ -216,22 +219,26 @@ _bt_findsplitloc(Relation rel,
      * page. (_bt_recsplitloc() will reject the split when there are no
      * previous items, which we rely on.)
      */
-    if (offnum < newitemoff)
+    if (offnum < newitemoff) {
       _bt_recsplitloc(&state, offnum, false, olddataitemstoleft, itemsz);
-    else if (offnum > newitemoff)
+      count++;
+    } else if (offnum > newitemoff) {
       _bt_recsplitloc(&state, offnum, true, olddataitemstoleft, itemsz);
-    else {
+      count++;
+    } else {
       /*
        * Record a split after all "offnum < newitemoff" original page
        * data items, but before newitem
        */
       _bt_recsplitloc(&state, offnum, false, olddataitemstoleft, itemsz);
+      count++;
 
       /*
        * Record a split after newitem, but before data item from
        * original page at offset newitemoff/current offset
        */
       _bt_recsplitloc(&state, offnum, true, olddataitemstoleft, itemsz);
+      count++;
     }
 
     olddataitemstoleft += itemsz;
@@ -244,8 +251,12 @@ _bt_findsplitloc(Relation rel,
    */
   Assert(olddataitemstoleft == olddataitemstotal);
 
-  if (newitemoff > maxoff)
+  if (newitemoff > maxoff) {
+    count++;
     _bt_recsplitloc(&state, newitemoff, false, olddataitemstotal, 0);
+  }
+
+  DBUG_PRINT("info", "_bt_recsplitloc called %d times", count);
 
   /*
    * I believe it is not possible to fail to find a feasible split, but just
@@ -542,6 +553,8 @@ static void
 _bt_deltasortsplits(FindSplitData *state, double fillfactormult,
                     bool usemult)
 {
+  DBUG_TRACE;
+
   for (int i = 0; i < state->nsplits; i++) {
     SplitPoint *split = state->splits + i;
     int16   delta;
@@ -605,6 +618,7 @@ static bool
 _bt_afternewitemoff(FindSplitData *state, OffsetNumber maxoff,
                     int leaffillfactor, bool *usemult)
 {
+  DBUG_TRACE;
   int16   nkeyatts;
   ItemId    itemid;
   IndexTuple  tup;
@@ -723,6 +737,7 @@ _bt_afternewitemoff(FindSplitData *state, OffsetNumber maxoff,
 static bool
 _bt_adjacenthtid(ItemPointer lowhtid, ItemPointer highhtid)
 {
+  DBUG_TRACE;
   BlockNumber lowblk,
               highblk;
 
@@ -763,6 +778,7 @@ static OffsetNumber
 _bt_bestsplitloc(FindSplitData *state, int perfectpenalty,
                  bool *newitemonleft, FindSplitStrat strategy)
 {
+  DBUG_TRACE;
   int     bestpenalty,
           lowsplit;
   int     highsplit = Min(state->interval, state->nsplits);
@@ -848,6 +864,7 @@ _bt_bestsplitloc(FindSplitData *state, int perfectpenalty,
 static int
 _bt_defaultinterval(FindSplitData *state)
 {
+  DBUG_TRACE;
   SplitPoint *spaceoptimal;
   int16   tolerance,
           lowleftfree,
@@ -906,6 +923,7 @@ static int
 _bt_strategy(FindSplitData *state, SplitPoint *leftpage,
              SplitPoint *rightpage, FindSplitStrat *strategy)
 {
+  DBUG_TRACE;
   IndexTuple  leftmost,
               rightmost;
   SplitPoint *leftinterval,
@@ -1024,6 +1042,7 @@ static void
 _bt_interval_edges(FindSplitData *state, SplitPoint **leftinterval,
                    SplitPoint **rightinterval)
 {
+  DBUG_TRACE;
   int     highsplit = Min(state->interval, state->nsplits);
   SplitPoint *deltaoptimal;
 
@@ -1096,6 +1115,7 @@ _bt_interval_edges(FindSplitData *state, SplitPoint **leftinterval,
 static inline int
 _bt_split_penalty(FindSplitData *state, SplitPoint *split)
 {
+  DBUG_TRACE;
   IndexTuple  lastleft;
   IndexTuple  firstright;
 
@@ -1123,6 +1143,7 @@ _bt_split_penalty(FindSplitData *state, SplitPoint *split)
 static inline IndexTuple
 _bt_split_lastleft(FindSplitData *state, SplitPoint *split)
 {
+  DBUG_TRACE;
   ItemId    itemid;
 
   if (split->newitemonleft && split->firstrightoff == state->newitemoff)
@@ -1139,6 +1160,7 @@ _bt_split_lastleft(FindSplitData *state, SplitPoint *split)
 static inline IndexTuple
 _bt_split_firstright(FindSplitData *state, SplitPoint *split)
 {
+  DBUG_TRACE;
   ItemId    itemid;
 
   if (!split->newitemonleft && split->firstrightoff == state->newitemoff)

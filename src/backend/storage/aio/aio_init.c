@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "miscadmin.h"
 #include "storage/aio.h"
@@ -148,6 +149,7 @@ AioShmemSize(void)
 void
 AioShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
   uint32    io_handle_off = 0;
   uint32    iovec_off = 0;
@@ -175,6 +177,7 @@ AioShmemInit(void)
   pgaio_ctl->handle_data = (uint64 *)
                            ShmemInitStruct("AioHandleData", AioHandleDataShmemSize(), &found);
 
+  DBUG_PRINT("info", "AioProcs:%d", AioProcs());
   for (int procno = 0; procno < AioProcs(); procno++) {
     PgAioBackend *bs = &pgaio_ctl->backend_state[procno];
 
@@ -186,6 +189,7 @@ AioShmemInit(void)
     dclist_init(&bs->in_flight_ios);
 
     /* initialize per-backend IOs */
+    DBUG_PRINT("info", "initialize per-backend IOs(procno:%d, io_max_concurrency:%d)", procno, io_max_concurrency);
     for (int i = 0; i < io_max_concurrency; i++) {
       PgAioHandle *ioh = &pgaio_ctl->io_handles[bs->io_handle_off + i];
 
@@ -216,15 +220,19 @@ out:
 void
 pgaio_init_backend(void)
 {
+  DBUG_TRACE;
   /* shouldn't be initialized twice */
   Assert(!pgaio_my_backend);
 
-  if (MyBackendType == B_IO_WORKER)
+  if (MyBackendType == B_IO_WORKER) {
+    DBUG_PRINT("info", "MyBackendType is B_IO_WORKER, returning");
     return;
+  }
 
   if (MyProc == NULL || MyProcNumber >= AioProcs())
     elog(ERROR, "aio requires a normal PGPROC");
 
+  DBUG_PRINT("info", "MyProcNumber:%d", MyProcNumber);
   pgaio_my_backend = &pgaio_ctl->backend_state[MyProcNumber];
 
   if (pgaio_method_ops->init_backend)

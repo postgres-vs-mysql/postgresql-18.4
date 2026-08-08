@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_utils_num.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "btree_gist.h"
 #include "btree_utils_num.h"
@@ -9,11 +10,191 @@
 #include "utils/date.h"
 #include "utils/timestamp.h"
 
+const char *
+strategy_desc(StrategyNumber strategy)
+{
+  switch (strategy) {
+    case RTLeftStrategyNumber:
+      return "<< (strictly left)";
+
+    case RTOverLeftStrategyNumber:
+      return "&< (overlaps or left)";
+
+    case RTOverlapStrategyNumber:
+      return "&& (overlap)";
+
+    case RTOverRightStrategyNumber:
+      return "&> (overlaps or right)";
+
+    case RTRightStrategyNumber:
+      return ">> (strictly right)";
+
+    case RTSameStrategyNumber:
+      return "~= (same)";
+
+    case RTContainsStrategyNumber:
+      return "@> (contains)";
+
+    case RTContainedByStrategyNumber:
+      return "<@ (contained by)";
+
+    case RTOverBelowStrategyNumber:
+      return "&<| (overlaps or below)";
+
+    case RTBelowStrategyNumber:
+      return "<<| (strictly below)";
+
+    case RTAboveStrategyNumber:
+      return "|>> (strictly above)";
+
+    case RTOverAboveStrategyNumber:
+      return "|&> (overlaps or above)";
+
+    case RTOldContainsStrategyNumber:
+      return "old @> (contains)";
+
+    case RTOldContainedByStrategyNumber:
+      return "old <@ (contained by)";
+
+    case RTKNNSearchStrategyNumber:
+      return "<-> (distance search)";
+
+    case RTContainsElemStrategyNumber:
+      return "@> elem (contains element)";
+
+    case RTAdjacentStrategyNumber:
+      return "-|- (adjacent)";
+
+    case RTEqualStrategyNumber:
+      return "= (equal)";
+
+    case RTNotEqualStrategyNumber:
+      return "!= (not equal)";
+
+    case RTLessStrategyNumber:
+      return "< (less than)";
+
+    case RTLessEqualStrategyNumber:
+      return "<= (less than or equal)";
+
+    case RTGreaterStrategyNumber:
+      return "> (greater than)";
+
+    case RTGreaterEqualStrategyNumber:
+      return ">= (greater than or equal)";
+
+    case RTSubStrategyNumber:
+      return ">> (inet subnet)";
+
+    case RTSubEqualStrategyNumber:
+      return "<<= (inet subnet or equal)";
+
+    case RTSuperStrategyNumber:
+      return "<< (inet supernet)";
+
+    case RTSuperEqualStrategyNumber:
+      return ">>= (inet supernet or equal)";
+
+    case RTPrefixStrategyNumber:
+      return "^@ (text prefix match)";
+
+    case RTOldBelowStrategyNumber:
+      return "old <<| (below)";
+
+    case RTOldAboveStrategyNumber:
+      return "old |>> (above)";
+
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static void
+gbt_numkey_to_str(char *buf,
+                  int buflen,
+                  GBT_NUMKEY *k,
+                  const gbtree_ninfo *tinfo)
+{
+  GBT_NUMKEY_R r;
+
+  r.lower = &k[0];
+  r.upper = &k[tinfo->size];
+
+  switch (tinfo->t) {
+    case gbt_t_int2:
+      snprintf(buf, buflen,
+               "[%d,%d]",
+               *((int16 *) r.lower),
+               *((int16 *) r.upper));
+      break;
+
+    case gbt_t_int4:
+      snprintf(buf, buflen,
+               "[%d,%d]",
+               *((int32 *) r.lower),
+               *((int32 *) r.upper));
+      break;
+
+    case gbt_t_int8:
+      snprintf(buf, buflen,
+               "[%lld,%lld]",
+               (long long) * ((int64 *) r.lower),
+               (long long) * ((int64 *) r.upper));
+      break;
+
+    case gbt_t_float4:
+      snprintf(buf, buflen,
+               "[%f,%f]",
+               *((float4 *) r.lower),
+               *((float4 *) r.upper));
+      break;
+
+    case gbt_t_float8:
+      snprintf(buf, buflen,
+               "[%lf,%lf]",
+               *((float8 *) r.lower),
+               *((float8 *) r.upper));
+      break;
+
+    default:
+      snprintf(buf, buflen,
+               "[unsupported]");
+      break;
+  }
+}
+
+static void
+gistentry_to_str(char *buf,
+                 int buflen,
+                 GISTENTRY *entry,
+                 const gbtree_ninfo *tinfo)
+{
+  GBT_NUMKEY *k;
+
+  if (entry == NULL) {
+    snprintf(buf, buflen, "<null>");
+    return;
+  }
+
+  if (DatumGetPointer(entry->key) == NULL) {
+    snprintf(buf, buflen, "<null-key>");
+    return;
+  }
+
+  k = (GBT_NUMKEY *) DatumGetPointer(entry->key);
+
+  gbt_numkey_to_str(buf,
+                    buflen,
+                    k,
+                    tinfo);
+}
 
 GISTENTRY *
 gbt_num_compress(GISTENTRY *entry, const gbtree_ninfo *tinfo)
 {
+  DBUG_TRACE;
   GISTENTRY  *retval;
+  char buf[128];
 
   if (entry->leafkey) {
     union {
@@ -100,8 +281,18 @@ gbt_num_compress(GISTENTRY *entry, const gbtree_ninfo *tinfo)
     retval = palloc(sizeof(GISTENTRY));
     gistentryinit(*retval, PointerGetDatum(r), entry->rel, entry->page,
                   entry->offset, false);
-  } else
+  } else {
     retval = entry;
+  }
+
+  gistentry_to_str(buf,
+                   sizeof(buf),
+                   retval,
+                   tinfo);
+
+  DBUG_PRINT("btree_gist",
+             "compressed=%s",
+             buf);
 
   return retval;
 }
@@ -113,6 +304,8 @@ gbt_num_compress(GISTENTRY *entry, const gbtree_ninfo *tinfo)
 GISTENTRY *
 gbt_num_fetch(GISTENTRY *entry, const gbtree_ninfo *tinfo)
 {
+  DBUG_TRACE;
+  char buf[128];
   GISTENTRY  *retval;
   Datum   datum;
 
@@ -176,6 +369,16 @@ gbt_num_fetch(GISTENTRY *entry, const gbtree_ninfo *tinfo)
   retval = palloc(sizeof(GISTENTRY));
   gistentryinit(*retval, datum, entry->rel, entry->page, entry->offset,
                 false);
+
+  gistentry_to_str(buf,
+                   sizeof(buf),
+                   retval,
+                   tinfo);
+
+  DBUG_PRINT("btree_gist",
+             "convert a compressed leaf item back to the original type=%s",
+             buf);
+
   return retval;
 }
 
@@ -188,6 +391,7 @@ gbt_num_fetch(GISTENTRY *entry, const gbtree_ninfo *tinfo)
 void *
 gbt_num_union(GBT_NUMKEY *out, const GistEntryVector *entryvec, const gbtree_ninfo *tinfo, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   int     i,
           numranges;
   GBT_NUMKEY *cur;
@@ -217,6 +421,10 @@ gbt_num_union(GBT_NUMKEY *out, const GistEntryVector *entryvec, const gbtree_nin
       memcpy(unconstify(GBT_NUMKEY *, o.upper), c.upper, tinfo->size);
   }
 
+  DBUG_PRINT("btree_gist",
+             "final union=[%d,%d]",
+             *((int32 *) o.lower),
+             *((int32 *) o.upper));
   return out;
 }
 
@@ -229,22 +437,33 @@ gbt_num_union(GBT_NUMKEY *out, const GistEntryVector *entryvec, const gbtree_nin
 bool
 gbt_num_same(const GBT_NUMKEY *a, const GBT_NUMKEY *b, const gbtree_ninfo *tinfo, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   GBT_NUMKEY_R b1,
                b2;
+  bool result;
 
   b1.lower = &(a[0]);
   b1.upper = &(a[tinfo->size]);
   b2.lower = &(b[0]);
   b2.upper = &(b[tinfo->size]);
 
-  return (tinfo->f_eq(b1.lower, b2.lower, flinfo) &&
-          tinfo->f_eq(b1.upper, b2.upper, flinfo));
+  result = (tinfo->f_eq(b1.lower, b2.lower, flinfo) &&
+            tinfo->f_eq(b1.upper, b2.upper, flinfo));
+
+  if (result) {
+    DBUG_PRINT("btree_gist", "result: true");
+  } else {
+    DBUG_PRINT("btree_gist", "result: false");
+  }
+
+  return result;
 }
 
 
 void
 gbt_num_bin_union(Datum *u, GBT_NUMKEY *e, const gbtree_ninfo *tinfo, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   GBT_NUMKEY_R rd;
 
   rd.lower = &e[0];
@@ -284,6 +503,7 @@ gbt_num_consistent(const GBT_NUMKEY_R *key,
                    const gbtree_ninfo *tinfo,
                    FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   bool    retval;
 
   switch (*strategy) {
@@ -329,6 +549,12 @@ gbt_num_consistent(const GBT_NUMKEY_R *key,
       retval = false;
   }
 
+  if (retval) {
+    DBUG_PRINT("btree_gist", "result: true");
+  } else {
+    DBUG_PRINT("btree_gist", "result: false");
+  }
+
   return retval;
 }
 
@@ -344,6 +570,7 @@ gbt_num_distance(const GBT_NUMKEY_R *key,
                  const gbtree_ninfo *tinfo,
                  FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   float8    retval;
 
   if (tinfo->f_dist == NULL)
@@ -357,6 +584,7 @@ gbt_num_distance(const GBT_NUMKEY_R *key,
   else
     retval = 0.0;
 
+  DBUG_PRINT("btree_gist", "distance: %g", retval);
   return retval;
 }
 
@@ -365,10 +593,13 @@ GIST_SPLITVEC *
 gbt_num_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
                   const gbtree_ninfo *tinfo, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff = entryvec->n - 1;
   Nsrt     *arr;
   int     nbytes;
+  int count = 0;
+  int32 lv, uv;
 
   arr = (Nsrt *) palloc((maxoff + 1) * sizeof(Nsrt));
   nbytes = (maxoff + 2) * sizeof(OffsetNumber);
@@ -384,18 +615,41 @@ gbt_num_picksplit(const GistEntryVector *entryvec, GIST_SPLITVEC *v,
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     arr[i].t = (GBT_NUMKEY *) DatumGetPointer((entryvec->vector[i].key));
     arr[i].i = i;
+    count++;
+
+    lv = *((int32 *)(arr[i].t));
+    uv = *((int32 *)(arr[i].t + tinfo->size));
+    DBUG_PRINT("btree_gist", "before sort entry %d range=[%d,%d]", i, lv, uv);
   }
 
+  DBUG_PRINT("btree_gist", "sort entries(%d)", count);
   qsort_arg(&arr[FirstOffsetNumber], maxoff - FirstOffsetNumber + 1, sizeof(Nsrt), (qsort_arg_comparator) tinfo->f_cmp, flinfo);
+
+  for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    lv = *((int32 *)(arr[i].t));
+    uv = *((int32 *)(arr[i].t + tinfo->size));
+
+    DBUG_PRINT("btree_gist", "sorted array[%d] original_offset=%d range=[%d,%d]", i, arr[i].i, lv, uv);
+  }
 
   /* We do simply create two parts */
 
+  DBUG_PRINT("btree_gist", "we do simply create two parts");
+
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     if (i <= (maxoff - FirstOffsetNumber + 1) / 2) {
+      lv = *((int32 *)(arr[i].t));
+      uv = *((int32 *)(arr[i].t + tinfo->size));
+
+      DBUG_PRINT("btree_gist", "LEFT add offset=%d range=[%d,%d]", arr[i].i, lv, uv);
+
       gbt_num_bin_union(&v->spl_ldatum, arr[i].t, tinfo, flinfo);
       v->spl_left[v->spl_nleft] = arr[i].i;
       v->spl_nleft++;
     } else {
+      lv = *((int32 *)(arr[i].t));
+      uv = *((int32 *)(arr[i].t + tinfo->size));
+      DBUG_PRINT("btree_gist", "RIGHT add offset=%d range=[%d,%d]", arr[i].i, lv, uv);
       gbt_num_bin_union(&v->spl_rdatum, arr[i].t, tinfo, flinfo);
       v->spl_right[v->spl_nright] = arr[i].i;
       v->spl_nright++;

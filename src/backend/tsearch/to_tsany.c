@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "tsearch/ts_cache.h"
 #include "tsearch/ts_utils.h"
@@ -45,6 +46,7 @@ static void add_to_tsvector(void *_state, char *elem_value, int elem_len);
 Datum
 get_current_ts_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_OID(getTSCurrentConfig(true));
 }
 
@@ -234,6 +236,7 @@ make_tsvector(ParsedText *prs)
 Datum
 to_tsvector_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgId = PG_GETARG_OID(0);
   text     *in = PG_GETARG_TEXT_PP(1);
   ParsedText  prs;
@@ -263,6 +266,7 @@ to_tsvector_byid(PG_FUNCTION_ARGS)
 Datum
 to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   Oid     cfgId;
 
@@ -294,6 +298,7 @@ jsonb_to_tsvector_worker(Oid cfgId, Jsonb *jb, uint32 flags)
 Datum
 jsonb_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgId = PG_GETARG_OID(0);
   Jsonb    *jb = PG_GETARG_JSONB_P(1);
   TSVector  result;
@@ -307,6 +312,7 @@ jsonb_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 Datum
 jsonb_string_to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   Oid     cfgId;
   TSVector  result;
@@ -321,6 +327,7 @@ jsonb_string_to_tsvector(PG_FUNCTION_ARGS)
 Datum
 jsonb_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgId = PG_GETARG_OID(0);
   Jsonb    *jb = PG_GETARG_JSONB_P(1);
   Jsonb    *jbFlags = PG_GETARG_JSONB_P(2);
@@ -337,6 +344,7 @@ jsonb_to_tsvector_byid(PG_FUNCTION_ARGS)
 Datum
 jsonb_to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   Jsonb    *jbFlags = PG_GETARG_JSONB_P(1);
   Oid     cfgId;
@@ -373,6 +381,7 @@ json_to_tsvector_worker(Oid cfgId, text *json, uint32 flags)
 Datum
 json_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgId = PG_GETARG_OID(0);
   text     *json = PG_GETARG_TEXT_P(1);
   TSVector  result;
@@ -386,6 +395,7 @@ json_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 Datum
 json_string_to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_P(0);
   Oid     cfgId;
   TSVector  result;
@@ -400,6 +410,7 @@ json_string_to_tsvector(PG_FUNCTION_ARGS)
 Datum
 json_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     cfgId = PG_GETARG_OID(0);
   text     *json = PG_GETARG_TEXT_P(1);
   Jsonb    *jbFlags = PG_GETARG_JSONB_P(2);
@@ -416,6 +427,7 @@ json_to_tsvector_byid(PG_FUNCTION_ARGS)
 Datum
 json_to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_P(0);
   Jsonb    *jbFlags = PG_GETARG_JSONB_P(1);
   Oid     cfgId;
@@ -570,6 +582,7 @@ pushval_morph(Datum opaque, TSQueryParserState state, char *strval, int lenval, 
 Datum
 to_tsquery_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(1);
   TSQuery   query;
   MorphOpaque data;
@@ -596,6 +609,7 @@ to_tsquery_byid(PG_FUNCTION_ARGS)
 Datum
 to_tsquery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   Oid     cfgId;
 
@@ -608,6 +622,7 @@ to_tsquery(PG_FUNCTION_ARGS)
 Datum
 plainto_tsquery_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(1);
   TSQuery   query;
   MorphOpaque data;
@@ -633,6 +648,7 @@ plainto_tsquery_byid(PG_FUNCTION_ARGS)
 Datum
 plainto_tsquery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   Oid     cfgId;
 
@@ -646,6 +662,7 @@ plainto_tsquery(PG_FUNCTION_ARGS)
 Datum
 phraseto_tsquery_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(1);
   TSQuery   query;
   MorphOpaque data;
@@ -671,6 +688,7 @@ phraseto_tsquery_byid(PG_FUNCTION_ARGS)
 Datum
 phraseto_tsquery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   Oid     cfgId;
 
@@ -683,6 +701,7 @@ phraseto_tsquery(PG_FUNCTION_ARGS)
 Datum
 websearch_to_tsquery_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(1);
   MorphOpaque data;
   TSQuery   query = NULL;
@@ -709,6 +728,7 @@ websearch_to_tsquery_byid(PG_FUNCTION_ARGS)
 Datum
 websearch_to_tsquery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   Oid     cfgId;
 

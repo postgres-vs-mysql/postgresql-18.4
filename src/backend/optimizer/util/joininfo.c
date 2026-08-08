@@ -13,13 +13,58 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
+#include "parser/parsetree.h"
+#include "nodes/bitmapset.h"
+#include "nodes/pathnodes.h"
 #include "nodes/makefuncs.h"
 #include "optimizer/joininfo.h"
 #include "optimizer/pathnode.h"
 #include "optimizer/paths.h"
 #include "optimizer/planmain.h"
 #include "optimizer/restrictinfo.h"
+#include "utils/lsyscache.h"   /* for get_rel_name() and get_namespace_name() */
+#include "catalog/namespace.h" /* for get_namespace_name() */
+
+
+static void
+print_relids_tables(PlannerInfo *root, const char *prefix, Relids relids)
+{
+  int relid = -1;
+  RangeTblEntry *rte;
+
+  while ((relid = bms_next_member(relids, relid)) >= 0) {
+    rte = planner_rt_fetch(relid, root);
+
+    if (!rte) {
+      continue;
+    }
+
+    {
+      const char *alias = rte->eref ? rte->eref->aliasname : "(no alias)";
+
+      const char *relname = NULL;
+      const char *schemaname = NULL;
+      Oid nspid;
+
+      if (rte->rtekind == RTE_RELATION) {
+        relname = get_rel_name(rte->relid);
+        nspid = get_rel_namespace(rte->relid);
+        schemaname = get_namespace_name(nspid);
+      } else {
+        relname = "(subquery)";
+        schemaname = "(no schema)";
+      }
+
+      DBUG_PRINT("info", "%s (relid %d -> %s.%s (alias: %s))",
+                 prefix, relid,
+                 schemaname ? schemaname : "(null)",
+                 relname ? relname : "(null)",
+                 alias);
+    }
+  }
+}
 
 
 /*
@@ -39,10 +84,16 @@ bool
 have_relevant_joinclause(PlannerInfo *root,
                          RelOptInfo *rel1, RelOptInfo *rel2)
 {
+  DBUG_TRACE;
   bool    result = false;
   List     *joininfo;
   Relids    other_relids;
   ListCell   *l;
+
+  DBUG_PRINT("info", "detect whether there is a joinclause that involves the two relations");
+
+  print_relids_tables(root, "rel1", rel1->relids);
+  print_relids_tables(root, "rel2", rel2->relids);
 
   /*
    * We could scan either relation's joininfo list; may as well use the
@@ -72,6 +123,12 @@ have_relevant_joinclause(PlannerInfo *root,
   if (!result && rel1->has_eclass_joins && rel2->has_eclass_joins)
     result = have_relevant_eclass_joinclause(root, rel1, rel2);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -94,6 +151,7 @@ add_join_clause_to_rels(PlannerInfo *root,
                         RestrictInfo *restrictinfo,
                         Relids join_relids)
 {
+  DBUG_TRACE;
   int     cur_relid;
 
   /* Don't add the clause if it is always true */
@@ -157,6 +215,7 @@ remove_join_clause_from_rels(PlannerInfo *root,
                              RestrictInfo *restrictinfo,
                              Relids join_relids)
 {
+  DBUG_TRACE;
   int     cur_relid;
 
   cur_relid = -1;

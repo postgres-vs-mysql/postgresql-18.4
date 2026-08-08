@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation_d.h"
 #include "commands/defrem.h"
@@ -180,7 +181,10 @@ typedef struct DictSnowball {
 static void
 locate_stem_module(DictSnowball *d, const char *lang)
 {
+  DBUG_TRACE;
   const stemmer_module *m;
+
+  DBUG_PRINT("info", "lang:'%s'", lang);
 
   /*
    * First, try to find exact match of stemmer module. Stemmer with
@@ -192,6 +196,7 @@ locate_stem_module(DictSnowball *d, const char *lang)
       d->stem = m->stem;
       d->z = m->create();
       d->needrecode = false;
+      DBUG_PRINT("info", "needs recoding? No");
       return;
     }
   }
@@ -204,10 +209,12 @@ locate_stem_module(DictSnowball *d, const char *lang)
       d->stem = m->stem;
       d->z = m->create();
       d->needrecode = true;
+      DBUG_PRINT("info", "needs recoding? Yes");
       return;
     }
   }
 
+  DBUG_INSTANT_PRINT("info", "no Snowball stemmer available for language \"%s\" and encoding \"%s\"", lang, GetDatabaseEncodingName());
   ereport(ERROR,
           (errcode(ERRCODE_UNDEFINED_OBJECT),
            errmsg("no Snowball stemmer available for language \"%s\" and encoding \"%s\"",
@@ -217,6 +224,7 @@ locate_stem_module(DictSnowball *d, const char *lang)
 Datum
 dsnowball_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   DictSnowball *d;
   bool    stoploaded = false;
@@ -228,21 +236,26 @@ dsnowball_init(PG_FUNCTION_ARGS)
     DefElem    *defel = (DefElem *) lfirst(l);
 
     if (strcmp(defel->defname, "stopwords") == 0) {
-      if (stoploaded)
+      if (stoploaded) {
+        DBUG_INSTANT_PRINT("info", "multiple StopWords parameters");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("multiple StopWords parameters")));
+      }
 
       readstoplist(defGetString(defel), &d->stoplist, str_tolower);
       stoploaded = true;
     } else if (strcmp(defel->defname, "language") == 0) {
-      if (d->stem)
+      if (d->stem) {
+        DBUG_INSTANT_PRINT("info", "multiple Language parameters");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("multiple Language parameters")));
+      }
 
       locate_stem_module(d, defGetString(defel));
     } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized Snowball parameter: \"%s\"", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("unrecognized Snowball parameter: \"%s\"",
@@ -250,10 +263,12 @@ dsnowball_init(PG_FUNCTION_ARGS)
     }
   }
 
-  if (!d->stem)
+  if (!d->stem) {
+    DBUG_INSTANT_PRINT("info", "missing Language parameter");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("missing Language parameter")));
+  }
 
   d->dictCtx = CurrentMemoryContext;
 
@@ -263,11 +278,14 @@ dsnowball_init(PG_FUNCTION_ARGS)
 Datum
 dsnowball_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DictSnowball *d = (DictSnowball *) PG_GETARG_POINTER(0);
   char     *in = (char *) PG_GETARG_POINTER(1);
   int32   len = PG_GETARG_INT32(2);
   char     *txt = str_tolower(in, len, DEFAULT_COLLATION_OID);
   TSLexeme   *res = palloc0(sizeof(TSLexeme) * 2);
+
+  DBUG_PRINT("info", "len:%d, input:'%s'", len, in);
 
   /*
    * Do not pass strings exceeding 1000 bytes to the stemmer, as they're
@@ -318,6 +336,7 @@ dsnowball_lexize(PG_FUNCTION_ARGS)
     if (d->needrecode) {
       char     *recoded;
 
+      DBUG_PRINT("info", "back recode if needed");
       recoded = pg_any_to_server(txt, strlen(txt), PG_UTF8);
 
       if (recoded != txt) {

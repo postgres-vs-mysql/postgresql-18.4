@@ -27,8 +27,10 @@
 #include <string>
 #include <system_error>
 
-namespace llvm {
-namespace backport {
+namespace llvm
+{
+namespace backport
+{
 
 /// This is a simple memory manager which implements the methods called by
 /// the RuntimeDyld class to allocate memory for section-based loading of
@@ -43,7 +45,8 @@ namespace backport {
 /// in the JITed object.  Permissions can be applied either by calling
 /// MCJIT::finalizeObject or by calling SectionMemoryManager::finalizeMemory
 /// directly.  Clients of MCJIT should call MCJIT::finalizeObject.
-class SectionMemoryManager : public RTDyldMemoryManager {
+class SectionMemoryManager : public RTDyldMemoryManager
+{
 public:
   /// This enum describes the various reasons to allocate pages from
   /// allocateMappedMemory.
@@ -55,7 +58,8 @@ public:
 
   /// Implementations of this interface are used by SectionMemoryManager to
   /// request pages from the operating system.
-  class MemoryMapper {
+  class MemoryMapper
+  {
   public:
     /// This method attempts to allocate \p NumBytes bytes of virtual memory for
     /// \p Purpose.  \p NearBlock may point to an existing allocation, in which
@@ -120,7 +124,8 @@ public:
   ~SectionMemoryManager() override;
 
   /// Enable reserveAllocationSpace when requested.
-  bool needsToReserveAllocationSpace() override {
+  bool needsToReserveAllocationSpace() override
+  {
     return ReserveAllocation;
   }
 
@@ -180,7 +185,7 @@ public:
   virtual void invalidateInstructionCache();
 
 private:
-  struct FreeMemBlock
+struct FreeMemBlock
 {
     // The actual block of free memory
     sys::MemoryBlock Free;
@@ -191,7 +196,7 @@ private:
     unsigned PendingPrefixIndex;
   };
 
-  struct MemoryGroup
+struct MemoryGroup
 {
     // PendingMem contains all blocks of memory (subblocks of AllocatedMem)
     // which have not yet had their permissions applied, but have been given

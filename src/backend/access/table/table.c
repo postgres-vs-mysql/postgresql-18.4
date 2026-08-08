@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/table.h"
@@ -27,6 +28,18 @@
 
 static inline void validate_relation_kind(Relation r);
 
+/* Names of lock modes, for debug printouts */
+static const char *const lock_mode_names[] = {
+  "INVALID",
+  "AccessShareLock",
+  "RowShareLock",
+  "RowExclusiveLock",
+  "ShareUpdateExclusiveLock",
+  "ShareLock",
+  "ShareRowExclusiveLock",
+  "ExclusiveLock",
+  "AccessExclusiveLock"
+};
 /* ----------------
  *    table_open - open a table relation by relation OID
  *
@@ -39,12 +52,23 @@ static inline void validate_relation_kind(Relation r);
 Relation
 table_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = relation_open(relationId, lockmode);
 
   validate_relation_kind(r);
 
+  {
+    const char *table_name = RelationGetRelationName(r);
+
+    if (lockmode > 0) {
+      DBUG_PRINT("info", "table open:%s, lockmode:%s",
+                 table_name, lock_mode_names[lockmode]);
+    } else {
+      DBUG_PRINT("info", "table open:%s", table_name);
+    }
+  }
   return r;
 }
 
@@ -59,6 +83,7 @@ table_open(Oid relationId, LOCKMODE lockmode)
 Relation
 try_table_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = try_relation_open(relationId, lockmode);
@@ -82,6 +107,7 @@ try_table_open(Oid relationId, LOCKMODE lockmode)
 Relation
 table_openrv(const RangeVar *relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = relation_openrv(relation, lockmode);
@@ -103,6 +129,7 @@ Relation
 table_openrv_extended(const RangeVar *relation, LOCKMODE lockmode,
                       bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = relation_openrv_extended(relation, lockmode, missing_ok);
@@ -125,6 +152,20 @@ table_openrv_extended(const RangeVar *relation, LOCKMODE lockmode,
 void
 table_close(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
+
+  {
+    const char *index_name = RelationGetRelationName(relation);
+
+    if (index_name) {
+      if (lockmode > 0) {
+        DBUG_PRINT("info", "table close:%s, lockmode:%s",
+                   index_name, lock_mode_names[lockmode]);
+      } else {
+        DBUG_PRINT("info", "table close:%s", index_name);
+      }
+    }
+  }
   relation_close(relation, lockmode);
 }
 

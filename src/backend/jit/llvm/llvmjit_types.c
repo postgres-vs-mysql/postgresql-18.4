@@ -25,6 +25,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup.h"
 #include "access/htup_details.h"
@@ -80,6 +81,7 @@ extern Datum AttributeTemplate(PG_FUNCTION_ARGS);
 Datum
 AttributeTemplate(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   AssertVariableIsOfType(&AttributeTemplate, PGFunction);
 
   PG_RETURN_NULL();

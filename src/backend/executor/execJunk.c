@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 
@@ -59,6 +60,7 @@
 JunkFilter *
 ExecInitJunkFilter(List *targetList, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   JunkFilter *junkfilter;
   TupleDesc cleanTupType;
   int     cleanLength;
@@ -137,6 +139,7 @@ ExecInitJunkFilterConversion(List *targetList,
                              TupleDesc cleanTupType,
                              TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   JunkFilter *junkfilter;
   int     cleanLength;
   AttrNumber *cleanMap;
@@ -219,6 +222,7 @@ ExecFindJunkAttribute(JunkFilter *junkfilter, const char *attrName)
 AttrNumber
 ExecFindJunkAttributeInTlist(List *targetlist, const char *attrName)
 {
+  DBUG_TRACE;
   ListCell   *t;
 
   foreach(t, targetlist) {
@@ -242,6 +246,7 @@ ExecFindJunkAttributeInTlist(List *targetlist, const char *attrName)
 TupleTableSlot *
 ExecFilterJunk(JunkFilter *junkfilter, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   TupleTableSlot *resultSlot;
   AttrNumber *cleanMap;
   TupleDesc cleanTupType;

@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "catalog/pg_proc.h"
@@ -106,6 +107,7 @@ parse_analyze_fixedparams(RawStmt *parseTree, const char *sourceText,
                           const Oid *paramTypes, int numParams,
                           QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   ParseState *pstate = make_parsestate(NULL);
   Query    *query;
   JumbleState *jstate = NULL;
@@ -146,6 +148,7 @@ parse_analyze_varparams(RawStmt *parseTree, const char *sourceText,
                         Oid **paramTypes, int *numParams,
                         QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   ParseState *pstate = make_parsestate(NULL);
   Query    *query;
   JumbleState *jstate = NULL;
@@ -188,6 +191,7 @@ parse_analyze_withcb(RawStmt *parseTree, const char *sourceText,
                      void *parserSetupArg,
                      QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   ParseState *pstate = make_parsestate(NULL);
   Query    *query;
   JumbleState *jstate = NULL;
@@ -224,9 +228,11 @@ parse_sub_analyze(Node *parseTree, ParseState *parentParseState,
                   bool locked_from_parent,
                   bool resolve_unknowns)
 {
+  DBUG_TRACE;
   ParseState *pstate = make_parsestate(parentParseState);
   Query    *query;
 
+  DBUG_PRINT("info", "entry point for recursively analyzing a sub-statement");
   pstate->p_parent_cte = parentCTE;
   pstate->p_locked_from_parent = locked_from_parent;
   pstate->p_resolve_unknowns = resolve_unknowns;
@@ -248,8 +254,10 @@ parse_sub_analyze(Node *parseTree, ParseState *parentParseState,
 Query *
 transformTopLevelStmt(ParseState *pstate, RawStmt *parseTree)
 {
+  DBUG_TRACE;
   Query    *result;
 
+  DBUG_PRINT("info", "transform a Parse tree into a Query tree.");
   /* We're at top level, so allow SELECT INTO */
   result = transformOptionalSelectInto(pstate, parseTree->stmt);
 
@@ -272,8 +280,12 @@ transformTopLevelStmt(ParseState *pstate, RawStmt *parseTree)
 static Query *
 transformOptionalSelectInto(ParseState *pstate, Node *parseTree)
 {
+  DBUG_TRACE;
+
   if (IsA(parseTree, SelectStmt)) {
     SelectStmt *stmt = (SelectStmt *) parseTree;
+
+    DBUG_PRINT("info", "It is a select stmt.");
 
     /* If it's a set-operation tree, drill down to leftmost SelectStmt */
     while (stmt && stmt->op != SETOP_NONE)
@@ -310,7 +322,10 @@ transformOptionalSelectInto(ParseState *pstate, Node *parseTree)
 Query *
 transformStmt(ParseState *pstate, Node *parseTree)
 {
+  DBUG_TRACE;
   Query    *result;
+
+  DBUG_PRINT("info", "recursively transform a Parse tree into a Query tree");
 
 #ifdef DEBUG_NODE_TESTS_ENABLED
 
@@ -335,7 +350,7 @@ transformStmt(ParseState *pstate, Node *parseTree)
     }
   }
 
-#endif              /* DEBUG_NODE_TESTS_ENABLED */
+#endif
 
   /*
    * Caution: when changing the set of statement types that have non-default
@@ -347,23 +362,29 @@ transformStmt(ParseState *pstate, Node *parseTree)
      * Optimizable statements
      */
     case T_InsertStmt:
+      DBUG_PRINT("info", "it is an insert stmt and transform.");
       result = transformInsertStmt(pstate, (InsertStmt *) parseTree);
       break;
 
     case T_DeleteStmt:
+      DBUG_PRINT("info", "it is a delete stmt and transform.");
       result = transformDeleteStmt(pstate, (DeleteStmt *) parseTree);
       break;
 
     case T_UpdateStmt:
+      DBUG_PRINT("info", "it is an update stmt and transform.");
       result = transformUpdateStmt(pstate, (UpdateStmt *) parseTree);
       break;
 
     case T_MergeStmt:
+      DBUG_PRINT("info", "it is a merge stmt and transform.");
       result = transformMergeStmt(pstate, (MergeStmt *) parseTree);
       break;
 
     case T_SelectStmt: {
       SelectStmt *n = (SelectStmt *) parseTree;
+
+      DBUG_PRINT("info", "it is a select stmt and transform.");
 
       if (n->valuesLists)
         result = transformValuesClause(pstate, n);
@@ -375,10 +396,12 @@ transformStmt(ParseState *pstate, Node *parseTree)
     break;
 
     case T_ReturnStmt:
+      DBUG_PRINT("info", "it is a return stmt and transform.");
       result = transformReturnStmt(pstate, (ReturnStmt *) parseTree);
       break;
 
     case T_PLAssignStmt:
+      DBUG_PRINT("info", "it is a pl assign stmt and transform.");
       result = transformPLAssignStmt(pstate,
                                      (PLAssignStmt *) parseTree);
       break;
@@ -387,21 +410,25 @@ transformStmt(ParseState *pstate, Node *parseTree)
      * Special cases
      */
     case T_DeclareCursorStmt:
+      DBUG_PRINT("info", "it is a declare cursor stmt and transform.");
       result = transformDeclareCursorStmt(pstate,
                                           (DeclareCursorStmt *) parseTree);
       break;
 
     case T_ExplainStmt:
+      DBUG_PRINT("info", "it is a explain stmt and transform.");
       result = transformExplainStmt(pstate,
                                     (ExplainStmt *) parseTree);
       break;
 
     case T_CreateTableAsStmt:
+      DBUG_PRINT("info", "it is a create table as stmt and transform.");
       result = transformCreateTableAsStmt(pstate,
                                           (CreateTableAsStmt *) parseTree);
       break;
 
     case T_CallStmt:
+      DBUG_PRINT("info", "it is a call stmt and transform.");
       result = transformCallStmt(pstate,
                                  (CallStmt *) parseTree);
       break;
@@ -412,6 +439,7 @@ transformStmt(ParseState *pstate, Node *parseTree)
        * other statements don't require any transformation; just return
        * the original parsetree with a Query node plastered on top.
        */
+      DBUG_PRINT("info", "other statements don't require any transformation.");
       result = makeNode(Query);
       result->commandType = CMD_UTILITY;
       result->utilityStmt = (Node *) parseTree;
@@ -443,6 +471,7 @@ transformStmt(ParseState *pstate, Node *parseTree)
 bool
 stmt_requires_parse_analysis(RawStmt *parseTree)
 {
+  DBUG_TRACE;
   bool    result;
 
   switch (nodeTag(parseTree->stmt)) {
@@ -456,6 +485,7 @@ stmt_requires_parse_analysis(RawStmt *parseTree)
     case T_SelectStmt:
     case T_ReturnStmt:
     case T_PLAssignStmt:
+      DBUG_PRINT("info", "optimizable statements");
       result = true;
       break;
 
@@ -466,13 +496,21 @@ stmt_requires_parse_analysis(RawStmt *parseTree)
     case T_ExplainStmt:
     case T_CreateTableAsStmt:
     case T_CallStmt:
+      DBUG_PRINT("info", "special cases");
       result = true;
       break;
 
     default:
+      DBUG_PRINT("info", "all other statements just get wrapped in a CMD_UTILITY Query");
       /* all other statements just get wrapped in a CMD_UTILITY Query */
       result = false;
       break;
+  }
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
   }
 
   return result;
@@ -486,6 +524,7 @@ stmt_requires_parse_analysis(RawStmt *parseTree)
 bool
 analyze_requires_snapshot(RawStmt *parseTree)
 {
+  DBUG_TRACE;
   /*
    * Currently, this should return true in exactly the same cases that
    * stmt_requires_parse_analysis() does, so we just invoke that function
@@ -515,6 +554,7 @@ analyze_requires_snapshot(RawStmt *parseTree)
 bool
 query_requires_rewrite_plan(Query *query)
 {
+  DBUG_TRACE;
   bool    result;
 
   if (query->commandType != CMD_UTILITY) {
@@ -536,6 +576,12 @@ query_requires_rewrite_plan(Query *query)
     }
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -546,20 +592,24 @@ query_requires_rewrite_plan(Query *query)
 static Query *
 transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   ParseNamespaceItem *nsitem;
   Node     *qual;
 
+  DBUG_PRINT("info", "transform a Delete Statement");
   qry->commandType = CMD_DELETE;
 
   /* process the WITH clause independently of all else */
   if (stmt->withClause) {
+    DBUG_PRINT("info", "process the WITH clause independently of all else");
     qry->hasRecursive = stmt->withClause->recursive;
     qry->cteList = transformWithClause(pstate, stmt->withClause);
     qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
   }
 
   /* set up range table with just the result rel */
+  DBUG_PRINT("info", "set up range table with just the result rel");
   qry->resultRelation = setTargetTable(pstate, stmt->relation,
                                        stmt->relation->inh,
                                        true,
@@ -625,6 +675,7 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 static Query *
 transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   SelectStmt *selectStmt = (SelectStmt *) stmt->selectStmt;
   List     *exprList = NIL;
@@ -642,6 +693,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
   bool    isOnConflictUpdate;
   AclMode   targetPerms;
 
+  DBUG_PRINT("info", "transform an Insert Statement");
   /* There can't be any outer WITH to worry about */
   Assert(pstate->p_ctenamespace == NIL);
 
@@ -855,6 +907,7 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
         /* Remember post-transformation length of first sublist */
         sublist_length = list_length(sublist);
       } else if (sublist_length != list_length(sublist)) {
+        DBUG_INSTANT_PRINT("info", "VALUES lists must all be the same length");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("VALUES lists must all be the same length"),
@@ -1039,10 +1092,13 @@ transformInsertRow(ParseState *pstate, List *exprlist,
                    List *stmtcols, List *icolumns, List *attrnos,
                    bool strip_indirection)
 {
+  DBUG_TRACE;
   List     *result;
   ListCell   *lc;
   ListCell   *icols;
   ListCell   *attnos;
+
+  DBUG_PRINT("info", "prepare an INSERT row for assignment to the target table");
 
   /*
    * Check length of expr list.  It must not have more expressions than
@@ -1051,13 +1107,15 @@ transformInsertRow(ParseState *pstate, List *exprlist,
    * defaulted).  Note we must check this *after* transformation because
    * that could expand '*' into multiple items.
    */
-  if (list_length(exprlist) > list_length(icolumns))
+  if (list_length(exprlist) > list_length(icolumns)) {
+    DBUG_INSTANT_PRINT("info", "INSERT has more expressions than target columns");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("INSERT has more expressions than target columns"),
              parser_errposition(pstate,
                                 exprLocation(list_nth(exprlist,
                                     list_length(icolumns))))));
+  }
 
   if (stmtcols != NIL &&
       list_length(exprlist) < list_length(icolumns)) {
@@ -1070,6 +1128,7 @@ transformInsertRow(ParseState *pstate, List *exprlist,
      * mismatch, which is less misleading so we don't worry about giving a
      * hint in that case.)
      */
+    DBUG_INSTANT_PRINT("info", "INSERT has more target columns than expressions");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("INSERT has more target columns than expressions"),
@@ -1141,6 +1200,7 @@ static OnConflictExpr *
 transformOnConflictClause(ParseState *pstate,
                           OnConflictClause *onConflictClause)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *exclNSItem = NULL;
   List     *arbiterElems;
   Node     *arbiterWhere;
@@ -1150,6 +1210,8 @@ transformOnConflictClause(ParseState *pstate,
   int     exclRelIndex = 0;
   List     *exclRelTlist = NIL;
   OnConflictExpr *result;
+
+  DBUG_PRINT("info", "transform an OnConflictClause in an INSERT");
 
   /*
    * If this is ON CONFLICT ... UPDATE, first create the range table entry
@@ -1246,10 +1308,13 @@ List *
 BuildOnConflictExcludedTargetlist(Relation targetrel,
                                   Index exclRelIndex)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   int     attno;
   Var      *var;
   TargetEntry *te;
+
+  DBUG_PRINT("info", "create target list for the EXCLUDED pseudo-relation of ON CONFLICT");
 
   /*
    * Note that resnos of the tlist must correspond to attnos of the
@@ -1311,11 +1376,18 @@ BuildOnConflictExcludedTargetlist(Relation targetrel,
 static int
 count_rowexpr_columns(ParseState *pstate, Node *expr)
 {
-  if (expr == NULL)
-    return -1;
+  DBUG_TRACE;
 
-  if (IsA(expr, RowExpr))
-    return list_length(((RowExpr *) expr)->args);
+  if (expr == NULL) {
+    DBUG_PRINT("info", "return -1");
+    return -1;
+  }
+
+  if (IsA(expr, RowExpr)) {
+    int result = list_length(((RowExpr *) expr)->args);
+    DBUG_PRINT("info", "get number of columns contained in a ROW() expression:%d", result);
+    return result;
+  }
 
   if (IsA(expr, Var)) {
     Var      *var = (Var *) expr;
@@ -1331,17 +1403,23 @@ count_rowexpr_columns(ParseState *pstate, Node *expr)
         TargetEntry *ste = get_tle_by_resno(rte->subquery->targetList,
                                             attnum);
 
-        if (ste == NULL || ste->resjunk)
+        if (ste == NULL || ste->resjunk) {
+          DBUG_PRINT("info", "return -1");
           return -1;
+        }
 
         expr = (Node *) ste->expr;
 
-        if (IsA(expr, RowExpr))
-          return list_length(((RowExpr *) expr)->args);
+        if (IsA(expr, RowExpr)) {
+          int result = list_length(((RowExpr *) expr)->args);
+          DBUG_PRINT("info", "get number of columns contained in a ROW() expression:%d", result);
+          return result;
+        }
       }
     }
   }
 
+  DBUG_PRINT("info", "return -1");
   return -1;
 }
 
@@ -1356,26 +1434,31 @@ count_rowexpr_columns(ParseState *pstate, Node *expr)
 static Query *
 transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   Node     *qual;
   ListCell   *l;
 
+  DBUG_PRINT("info", "transforms a Select Statement");
   qry->commandType = CMD_SELECT;
 
   /* process the WITH clause independently of all else */
   if (stmt->withClause) {
+    DBUG_PRINT("info", "process the WITH clause independently of all else");
     qry->hasRecursive = stmt->withClause->recursive;
     qry->cteList = transformWithClause(pstate, stmt->withClause);
     qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
   }
 
   /* Complain if we get called from someplace where INTO is not allowed */
-  if (stmt->intoClause)
+  if (stmt->intoClause) {
+    DBUG_INSTANT_PRINT("info", "SELECT ... INTO is not allowed here");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("SELECT ... INTO is not allowed here"),
              parser_errposition(pstate,
                                 exprLocation((Node *) stmt->intoClause))));
+  }
 
   /* make FOR UPDATE/FOR SHARE info available to addRangeTableEntry */
   pstate->p_locking_clause = stmt->lockingClause;
@@ -1394,6 +1477,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
   markTargetListOrigins(pstate, qry->targetList);
 
   /* transform WHERE */
+  DBUG_PRINT("info", "transform WHERE");
   qual = transformWhereClause(pstate, stmt->whereClause,
                               EXPR_KIND_WHERE, "WHERE");
 
@@ -1441,6 +1525,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
     qry->hasDistinctOn = true;
   }
 
+  DBUG_PRINT("info", "transform LIMIT");
   /* transform LIMIT */
   qry->limitOffset = transformLimitClause(pstate, stmt->limitOffset,
                                           EXPR_KIND_OFFSET, "OFFSET",
@@ -1492,6 +1577,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 static Query *
 transformValuesClause(ParseState *pstate, SelectStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   List     *exprsLists = NIL;
   List     *coltypes = NIL;
@@ -1505,6 +1591,7 @@ transformValuesClause(ParseState *pstate, SelectStmt *stmt)
   ListCell   *lc2;
   int     i;
 
+  DBUG_PRINT("info", "transforms a VALUES clause that's being used as a standalone SELECT");
   qry->commandType = CMD_SELECT;
 
   /* Most SELECT stuff doesn't apply in a VALUES clause */
@@ -1553,6 +1640,7 @@ transformValuesClause(ParseState *pstate, SelectStmt *stmt)
       /* and allocate array for per-column lists */
       colexprs = (List **) palloc0(sublist_length * sizeof(List *));
     } else if (sublist_length != list_length(sublist)) {
+      DBUG_INSTANT_PRINT("info", "VALUES lists must all be the same length");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("VALUES lists must all be the same length"),
@@ -1669,7 +1757,8 @@ transformValuesClause(ParseState *pstate, SelectStmt *stmt)
                                          stmt->limitOption);
   qry->limitOption = stmt->limitOption;
 
-  if (stmt->lockingClause)
+  if (stmt->lockingClause) {
+    DBUG_INSTANT_PRINT("info", "%s cannot be applied to VALUES", LCS_asString(((LockingClause *) linitial(stmt->lockingClause))->strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
@@ -1677,6 +1766,7 @@ transformValuesClause(ParseState *pstate, SelectStmt *stmt)
              errmsg("%s cannot be applied to VALUES",
                     LCS_asString(((LockingClause *)
                                   linitial(stmt->lockingClause))->strength))));
+  }
 
   qry->rtable = pstate->p_rtable;
   qry->rteperminfos = pstate->p_rteperminfos;
@@ -1702,6 +1792,7 @@ transformValuesClause(ParseState *pstate, SelectStmt *stmt)
 static Query *
 transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   SelectStmt *leftmostSelect;
   int     leftmostRTI;
@@ -1727,6 +1818,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   int     sortcolindex;
   int     tllen;
 
+  DBUG_PRINT("info", "transforms a set-operations tree");
   qry->commandType = CMD_SELECT;
 
   /*
@@ -1738,6 +1830,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
    * INTO, so we produce that error in transformSetOperationTree.)
    */
   leftmostSelect = stmt->larg;
+  DBUG_PRINT("info", "find leftmost leaf SelectStmt");
 
   while (leftmostSelect && leftmostSelect->op != SETOP_NONE)
     leftmostSelect = leftmostSelect->larg;
@@ -1745,12 +1838,14 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   Assert(leftmostSelect && IsA(leftmostSelect, SelectStmt) &&
          leftmostSelect->larg == NULL);
 
-  if (leftmostSelect->intoClause)
+  if (leftmostSelect->intoClause) {
+    DBUG_INSTANT_PRINT("info", "SELECT ... INTO is not allowed here");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("SELECT ... INTO is not allowed here"),
              parser_errposition(pstate,
                                 exprLocation((Node *) leftmostSelect->intoClause))));
+  }
 
   /*
    * We need to extract ORDER BY and other top-level clauses here and not
@@ -1770,7 +1865,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   stmt->withClause = NULL;
 
   /* We don't support FOR UPDATE/SHARE with set ops at the moment. */
-  if (lockingClause)
+  if (lockingClause) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with UNION/INTERSECT/EXCEPT", LCS_asString(((LockingClause *) linitial(lockingClause))->strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
@@ -1778,9 +1874,11 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
              errmsg("%s is not allowed with UNION/INTERSECT/EXCEPT",
                     LCS_asString(((LockingClause *)
                                   linitial(lockingClause))->strength))));
+  }
 
   /* Process the WITH clause independently of all else */
   if (withClause) {
+    DBUG_PRINT("info", "process the WITH clause independently of all else");
     qry->hasRecursive = withClause->recursive;
     qry->cteList = transformWithClause(pstate, withClause);
     qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
@@ -1789,6 +1887,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   /*
    * Recursively transform the components of the tree.
    */
+  DBUG_PRINT("info", "recursively transform the components of the tree");
   sostmt = castNode(SetOperationStmt,
                     transformSetOperationTree(pstate, stmt, true, NULL));
   Assert(sostmt);
@@ -1797,6 +1896,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   /*
    * Re-find leftmost SELECT (now it's a sub-query in rangetable)
    */
+  DBUG_PRINT("info", "re-find leftmost SELECT");
   node = sostmt->larg;
 
   while (node && IsA(node, SetOperationStmt))
@@ -1912,7 +2012,8 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
   pstate->p_namespace = sv_namespace;
   pstate->p_rtable = list_truncate(pstate->p_rtable, sv_rtable_length);
 
-  if (tllen != list_length(qry->targetList))
+  if (tllen != list_length(qry->targetList)) {
+    DBUG_INSTANT_PRINT("info", "invalid UNION/INTERSECT/EXCEPT ORDER BY clause");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("invalid UNION/INTERSECT/EXCEPT ORDER BY clause"),
@@ -1920,6 +2021,7 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
              errhint("Add the expression/function to every SELECT, or move the UNION into a FROM clause."),
              parser_errposition(pstate,
                                 exprLocation(list_nth(qry->targetList, tllen)))));
+  }
 
   qry->limitOffset = transformLimitClause(pstate, limitOffset,
                                           EXPR_KIND_OFFSET, "OFFSET",
@@ -1961,11 +2063,13 @@ transformSetOperationStmt(ParseState *pstate, SelectStmt *stmt)
 SortGroupClause *
 makeSortGroupClauseForSetOp(Oid rescoltype, bool require_hash)
 {
+  DBUG_TRACE;
   SortGroupClause *grpcl = makeNode(SortGroupClause);
   Oid     sortop;
   Oid     eqop;
   bool    hashable;
 
+  DBUG_PRINT("info", "make a SortGroupClause node for a SetOperationStmt's groupClauses");
   /* determine the eqop and optional sortop */
   get_sort_group_operators(rescoltype,
                            false, true, false,
@@ -2010,25 +2114,30 @@ static Node *
 transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
                           bool isTopLevel, List **targetlist)
 {
+  DBUG_TRACE;
   bool    isLeaf;
 
   Assert(stmt && IsA(stmt, SelectStmt));
 
+  DBUG_PRINT("info", "recursively transform leaves and internal nodes of a set-op tree");
   /* Guard against stack overflow due to overly complex set-expressions */
   check_stack_depth();
 
   /*
    * Validity-check both leaf and internal SELECTs for disallowed ops.
    */
-  if (stmt->intoClause)
+  if (stmt->intoClause) {
+    DBUG_INSTANT_PRINT("info", "INTO is only allowed on first SELECT of UNION/INTERSECT/EXCEPT");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("INTO is only allowed on first SELECT of UNION/INTERSECT/EXCEPT"),
              parser_errposition(pstate,
                                 exprLocation((Node *) stmt->intoClause))));
+  }
 
   /* We don't support FOR UPDATE/SHARE with set ops at the moment. */
-  if (stmt->lockingClause)
+  if (stmt->lockingClause) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with UNION/INTERSECT/EXCEPT", LCS_asString(((LockingClause *) linitial(stmt->lockingClause))->strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
@@ -2036,6 +2145,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
              errmsg("%s is not allowed with UNION/INTERSECT/EXCEPT",
                     LCS_asString(((LockingClause *)
                                   linitial(stmt->lockingClause))->strength))));
+  }
 
   /*
    * If an internal node of a set-op tree has ORDER BY, LIMIT, FOR UPDATE,
@@ -2064,6 +2174,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
     RangeTblRef *rtr;
     ListCell   *tl;
 
+    DBUG_PRINT("info", "process leaf SELECT");
     /*
      * Transform SelectStmt into a Query.
      *
@@ -2088,12 +2199,14 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
      * inside a rule.
      */
     if (pstate->p_namespace) {
-      if (contain_vars_of_level((Node *) selectQuery, 1))
+      if (contain_vars_of_level((Node *) selectQuery, 1)) {
+        DBUG_INSTANT_PRINT("info", "UNION/INTERSECT/EXCEPT member statement cannot refer to other relations of same query level");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  errmsg("UNION/INTERSECT/EXCEPT member statement cannot refer to other relations of same query level"),
                  parser_errposition(pstate,
                                     locate_var_of_level((Node *) selectQuery, 1))));
+      }
     }
 
     /*
@@ -2113,6 +2226,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
     /*
      * Make the leaf query be a subquery in the top-level rangetable.
      */
+    DBUG_PRINT("info", "make the leaf query be a subquery in the top-level rangetable");
     snprintf(selectName, sizeof(selectName), "*SELECT* %d",
              list_length(pstate->p_rtable) + 1);
     nsitem = addRangeTableEntryForSubquery(pstate,
@@ -2124,6 +2238,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
     /*
      * Return a RangeTblRef to replace the SelectStmt in the set-op tree.
      */
+    DBUG_PRINT("info", "return a RangeTblRef to replace the SelectStmt in the set-op tree");
     rtr = makeNode(RangeTblRef);
     rtr->rtindex = nsitem->p_rtindex;
     return (Node *) rtr;
@@ -2138,6 +2253,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
     bool    recursive = (pstate->p_parent_cte &&
                          pstate->p_parent_cte->cterecursive);
 
+    DBUG_PRINT("info", "process an internal node (set operation node)");
     context = (stmt->op == SETOP_UNION ? "UNION" :
                (stmt->op == SETOP_INTERSECT ? "INTERSECT" :
                 "EXCEPT"));
@@ -2148,6 +2264,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
     /*
      * Recursively transform the left child node.
      */
+    DBUG_PRINT("info", "recursively transform the left child node");
     op->larg = transformSetOperationTree(pstate, stmt->larg,
                                          false,
                                          &ltargetlist);
@@ -2158,12 +2275,15 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
      * containing CTE as having those result columns.  We should do this
      * only at the topmost setop of the CTE, of course.
      */
-    if (isTopLevel && recursive)
+    if (isTopLevel && recursive) {
+      DBUG_PRINT("info", "examine the non-recursive term's output columns and mark the containing CTE as having those result columns");
       determineRecursiveColTypes(pstate, op->larg, ltargetlist);
+    }
 
     /*
      * Recursively transform the right child node.
      */
+    DBUG_PRINT("info", "recursively transform the right child node");
     op->rarg = transformSetOperationTree(pstate, stmt->rarg,
                                          false,
                                          &rtargetlist);
@@ -2172,13 +2292,15 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
      * Verify that the two children have the same number of non-junk
      * columns, and determine the types of the merged output columns.
      */
-    if (list_length(ltargetlist) != list_length(rtargetlist))
+    if (list_length(ltargetlist) != list_length(rtargetlist)) {
+      DBUG_INSTANT_PRINT("info", "each %s query must have the same number of columns", context);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("each %s query must have the same number of columns",
                       context),
                parser_errposition(pstate,
                                   exprLocation((Node *) rtargetlist))));
+    }
 
     if (targetlist)
       *targetlist = NIL;
@@ -2201,11 +2323,14 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
       Oid     rescolcoll;
 
       /* select common type, same as CASE et al */
+      DBUG_PRINT("info", "select common type, same as CASE et al");
       rescoltype = select_common_type(pstate,
                                       list_make2(lcolnode, rcolnode),
                                       context,
                                       &bestexpr);
       bestlocation = exprLocation(bestexpr);
+
+      DBUG_PRINT("info", "verify the coercions are actually possible");
 
       /*
        * Verify the coercions are actually possible.  If not, we'd fail
@@ -2267,6 +2392,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
        * if something at a higher query level wants to use the column's
        * collation.)
        */
+      DBUG_PRINT("info", "select common collation");
       rescolcoll = select_common_collation(pstate,
                                            list_make2(lcolnode, rcolnode),
                                            (op->op == SETOP_UNION && op->all));
@@ -2329,6 +2455,7 @@ transformSetOperationTree(ParseState *pstate, SelectStmt *stmt,
 static void
 determineRecursiveColTypes(ParseState *pstate, Node *larg, List *nrtargetlist)
 {
+  DBUG_TRACE;
   Node     *node;
   int     leftmostRTI;
   Query    *leftmostQuery;
@@ -2337,9 +2464,11 @@ determineRecursiveColTypes(ParseState *pstate, Node *larg, List *nrtargetlist)
   ListCell   *nrtl;
   int     next_resno;
 
+  DBUG_PRINT("info", "process the outputs of the non-recursive term of a recursive union to set up the parent CTE's columns");
   /*
    * Find leftmost leaf SELECT
    */
+  DBUG_PRINT("info", "find leftmost leaf SELECT");
   node = larg;
 
   while (node && IsA(node, SetOperationStmt))
@@ -2372,6 +2501,7 @@ determineRecursiveColTypes(ParseState *pstate, Node *larg, List *nrtargetlist)
     targetList = lappend(targetList, tle);
   }
 
+  DBUG_PRINT("info", "now build CTE's output column info using dummy targetlist");
   /* Now build CTE's output column info using dummy targetlist */
   analyzeCTETargetList(pstate, pstate->p_parent_cte, targetList);
 }
@@ -2386,6 +2516,7 @@ transformReturnStmt(ParseState *pstate, ReturnStmt *stmt)
 {
   Query    *qry = makeNode(Query);
 
+  DBUG_PRINT("info", "transform a return statement");
   qry->commandType = CMD_SELECT;
   qry->isReturn = true;
 
@@ -2416,12 +2547,15 @@ transformReturnStmt(ParseState *pstate, ReturnStmt *stmt)
 static Query *
 transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   ParseNamespaceItem *nsitem;
   Node     *qual;
 
   qry->commandType = CMD_UPDATE;
   pstate->p_is_insert = false;
+
+  DBUG_PRINT("info", "transform an update statement");
 
   /* process the WITH clause independently of all else */
   if (stmt->withClause) {
@@ -2445,6 +2579,7 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
             errmsg("WHERE CURRENT OF on a view is not implemented"));
 
   /* subqueries in FROM cannot access the result relation */
+  DBUG_PRINT("info", "subqueries in FROM cannot access the result relation");
   nsitem->p_lateral_only = true;
   nsitem->p_lateral_ok = false;
 
@@ -2489,11 +2624,13 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 List *
 transformUpdateTargetList(ParseState *pstate, List *origTlist)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   RTEPermissionInfo *target_perminfo;
   ListCell   *orig_tl;
   ListCell   *tl;
 
+  DBUG_PRINT("info", "handle SET clause in UPDATE/MERGE/INSERT ... ON CONFLICT UPDATE");
   tlist = transformTargetList(pstate, origTlist,
                               EXPR_KIND_UPDATE_SOURCE);
 
@@ -2530,7 +2667,8 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
     attrno = attnameAttNum(pstate->p_target_relation,
                            origTarget->name, true);
 
-    if (attrno == InvalidAttrNumber)
+    if (attrno == InvalidAttrNumber) {
+      DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", origTarget->name, RelationGetRelationName(pstate->p_target_relation));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column \"%s\" of relation \"%s\" does not exist",
@@ -2540,6 +2678,7 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
                 strcmp(origTarget->name, pstate->p_target_nsitem->p_names->aliasname) == 0) ?
                errhint("SET target columns cannot be qualified with the relation name.") : 0,
                parser_errposition(pstate, origTarget->location)));
+    }
 
     updateTargetListEntry(pstate, tle, origTarget->name,
                           attrno,
@@ -2608,8 +2747,11 @@ transformReturningClause(ParseState *pstate, Query *qry,
                          ReturningClause *returningClause,
                          ParseExprKind exprKind)
 {
+  DBUG_TRACE;
   int     save_nslen = list_length(pstate->p_namespace);
   int     save_next_resno;
+
+  DBUG_PRINT("info", "handle a RETURNING clause in INSERT/UPDATE/DELETE/MERGE");
 
   if (returningClause == NULL)
     return;         /* nothing to do */
@@ -2621,23 +2763,27 @@ transformReturningClause(ParseState *pstate, Query *qry,
   foreach_node(ReturningOption, option, returningClause->options) {
     switch (option->option) {
       case RETURNING_OPTION_OLD:
-        if (qry->returningOldAlias != NULL)
+        if (qry->returningOldAlias != NULL) {
+          DBUG_INSTANT_PRINT("info", "%s cannot be specified multiple times", "OLD");
           ereport(ERROR,
                   errcode(ERRCODE_SYNTAX_ERROR),
                   /* translator: %s is OLD or NEW */
                   errmsg("%s cannot be specified multiple times", "OLD"),
                   parser_errposition(pstate, option->location));
+        }
 
         qry->returningOldAlias = option->value;
         break;
 
       case RETURNING_OPTION_NEW:
-        if (qry->returningNewAlias != NULL)
+        if (qry->returningNewAlias != NULL) {
+          DBUG_INSTANT_PRINT("info", "%s cannot be specified multiple times", "NEW");
           ereport(ERROR,
                   errcode(ERRCODE_SYNTAX_ERROR),
                   /* translator: %s is OLD or NEW */
                   errmsg("%s cannot be specified multiple times", "NEW"),
                   parser_errposition(pstate, option->location));
+        }
 
         qry->returningNewAlias = option->value;
         break;
@@ -2646,12 +2792,14 @@ transformReturningClause(ParseState *pstate, Query *qry,
         elog(ERROR, "unrecognized returning option: %d", option->option);
     }
 
-    if (refnameNamespaceItem(pstate, NULL, option->value, -1, NULL) != NULL)
+    if (refnameNamespaceItem(pstate, NULL, option->value, -1, NULL) != NULL) {
+      DBUG_INSTANT_PRINT("info", "table name \"%s\" specified more than once", option->value);
       ereport(ERROR,
               errcode(ERRCODE_DUPLICATE_ALIAS),
               errmsg("table name \"%s\" specified more than once",
                      option->value),
               parser_errposition(pstate, option->location));
+    }
 
     addNSItemForReturning(pstate, option->value,
                           option->option == RETURNING_OPTION_OLD ?
@@ -2693,12 +2841,14 @@ transformReturningClause(ParseState *pstate, Query *qry,
    * allow this, the parsed Query will look like it didn't have RETURNING,
    * with results that would probably surprise the user.
    */
-  if (qry->returningList == NIL)
+  if (qry->returningList == NIL) {
+    DBUG_INSTANT_PRINT("info", "RETURNING must have at least one column");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("RETURNING must have at least one column"),
              parser_errposition(pstate,
                                 exprLocation(linitial(returningClause->exprs)))));
+  }
 
   /* mark column origins */
   markTargetListOrigins(pstate, qry->returningList);
@@ -2727,6 +2877,7 @@ transformReturningClause(ParseState *pstate, Query *qry,
 static Query *
 transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   ColumnRef  *cref = makeNode(ColumnRef);
   List     *indirection = stmt->indirection;
@@ -2742,6 +2893,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
   Node     *qual;
   ListCell   *l;
 
+  DBUG_PRINT("info", "transform a PL/pgSQL assignment statement");
   /*
    * First, construct a ColumnRef for the target variable.  If the target
    * has more than one dotted name, we have to pull the extra names out of
@@ -2752,6 +2904,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
 
   if (nnames > 1) {
     /* avoid munging the raw parsetree */
+    DBUG_PRINT("info", "avoid munging the raw parsetree");
     indirection = list_copy(indirection);
 
     while (--nnames > 0 && indirection != NIL) {
@@ -2769,6 +2922,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
    * Transform the target reference.  Typically we will get back a Param
    * node, but there's no reason to be too picky about its type.
    */
+  DBUG_PRINT("info", "transform the target reference");
   target = transformExpr(pstate, (Node *) cref,
                          EXPR_KIND_UPDATE_TARGET);
   targettype = exprType(target);
@@ -2796,13 +2950,16 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
                               EXPR_KIND_SELECT_TARGET);
 
   /* we should have exactly one targetlist item */
-  if (list_length(tlist) != 1)
+  if (list_length(tlist) != 1) {
+    DBUG_PRINT("info", "we should have exactly one targetlist item");
+    DBUG_INSTANT_PRINT("info", "assignment source returned %d column", list_length(tlist));
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg_plural("assignment source returned %d column",
                            "assignment source returned %d columns",
                            list_length(tlist),
                            list_length(tlist))));
+  }
 
   tle = linitial_node(TargetEntry, tlist);
 
@@ -2853,16 +3010,21 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
                                       -1);
 
     /* With COERCION_PLPGSQL, this error is probably unreachable */
-    if (tle->expr == NULL)
+    if (tle->expr == NULL) {
+      char *format1 = format_type_be(targettype);
+      char *format2 = format_type_be(type_id);
+      DBUG_INSTANT_PRINT("info", "variable \"%s\" is of type %s but expression is of type %s",
+                         stmt->name, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("variable \"%s\" is of type %s"
                       " but expression is of type %s",
                       stmt->name,
-                      format_type_be(targettype),
-                      format_type_be(type_id)),
+                      format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression."),
                parser_errposition(pstate, exprLocation(orig_expr))));
+    }
   }
 
   pstate->p_expr_kind = EXPR_KIND_NONE;
@@ -2870,10 +3032,12 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
   qry->targetList = list_make1(tle);
 
   /* transform WHERE */
+  DBUG_PRINT("info", "transform WHERE");
   qual = transformWhereClause(pstate, sstmt->whereClause,
                               EXPR_KIND_WHERE, "WHERE");
 
   /* initial processing of HAVING clause is much like WHERE clause */
+  DBUG_PRINT("info", "initial processing of HAVING clause is much like WHERE clause");
   qry->havingQual = transformWhereClause(pstate, sstmt->havingClause,
                                          EXPR_KIND_HAVING, "HAVING");
 
@@ -2883,6 +3047,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
    * that these functions can also change the targetList, so it's passed to
    * them by reference.
    */
+  DBUG_PRINT("info", "transform sorting/grouping stuff");
   qry->sortClause = transformSortClause(pstate,
                                         sstmt->sortClause,
                                         &qry->targetList,
@@ -2903,6 +3068,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
     qry->hasDistinctOn = false;
   } else if (linitial(sstmt->distinctClause) == NULL) {
     /* We had SELECT DISTINCT */
+    DBUG_PRINT("info", "we had SELECT DISTINCT");
     qry->distinctClause = transformDistinctClause(pstate,
                           &qry->targetList,
                           qry->sortClause,
@@ -2910,6 +3076,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
     qry->hasDistinctOn = false;
   } else {
     /* We had SELECT DISTINCT ON */
+    DBUG_PRINT("info", "we had SELECT DISTINCT ON");
     qry->distinctClause = transformDistinctOnClause(pstate,
                           sstmt->distinctClause,
                           &qry->targetList,
@@ -2918,6 +3085,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
   }
 
   /* transform LIMIT */
+  DBUG_PRINT("info", "transform LIMIT");
   qry->limitOffset = transformLimitClause(pstate, sstmt->limitOffset,
                                           EXPR_KIND_OFFSET, "OFFSET",
                                           sstmt->limitOption);
@@ -2926,6 +3094,7 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
                                          sstmt->limitOption);
   qry->limitOption = sstmt->limitOption;
 
+  DBUG_PRINT("info", "transform window clauses after we have seen all window functions");
   /* transform window clauses after we have seen all window functions */
   qry->windowClause = transformWindowDefinitions(pstate,
                       pstate->p_windowdefs,
@@ -2968,24 +3137,31 @@ transformPLAssignStmt(ParseState *pstate, PLAssignStmt *stmt)
 static Query *
 transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *result;
   Query    *query;
 
+  DBUG_PRINT("info", "transform a DECLARE CURSOR Statement");
+
   if ((stmt->options & CURSOR_OPT_SCROLL) &&
-      (stmt->options & CURSOR_OPT_NO_SCROLL))
+      (stmt->options & CURSOR_OPT_NO_SCROLL)) {
+    DBUG_INSTANT_PRINT("info", "cannot specify both %s and %s", "SCROLL", "NO SCROLL");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_DEFINITION),
              /* translator: %s is a SQL keyword */
              errmsg("cannot specify both %s and %s",
                     "SCROLL", "NO SCROLL")));
+  }
 
   if ((stmt->options & CURSOR_OPT_ASENSITIVE) &&
-      (stmt->options & CURSOR_OPT_INSENSITIVE))
+      (stmt->options & CURSOR_OPT_INSENSITIVE)) {
+    DBUG_INSTANT_PRINT("info", "cannot specify both %s and %s", "ASENSITIVE", "INSENSITIVE");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_DEFINITION),
              /* translator: %s is a SQL keyword */
              errmsg("cannot specify both %s and %s",
                     "ASENSITIVE", "INSENSITIVE")));
+  }
 
   /* Transform contained query, not allowing SELECT INTO */
   query = transformStmt(pstate, stmt->query);
@@ -3001,13 +3177,16 @@ transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
    * allowed, but the semantics of when the updates occur might be
    * surprising.)
    */
-  if (query->hasModifyingCTE)
+  if (query->hasModifyingCTE) {
+    DBUG_INSTANT_PRINT("info", "DECLARE CURSOR must not contain data-modifying statements in WITH");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("DECLARE CURSOR must not contain data-modifying statements in WITH")));
+  }
 
   /* FOR UPDATE and WITH HOLD are not compatible */
-  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_HOLD))
+  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_HOLD)) {
+    DBUG_INSTANT_PRINT("info", "DECLARE CURSOR WITH HOLD ... %s is not supported", LCS_asString(((RowMarkClause *) linitial(query->rowMarks))->strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
@@ -3016,9 +3195,11 @@ transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
                     LCS_asString(((RowMarkClause *)
                                   linitial(query->rowMarks))->strength)),
              errdetail("Holdable cursors must be READ ONLY.")));
+  }
 
   /* FOR UPDATE and SCROLL are not compatible */
-  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_SCROLL))
+  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_SCROLL)) {
+    DBUG_INSTANT_PRINT("info", "FOR UPDATE and SCROLL are not compatible");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
@@ -3027,9 +3208,11 @@ transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
                     LCS_asString(((RowMarkClause *)
                                   linitial(query->rowMarks))->strength)),
              errdetail("Scrollable cursors must be READ ONLY.")));
+  }
 
   /* FOR UPDATE and INSENSITIVE are not compatible */
-  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_INSENSITIVE))
+  if (query->rowMarks != NIL && (stmt->options & CURSOR_OPT_INSENSITIVE)) {
+    DBUG_INSTANT_PRINT("info", "FOR UPDATE and INSENSITIVE are not compatible");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_DEFINITION),
              /*------
@@ -3038,6 +3221,7 @@ transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
                     LCS_asString(((RowMarkClause *)
                                   linitial(query->rowMarks))->strength)),
              errdetail("Insensitive cursors must be READ ONLY.")));
+  }
 
   /* represent the command as a utility Query */
   result = makeNode(Query);
@@ -3061,10 +3245,13 @@ transformDeclareCursorStmt(ParseState *pstate, DeclareCursorStmt *stmt)
 static Query *
 transformExplainStmt(ParseState *pstate, ExplainStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *result;
   bool    generic_plan = false;
   Oid      *paramTypes = NULL;
   int     numParams = 0;
+
+  DBUG_PRINT("info", "transform an EXPLAIN Statement");
 
   /*
    * If we have no external source of parameter definitions, and the
@@ -3113,44 +3300,54 @@ transformExplainStmt(ParseState *pstate, ExplainStmt *stmt)
 static Query *
 transformCreateTableAsStmt(ParseState *pstate, CreateTableAsStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *result;
   Query    *query;
 
+  DBUG_PRINT("info", "transform a CREATE TABLE AS, SELECT ... INTO, or CREATE MATERIALIZED VIEW Statement");
   /* transform contained query, not allowing SELECT INTO */
   query = transformStmt(pstate, stmt->query);
   stmt->query = (Node *) query;
 
   /* additional work needed for CREATE MATERIALIZED VIEW */
   if (stmt->objtype == OBJECT_MATVIEW) {
+    DBUG_PRINT("info", "additional work needed for CREATE MATERIALIZED VIEW");
+
     /*
      * Prohibit a data-modifying CTE in the query used to create a
      * materialized view. It's not sufficiently clear what the user would
      * want to happen if the MV is refreshed or incrementally maintained.
      */
-    if (query->hasModifyingCTE)
+    if (query->hasModifyingCTE) {
+      DBUG_INSTANT_PRINT("info", "materialized views must not use data-modifying statements in WITH");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("materialized views must not use data-modifying statements in WITH")));
+    }
 
     /*
      * Check whether any temporary database objects are used in the
      * creation query. It would be hard to refresh data or incrementally
      * maintain it if a source disappeared.
      */
-    if (isQueryUsingTempRelation(query))
+    if (isQueryUsingTempRelation(query)) {
+      DBUG_INSTANT_PRINT("info", "materialized views must not use temporary tables or views");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("materialized views must not use temporary tables or views")));
+    }
 
     /*
      * A materialized view would either need to save parameters for use in
      * maintaining/loading the data or prohibit them entirely.  The latter
      * seems safer and more sane.
      */
-    if (query_contains_extern_params(query))
+    if (query_contains_extern_params(query)) {
+      DBUG_INSTANT_PRINT("info", "materialized views may not be defined using bound parameters");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("materialized views may not be defined using bound parameters")));
+    }
 
     /*
      * For now, we disallow unlogged materialized views, because it seems
@@ -3159,10 +3356,12 @@ transformCreateTableAsStmt(ParseState *pstate, CreateTableAsStmt *stmt)
      * requires catalog changes which crash recovery can't presently
      * handle.)
      */
-    if (stmt->into->rel->relpersistence == RELPERSISTENCE_UNLOGGED)
+    if (stmt->into->rel->relpersistence == RELPERSISTENCE_UNLOGGED) {
+      DBUG_INSTANT_PRINT("info", "materialized views cannot be unlogged");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("materialized views cannot be unlogged")));
+    }
 
     /*
      * At runtime, we'll need a copy of the parsed-but-not-rewritten Query
@@ -3174,6 +3373,7 @@ transformCreateTableAsStmt(ParseState *pstate, CreateTableAsStmt *stmt)
   }
 
   /* represent the command as a utility Query */
+  DBUG_PRINT("info", "represent the command as a utility Query");
   result = makeNode(Query);
   result->commandType = CMD_UTILITY;
   result->utilityStmt = (Node *) stmt;
@@ -3187,6 +3387,7 @@ transformCreateTableAsStmt(ParseState *pstate, CreateTableAsStmt *stmt)
 static Query *
 transformCallStmt(ParseState *pstate, CallStmt *stmt)
 {
+  DBUG_TRACE;
   List     *targs;
   ListCell   *lc;
   Node     *node;
@@ -3197,6 +3398,7 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
   List     *outargs = NIL;
   Query    *result;
 
+  DBUG_PRINT("info", "transform a CallStmt");
   /*
    * First, do standard parse analysis on the procedure call and its
    * arguments, allowing us to identify the called procedure.
@@ -3348,63 +3550,80 @@ LCS_asString(LockClauseStrength strength)
 void
 CheckSelectLocking(Query *qry, LockClauseStrength strength)
 {
+  DBUG_TRACE;
   Assert(strength != LCS_NONE); /* else caller error */
 
-  if (qry->setOperations)
+  DBUG_PRINT("info", "check for features that are not supported with FOR [KEY] UPDATE/SHARE");
+
+  if (qry->setOperations) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with UNION/INTERSECT/EXCEPT", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with UNION/INTERSECT/EXCEPT",
                     LCS_asString(strength))));
+  }
 
-  if (qry->distinctClause != NIL)
+  if (qry->distinctClause != NIL) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with DISTINCT clause", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with DISTINCT clause",
                     LCS_asString(strength))));
+  }
 
-  if (qry->groupClause != NIL || qry->groupingSets != NIL)
+  if (qry->groupClause != NIL || qry->groupingSets != NIL) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with GROUP BY clause", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with GROUP BY clause",
                     LCS_asString(strength))));
+  }
 
-  if (qry->havingQual != NULL)
+  if (qry->havingQual != NULL) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with HAVING clause", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with HAVING clause",
                     LCS_asString(strength))));
+  }
 
-  if (qry->hasAggs)
+  if (qry->hasAggs) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with aggregate functions", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with aggregate functions",
                     LCS_asString(strength))));
+  }
 
-  if (qry->hasWindowFuncs)
+  if (qry->hasWindowFuncs) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with window functions", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with window functions",
                     LCS_asString(strength))));
+  }
 
-  if (qry->hasTargetSRFs)
+  if (qry->hasTargetSRFs) {
+    DBUG_INSTANT_PRINT("info", "%s is not allowed with set-returning functions in the target list", LCS_asString(strength));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*------
                translator: %s is a SQL row locking clause such as FOR UPDATE */
              errmsg("%s is not allowed with set-returning functions in the target list",
                     LCS_asString(strength))));
+  }
 }
 
 /*
@@ -3419,12 +3638,14 @@ static void
 transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
                        bool pushedDown)
 {
+  DBUG_TRACE;
   List     *lockedRels = lc->lockedRels;
   ListCell   *l;
   ListCell   *rt;
   Index   i;
   LockingClause *allrels;
 
+  DBUG_PRINT("info", "transform a FOR [KEY] UPDATE/SHARE clause");
   CheckSelectLocking(qry, lc->strength);
 
   /* make a clause we can pass down to subqueries to select all rels */
@@ -3495,7 +3716,8 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
       RangeVar   *thisrel = (RangeVar *) lfirst(l);
 
       /* For simplicity we insist on unqualified alias names here */
-      if (thisrel->catalogname || thisrel->schemaname)
+      if (thisrel->catalogname || thisrel->schemaname) {
+        DBUG_INSTANT_PRINT("info", "%s must specify unqualified relation names", LCS_asString(lc->strength));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  /*------
@@ -3503,6 +3725,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
                  errmsg("%s must specify unqualified relation names",
                         LCS_asString(lc->strength)),
                  parser_errposition(pstate, thisrel->location)));
+      }
 
       i = 0;
 
@@ -3558,6 +3781,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_JOIN:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to a join", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3568,6 +3792,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_FUNCTION:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to a function", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3578,6 +3803,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_TABLEFUNC:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to a table function", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3588,6 +3814,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_VALUES:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to VALUES", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3598,6 +3825,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_CTE:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to a WITH query", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3608,6 +3836,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
               break;
 
             case RTE_NAMEDTUPLESTORE:
+              DBUG_INSTANT_PRINT("info", "%s cannot be applied to a named tuplestore", LCS_asString(lc->strength));
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        /*------
@@ -3620,6 +3849,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
             /* Shouldn't be possible to see RTE_RESULT here */
 
             default:
+              DBUG_INSTANT_PRINT("info", "unrecognized RTE type: %d", (int) rte->rtekind);
               elog(ERROR, "unrecognized RTE type: %d",
                    (int) rte->rtekind);
               break;
@@ -3629,7 +3859,8 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
         }
       }
 
-      if (rt == NULL)
+      if (rt == NULL) {
+        DBUG_INSTANT_PRINT("info", "relation \"%s\" in %s clause not found in FROM clause", thisrel->relname, LCS_asString(lc->strength));
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_TABLE),
                  /*------
@@ -3638,6 +3869,7 @@ transformLockingClause(ParseState *pstate, Query *qry, LockingClause *lc,
                         thisrel->relname,
                         LCS_asString(lc->strength)),
                  parser_errposition(pstate, thisrel->location)));
+      }
     }
   }
 }
@@ -3650,8 +3882,10 @@ applyLockingClause(Query *qry, Index rtindex,
                    LockClauseStrength strength, LockWaitPolicy waitPolicy,
                    bool pushedDown)
 {
+  DBUG_TRACE;
   RowMarkClause *rc;
 
+  DBUG_PRINT("info", "record locking info for a single rangetable item");
   Assert(strength != LCS_NONE); /* else caller error */
 
   /* If it's an explicit clause, make sure hasForUpdate gets set */
@@ -3713,4 +3947,4 @@ test_raw_expression_coverage(Node *node, void *context)
                                     test_raw_expression_coverage,
                                     context);
 }
-#endif              /* DEBUG_NODE_TESTS_ENABLED */
+#endif

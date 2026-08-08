@@ -31,6 +31,7 @@
  *
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -172,6 +173,7 @@ PG_FUNCTION_INFO_V1(normal_rand);
 Datum
 normal_rand(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   uint64    call_cntr;
   uint64    max_calls;
@@ -279,6 +281,7 @@ normal_rand(PG_FUNCTION_ARGS)
 static void
 get_normal_pair(float8 *x1, float8 *x2)
 {
+  DBUG_TRACE;
   float8    u1,
             u2,
             v1,
@@ -346,6 +349,7 @@ PG_FUNCTION_INFO_V1(crosstab);
 Datum
 crosstab(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *sql = text_to_cstring(PG_GETARG_TEXT_PP(0));
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Tuplestorestate *tupstore;
@@ -619,6 +623,7 @@ PG_FUNCTION_INFO_V1(crosstab_hash);
 Datum
 crosstab_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *sql = text_to_cstring(PG_GETARG_TEXT_PP(0));
   char     *cats_sql = text_to_cstring(PG_GETARG_TEXT_PP(1));
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -689,6 +694,7 @@ crosstab_hash(PG_FUNCTION_ARGS)
 static HTAB *
 load_categories_hash(char *cats_sql, MemoryContext per_query_ctx)
 {
+  DBUG_TRACE;
   HTAB     *crosstab_hash;
   HASHCTL   ctl;
   int     ret;
@@ -777,6 +783,7 @@ get_crosstab_tuplestore(char *sql,
                         TupleDesc tupdesc,
                         bool randomAccess)
 {
+  DBUG_TRACE;
   Tuplestorestate *tupstore;
   int     num_categories = hash_get_num_entries(crosstab_hash);
   AttInMetadata *attinmeta = TupleDescGetAttInMetadata(tupdesc);
@@ -955,6 +962,7 @@ PG_FUNCTION_INFO_V1(connectby_text);
 Datum
 connectby_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *relname = text_to_cstring(PG_GETARG_TEXT_PP(0));
   char     *key_fld = text_to_cstring(PG_GETARG_TEXT_PP(1));
   char     *parent_key_fld = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -1032,6 +1040,7 @@ PG_FUNCTION_INFO_V1(connectby_text_serial);
 Datum
 connectby_text_serial(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *relname = text_to_cstring(PG_GETARG_TEXT_PP(0));
   char     *key_fld = text_to_cstring(PG_GETARG_TEXT_PP(1));
   char     *parent_key_fld = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -1124,6 +1133,7 @@ connectby(char *relname,
           bool randomAccess,
           AttInMetadata *attinmeta)
 {
+  DBUG_TRACE;
   Tuplestorestate *tupstore = NULL;
   MemoryContext oldcontext;
   int     serial = 1;
@@ -1178,6 +1188,7 @@ build_tuplestore_recursively(char *key_fld,
                              AttInMetadata *attinmeta,
                              Tuplestorestate *tupstore)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = attinmeta->tupdesc;
   int     ret;
   uint64    proc;
@@ -1380,6 +1391,7 @@ build_tuplestore_recursively(char *key_fld,
 static void
 validateConnectbyTupleDesc(TupleDesc td, bool show_branch, bool show_serial)
 {
+  DBUG_TRACE;
   int     expected_cols;
 
   /* are there the correct number of columns */
@@ -1442,6 +1454,7 @@ validateConnectbyTupleDesc(TupleDesc td, bool show_branch, bool show_serial)
 static void
 compatConnectbyTupleDescs(TupleDesc ret_tupdesc, TupleDesc sql_tupdesc)
 {
+  DBUG_TRACE;
   Oid     ret_atttypid;
   Oid     sql_atttypid;
   int32   ret_atttypmod;
@@ -1497,6 +1510,7 @@ compatConnectbyTupleDescs(TupleDesc ret_tupdesc, TupleDesc sql_tupdesc)
 static void
 compatCrosstabTupleDescs(TupleDesc ret_tupdesc, TupleDesc sql_tupdesc)
 {
+  DBUG_TRACE;
   int     i;
   Oid     ret_atttypid;
   Oid     sql_atttypid;

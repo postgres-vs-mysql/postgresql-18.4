@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -33,6 +34,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/selfuncs.h"
+#include "utils/lsyscache.h"
 
 typedef enum {
   COSTS_EQUAL,        /* path costs are fuzzily equal */
@@ -56,6 +58,325 @@ static List *reparameterize_pathlist_by_child(PlannerInfo *root,
     RelOptInfo *child_rel);
 static bool pathlist_is_reparameterizable_by_child(List *pathlist,
     RelOptInfo *child_rel);
+
+static const char *get_plan_type_str(char* name, int type)
+{
+  const char *pname = NULL;
+
+  switch (type) {
+    case T_Result:
+      pname = "result";
+      break;
+
+    case T_ProjectSet:
+      pname = "project set";
+      break;
+
+    case T_ModifyTable:
+      pname = "modify table";
+      break;
+
+    case T_Append:
+      pname = "append";
+      break;
+
+    case T_MergeAppend:
+      pname = "merge append";
+      break;
+
+    case T_RecursiveUnion:
+      pname = "recursive union";
+      break;
+
+    case T_BitmapAnd:
+      pname = "bitmap and";
+      break;
+
+    case T_BitmapOr:
+      pname = "bitmap or";
+      break;
+
+    case T_NestLoop:
+      pname = "nested loop";
+      break;
+
+    case T_MergeJoin:
+      pname = "merge join";
+      break;
+
+    case T_HashJoin:
+      pname = "hash join";
+      break;
+
+    case T_SeqScan:
+      pname = "seq scan";
+      break;
+
+    case T_SampleScan:
+      pname = "sample scan";
+      break;
+
+    case T_Gather:
+      pname = "gather";
+      break;
+
+    case T_GatherMerge:
+      pname = "gather merge";
+      break;
+
+    case T_IndexScan:
+      pname = "index scan";
+      break;
+
+    case T_IndexOnlyScan:
+      pname = "index only scan";
+      break;
+
+    case T_BitmapIndexScan:
+      pname = "bitmap index scan";
+      break;
+
+    case T_BitmapHeapScan:
+      pname = "bitmap heap scan";
+      break;
+
+    case T_TidScan:
+      pname = "tid scan";
+      break;
+
+    case T_TidRangeScan:
+      pname = "tid range scan";
+      break;
+
+    case T_SubqueryScan:
+      pname = "subquery scan";
+      break;
+
+    case T_FunctionScan:
+      pname = "function scan";
+      break;
+
+    case T_TableFuncScan:
+      pname = "table function scan";
+      break;
+
+    case T_ValuesScan:
+      pname = "values scan";
+      break;
+
+    case T_CteScan:
+      pname = "cte Scan";
+      break;
+
+    case T_NamedTuplestoreScan:
+      pname = "named tuplestore scan";
+      break;
+
+    case T_WorkTableScan:
+      pname = "work table scan";
+      break;
+
+    case T_ForeignScan:
+      pname = "foreign Scan";
+      break;
+
+    case T_CustomScan:
+      pname = "custom scan";
+      break;
+
+    case T_Material:
+      pname = "materialize";
+      break;
+
+    case T_Memoize:
+      pname = "memoize";
+      break;
+
+    case T_Sort:
+      pname = "sort";
+      break;
+
+    case T_IncrementalSort:
+      pname = "incremental sort";
+      break;
+
+    case T_Group:
+      pname = "group";
+      break;
+
+    case T_Agg: {
+      pname = "aggregate";
+    }
+    break;
+
+    case T_WindowAgg:
+      pname = "window agg";
+      break;
+
+    case T_Unique:
+      pname = "unique";
+      break;
+
+    case T_SetOp:
+      pname = "set op";
+      break;
+
+    case T_LockRows:
+      pname = "lock rows";
+      break;
+
+    case T_Limit:
+      pname = "limit";
+      break;
+
+    case T_Hash:
+      pname = "hash";
+      break;
+
+    default:
+      pname = "???";
+      break;
+  }
+
+  strcpy(name, pname);
+  return name;
+}
+
+static char *
+append_int(char *p, int val)
+{
+  int n = sprintf(p, "%d", val);
+  return p + n;
+}
+
+static char *
+join_order_to_str(Path *path, char *p, int *is_ok)
+{
+  JoinPath *jpath;
+  int relid;
+
+  if (!path)
+    return p;
+
+  if (path->pathtype == T_NestLoop ||
+      path->pathtype == T_MergeJoin ||
+      path->pathtype == T_HashJoin) {
+    jpath = (JoinPath *) path;
+    p = join_order_to_str(jpath->outerjoinpath, p, is_ok);
+    *p++ = '-';
+    p = join_order_to_str(jpath->innerjoinpath, p, is_ok);
+  } else {
+    if (path->parent->reloptkind == RELOPT_BASEREL) {
+      relid = path->parent->relid;
+      p = append_int(p, relid);
+    } else {
+
+      if (IsA(path, GatherPath)) {
+        path = ((GatherPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, GatherMergePath)) {
+        path = ((GatherMergePath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, MaterialPath)) {
+        path = ((MaterialPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else {
+        *is_ok = 0;
+        DBUG_PRINT("info", "path type:%d", path->pathtype);
+      }
+    }
+  }
+
+  return p;
+}
+
+static void
+output_relids(Path *path, bool accepted)
+{
+  char out[4096];
+  int is_ok = 1;
+  char *p = join_order_to_str(path, out, &is_ok);
+  *p = '\0';  /* null-terminate */
+
+  if (is_ok) {
+    if (accepted) {
+      DBUG_PRINT("info", "accept the join plan and join order(relids):%s", out);
+    } else {
+      DBUG_PRINT("info", "join order(relids):%s", out);
+    }
+  }
+}
+
+
+static char *int_array_join_fast(const int *arr, int n, char *out, int out_size)
+{
+  char *p = out;
+  char *end = out + out_size - 1;
+  int i, j, v, len;
+  char buf[16];
+
+  for (i = 0; i < n; i++) {
+    if (i > 0) {
+      if (p < end)
+        *p++ = '-';
+      else
+        break;
+    }
+
+    v = arr[i];
+    len = 0;
+
+
+    do {
+      buf[len++] = '0' + (v % 10);
+      v /= 10;
+    } while (v > 0);
+
+
+    for (j = len - 1; j >= 0; j--) {
+      if (p < end)
+        *p++ = buf[j];
+      else
+        break;
+    }
+  }
+
+  *p = '\0';
+  return out;
+}
+
+static void
+output_relids_with_cost(RelOptInfo *parent, double total_cost)
+{
+  int relids[100];
+  int index = 0;
+  char out[2048];
+  int relid = -1;
+  {
+    if (parent->reloptkind == RELOPT_BASEREL) {
+      relids[index++] = parent->relid;
+    } else if (parent->reloptkind == RELOPT_JOINREL) {
+      while ((relid = bms_next_member(parent->relids, relid)) >= 0) {
+        relids[index++] = relid;
+
+        if (index >= 100) {
+          break;
+        }
+      }
+    } else if (parent->reloptkind == RELOPT_UPPER_REL) {
+      while ((relid = bms_next_member(parent->relids, relid)) >= 0) {
+        relids[index++] = relid;
+
+        if (index >= 100) {
+          break;
+        }
+      }
+    }
+
+  }
+
+  DBUG_PRINT("info", "join relids len:%d, relids:%s, total_cost:%g", index, int_array_join_fast(relids, index, out, 2048), total_cost);
+}
 
 
 /*****************************************************************************
@@ -127,6 +448,7 @@ int
 compare_fractional_path_costs(Path *path1, Path *path2,
                               double fraction)
 {
+  DBUG_TRACE;
   Cost    cost1,
           cost2;
 
@@ -187,15 +509,29 @@ compare_fractional_path_costs(Path *path1, Path *path2,
 static PathCostComparison
 compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 {
+  DBUG_TRACE;
+  char name1[32];
+  char name2[32];
 #define CONSIDER_PATH_STARTUP_COST(p)  \
   ((p)->param_info == NULL ? (p)->parent->consider_startup : (p)->parent->consider_param_startup)
 
+  DBUG_PRINT("info", "path1 type:%s, path2 type:%s", get_plan_type_str(name1, path1->pathtype), get_plan_type_str(name2, path2->pathtype));
+  DBUG_PRINT("info", "path1 start cost:%g, path2 start cost:%g, fuzz:%g",
+             path1->startup_cost, path2->startup_cost, fuzz_factor);
+  DBUG_PRINT("info", "path1 total cost:%g, path2 total cost:%g, fuzz:%g",
+             path1->total_cost, path2->total_cost, fuzz_factor);
+
   /* Number of disabled nodes, if different, trumps all else. */
   if (unlikely(path1->disabled_nodes != path2->disabled_nodes)) {
-    if (path1->disabled_nodes < path2->disabled_nodes)
+    DBUG_PRINT("info", "path1 disabled_nodes:%d, path2 disabled_nodes:%d", path1->disabled_nodes, path2->disabled_nodes);
+
+    if (path1->disabled_nodes < path2->disabled_nodes) {
+      DBUG_PRINT("info", "path1 dominates");
       return COSTS_BETTER1;
-    else
+    } else {
+      DBUG_PRINT("info", "path2 dominates");
       return COSTS_BETTER2;
+    }
   }
 
   /*
@@ -206,10 +542,12 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
     /* path1 fuzzily worse on total cost */
     if (CONSIDER_PATH_STARTUP_COST(path1) &&
         path2->startup_cost > path1->startup_cost * fuzz_factor) {
+      DBUG_PRINT("info", "... but path2 fuzzily worse on startup, so DIFFERENT");
       /* ... but path2 fuzzily worse on startup, so DIFFERENT */
       return COSTS_DIFFERENT;
     }
 
+    DBUG_PRINT("info", "path2 dominates");
     /* else path2 dominates */
     return COSTS_BETTER2;
   }
@@ -218,29 +556,72 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
     /* path2 fuzzily worse on total cost */
     if (CONSIDER_PATH_STARTUP_COST(path2) &&
         path1->startup_cost > path2->startup_cost * fuzz_factor) {
+      DBUG_PRINT("info", "... but path1 fuzzily worse on startup, so DIFFERENT");
       /* ... but path1 fuzzily worse on startup, so DIFFERENT */
       return COSTS_DIFFERENT;
     }
 
+    DBUG_PRINT("info", "path1 dominates");
     /* else path1 dominates */
     return COSTS_BETTER1;
   }
 
   /* fuzzily the same on total cost ... */
   if (path1->startup_cost > path2->startup_cost * fuzz_factor) {
+    DBUG_PRINT("info", "fuzzily the same on total cost but path1 fuzzily worse on startup, so path2 wins");
     /* ... but path1 fuzzily worse on startup, so path2 wins */
     return COSTS_BETTER2;
   }
 
   if (path2->startup_cost > path1->startup_cost * fuzz_factor) {
+    DBUG_PRINT("info", "fuzzily the same on total cost but path2 fuzzily worse on startup, so path1 wins");
     /* ... but path2 fuzzily worse on startup, so path1 wins */
     return COSTS_BETTER1;
   }
 
+  DBUG_PRINT("info", "fuzzily the same on both costs");
   /* fuzzily the same on both costs */
   return COSTS_EQUAL;
 
 #undef CONSIDER_PATH_STARTUP_COST
+}
+
+static void
+print_relids_tables(PlannerInfo *root, const char *prefix, Relids relids)
+{
+  int relid = -1;
+  RangeTblEntry *rte;
+
+  while ((relid = bms_next_member(relids, relid)) >= 0) {
+    rte = planner_rt_fetch(relid, root);
+
+    if (!rte) {
+      continue;
+    }
+
+    {
+      const char *alias = rte->eref ? rte->eref->aliasname : "(no alias)";
+
+      const char *relname = NULL;
+      const char *schemaname = NULL;
+      Oid nspid;
+
+      if (rte->rtekind == RTE_RELATION) {
+        relname = get_rel_name(rte->relid);
+        nspid = get_rel_namespace(rte->relid);
+        schemaname = get_namespace_name(nspid);
+      } else {
+        relname = "(subquery)";
+        schemaname = "(no schema)";
+      }
+
+      DBUG_PRINT("info", "%s (relid %d -> %s.%s (alias: %s))",
+                 prefix, relid,
+                 schemaname ? schemaname : "(null)",
+                 relname ? relname : "(null)",
+                 alias);
+    }
+  }
 }
 
 /*
@@ -271,13 +652,16 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
  * list for the rel node.
  */
 void
-set_cheapest(RelOptInfo *parent_rel)
+set_cheapest(PlannerInfo *root, RelOptInfo *parent_rel)
 {
+  DBUG_TRACE;
   Path     *cheapest_startup_path;
   Path     *cheapest_total_path;
   Path     *best_param_path;
   List     *parameterized_paths;
   ListCell   *p;
+  char        name[32];
+  int count = 0;
 
   Assert(IsA(parent_rel, RelOptInfo));
 
@@ -291,42 +675,54 @@ set_cheapest(RelOptInfo *parent_rel)
     Path     *path = (Path *) lfirst(p);
     int     cmp;
 
+    count++;
+    DBUG_PRINT("info", "check path(%s, cost:%g) from pathlist, count:%d", get_plan_type_str(name, path->pathtype), path->total_cost, count);
+
     if (path->param_info) {
       /* Parameterized path, so add it to parameterized_paths */
+      DBUG_PRINT("info", "parameterized path(rows:%g, total_cost:%g), so add it to parameterized_paths", path->rows, path->total_cost);
       parameterized_paths = lappend(parameterized_paths, path);
 
       /*
        * If we have an unparameterized cheapest-total, we no longer care
        * about finding the best parameterized path, so move on.
        */
-      if (cheapest_total_path)
+      if (cheapest_total_path) {
+        DBUG_PRINT("info", "when we have an unparameterized cheapest-total,");
+        DBUG_PRINT("info", "we no longer care about finding the best parameterized path, so move on");
         continue;
+      }
 
       /*
        * Otherwise, track the best parameterized path, which is the one
        * with least total cost among those of the minimum
        * parameterization.
        */
-      if (best_param_path == NULL)
+      if (best_param_path == NULL) {
         best_param_path = path;
-      else {
+        DBUG_PRINT("info", "set this path as best_param_path");
+      } else {
         switch (bms_subset_compare(PATH_REQ_OUTER(path),
                                    PATH_REQ_OUTER(best_param_path))) {
           case BMS_EQUAL:
 
             /* keep the cheaper one */
             if (compare_path_costs(path, best_param_path,
-                                   TOTAL_COST) < 0)
+                                   TOTAL_COST) < 0) {
               best_param_path = path;
+              DBUG_PRINT("info", "keep the cheaper one");
+            }
 
             break;
 
           case BMS_SUBSET1:
             /* new path is less-parameterized */
             best_param_path = path;
+            DBUG_PRINT("info", "new path is less-parameterized");
             break;
 
           case BMS_SUBSET2:
+            DBUG_PRINT("info", "old path is less-parameterized, keep it");
             /* old path is less-parameterized, keep it */
             break;
 
@@ -337,12 +733,17 @@ set_cheapest(RelOptInfo *parent_rel)
              * parameterization for the rel.  We'll sit on the old
              * path until something better comes along.
              */
+            DBUG_PRINT("info", "this means that neither path has the least possible parameterization for the rel");
             break;
         }
       }
     } else {
       /* Unparameterized path, so consider it for cheapest slots */
       if (cheapest_total_path == NULL) {
+        char tmp_name[32];
+        DBUG_PRINT("info", "first, current cheapest path, pathtype:%s, total cost:%g",
+                   get_plan_type_str(tmp_name, path->pathtype), path->total_cost);
+
         cheapest_startup_path = cheapest_total_path = path;
         continue;
       }
@@ -367,21 +768,32 @@ set_cheapest(RelOptInfo *parent_rel)
       if (cmp > 0 ||
           (cmp == 0 &&
            compare_pathkeys(cheapest_total_path->pathkeys,
-                            path->pathkeys) == PATHKEYS_BETTER2))
+                            path->pathkeys) == PATHKEYS_BETTER2)) {
+        char tmp_name[32];
         cheapest_total_path = path;
+        DBUG_PRINT("info", "current cheapest path, pathtype:%s, total cost:%g",
+                   get_plan_type_str(tmp_name, path->pathtype), path->total_cost);
+      }
     }
   }
 
   /* Add cheapest unparameterized path, if any, to parameterized_paths */
-  if (cheapest_total_path)
+  if (cheapest_total_path) {
+    DBUG_PRINT("info", "add cheapest unparameterized path(rows:%g, total_cost:%g) to parameterized_paths",
+               cheapest_total_path->rows, cheapest_total_path->total_cost);
     parameterized_paths = lcons(cheapest_total_path, parameterized_paths);
+  }
 
   /*
    * If there is no unparameterized path, use the best parameterized path as
    * cheapest_total_path (but not as cheapest_startup_path).
    */
-  if (cheapest_total_path == NULL)
+  if (cheapest_total_path == NULL) {
+    DBUG_PRINT("info", "when there is no unparameterized path, use the best parameterized path as cheapest_total_path");
     cheapest_total_path = best_param_path;
+  } else {
+    DBUG_PRINT("info", "ignore parameterized paths for cheapest_total_path when it is not nullptr");
+  }
 
   Assert(cheapest_total_path != NULL);
 
@@ -389,6 +801,70 @@ set_cheapest(RelOptInfo *parent_rel)
   parent_rel->cheapest_total_path = cheapest_total_path;
   parent_rel->cheapest_unique_path = NULL;  /* computed only if needed */
   parent_rel->cheapest_parameterized_paths = parameterized_paths;
+
+  {
+    if (root) {
+      if (parent_rel->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[parent_rel->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "parent_rel's reloptkind: relation and table:%s", rte->eref->aliasname);
+        }
+      } else if (parent_rel->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: join");
+        print_relids_tables(root, "joinrel", parent_rel->relids);
+      } else if (parent_rel->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: upper rel");
+        print_relids_tables(root, "upper_rel", parent_rel->relids);
+      } else {
+        DBUG_PRINT("info", "parent_rel's reloptkind:%d", parent_rel->reloptkind);
+      }
+    }
+  }
+  DBUG_PRINT("info", "set cheapest_total_path (total_cost: %g) for parent_rel, path type: %s", cheapest_total_path->total_cost,
+             get_plan_type_str(name, cheapest_total_path->pathtype));
+  DBUG_PRINT("info", "set cheapest_parameterized_paths (len:%d) for parent_rel", list_length(parent_rel->cheapest_parameterized_paths));
+  DBUG_PRINT("info", "pathlist length for parent_rel:%d", list_length(parent_rel->pathlist));
+
+}
+
+static const char *get_costcmp_str(int costcmp)
+{
+  switch(costcmp) {
+    case COSTS_EQUAL:
+      return "path costs are fuzzily equal";
+
+    case COSTS_BETTER1:
+      return "first path is cheaper than second";
+
+    case COSTS_BETTER2:
+      return "second path is cheaper than first";
+
+    case COSTS_DIFFERENT:
+      return "neither path dominates the other on cost";
+  }
+
+  return "";
+}
+
+
+static const char *get_keyscmp_str(int keyscmp)
+{
+  switch(keyscmp) {
+    case PATHKEYS_EQUAL:
+      return "pathkeys are identical";
+
+    case PATHKEYS_BETTER1:
+      return "pathkey 1 is a superset of pathkey 2";
+
+    case PATHKEYS_BETTER2:
+      return "pathkey 2 is a superset of pathkey 1";
+
+    case PATHKEYS_DIFFERENT:
+      return "neither pathkey includes the other";
+  }
+
+  return "";
 }
 
 /*
@@ -464,12 +940,15 @@ set_cheapest(RelOptInfo *parent_rel)
  * Returns nothing, but modifies parent_rel->pathlist.
  */
 void
-add_path(RelOptInfo *parent_rel, Path *new_path)
+add_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path)
 {
+  DBUG_TRACE;
   bool    accept_new = true;  /* unless we find a superior old path */
   int     insert_at = 0;  /* where to insert new item */
   List     *new_path_pathkeys;
   ListCell   *p1;
+  char name[32];
+  int count = 0;
 
   /*
    * This is a convenient place to check for query cancel --- no part of the
@@ -479,6 +958,18 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 
   /* Pretend parameterized paths have no pathkeys, per comment above */
   new_path_pathkeys = new_path->param_info ? NIL : new_path->pathkeys;
+
+  DBUG_PRINT("info", "loop to check proposed new path(%s and total cost:%g) against old paths",
+             get_plan_type_str(name, new_path->pathtype), new_path->total_cost);
+
+  if (new_path->pathtype == T_IndexScan ||
+      new_path->pathtype == T_IndexOnlyScan) {
+    IndexPath *ipath = (IndexPath *) new_path;
+    IndexOptInfo *indexinfo = ipath->indexinfo;
+    const char *index_name = get_rel_name(indexinfo->indexoid);
+
+    DBUG_PRINT("info", "use index: %s", index_name);
+  }
 
   /*
    * Loop to check proposed new path against old paths.  Note it is possible
@@ -492,6 +983,7 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
     PathKeysComparison keyscmp;
     BMS_Comparison outercmp;
 
+    count++;
     /*
      * Do a fuzzy cost comparison with standard fuzziness limit.
      */
@@ -516,6 +1008,7 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
       old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
       keyscmp = compare_pathkeys(new_path_pathkeys,
                                  old_path_pathkeys);
+      DBUG_PRINT("info", "costcmp:%s, keyscmp:%s", get_costcmp_str(costcmp), get_keyscmp_str(keyscmp));
 
       if (keyscmp != PATHKEYS_DIFFERENT) {
         switch (costcmp) {
@@ -527,14 +1020,18 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
               if ((outercmp == BMS_EQUAL ||
                    outercmp == BMS_SUBSET1) &&
                   new_path->rows <= old_path->rows &&
-                  new_path->parallel_safe >= old_path->parallel_safe)
+                  new_path->parallel_safe >= old_path->parallel_safe) {
+                DBUG_PRINT("info", "keyscmp=PATHKEYS_BETTER1, costcmp=COSTS_EQUAL and new dominates old");
                 remove_old = true;  /* new dominates old */
+              }
             } else if (keyscmp == PATHKEYS_BETTER2) {
               if ((outercmp == BMS_EQUAL ||
                    outercmp == BMS_SUBSET2) &&
                   new_path->rows >= old_path->rows &&
-                  new_path->parallel_safe <= old_path->parallel_safe)
+                  new_path->parallel_safe <= old_path->parallel_safe) {
+                DBUG_PRINT("info", "keyscmp=PATHKEYS_BETTER2, costcmp=COSTS_EQUAL and old dominates new");
                 accept_new = false; /* old dominates new */
+              }
             } else { /* keyscmp == PATHKEYS_EQUAL */
               if (outercmp == BMS_EQUAL) {
                 /*
@@ -553,31 +1050,40 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
                  * and total costs compare differently.
                  */
                 if (new_path->parallel_safe >
-                    old_path->parallel_safe)
+                    old_path->parallel_safe) {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp parallel_safe and new dominates old");
                   remove_old = true;  /* new dominates old */
-                else if (new_path->parallel_safe <
-                         old_path->parallel_safe)
+                } else if (new_path->parallel_safe <
+                           old_path->parallel_safe) {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp parallel_safe and old dominates new");
                   accept_new = false; /* old dominates new */
-                else if (new_path->rows < old_path->rows)
+                } else if (new_path->rows < old_path->rows) {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp rows and new dominates old");
                   remove_old = true;  /* new dominates old */
-                else if (new_path->rows > old_path->rows)
+                } else if (new_path->rows > old_path->rows) {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp rows and old dominates new");
                   accept_new = false; /* old dominates new */
-                else if (compare_path_costs_fuzzily(new_path,
-                                                    old_path,
-                                                    1.0000000001) == COSTS_BETTER1)
+                } else if (compare_path_costs_fuzzily(new_path,
+                                                      old_path,
+                                                      1.0000000001) == COSTS_BETTER1) {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp path costs and new dominates old");
                   remove_old = true;  /* new dominates old */
-                else
+                } else {
+                  DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_EQUAL, cmp path costs and old dominates new");
                   accept_new = false; /* old equals or
-
-                             * dominates new */
+                                       * dominates new */
+                }
               } else if (outercmp == BMS_SUBSET1 &&
                          new_path->rows <= old_path->rows &&
-                         new_path->parallel_safe >= old_path->parallel_safe)
+                         new_path->parallel_safe >= old_path->parallel_safe) {
+                DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_SUBSET1, cmp rows and parallel_safe and new dominates old");
                 remove_old = true;  /* new dominates old */
-              else if (outercmp == BMS_SUBSET2 &&
-                       new_path->rows >= old_path->rows &&
-                       new_path->parallel_safe <= old_path->parallel_safe)
+              } else if (outercmp == BMS_SUBSET2 &&
+                         new_path->rows >= old_path->rows &&
+                         new_path->parallel_safe <= old_path->parallel_safe) {
+                DBUG_PRINT("info", "keyscmp=PATHKEYS_EQUAL, outercmp=BMS_SUBSET2, cmp rows and parallel_safe and old dominates new");
                 accept_new = false; /* old dominates new */
+              }
 
               /* else different parameterizations, keep both */
             }
@@ -592,8 +1098,10 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
               if ((outercmp == BMS_EQUAL ||
                    outercmp == BMS_SUBSET1) &&
                   new_path->rows <= old_path->rows &&
-                  new_path->parallel_safe >= old_path->parallel_safe)
+                  new_path->parallel_safe >= old_path->parallel_safe) {
+                DBUG_PRINT("info", "costcmp=COSTS_BETTER1 and new dominates old");
                 remove_old = true;  /* new dominates old */
+              }
             }
 
             break;
@@ -606,8 +1114,12 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
               if ((outercmp == BMS_EQUAL ||
                    outercmp == BMS_SUBSET2) &&
                   new_path->rows >= old_path->rows &&
-                  new_path->parallel_safe <= old_path->parallel_safe)
+                  new_path->parallel_safe <= old_path->parallel_safe) {
+                DBUG_PRINT("info", "costcmp=COSTS_BETTER2 and old dominates new");
                 accept_new = false; /* old dominates new */
+              }
+            } else {
+              DBUG_PRINT("info", "no check");
             }
 
             break;
@@ -621,12 +1133,15 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
             break;
         }
       }
+    } else {
+      DBUG_PRINT("info", "costcmp:%s", get_costcmp_str(costcmp));
     }
 
     /*
      * Remove current element from pathlist if dominated by new.
      */
     if (remove_old) {
+      DBUG_PRINT("info", "remove old path(%s) from pathlist if dominated by new", get_plan_type_str(name, old_path->pathtype));
       parent_rel->pathlist = foreach_delete_current(parent_rel->pathlist,
                              p1);
 
@@ -651,15 +1166,47 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
      * scanning the pathlist; we will not add new_path, and we assume
      * new_path cannot dominate any other elements of the pathlist.
      */
-    if (!accept_new)
+    if (!accept_new) {
+      DBUG_PRINT("info", "if we found an old path that dominates new_path, we can quit scanning the pathlist");
       break;
+    }
+  }
+
+  {
+    if (root) {
+      if (accept_new) {
+        output_relids(new_path, true);
+      } else {
+        output_relids(new_path, false);
+      }
+
+      if (parent_rel->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[parent_rel->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "parent_rel's reloptkind: relation and table:%s", rte->eref->aliasname);
+        }
+      } else if (parent_rel->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: join");
+        print_relids_tables(root, "joinrel", parent_rel->relids);
+      } else if (parent_rel->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: upper rel");
+        print_relids_tables(root, "upper_rel", parent_rel->relids);
+      } else {
+        DBUG_PRINT("info", "parent_rel's reloptkind:%d", parent_rel->reloptkind);
+      }
+    }
   }
 
   if (accept_new) {
+    DBUG_PRINT("info", "after %d comparisons, the new path(rows:%g, cost:%g) is accepted and inserted", count, new_path->rows, new_path->total_cost);
     /* Accept the new path: insert it at proper place in pathlist */
     parent_rel->pathlist =
       list_insert_nth(parent_rel->pathlist, insert_at, new_path);
+    DBUG_PRINT("info", "path list len:%d",  parent_rel->pathlist->length);
   } else {
+    DBUG_PRINT("info", "after %d comparisons, reject and recycle the new path", count);
+
     /* Reject and recycle the new path */
     if (!IsA(new_path, IndexPath))
       pfree(new_path);
@@ -684,13 +1231,17 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
  * so the required information has to be passed piecemeal.
  */
 bool
-add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
+add_path_precheck(PlannerInfo *root, RelOptInfo *parent_rel, int disabled_nodes,
                   Cost startup_cost, Cost total_cost,
                   List *pathkeys, Relids required_outer)
 {
+  DBUG_TRACE;
   List     *new_path_pathkeys;
   bool    consider_startup;
   ListCell   *p1;
+  char name[32];
+
+  DBUG_PRINT("info", "check whether a proposed new path could possibly get accepted");
 
   /* Pretend parameterized paths have no pathkeys, per add_path policy */
   new_path_pathkeys = required_outer ? NIL : pathkeys;
@@ -702,6 +1253,8 @@ add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
     Path     *old_path = (Path *) lfirst(p1);
     PathKeysComparison keyscmp;
 
+    DBUG_PRINT("info", "total_cost:%g, old path total cost:%g", total_cost, old_path->total_cost);
+
     /*
      * Since the pathlist is sorted by disabled_nodes and then by
      * total_cost, we can stop looking once we reach a path with more
@@ -709,10 +1262,17 @@ add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
      * total_cost larger than the new path's.
      */
     if (unlikely(old_path->disabled_nodes != disabled_nodes)) {
-      if (disabled_nodes < old_path->disabled_nodes)
+      DBUG_PRINT("info", "disabled_nodes:%d, old path disabled_nodes:%d", disabled_nodes, old_path->disabled_nodes);
+
+      if (disabled_nodes < old_path->disabled_nodes) {
+        DBUG_PRINT("info", "we can stop looking once we reach a path with more disabled nodes");
         break;
-    } else if (total_cost <= old_path->total_cost * STD_FUZZ_FACTOR)
+      }
+    } else if (total_cost <= old_path->total_cost * STD_FUZZ_FACTOR) {
+      DBUG_PRINT("info", "we can stop looking once we reach a path(%s) with the same number of disabled nodes plus a total_cost larger than the new path's",
+                 get_plan_type_str(name, old_path->pathtype));
       break;
+    }
 
     /*
      * We are looking for an old_path with the same parameterization (and
@@ -728,21 +1288,68 @@ add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
       /* new path loses on cost, so check pathkeys... */
       List     *old_path_pathkeys;
 
+      DBUG_PRINT("info", "new path loses on cost, so check pathkeys");
       old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
       keyscmp = compare_pathkeys(new_path_pathkeys,
                                  old_path_pathkeys);
 
       if (keyscmp == PATHKEYS_EQUAL ||
           keyscmp == PATHKEYS_BETTER2) {
+        DBUG_PRINT("info", "new path does not win on pathkeys");
+
         /* new path does not win on pathkeys... */
         if (bms_equal(required_outer, PATH_REQ_OUTER(old_path))) {
           /* Found an old path that dominates the new one */
+          if (root) {
+            if (parent_rel->reloptkind == RELOPT_BASEREL) {
+              RangeTblEntry *rte = root->simple_rte_array[parent_rel->relid];
+
+              if (rte) {
+                DBUG_PRINT("info", "parent_rel's reloptkind: relation and table:%s", rte->eref->aliasname);
+              }
+            } else if (parent_rel->reloptkind == RELOPT_JOINREL) {
+              DBUG_PRINT("info", "parent_rel's reloptkind: join");
+              print_relids_tables(root, "joinrel", parent_rel->relids);
+            } else if (parent_rel->reloptkind == RELOPT_UPPER_REL) {
+              DBUG_PRINT("info", "parent_rel's reloptkind: upper rel");
+              print_relids_tables(root, "upper_rel", parent_rel->relids);
+            } else {
+              DBUG_PRINT("info", "parent_rel's reloptkind:%d", parent_rel->reloptkind);
+            }
+          }
+
+          DBUG_PRINT("info", "Found an old path(%s, total_cost:%g) that dominates the new one(%g)", get_plan_type_str(name, old_path->pathtype),
+                     old_path->total_cost, total_cost);
           return false;
         }
       }
     }
   }
 
+  {
+    if (root) {
+      output_relids_with_cost(parent_rel, total_cost);
+
+      if (parent_rel->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[parent_rel->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "parent_rel's reloptkind: relation and table:%s", rte->eref->aliasname);
+        }
+      } else if (parent_rel->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: join");
+        print_relids_tables(root, "joinrel", parent_rel->relids);
+      } else if (parent_rel->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: upper rel");
+        print_relids_tables(root, "upper_rel", parent_rel->relids);
+      } else {
+        DBUG_PRINT("info", "parent_rel's reloptkind:%d", parent_rel->reloptkind);
+      }
+    }
+  }
+
+
+  DBUG_PRINT("info", "new path does win on pathkeys");
   return true;
 }
 
@@ -786,11 +1393,14 @@ add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
  *    referenced by partial BitmapHeapPaths.
  */
 void
-add_partial_path(RelOptInfo *parent_rel, Path *new_path)
+add_partial_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path)
 {
+  DBUG_TRACE;
   bool    accept_new = true;  /* unless we find a superior old path */
   int     insert_at = 0;  /* where to insert new item */
   ListCell   *p1;
+  char name[32];
+  int count = 0;
 
   /* Check for query cancel. */
   CHECK_FOR_INTERRUPTS();
@@ -801,6 +1411,8 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
   /* Relation should be OK for parallelism, too. */
   Assert(parent_rel->consider_parallel);
 
+  DBUG_PRINT("info", "loop to check proposed new path(%s) against old paths", get_plan_type_str(name, new_path->pathtype));
+
   /*
    * As in add_path, throw out any paths which are dominated by the new
    * path, but throw out the new path if some existing path dominates it.
@@ -810,33 +1422,46 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
     bool    remove_old = false; /* unless new proves superior */
     PathKeysComparison keyscmp;
 
+    count++;
     /* Compare pathkeys. */
     keyscmp = compare_pathkeys(new_path->pathkeys, old_path->pathkeys);
 
     /* Unless pathkeys are incompatible, keep just one of the two paths. */
     if (keyscmp != PATHKEYS_DIFFERENT) {
+      DBUG_PRINT("info", "new path total cost:%g, old path total cost:%g", new_path->total_cost, old_path->total_cost);
+      DBUG_PRINT("info", "new path disabled_nodes:%d, old path disabled_nodes:%d", new_path->disabled_nodes, old_path->disabled_nodes);
+
       if (unlikely(new_path->disabled_nodes != old_path->disabled_nodes)) {
-        if (new_path->disabled_nodes > old_path->disabled_nodes)
+        if (new_path->disabled_nodes > old_path->disabled_nodes) {
           accept_new = false;
-        else
+        } else {
           remove_old = true;
+        }
       } else if (new_path->total_cost > old_path->total_cost
                  * STD_FUZZ_FACTOR) {
+        DBUG_PRINT("info", "new path costs more; keep it only if pathkeys are better");
+
         /* New path costs more; keep it only if pathkeys are better. */
-        if (keyscmp != PATHKEYS_BETTER1)
+        if (keyscmp != PATHKEYS_BETTER1) {
           accept_new = false;
+        }
       } else if (old_path->total_cost > new_path->total_cost
                  * STD_FUZZ_FACTOR) {
+        DBUG_PRINT("info", "old path costs more; keep it only if pathkeys are better");
+
         /* Old path costs more; keep it only if pathkeys are better. */
         if (keyscmp != PATHKEYS_BETTER2)
           remove_old = true;
       } else if (keyscmp == PATHKEYS_BETTER1) {
+        DBUG_PRINT("info", "costs are about the same, new path has better pathkeys");
         /* Costs are about the same, new path has better pathkeys. */
         remove_old = true;
       } else if (keyscmp == PATHKEYS_BETTER2) {
+        DBUG_PRINT("info", "costs are about the same, old path has better pathkeys");
         /* Costs are about the same, old path has better pathkeys. */
         accept_new = false;
       } else if (old_path->total_cost > new_path->total_cost * 1.0000000001) {
+        DBUG_PRINT("info", "pathkeys are the same, and the old path costs more");
         /* Pathkeys are the same, and the old path costs more. */
         remove_old = true;
       } else {
@@ -844,6 +1469,7 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
          * Pathkeys are the same, and new path isn't materially
          * cheaper.
          */
+        DBUG_PRINT("info", "pathkeys are the same, and new path isn't materially cheaper");
         accept_new = false;
       }
     }
@@ -852,13 +1478,17 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
      * Remove current element from partial_pathlist if dominated by new.
      */
     if (remove_old) {
+      DBUG_PRINT("info", "remove current element(%s:%g) from partial_pathlist if dominated by new",
+                 get_plan_type_str(name, old_path->pathtype), old_path->total_cost);
       parent_rel->partial_pathlist =
         foreach_delete_current(parent_rel->partial_pathlist, p1);
       pfree(old_path);
     } else {
       /* new belongs after this old path if it has cost >= old's */
-      if (new_path->total_cost >= old_path->total_cost)
+      if (new_path->total_cost >= old_path->total_cost) {
+        DBUG_PRINT("info", "new belongs after this old path if it has cost >= old's");
         insert_at = foreach_current_index(p1) + 1;
+      }
     }
 
     /*
@@ -870,11 +1500,39 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
       break;
   }
 
+  {
+    if (root) {
+      if (accept_new) {
+        output_relids(new_path, true);
+      } else {
+        output_relids(new_path, false);
+      }
+
+      if (parent_rel->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[parent_rel->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "parent_rel's reloptkind: relation and table:%s", rte->eref->aliasname);
+        }
+      } else if (parent_rel->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: join");
+        print_relids_tables(root, "joinrel", parent_rel->relids);
+      } else if (parent_rel->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "parent_rel's reloptkind: upper rel");
+        print_relids_tables(root, "upper_rel", parent_rel->relids);
+      } else {
+        DBUG_PRINT("info", "parent_rel's reloptkind:%d", parent_rel->reloptkind);
+      }
+    }
+  }
+
   if (accept_new) {
+    DBUG_PRINT("info", "after %d comparisons, accept the new path: insert it at proper place(partial pathlist)", count);
     /* Accept the new path: insert it at proper place */
     parent_rel->partial_pathlist =
       list_insert_nth(parent_rel->partial_pathlist, insert_at, new_path);
   } else {
+    DBUG_PRINT("info", "after %d comparisons, reject and recycle the new path", count);
     /* Reject and recycle the new path */
     pfree(new_path);
   }
@@ -891,10 +1549,13 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
  * is surely a loser.
  */
 bool
-add_partial_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
+add_partial_path_precheck(PlannerInfo *root, RelOptInfo *parent_rel, int disabled_nodes,
                           Cost total_cost, List *pathkeys)
 {
+  DBUG_TRACE;
   ListCell   *p1;
+
+  DBUG_PRINT("info", "check whether a proposed new partial path could possibly get accepted");
 
   /*
    * Our goal here is twofold.  First, we want to find out whether this path
@@ -915,12 +1576,16 @@ add_partial_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
 
     if (keyscmp != PATHKEYS_DIFFERENT) {
       if (total_cost > old_path->total_cost * STD_FUZZ_FACTOR &&
-          keyscmp != PATHKEYS_BETTER1)
+          keyscmp != PATHKEYS_BETTER1) {
+        DBUG_PRINT("info", "total cost:%g, old path total cost:%g and return false", total_cost, old_path->total_cost);
         return false;
+      }
 
       if (old_path->total_cost > total_cost * STD_FUZZ_FACTOR &&
-          keyscmp != PATHKEYS_BETTER2)
+          keyscmp != PATHKEYS_BETTER2) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
     }
   }
 
@@ -935,10 +1600,15 @@ add_partial_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
    * partial path; the resulting plans, if run in parallel, will be run to
    * completion.
    */
-  if (!add_path_precheck(parent_rel, disabled_nodes, total_cost, total_cost,
-                         pathkeys, NULL))
-    return false;
+  DBUG_PRINT("info", "we have to call add_path_precheck");
 
+  if (!add_path_precheck(root, parent_rel, disabled_nodes, total_cost, total_cost,
+                         pathkeys, NULL)) {
+    DBUG_PRINT("info", "return false");
+    return false;
+  }
+
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -956,6 +1626,7 @@ Path *
 create_seqscan_path(PlannerInfo *root, RelOptInfo *rel,
                     Relids required_outer, int parallel_workers)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_SeqScan;
@@ -980,6 +1651,7 @@ create_seqscan_path(PlannerInfo *root, RelOptInfo *rel,
 Path *
 create_samplescan_path(PlannerInfo *root, RelOptInfo *rel, Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_SampleScan;
@@ -1031,6 +1703,7 @@ create_index_path(PlannerInfo *root,
                   double loop_count,
                   bool partial_path)
 {
+  DBUG_TRACE;
   IndexPath  *pathnode = makeNode(IndexPath);
   RelOptInfo *rel = index->rel;
 
@@ -1075,6 +1748,7 @@ create_bitmap_heap_path(PlannerInfo *root,
                         double loop_count,
                         int parallel_degree)
 {
+  DBUG_TRACE;
   BitmapHeapPath *pathnode = makeNode(BitmapHeapPath);
 
   pathnode->path.pathtype = T_BitmapHeapScan;
@@ -1105,6 +1779,7 @@ create_bitmap_and_path(PlannerInfo *root,
                        RelOptInfo *rel,
                        List *bitmapquals)
 {
+  DBUG_TRACE;
   BitmapAndPath *pathnode = makeNode(BitmapAndPath);
   Relids    required_outer = NULL;
   ListCell   *lc;
@@ -1157,6 +1832,7 @@ create_bitmap_or_path(PlannerInfo *root,
                       RelOptInfo *rel,
                       List *bitmapquals)
 {
+  DBUG_TRACE;
   BitmapOrPath *pathnode = makeNode(BitmapOrPath);
   Relids    required_outer = NULL;
   ListCell   *lc;
@@ -1208,6 +1884,7 @@ TidPath *
 create_tidscan_path(PlannerInfo *root, RelOptInfo *rel, List *tidquals,
                     Relids required_outer)
 {
+  DBUG_TRACE;
   TidPath    *pathnode = makeNode(TidPath);
 
   pathnode->path.pathtype = T_TidScan;
@@ -1237,6 +1914,7 @@ TidRangePath *
 create_tidrangescan_path(PlannerInfo *root, RelOptInfo *rel,
                          List *tidrangequals, Relids required_outer)
 {
+  DBUG_TRACE;
   TidRangePath *pathnode = makeNode(TidRangePath);
 
   pathnode->path.pathtype = T_TidRangeScan;
@@ -1277,6 +1955,7 @@ create_append_path(PlannerInfo *root,
                    int parallel_workers, bool parallel_aware,
                    double rows)
 {
+  DBUG_TRACE;
   AppendPath *pathnode = makeNode(AppendPath);
   ListCell   *l;
 
@@ -1399,6 +2078,7 @@ create_append_path(PlannerInfo *root,
 static int
 append_total_cost_compare(const ListCell *a, const ListCell *b)
 {
+  DBUG_TRACE;
   Path     *path1 = (Path *) lfirst(a);
   Path     *path2 = (Path *) lfirst(b);
   int     cmp;
@@ -1447,6 +2127,7 @@ create_merge_append_path(PlannerInfo *root,
                          List *pathkeys,
                          Relids required_outer)
 {
+  DBUG_TRACE;
   MergeAppendPath *pathnode = makeNode(MergeAppendPath);
   int     input_disabled_nodes;
   Cost    input_startup_cost;
@@ -1554,8 +2235,10 @@ GroupResultPath *
 create_group_result_path(PlannerInfo *root, RelOptInfo *rel,
                          PathTarget *target, List *havingqual)
 {
+  DBUG_TRACE;
   GroupResultPath *pathnode = makeNode(GroupResultPath);
 
+  DBUG_PRINT("info", "create a path representing a Result-and-nothing-else plan");
   pathnode->path.pathtype = T_Result;
   pathnode->path.parent = rel;
   pathnode->path.pathtarget = target;
@@ -1576,6 +2259,8 @@ create_group_result_path(PlannerInfo *root, RelOptInfo *rel,
   pathnode->path.total_cost = target->cost.startup +
                               cpu_tuple_cost + target->cost.per_tuple;
 
+  DBUG_PRINT("info", "startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
+
   /*
    * Add cost of qual, if any --- but we ignore its selectivity, since our
    * rowcount estimate should be 1 no matter what the qual is.
@@ -1587,6 +2272,7 @@ create_group_result_path(PlannerInfo *root, RelOptInfo *rel,
     /* havingqual is evaluated once at startup */
     pathnode->path.startup_cost += qual_cost.startup + qual_cost.per_tuple;
     pathnode->path.total_cost += qual_cost.startup + qual_cost.per_tuple;
+    DBUG_PRINT("info", "add cost of qual and startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
   }
 
   return pathnode;
@@ -1600,8 +2286,10 @@ create_group_result_path(PlannerInfo *root, RelOptInfo *rel,
 MaterialPath *
 create_material_path(RelOptInfo *rel, Path *subpath)
 {
+  DBUG_TRACE;
   MaterialPath *pathnode = makeNode(MaterialPath);
 
+  DBUG_PRINT("info", "create a path corresponding to a Material plan");
   Assert(subpath->parent == rel);
 
   pathnode->path.pathtype = T_Material;
@@ -1635,6 +2323,7 @@ create_memoize_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
                     List *param_exprs, List *hash_operators,
                     bool singlerow, bool binary_mode, double calls)
 {
+  DBUG_TRACE;
   MemoizePath *pathnode = makeNode(MemoizePath);
 
   Assert(subpath->parent == rel);
@@ -1676,6 +2365,9 @@ create_memoize_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
   pathnode->path.total_cost = subpath->total_cost + cpu_tuple_cost;
   pathnode->path.rows = subpath->rows;
 
+  DBUG_PRINT("info", "create a path corresponding to a a Memoize plan");
+  DBUG_PRINT("info", "startup_cost:%g, total_cost:%g, rows:%g", pathnode->path.startup_cost,
+             pathnode->path.total_cost, pathnode->path.rows);
   return pathnode;
 }
 
@@ -1694,6 +2386,7 @@ UniquePath *
 create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
                    SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   List     *uniq_exprs;
   List     *in_operators;
   UniquePath *pathnode;
@@ -1702,6 +2395,7 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
   MemoryContext oldcontext;
   int     numCols;
 
+  DBUG_PRINT("info", "create a path representing elimination of distinct rows from the input data");
   /* Caller made a mistake if subpath isn't cheapest_total ... */
   Assert(subpath == rel->cheapest_total_path);
   Assert(subpath->parent == rel);
@@ -2044,6 +2738,7 @@ create_gather_merge_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
                          PathTarget *target, List *pathkeys,
                          Relids required_outer, double *rows)
 {
+  DBUG_TRACE;
   GatherMergePath *pathnode = makeNode(GatherMergePath);
   int     input_disabled_nodes = 0;
   Cost    input_startup_cost = 0;
@@ -2051,6 +2746,8 @@ create_gather_merge_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 
   Assert(subpath->parallel_safe);
   Assert(pathkeys);
+
+  DBUG_PRINT("info", "create a path corresponding to a gather merge scan");
 
   /*
    * The subpath should guarantee that it is adequately ordered either by
@@ -2098,6 +2795,7 @@ create_gather_merge_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 static List *
 translate_sub_tlist(List *tlist, int relid)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *l;
 
@@ -2125,6 +2823,7 @@ GatherPath *
 create_gather_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
                    PathTarget *target, Relids required_outer, double *rows)
 {
+  DBUG_TRACE;
   GatherPath *pathnode = makeNode(GatherPath);
 
   Assert(subpath->parallel_safe);
@@ -2169,8 +2868,10 @@ create_subqueryscan_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
                          bool trivial_pathtarget,
                          List *pathkeys, Relids required_outer)
 {
+  DBUG_TRACE;
   SubqueryScanPath *pathnode = makeNode(SubqueryScanPath);
 
+  DBUG_PRINT("info", "create a path corresponding to a scan of a subquery");
   pathnode->path.pathtype = T_SubqueryScan;
   pathnode->path.parent = rel;
   pathnode->path.pathtarget = rel->reltarget;
@@ -2198,8 +2899,10 @@ Path *
 create_functionscan_path(PlannerInfo *root, RelOptInfo *rel,
                          List *pathkeys, Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
+  DBUG_PRINT("info", "create a path corresponding to a sequential scan of a function");
   pathnode->pathtype = T_FunctionScan;
   pathnode->parent = rel;
   pathnode->pathtarget = rel->reltarget;
@@ -2224,6 +2927,7 @@ Path *
 create_tablefuncscan_path(PlannerInfo *root, RelOptInfo *rel,
                           Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_TableFuncScan;
@@ -2250,6 +2954,7 @@ Path *
 create_valuesscan_path(PlannerInfo *root, RelOptInfo *rel,
                        Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_ValuesScan;
@@ -2276,6 +2981,7 @@ Path *
 create_ctescan_path(PlannerInfo *root, RelOptInfo *rel,
                     List *pathkeys, Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_CteScan;
@@ -2302,6 +3008,7 @@ Path *
 create_namedtuplestorescan_path(PlannerInfo *root, RelOptInfo *rel,
                                 Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_NamedTuplestoreScan;
@@ -2328,6 +3035,7 @@ Path *
 create_resultscan_path(PlannerInfo *root, RelOptInfo *rel,
                        Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_Result;
@@ -2354,6 +3062,7 @@ Path *
 create_worktablescan_path(PlannerInfo *root, RelOptInfo *rel,
                           Relids required_outer)
 {
+  DBUG_TRACE;
   Path     *pathnode = makeNode(Path);
 
   pathnode->pathtype = T_WorkTableScan;
@@ -2394,6 +3103,7 @@ create_foreignscan_path(PlannerInfo *root, RelOptInfo *rel,
                         List *fdw_restrictinfo,
                         List *fdw_private)
 {
+  DBUG_TRACE;
   ForeignPath *pathnode = makeNode(ForeignPath);
 
   /* Historically some FDWs were confused about when to use this */
@@ -2442,7 +3152,10 @@ create_foreign_join_path(PlannerInfo *root, RelOptInfo *rel,
                          List *fdw_restrictinfo,
                          List *fdw_private)
 {
+  DBUG_TRACE;
   ForeignPath *pathnode = makeNode(ForeignPath);
+
+  DBUG_PRINT("info", "create a path corresponding to a scan of a foreign join");
 
   /*
    * We should use get_joinrel_parampathinfo to handle parameterized paths,
@@ -2451,8 +3164,10 @@ create_foreign_join_path(PlannerInfo *root, RelOptInfo *rel,
    * moment just throw an error if someone tries it; eventually we should
    * revisit this.
    */
-  if (!bms_is_empty(required_outer) || !bms_is_empty(rel->lateral_relids))
+  if (!bms_is_empty(required_outer) || !bms_is_empty(rel->lateral_relids)) {
+    DBUG_PRINT("info", "parameterized foreign joins are not supported yet");
     elog(ERROR, "parameterized foreign joins are not supported yet");
+  }
 
   pathnode->path.pathtype = T_ForeignScan;
   pathnode->path.parent = rel;
@@ -2495,8 +3210,10 @@ create_foreign_upper_path(PlannerInfo *root, RelOptInfo *rel,
                           List *fdw_restrictinfo,
                           List *fdw_private)
 {
+  DBUG_TRACE;
   ForeignPath *pathnode = makeNode(ForeignPath);
 
+  DBUG_PRINT("info", "create a path corresponding to an upper relation that's compute directly by an FDW");
   /*
    * Upper relations should never have any lateral references, since joining
    * is complete.
@@ -2538,6 +3255,7 @@ calc_nestloop_required_outer(Relids outerrelids,
                              Relids innerrelids,
                              Relids inner_paramrels)
 {
+  DBUG_TRACE;
   Relids    required_outer;
 
   /* inner_path can require rels from outer path, but not vice versa */
@@ -2564,6 +3282,7 @@ calc_nestloop_required_outer(Relids outerrelids,
 Relids
 calc_non_nestloop_required_outer(Path *outer_path, Path *inner_path)
 {
+  DBUG_TRACE;
   Relids    outer_paramrels = PATH_REQ_OUTER(outer_path);
   Relids    inner_paramrels = PATH_REQ_OUTER(inner_path);
   Relids    innerrelids PG_USED_FOR_ASSERTS_ONLY;
@@ -2625,6 +3344,7 @@ create_nestloop_path(PlannerInfo *root,
                      List *pathkeys,
                      Relids required_outer)
 {
+  DBUG_TRACE;
   NestPath   *pathnode = makeNode(NestPath);
   Relids    inner_req_outer = PATH_REQ_OUTER(inner_path);
   Relids    outerrelids;
@@ -2725,6 +3445,7 @@ create_mergejoin_path(PlannerInfo *root,
                       List *innersortkeys,
                       int outer_presorted_keys)
 {
+  DBUG_TRACE;
   MergePath  *pathnode = makeNode(MergePath);
 
   pathnode->jpath.path.pathtype = T_MergeJoin;
@@ -2790,6 +3511,7 @@ create_hashjoin_path(PlannerInfo *root,
                      Relids required_outer,
                      List *hashclauses)
 {
+  DBUG_TRACE;
   HashPath   *pathnode = makeNode(HashPath);
 
   pathnode->jpath.path.pathtype = T_HashJoin;
@@ -2849,8 +3571,11 @@ create_projection_path(PlannerInfo *root,
                        Path *subpath,
                        PathTarget *target)
 {
+  DBUG_TRACE;
   ProjectionPath *pathnode = makeNode(ProjectionPath);
   PathTarget *oldtarget;
+
+  DBUG_PRINT("info", "create a pathnode that represent performing a projection");
 
   /*
    * We mustn't put a ProjectionPath directly above another; it's useless
@@ -2896,11 +3621,13 @@ create_projection_path(PlannerInfo *root,
   if (is_projection_capable_path(subpath) ||
       equal(oldtarget->exprs, target->exprs)) {
     /* No separate Result node needed */
+    DBUG_PRINT("info", "no separate Result node needed");
     pathnode->dummypp = true;
 
     /*
      * Set cost of plan as subpath's cost, adjusted for tlist replacement.
      */
+    DBUG_PRINT("info", "set cost of plan as subpath's cost, adjusted for tlist replacement");
     pathnode->path.rows = subpath->rows;
     pathnode->path.disabled_nodes = subpath->disabled_nodes;
     pathnode->path.startup_cost = subpath->startup_cost +
@@ -2908,9 +3635,11 @@ create_projection_path(PlannerInfo *root,
     pathnode->path.total_cost = subpath->total_cost +
                                 (target->cost.startup - oldtarget->cost.startup) +
                                 (target->cost.per_tuple - oldtarget->cost.per_tuple) * subpath->rows;
+    DBUG_PRINT("info", "new total cost:%g, subpath total cost:%g", pathnode->path.total_cost, subpath->total_cost);
   } else {
     /* We really do need the Result node */
     pathnode->dummypp = false;
+    DBUG_PRINT("info", "we really do need the Result node");
 
     /*
      * The Result node's cost is cpu_tuple_cost per row, plus the cost of
@@ -2923,6 +3652,7 @@ create_projection_path(PlannerInfo *root,
     pathnode->path.total_cost = subpath->total_cost +
                                 target->cost.startup +
                                 (cpu_tuple_cost + target->cost.per_tuple) * subpath->rows;
+    DBUG_PRINT("info", "new total cost:%g, subpath total cost:%g", pathnode->path.total_cost, subpath->total_cost);
   }
 
   return pathnode;
@@ -2956,6 +3686,7 @@ apply_projection_to_path(PlannerInfo *root,
                          Path *path,
                          PathTarget *target)
 {
+  DBUG_TRACE;
   QualCost  oldcost;
 
   /*
@@ -3039,6 +3770,7 @@ create_set_projection_path(PlannerInfo *root,
                            Path *subpath,
                            PathTarget *target)
 {
+  DBUG_TRACE;
   ProjectSetPath *pathnode = makeNode(ProjectSetPath);
   double    tlist_rows;
   ListCell   *lc;
@@ -3112,6 +3844,7 @@ create_incremental_sort_path(PlannerInfo *root,
                              int presorted_keys,
                              double limit_tuples)
 {
+  DBUG_TRACE;
   IncrementalSortPath *sort = makeNode(IncrementalSortPath);
   SortPath   *pathnode = &sort->spath;
 
@@ -3161,6 +3894,7 @@ create_sort_path(PlannerInfo *root,
                  List *pathkeys,
                  double limit_tuples)
 {
+  DBUG_TRACE;
   SortPath   *pathnode = makeNode(SortPath);
 
   pathnode->path.pathtype = T_Sort;
@@ -3207,6 +3941,7 @@ create_group_path(PlannerInfo *root,
                   List *qual,
                   double numGroups)
 {
+  DBUG_TRACE;
   GroupPath  *pathnode = makeNode(GroupPath);
   PathTarget *target = rel->reltarget;
 
@@ -3266,6 +4001,7 @@ create_upper_unique_path(PlannerInfo *root,
                          int numCols,
                          double numGroups)
 {
+  DBUG_TRACE;
   UpperUniquePath *pathnode = makeNode(UpperUniquePath);
 
   pathnode->path.pathtype = T_Unique;
@@ -3295,6 +4031,8 @@ create_upper_unique_path(PlannerInfo *root,
                               cpu_operator_cost * subpath->rows * numCols;
   pathnode->path.rows = numGroups;
 
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g, rows:%g, disabled_nodes:%d",
+             pathnode->path.startup_cost, pathnode->path.total_cost, pathnode->path.rows, pathnode->path.disabled_nodes);
   return pathnode;
 }
 
@@ -3324,8 +4062,10 @@ create_agg_path(PlannerInfo *root,
                 const AggClauseCosts *aggcosts,
                 double numGroups)
 {
+  DBUG_TRACE;
   AggPath    *pathnode = makeNode(AggPath);
 
+  DBUG_PRINT("info", "creates a pathnode that represents performing aggregation/grouping");
   pathnode->path.pathtype = T_Agg;
   pathnode->path.parent = rel;
   pathnode->path.pathtarget = target;
@@ -3337,6 +4077,8 @@ create_agg_path(PlannerInfo *root,
   pathnode->path.parallel_workers = subpath->parallel_workers;
 
   if (aggstrategy == AGG_SORTED) {
+    DBUG_PRINT("info", "output is ordered");
+
     /*
      * Attempt to preserve the order of the subpath.  Additional pathkeys
      * may have been added in adjust_group_pathkeys_for_groupagg() to
@@ -3350,8 +4092,10 @@ create_agg_path(PlannerInfo *root,
                                 root->num_groupby_pathkeys);
     else
       pathnode->path.pathkeys = subpath->pathkeys;  /* preserves order */
-  } else
+  } else {
+    DBUG_PRINT("info", "output is unordered");
     pathnode->path.pathkeys = NIL;  /* output is unordered */
+  }
 
   pathnode->subpath = subpath;
 
@@ -3371,9 +4115,11 @@ create_agg_path(PlannerInfo *root,
            subpath->rows, subpath->pathtarget->width);
 
   /* add tlist eval cost for each output row */
+  DBUG_PRINT("info", "add tlist eval cost for each output row");
   pathnode->path.startup_cost += target->cost.startup;
   pathnode->path.total_cost += target->cost.startup +
                                target->cost.per_tuple * pathnode->path.rows;
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
 
   return pathnode;
 }
@@ -3402,6 +4148,7 @@ create_groupingsets_path(PlannerInfo *root,
                          List *rollups,
                          const AggClauseCosts *agg_costs)
 {
+  DBUG_TRACE;
   GroupingSetsPath *pathnode = makeNode(GroupingSetsPath);
   PathTarget *target = rel->reltarget;
   ListCell   *lc;
@@ -3535,10 +4282,12 @@ create_groupingsets_path(PlannerInfo *root,
   }
 
   /* add tlist eval cost for each output row */
+  DBUG_PRINT("info", "add tlist eval cost for each output row");
   pathnode->path.startup_cost += target->cost.startup;
   pathnode->path.total_cost += target->cost.startup +
                                target->cost.per_tuple * pathnode->path.rows;
 
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
   return pathnode;
 }
 
@@ -3558,6 +4307,7 @@ create_minmaxagg_path(PlannerInfo *root,
                       List *mmaggregates,
                       List *quals)
 {
+  DBUG_TRACE;
   MinMaxAggPath *pathnode = makeNode(MinMaxAggPath);
   Cost    initplan_cost;
   int     initplan_disabled_nodes = 0;
@@ -3605,9 +4355,11 @@ create_minmaxagg_path(PlannerInfo *root,
   if (quals) {
     QualCost  qual_cost;
 
+    DBUG_PRINT("info", "add cost of qual");
     cost_qual_eval(&qual_cost, quals, root);
     pathnode->path.startup_cost += qual_cost.startup;
     pathnode->path.total_cost += qual_cost.startup + qual_cost.per_tuple;
+    DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
   }
 
   /*
@@ -3653,6 +4405,7 @@ create_windowagg_path(PlannerInfo *root,
                       List *qual,
                       bool topwindow)
 {
+  DBUG_TRACE;
   WindowAggPath *pathnode = makeNode(WindowAggPath);
 
   /* qual can only be set for the topwindow */
@@ -3691,10 +4444,12 @@ create_windowagg_path(PlannerInfo *root,
                  subpath->rows);
 
   /* add tlist eval cost for each output row */
+  DBUG_PRINT("info", "add tlist eval cost for each output row");
   pathnode->path.startup_cost += target->cost.startup;
   pathnode->path.total_cost += target->cost.startup +
                                target->cost.per_tuple * pathnode->path.rows;
 
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
   return pathnode;
 }
 
@@ -3726,6 +4481,7 @@ create_setop_path(PlannerInfo *root,
                   double numGroups,
                   double outputRows)
 {
+  DBUG_TRACE;
   SetOpPath  *pathnode = makeNode(SetOpPath);
 
   pathnode->path.pathtype = T_SetOp;
@@ -3816,6 +4572,7 @@ create_setop_path(PlannerInfo *root,
 
   pathnode->path.rows = outputRows;
 
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g, rows:%g", pathnode->path.startup_cost, pathnode->path.total_cost, outputRows);
   return pathnode;
 }
 
@@ -3843,6 +4600,7 @@ create_recursiveunion_path(PlannerInfo *root,
                            int wtParam,
                            double numGroups)
 {
+  DBUG_TRACE;
   RecursiveUnionPath *pathnode = makeNode(RecursiveUnionPath);
 
   pathnode->path.pathtype = T_RecursiveUnion;
@@ -3882,8 +4640,11 @@ LockRowsPath *
 create_lockrows_path(PlannerInfo *root, RelOptInfo *rel,
                      Path *subpath, List *rowMarks, int epqParam)
 {
+  DBUG_TRACE;
+  char name[64];
   LockRowsPath *pathnode = makeNode(LockRowsPath);
 
+  DBUG_PRINT("info", "create a pathnode that represents acquiring row locks");
   pathnode->path.pathtype = T_LockRows;
   pathnode->path.parent = rel;
   /* LockRows doesn't project, so use source path's pathtarget */
@@ -3910,11 +4671,15 @@ create_lockrows_path(PlannerInfo *root, RelOptInfo *rel,
    * possible refetches, but it's hard to say how much.  For now, use
    * cpu_tuple_cost per row.
    */
+  DBUG_PRINT("info", "we should charge something extra for the costs of row locking and possible refetches");
+  DBUG_PRINT("info", "for now, use cpu_tuple_cost per row");
   pathnode->path.disabled_nodes = subpath->disabled_nodes;
   pathnode->path.startup_cost = subpath->startup_cost;
   pathnode->path.total_cost = subpath->total_cost +
                               cpu_tuple_cost * subpath->rows;
 
+  DBUG_PRINT("info", "startup_cost:%g, total_cost:%g, disabled_nodes:%d, subpath:%s", pathnode->path.startup_cost, pathnode->path.total_cost,
+             pathnode->path.disabled_nodes, get_plan_type_str(name, subpath->pathtype));
   return pathnode;
 }
 
@@ -3955,6 +4720,7 @@ create_modifytable_path(PlannerInfo *root, RelOptInfo *rel,
                         List *mergeActionLists, List *mergeJoinConditions,
                         int epqParam)
 {
+  DBUG_TRACE;
   ModifyTablePath *pathnode = makeNode(ModifyTablePath);
 
   Assert(operation == CMD_MERGE ||
@@ -4049,6 +4815,7 @@ create_limit_path(PlannerInfo *root, RelOptInfo *rel,
                   LimitOption limitOption,
                   int64 offset_est, int64 count_est)
 {
+  DBUG_TRACE;
   LimitPath  *pathnode = makeNode(LimitPath);
 
   pathnode->path.pathtype = T_Limit;
@@ -4071,13 +4838,16 @@ create_limit_path(PlannerInfo *root, RelOptInfo *rel,
   pathnode->limitCount = limitCount;
   pathnode->limitOption = limitOption;
 
+  DBUG_PRINT("info", "subpath startup_cost:%g, total_cost:%g", subpath->startup_cost, subpath->total_cost);
   /*
    * Adjust the output rows count and costs according to the offset/limit.
    */
+  DBUG_PRINT("info", "adjust the output rows count and costs according to the offset/limit");
   adjust_limit_rows_costs(&pathnode->path.rows,
                           &pathnode->path.startup_cost,
                           &pathnode->path.total_cost,
                           offset_est, count_est);
+  DBUG_PRINT("info", "now startup_cost:%g, total_cost:%g", pathnode->path.startup_cost, pathnode->path.total_cost);
 
   return pathnode;
 }
@@ -4105,9 +4875,13 @@ adjust_limit_rows_costs(double *rows, /* in/out parameter */
                         int64 offset_est,
                         int64 count_est)
 {
+  DBUG_TRACE;
   double    input_rows = *rows;
   Cost    input_startup_cost = *startup_cost;
   Cost    input_total_cost = *total_cost;
+
+  DBUG_PRINT("info", "input_rows:%g, input_startup_cost:%g, input_total_cost:%g", input_rows, input_startup_cost, input_total_cost);
+  DBUG_PRINT("info", "offset_est:%ld, count_est:%ld", offset_est, count_est);
 
   if (offset_est != 0) {
     double    offset_rows;
@@ -4152,6 +4926,8 @@ adjust_limit_rows_costs(double *rows, /* in/out parameter */
     if (*rows < 1)
       *rows = 1;
   }
+
+  DBUG_PRINT("info", "output rows:%g, startup_cost:%g, total_cost:%g", *rows, *startup_cost, *total_cost);
 }
 
 
@@ -4177,6 +4953,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
                     Relids required_outer,
                     double loop_count)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = path->parent;
 
   /* Can only increase, not decrease, path's parameterization */
@@ -4185,9 +4962,11 @@ reparameterize_path(PlannerInfo *root, Path *path,
 
   switch (path->pathtype) {
     case T_SeqScan:
+      DBUG_PRINT("info", "seq scan");
       return create_seqscan_path(root, rel, required_outer, 0);
 
     case T_SampleScan:
+      DBUG_PRINT("info", "sample scan");
       return (Path *) create_samplescan_path(root, rel, required_outer);
 
     case T_IndexScan:
@@ -4195,6 +4974,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
       IndexPath  *ipath = (IndexPath *) path;
       IndexPath  *newpath = makeNode(IndexPath);
 
+      DBUG_PRINT("info", "index scan or index only scan");
       /*
        * We can't use create_index_path directly, and would not want
        * to because it would re-compute the indexqual conditions
@@ -4211,6 +4991,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
 
     case T_BitmapHeapScan: {
       BitmapHeapPath *bpath = (BitmapHeapPath *) path;
+      DBUG_PRINT("info", "bitmap heap scan");
 
       return (Path *) create_bitmap_heap_path(root,
                                               rel,
@@ -4224,6 +5005,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
       Path     *subpath = spath->subpath;
       bool    trivial_pathtarget;
 
+      DBUG_PRINT("info", "subquery scan");
       /*
        * If existing node has zero extra cost, we must have decided
        * its target is trivial.  (The converse is not true, because
@@ -4243,6 +5025,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
     }
 
     case T_Result:
+      DBUG_PRINT("info", "result scan");
 
       /* Supported only for RTE_RESULT scan paths */
       if (IsA(path, Path))
@@ -4257,6 +5040,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
       int     i;
       ListCell   *lc;
 
+      DBUG_PRINT("info", "append scan");
       /* Reparameterize the children */
       i = 0;
 
@@ -4291,6 +5075,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
       MaterialPath *mpath = (MaterialPath *) path;
       Path     *spath = mpath->subpath;
 
+      DBUG_PRINT("info", "material scan");
       spath = reparameterize_path(root, spath,
                                   required_outer,
                                   loop_count);
@@ -4305,6 +5090,7 @@ reparameterize_path(PlannerInfo *root, Path *path,
       MemoizePath *mpath = (MemoizePath *) path;
       Path     *spath = mpath->subpath;
 
+      DBUG_PRINT("info", "memoize scan");
       spath = reparameterize_path(root, spath,
                                   required_outer,
                                   loop_count);
@@ -4356,6 +5142,7 @@ Path *
 reparameterize_path_by_child(PlannerInfo *root, Path *path,
                              RelOptInfo *child_rel)
 {
+  DBUG_TRACE;
   Path     *new_path;
   ParamPathInfo *new_ppi;
   ParamPathInfo *old_ppi;
@@ -4363,27 +5150,27 @@ reparameterize_path_by_child(PlannerInfo *root, Path *path,
 
 #define ADJUST_CHILD_ATTRS(node) \
   ((node) = (void *) adjust_appendrel_attrs_multilevel(root, \
-                             (Node *) (node), \
-                             child_rel, \
-                             child_rel->top_parent))
+    (Node *) (node), \
+    child_rel, \
+    child_rel->top_parent))
 
 #define REPARAMETERIZE_CHILD_PATH(path) \
-do { \
-  (path) = reparameterize_path_by_child(root, (path), child_rel); \
-  if ((path) == NULL) \
+  do { \
+    (path) = reparameterize_path_by_child(root, (path), child_rel); \
+    if ((path) == NULL) \
     return NULL; \
-} while(0)
+  } while(0)
 
 #define REPARAMETERIZE_CHILD_PATH_LIST(pathlist) \
-do { \
-  if ((pathlist) != NIL) \
-  { \
-    (pathlist) = reparameterize_pathlist_by_child(root, (pathlist), \
-                            child_rel); \
-    if ((pathlist) == NIL) \
+  do { \
+    if ((pathlist) != NIL) \
+    { \
+      (pathlist) = reparameterize_pathlist_by_child(root, (pathlist), \
+          child_rel); \
+      if ((pathlist) == NIL) \
       return NULL; \
-  } \
-} while(0)
+    } \
+  } while(0)
 
   /*
    * If the path is not parameterized by the parent of the given relation,
@@ -4644,17 +5431,18 @@ do { \
 bool
 path_is_reparameterizable_by_child(Path *path, RelOptInfo *child_rel)
 {
+  DBUG_TRACE;
 #define REJECT_IF_PATH_NOT_REPARAMETERIZABLE(path) \
-do { \
-  if (!path_is_reparameterizable_by_child(path, child_rel)) \
+  do { \
+    if (!path_is_reparameterizable_by_child(path, child_rel)) \
     return false; \
-} while(0)
+  } while(0)
 
 #define REJECT_IF_PATH_LIST_NOT_REPARAMETERIZABLE(pathlist) \
-do { \
-  if (!pathlist_is_reparameterizable_by_child(pathlist, child_rel)) \
+  do { \
+    if (!pathlist_is_reparameterizable_by_child(pathlist, child_rel)) \
     return false; \
-} while(0)
+  } while(0)
 
   /*
    * If the path is not parameterized by the parent of the given relation,
@@ -4766,6 +5554,7 @@ reparameterize_pathlist_by_child(PlannerInfo *root,
                                  List *pathlist,
                                  RelOptInfo *child_rel)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   List     *result = NIL;
 
@@ -4791,6 +5580,7 @@ reparameterize_pathlist_by_child(PlannerInfo *root,
 static bool
 pathlist_is_reparameterizable_by_child(List *pathlist, RelOptInfo *child_rel)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, pathlist) {

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -34,8 +35,11 @@ char *
 get_tsearch_config_filename(const char *basename,
                             const char *extension)
 {
+  DBUG_TRACE;
   char    sharepath[MAXPGPATH];
   char     *result;
+
+  DBUG_PRINT("info", "basename:%s, extension:%s", basename, extension);
 
   /*
    * We limit the basename to contain a-z, 0-9, and underscores.  This may
@@ -57,6 +61,7 @@ get_tsearch_config_filename(const char *basename,
   snprintf(result, MAXPGPATH, "%s/tsearch_data/%s.%s",
            sharepath, basename, extension);
 
+  DBUG_PRINT("info", "result:'%s'", result);
   return result;
 }
 
@@ -68,6 +73,7 @@ get_tsearch_config_filename(const char *basename,
 void
 readstoplist(const char *fname, StopList *s, char *(*wordop) (const char *, size_t, Oid))
 {
+  DBUG_TRACE;
   char    **stop = NULL;
 
   s->len = 0;
@@ -134,7 +140,17 @@ readstoplist(const char *fname, StopList *s, char *(*wordop) (const char *, size
 bool
 searchstoplist(StopList *s, char *key)
 {
-  return (s->stop && s->len > 0 &&
-          bsearch(&key, s->stop, s->len,
-                  sizeof(char *), pg_qsort_strcmp));
+  DBUG_TRACE;
+  bool result;
+  result = (s->stop && s->len > 0 &&
+            bsearch(&key, s->stop, s->len,
+                    sizeof(char *), pg_qsort_strcmp));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }

@@ -4,6 +4,7 @@
  * contrib/ltree/ltree_io.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -35,6 +36,7 @@ static bool finish_nodeitem(nodeitem *lptr, const char *ptr,
 static ltree *
 parse_ltree(const char *buf, struct Node *escontext)
 {
+  DBUG_TRACE;
   const char *ptr;
   nodeitem   *list,
              *lptr;
@@ -145,6 +147,7 @@ parse_ltree(const char *buf, struct Node *escontext)
 static char *
 deparse_ltree(const ltree *in)
 {
+  DBUG_TRACE;
   char     *buf,
            *ptr;
   int     i;
@@ -175,8 +178,11 @@ PG_FUNCTION_INFO_V1(ltree_in);
 Datum
 ltree_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *buf = (char *) PG_GETARG_POINTER(0);
   ltree    *res;
+
+  DBUG_PRINT("ltree", "%s", buf);
 
   if ((res = parse_ltree(buf, fcinfo->context)) == NULL)
     PG_RETURN_NULL();
@@ -188,6 +194,7 @@ PG_FUNCTION_INFO_V1(ltree_out);
 Datum
 ltree_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *in = PG_GETARG_LTREE_P(0);
 
   PG_RETURN_POINTER(deparse_ltree(in));
@@ -205,6 +212,7 @@ PG_FUNCTION_INFO_V1(ltree_send);
 Datum
 ltree_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *in = PG_GETARG_LTREE_P(0);
   StringInfoData buf;
   int     version = 1;
@@ -230,6 +238,7 @@ PG_FUNCTION_INFO_V1(ltree_recv);
 Datum
 ltree_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     version = pq_getmsgint(buf, 1);
   char     *str;
@@ -269,6 +278,7 @@ ltree_recv(PG_FUNCTION_ARGS)
 static lquery *
 parse_lquery(const char *buf, struct Node *escontext)
 {
+  DBUG_TRACE;
   const char *ptr;
   int     num = 0,
           totallen = 0,
@@ -635,6 +645,7 @@ finish_nodeitem(nodeitem *lptr, const char *ptr, bool is_lquery, int pos,
 static char *
 deparse_lquery(const lquery *in)
 {
+  DBUG_TRACE;
   char     *buf,
            *ptr;
   int     i,
@@ -741,6 +752,7 @@ PG_FUNCTION_INFO_V1(lquery_in);
 Datum
 lquery_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *buf = (char *) PG_GETARG_POINTER(0);
   lquery     *res;
 
@@ -754,6 +766,7 @@ PG_FUNCTION_INFO_V1(lquery_out);
 Datum
 lquery_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   lquery     *in = PG_GETARG_LQUERY_P(0);
 
   PG_RETURN_POINTER(deparse_lquery(in));
@@ -771,6 +784,7 @@ PG_FUNCTION_INFO_V1(lquery_send);
 Datum
 lquery_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   lquery     *in = PG_GETARG_LQUERY_P(0);
   StringInfoData buf;
   int     version = 1;
@@ -796,6 +810,7 @@ PG_FUNCTION_INFO_V1(lquery_recv);
 Datum
 lquery_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     version = pq_getmsgint(buf, 1);
   char     *str;

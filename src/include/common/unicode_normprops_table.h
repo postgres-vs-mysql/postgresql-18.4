@@ -1604,8 +1604,7 @@ NFC_QC_hash_func(const void *key)
   uint32    a = 0;
   uint32    b = 0;
 
-  while (keylen--)
-  {
+  while (keylen--) {
     unsigned char c = *k++;
 
     a = a * 257 + c;
@@ -8008,8 +8007,7 @@ NFKC_QC_hash_func(const void *key)
   uint32    a = 0;
   uint32    b = 3;
 
-  while (keylen--)
-  {
+  while (keylen--) {
     unsigned char c = *k++;
 
     a = a * 257 + c;

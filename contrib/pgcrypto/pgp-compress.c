@@ -33,6 +33,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 /*
  * Compressed pkt writer
@@ -68,6 +69,7 @@ z_free(void *priv, void *addr)
 static int
 compress_init(PushFilter *next, void *init_arg, void **priv_p)
 {
+  DBUG_TRACE;
   int     res;
   struct ZipStat *st;
   PGP_Context *ctx = init_arg;
@@ -106,6 +108,7 @@ compress_init(PushFilter *next, void *init_arg, void **priv_p)
 static int
 compress_process(PushFilter *next, void *priv, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     res,
           n_out;
   struct ZipStat *st = priv;
@@ -140,6 +143,7 @@ compress_process(PushFilter *next, void *priv, const uint8 *data, int len)
 static int
 compress_flush(PushFilter *next, void *priv)
 {
+  DBUG_TRACE;
   int     res,
           zres,
           n_out;
@@ -175,6 +179,7 @@ compress_flush(PushFilter *next, void *priv)
 static void
 compress_free(void *priv)
 {
+  DBUG_TRACE;
   struct ZipStat *st = priv;
 
   deflateEnd(&st->stream);
@@ -208,6 +213,7 @@ struct DecomprData {
 static int
 decompress_init(void **priv_p, void *arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PGP_Context *ctx = arg;
   struct DecomprData *dec;
   int     res;
@@ -241,6 +247,7 @@ static int
 decompress_read(void *priv, PullFilter *src, int len,
                 uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   int     res;
   int     flush;
   struct DecomprData *dec = priv;
@@ -320,6 +327,7 @@ restart:
 static void
 decompress_free(void *priv)
 {
+  DBUG_TRACE;
   struct DecomprData *dec = priv;
 
   inflateEnd(&dec->stream);
@@ -335,6 +343,7 @@ decompress_filter = {
 int
 pgp_decompress_filter(PullFilter **res, PGP_Context *ctx, PullFilter *src)
 {
+  DBUG_TRACE;
   return pullf_create(res, &decompress_filter, ctx, src);
 }
 #else             /* !HAVE_LIBZ */
@@ -342,12 +351,14 @@ pgp_decompress_filter(PullFilter **res, PGP_Context *ctx, PullFilter *src)
 int
 pgp_compress_filter(PushFilter **res, PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   return PXE_PGP_UNSUPPORTED_COMPR;
 }
 
 int
 pgp_decompress_filter(PullFilter **res, PGP_Context *ctx, PullFilter *src)
 {
+  DBUG_TRACE;
   return PXE_PGP_UNSUPPORTED_COMPR;
 }
 

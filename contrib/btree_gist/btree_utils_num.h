@@ -91,6 +91,7 @@ typedef struct
 
 extern Interval *abs_interval(Interval *a);
 
+extern const char *strategy_desc(StrategyNumber strategy);
 extern bool gbt_num_consistent(const GBT_NUMKEY_R *key, const void *query,
                                const StrategyNumber *strategy, bool is_leaf,
                                const gbtree_ninfo *tinfo, FmgrInfo *flinfo);

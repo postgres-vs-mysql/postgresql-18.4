@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/relation.h"
@@ -36,6 +37,7 @@ static inline void validate_relation_kind(Relation r);
 Relation
 sequence_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = relation_open(relationId, lockmode);

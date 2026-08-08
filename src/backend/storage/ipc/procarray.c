@@ -44,6 +44,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <signal.h>
 
@@ -411,6 +412,7 @@ ProcArrayShmemSize(void)
 void
 ProcArrayShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   /* Create or attach to the ProcArray shared structure */
@@ -1961,21 +1963,30 @@ GlobalVisHorizonKindForRel(Relation rel)
 TransactionId
 GetOldestNonRemovableTransactionId(Relation rel)
 {
+  DBUG_TRACE;
   ComputeXidHorizonsResult horizons;
 
   ComputeXidHorizons(&horizons);
 
   switch (GlobalVisHorizonKindForRel(rel)) {
     case VISHORIZON_SHARED:
+      DBUG_PRINT("info", "return the oldest xid:%u for which deleted tuples must be preserved in the passed table",
+                 horizons.shared_oldest_nonremovable);
       return horizons.shared_oldest_nonremovable;
 
     case VISHORIZON_CATALOG:
+      DBUG_PRINT("info", "return the oldest xid:%u for which deleted tuples must be preserved in the passed table",
+                 horizons.catalog_oldest_nonremovable);
       return horizons.catalog_oldest_nonremovable;
 
     case VISHORIZON_DATA:
+      DBUG_PRINT("info", "return the oldest xid:%u for which deleted tuples must be preserved in the passed table",
+                 horizons.data_oldest_nonremovable);
       return horizons.data_oldest_nonremovable;
 
     case VISHORIZON_TEMP:
+      DBUG_PRINT("info", "return the oldest xid:%u for which deleted tuples must be preserved in the passed table",
+                 horizons.temp_oldest_nonremovable);
       return horizons.temp_oldest_nonremovable;
   }
 
@@ -4159,19 +4170,25 @@ bool
 GlobalVisTestIsRemovableFullXid(GlobalVisState *state,
                                 FullTransactionId fxid)
 {
+  bool result;
+
   /*
    * If fxid is older than maybe_needed bound, it definitely is visible to
    * everyone.
    */
-  if (FullTransactionIdPrecedes(fxid, state->maybe_needed))
+  if (FullTransactionIdPrecedes(fxid, state->maybe_needed)) {
+    DBUG_PRINT("info", "fxid is older than maybe_needed bound and it definitely is visible to everyone");
     return true;
+  }
 
   /*
    * If fxid is >= definitely_needed bound, it is very likely to still be
    * considered running.
    */
-  if (FullTransactionIdFollowsOrEquals(fxid, state->definitely_needed))
+  if (FullTransactionIdFollowsOrEquals(fxid, state->definitely_needed)) {
+    DBUG_PRINT("info", "fxid is >= definitely_needed bound and it is very likely to still be considered running");
     return false;
+  }
 
   /*
    * fxid is between maybe_needed and definitely_needed, i.e. there might or
@@ -4183,9 +4200,19 @@ GlobalVisTestIsRemovableFullXid(GlobalVisState *state,
 
     Assert(FullTransactionIdPrecedes(fxid, state->definitely_needed));
 
-    return FullTransactionIdPrecedes(fxid, state->maybe_needed);
-  } else
+    result = FullTransactionIdPrecedes(fxid, state->maybe_needed);
+
+    if (result) {
+      DBUG_PRINT("info", "visible");
+    } else {
+      DBUG_PRINT("info", "not visible from FullTransactionIdPrecedes");
+    }
+
+    return result;
+  } else {
+    DBUG_PRINT("info", "not visible");
     return false;
+  }
 }
 
 /*

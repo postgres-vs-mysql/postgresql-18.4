@@ -9,6 +9,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/genam.h"
@@ -243,6 +244,7 @@ static XidBoundsViolation get_xid_status(TransactionId xid,
 Datum
 verify_heapam(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   HeapCheckContext ctx;
   Buffer    vmbuffer = InvalidBuffer;
@@ -259,6 +261,8 @@ verify_heapam(PG_FUNCTION_ARGS)
   ReadStreamBlockNumberCB stream_cb;
   void     *stream_data;
   HeapCheckReadStreamData stream_skip_data;
+
+  DBUG_PRINT("amcheck", "scan and report corruption in heap pages");
 
   /* Check supplied arguments */
   if (PG_ARGISNULL(0))
@@ -342,10 +346,12 @@ verify_heapam(PG_FUNCTION_ARGS)
    * Other relkinds might be using a different AM, so check.
    */
   if (ctx.rel->rd_rel->relkind != RELKIND_SEQUENCE &&
-      ctx.rel->rd_rel->relam != HEAP_TABLE_AM_OID)
+      ctx.rel->rd_rel->relam != HEAP_TABLE_AM_OID) {
+    DBUG_INSTANT_PRINT("amcheck", "only heap AM is supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("only heap AM is supported")));
+  }
 
   /*
    * Early exit for unlogged relations during recovery.  These will have no
@@ -375,6 +381,8 @@ verify_heapam(PG_FUNCTION_ARGS)
   ctx.page = NULL;
 
   /* Validate block numbers, or handle nulls. */
+  DBUG_PRINT("amcheck", "validate block numbers, or handle nulls");
+
   if (PG_ARGISNULL(4))
     first_block = 0;
   else {
@@ -407,6 +415,7 @@ verify_heapam(PG_FUNCTION_ARGS)
   if (ctx.rel->rd_rel->reltoastrelid && check_toast) {
     int     offset;
 
+    DBUG_PRINT("amcheck", "main relation has associated toast relation");
     /* Main relation has associated toast relation */
     ctx.toast_rel = table_open(ctx.rel->rd_rel->reltoastrelid,
                                AccessShareLock);
@@ -420,6 +429,7 @@ verify_heapam(PG_FUNCTION_ARGS)
      * Main relation has no associated toast relation, or we're
      * intentionally skipping it.
      */
+    DBUG_PRINT("amcheck", "main relation has associated toast relation");
     ctx.toast_rel = NULL;
     ctx.toast_indexes = NULL;
     ctx.num_toast_indexes = 0;
@@ -491,6 +501,7 @@ verify_heapam(PG_FUNCTION_ARGS)
 
     /* Perform tuple checks */
     maxoff = PageGetMaxOffsetNumber(ctx.page);
+    DBUG_PRINT("amcheck", "perform tuple checks and maxoff:%u", maxoff);
 
     for (ctx.offnum = FirstOffsetNumber; ctx.offnum <= maxoff;
          ctx.offnum = OffsetNumberNext(ctx.offnum)) {
@@ -620,6 +631,7 @@ verify_heapam(PG_FUNCTION_ARGS)
      * Update chain validation. Check each line pointer that's got a valid
      * successor against that successor.
      */
+    DBUG_PRINT("amcheck", "update chain validation");
     ctx.attnum = -1;
 
     for (ctx.offnum = FirstOffsetNumber; ctx.offnum <= maxoff;
@@ -818,6 +830,8 @@ verify_heapam(PG_FUNCTION_ARGS)
     /* clean up */
     UnlockReleaseBuffer(ctx.buffer);
 
+    DBUG_PRINT("amcheck", "check any toast pointers from the page whose lock we just released");
+
     /*
      * Check any toast pointers from the page whose lock we just released
      */
@@ -840,6 +854,8 @@ verify_heapam(PG_FUNCTION_ARGS)
   if (vmbuffer != InvalidBuffer)
     ReleaseBuffer(vmbuffer);
 
+  DBUG_PRINT("amcheck", "close the associated toast table and indexes, if any");
+
   /* Close the associated toast table and indexes, if any. */
   if (ctx.toast_indexes)
     toast_close_indexes(ctx.toast_indexes, ctx.num_toast_indexes,
@@ -848,6 +864,7 @@ verify_heapam(PG_FUNCTION_ARGS)
   if (ctx.toast_rel)
     table_close(ctx.toast_rel, AccessShareLock);
 
+  DBUG_PRINT("amcheck", "close the main relation");
   /* Close the main relation */
   relation_close(ctx.rel, AccessShareLock);
 
@@ -896,6 +913,7 @@ report_corruption_internal(Tuplestorestate *tupstore, TupleDesc tupdesc,
                            BlockNumber blkno, OffsetNumber offnum,
                            AttrNumber attnum, char *msg)
 {
+  DBUG_TRACE;
   Datum   values[HEAPCHECK_RELATION_COLS] = {0};
   bool    nulls[HEAPCHECK_RELATION_COLS] = {0};
   HeapTuple tuple;
@@ -930,6 +948,7 @@ report_corruption_internal(Tuplestorestate *tupstore, TupleDesc tupdesc,
 static void
 report_corruption(HeapCheckContext *ctx, char *msg)
 {
+  DBUG_TRACE;
   report_corruption_internal(ctx->tupstore, ctx->tupdesc, ctx->blkno,
                              ctx->offnum, ctx->attnum, msg);
   ctx->is_corrupt = true;
@@ -947,6 +966,7 @@ static void
 report_toast_corruption(HeapCheckContext *ctx, ToastedAttribute *ta,
                         char *msg)
 {
+  DBUG_TRACE;
   report_corruption_internal(ctx->tupstore, ctx->tupdesc, ta->blkno,
                              ta->offnum, ta->attnum, msg);
   ctx->is_corrupt = true;
@@ -978,6 +998,7 @@ report_toast_corruption(HeapCheckContext *ctx, ToastedAttribute *ta,
 static bool
 check_tuple_header(HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuphdr = ctx->tuphdr;
   uint16    infomask = tuphdr->t_infomask;
   TransactionId curr_xmax = HeapTupleHeaderGetUpdateXid(tuphdr);
@@ -1050,6 +1071,12 @@ check_tuple_header(HeapCheckContext *ctx)
     result = false;
   }
 
+  if (result) {
+    DBUG_PRINT("amcheck", "return true");
+  } else {
+    DBUG_PRINT("amcheck", "return false");
+  }
+
   return result;
 }
 
@@ -1089,6 +1116,7 @@ static bool
 check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                        XidCommitStatus *xmin_commit_status)
 {
+  DBUG_TRACE;
   TransactionId xmin;
   TransactionId xvac;
   TransactionId xmax;
@@ -1106,6 +1134,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
   switch (get_xid_status(xmin, ctx, &xmin_status)) {
     case XID_INVALID:
       /* Could be the result of a speculative insertion that aborted. */
+      DBUG_PRINT("amcheck", "could be the result of a speculative insertion that aborted");
+      DBUG_PRINT("amcheck", "return false");
       return false;
 
     case XID_BOUNDS_OK:
@@ -1119,6 +1149,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmin,
                                  EpochFromFullTransactionId(ctx->next_fxid),
                                  XidFromFullTransactionId(ctx->next_fxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;
 
     case XID_PRECEDES_CLUSTERMIN:
@@ -1127,6 +1158,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmin,
                                  EpochFromFullTransactionId(ctx->oldest_fxid),
                                  XidFromFullTransactionId(ctx->oldest_fxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;
 
     case XID_PRECEDES_RELMIN:
@@ -1135,6 +1167,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmin,
                                  EpochFromFullTransactionId(ctx->relfrozenfxid),
                                  XidFromFullTransactionId(ctx->relfrozenfxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;
   }
 
@@ -1152,6 +1185,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
         case XID_INVALID:
           report_corruption(ctx,
                             pstrdup("old-style VACUUM FULL transaction ID for moved off tuple is invalid"));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID for moved off tuple is invalid");
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_IN_FUTURE:
@@ -1160,6 +1195,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->next_fxid),
                                      XidFromFullTransactionId(ctx->next_fxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_PRECEDES_RELMIN:
@@ -1168,6 +1204,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->relfrozenfxid),
                                      XidFromFullTransactionId(ctx->relfrozenfxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_PRECEDES_CLUSTERMIN:
@@ -1176,6 +1213,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->oldest_fxid),
                                      XidFromFullTransactionId(ctx->oldest_fxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_BOUNDS_OK:
@@ -1187,12 +1225,16 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
           report_corruption(ctx,
                             psprintf("old-style VACUUM FULL transaction ID %u for moved off tuple matches our current transaction ID",
                                      xvac));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID %u for moved off tuple matches our current transaction ID", xvac);
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_IN_PROGRESS:
           report_corruption(ctx,
                             psprintf("old-style VACUUM FULL transaction ID %u for moved off tuple appears to be in progress",
                                      xvac));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID %u for moved off tuple appears to be in progress", xvac);
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_COMMITTED:
@@ -1202,6 +1244,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
            * it off and committed. It's checkable, but also
            * prunable.
            */
+          DBUG_PRINT("amcheck", "the tuple is dead, because the xvac transaction moved it off and committed");
+          DBUG_PRINT("amcheck", "return true");
           return true;
 
         case XID_ABORTED:
@@ -1223,6 +1267,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
         case XID_INVALID:
           report_corruption(ctx,
                             pstrdup("old-style VACUUM FULL transaction ID for moved in tuple is invalid"));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID for moved in tuple is invalid");
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_IN_FUTURE:
@@ -1231,6 +1277,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->next_fxid),
                                      XidFromFullTransactionId(ctx->next_fxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_PRECEDES_RELMIN:
@@ -1239,6 +1286,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->relfrozenfxid),
                                      XidFromFullTransactionId(ctx->relfrozenfxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_PRECEDES_CLUSTERMIN:
@@ -1247,6 +1295,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                      xvac,
                                      EpochFromFullTransactionId(ctx->oldest_fxid),
                                      XidFromFullTransactionId(ctx->oldest_fxid)));
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_BOUNDS_OK:
@@ -1258,12 +1307,16 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
           report_corruption(ctx,
                             psprintf("old-style VACUUM FULL transaction ID %u for moved in tuple matches our current transaction ID",
                                      xvac));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID %u for moved in tuple matches our current transaction ID", xvac);
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_IN_PROGRESS:
           report_corruption(ctx,
                             psprintf("old-style VACUUM FULL transaction ID %u for moved in tuple appears to be in progress",
                                      xvac));
+          DBUG_PRINT("amcheck", "old-style VACUUM FULL transaction ID %u for moved in tuple appears to be in progress", xvac);
+          DBUG_PRINT("amcheck", "return false");
           return false;
 
         case XID_COMMITTED:
@@ -1282,6 +1335,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
            * it off and committed. It's checkable, but also
            * prunable.
            */
+          DBUG_PRINT("amcheck", "the tuple is dead, because the xvac transaction moved it off and committed");
+          DBUG_PRINT("amcheck", "return true");
           return true;
       }
     } else if (xmin_status != XID_COMMITTED) {
@@ -1295,6 +1350,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
        * could check anyway in that case. But, for now, let's be
        * conservative and treat this like any other uncommitted insert.
        */
+      DBUG_PRINT("amcheck", "return false");
       return false;
     }
   }
@@ -1327,18 +1383,22 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
       case XID_INVALID:
         report_corruption(ctx,
                           pstrdup("multitransaction ID is invalid"));
+        DBUG_PRINT("amcheck", "multitransaction ID is invalid");
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_PRECEDES_RELMIN:
         report_corruption(ctx,
                           psprintf("multitransaction ID %u precedes relation minimum multitransaction ID threshold %u",
                                    xmax, ctx->relminmxid));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_PRECEDES_CLUSTERMIN:
         report_corruption(ctx,
                           psprintf("multitransaction ID %u precedes oldest valid multitransaction ID threshold %u",
                                    xmax, ctx->oldest_mxact));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_IN_FUTURE:
@@ -1346,6 +1406,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                           psprintf("multitransaction ID %u equals or exceeds next valid multitransaction ID %u",
                                    xmax,
                                    ctx->next_mxact));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_BOUNDS_OK:
@@ -1361,6 +1422,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
      * toast cannot be vacuumed out from under us.
      */
     ctx->tuple_could_be_pruned = false;
+    DBUG_PRINT("amcheck", "return true");
     return true;
   }
 
@@ -1371,6 +1433,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
      * it, but it cannot be vacuumed out from under us.
      */
     ctx->tuple_could_be_pruned = false;
+    DBUG_PRINT("amcheck", "return true");
     return true;
   }
 
@@ -1386,6 +1449,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
         /* not LOCKED_ONLY, so it has to have an xmax */
         report_corruption(ctx,
                           pstrdup("update xid is invalid"));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_IN_FUTURE:
@@ -1394,6 +1458,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                    xmax,
                                    EpochFromFullTransactionId(ctx->next_fxid),
                                    XidFromFullTransactionId(ctx->next_fxid)));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_PRECEDES_RELMIN:
@@ -1402,6 +1467,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                    xmax,
                                    EpochFromFullTransactionId(ctx->relfrozenfxid),
                                    XidFromFullTransactionId(ctx->relfrozenfxid)));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_PRECEDES_CLUSTERMIN:
@@ -1410,6 +1476,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                    xmax,
                                    EpochFromFullTransactionId(ctx->oldest_fxid),
                                    XidFromFullTransactionId(ctx->oldest_fxid)));
+        DBUG_PRINT("amcheck", "return true");
         return true;
 
       case XID_BOUNDS_OK:
@@ -1447,6 +1514,8 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
     }
 
     /* Tuple itself is checkable even if it's dead. */
+    DBUG_PRINT("amcheck", "tuple itself is checkable even if it's dead");
+    DBUG_PRINT("amcheck", "return true");
     return true;
   }
 
@@ -1456,6 +1525,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
   switch (get_xid_status(xmax, ctx, &xmax_status)) {
     case XID_INVALID:
       ctx->tuple_could_be_pruned = false;
+      DBUG_PRINT("amcheck", "return true");
       return true;
 
     case XID_IN_FUTURE:
@@ -1464,6 +1534,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmax,
                                  EpochFromFullTransactionId(ctx->next_fxid),
                                  XidFromFullTransactionId(ctx->next_fxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;   /* corrupt */
 
     case XID_PRECEDES_RELMIN:
@@ -1472,6 +1543,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmax,
                                  EpochFromFullTransactionId(ctx->relfrozenfxid),
                                  XidFromFullTransactionId(ctx->relfrozenfxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;   /* corrupt */
 
     case XID_PRECEDES_CLUSTERMIN:
@@ -1480,6 +1552,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
                                  xmax,
                                  EpochFromFullTransactionId(ctx->oldest_fxid),
                                  XidFromFullTransactionId(ctx->oldest_fxid)));
+      DBUG_PRINT("amcheck", "return false");
       return false;   /* corrupt */
 
     case XID_BOUNDS_OK:
@@ -1521,6 +1594,7 @@ check_tuple_visibility(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
   }
 
   /* Tuple itself is checkable even if it's dead. */
+  DBUG_PRINT("amcheck", "return true");
   return true;
 }
 
@@ -1545,6 +1619,7 @@ check_toast_tuple(HeapTuple toasttup, HeapCheckContext *ctx,
                   ToastedAttribute *ta, int32 *expected_chunk_seq,
                   uint32 extsize)
 {
+  DBUG_TRACE;
   int32   chunk_seq;
   int32   last_chunk_seq = (extsize - 1) / TOAST_MAX_CHUNK_SIZE;
   Pointer   chunk;
@@ -1660,11 +1735,14 @@ check_tuple_attribute(HeapCheckContext *ctx)
   tp = (char *) ctx->tuphdr + ctx->tuphdr->t_hoff;
 
   if (ctx->tuphdr->t_hoff + ctx->offset > ctx->lp_len) {
+    uint32 offset = ctx->tuphdr->t_hoff + ctx->offset;
+    uint32 lp_len = ctx->lp_len;
     report_corruption(ctx,
                       psprintf("attribute with length %u starts at offset %u beyond total tuple length %u",
-                               thisatt->attlen,
-                               ctx->tuphdr->t_hoff + ctx->offset,
+                               thisatt->attlen, offset,
                                ctx->lp_len));
+    DBUG_PRINT("amcheck", "attribute with length %u starts at offset %u beyond total tuple length %u",
+               thisatt->attlen, offset, lp_len);
     return false;
   }
 
@@ -1679,11 +1757,13 @@ check_tuple_attribute(HeapCheckContext *ctx)
                                         tp + ctx->offset);
 
     if (ctx->tuphdr->t_hoff + ctx->offset > ctx->lp_len) {
+      uint32 offset = ctx->tuphdr->t_hoff + ctx->offset;
+      uint32 lp_len = ctx->lp_len;
+      DBUG_PRINT("amcheck", "attribute with length %u ends at offset %u beyond total tuple length %u",
+                 thisatt->attlen, offset, lp_len);
       report_corruption(ctx,
                         psprintf("attribute with length %u ends at offset %u beyond total tuple length %u",
-                                 thisatt->attlen,
-                                 ctx->tuphdr->t_hoff + ctx->offset,
-                                 ctx->lp_len));
+                                 thisatt->attlen, offset, lp_len));
       return false;
     }
 
@@ -1710,6 +1790,7 @@ check_tuple_attribute(HeapCheckContext *ctx)
     uint8   va_tag = VARTAG_EXTERNAL(tp + ctx->offset);
 
     if (va_tag != VARTAG_ONDISK) {
+      DBUG_PRINT("amcheck", "toasted attribute has unexpected TOAST tag %u", va_tag);
       report_corruption(ctx,
                         psprintf("toasted attribute has unexpected TOAST tag %u",
                                  va_tag));
@@ -1723,11 +1804,14 @@ check_tuple_attribute(HeapCheckContext *ctx)
                                       tp + ctx->offset);
 
   if (ctx->tuphdr->t_hoff + ctx->offset > ctx->lp_len) {
+    uint32 offset = ctx->tuphdr->t_hoff + ctx->offset;
+    uint32 lp_len = ctx->lp_len;
+
+    DBUG_PRINT("amcheck", "attribute with length %u ends at offset %u beyond total tuple length %u",
+               thisatt->attlen, offset, lp_len);
     report_corruption(ctx,
                       psprintf("attribute with length %u ends at offset %u beyond total tuple length %u",
-                               thisatt->attlen,
-                               ctx->tuphdr->t_hoff + ctx->offset,
-                               ctx->lp_len));
+                               thisatt->attlen, offset, lp_len));
 
     return false;
   }
@@ -1757,12 +1841,14 @@ check_tuple_attribute(HeapCheckContext *ctx)
   VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr);
 
   /* Toasted attributes too large to be untoasted should never be stored */
-  if (toast_pointer.va_rawsize > VARLENA_SIZE_LIMIT)
+  if (toast_pointer.va_rawsize > VARLENA_SIZE_LIMIT) {
+    DBUG_PRINT("amcheck", "toast value %u rawsize %d exceeds limit %d", toast_pointer.va_valueid, toast_pointer.va_rawsize, VARLENA_SIZE_LIMIT);
     report_corruption(ctx,
                       psprintf("toast value %u rawsize %d exceeds limit %d",
                                toast_pointer.va_valueid,
                                toast_pointer.va_rawsize,
                                VARLENA_SIZE_LIMIT));
+  }
 
   if (VARATT_EXTERNAL_IS_COMPRESSED(toast_pointer)) {
     ToastCompressionId cmid;
@@ -1785,14 +1871,17 @@ check_tuple_attribute(HeapCheckContext *ctx)
         /* Intentionally no default here */
     }
 
-    if (!valid)
+    if (!valid) {
+      DBUG_PRINT("amcheck", "toast value %u has invalid compression method id %d", toast_pointer.va_valueid, cmid);
       report_corruption(ctx,
                         psprintf("toast value %u has invalid compression method id %d",
                                  toast_pointer.va_valueid, cmid));
+    }
   }
 
   /* The tuple header better claim to contain toasted values */
   if (!(infomask & HEAP_HASEXTERNAL)) {
+    DBUG_PRINT("amcheck", "toast value %u is external but tuple header flag HEAP_HASEXTERNAL not set", toast_pointer.va_valueid);
     report_corruption(ctx,
                       psprintf("toast value %u is external but tuple header flag HEAP_HASEXTERNAL not set",
                                toast_pointer.va_valueid));
@@ -1801,6 +1890,7 @@ check_tuple_attribute(HeapCheckContext *ctx)
 
   /* The relation better have a toast table */
   if (!ctx->rel->rd_rel->reltoastrelid) {
+    DBUG_PRINT("amcheck", "toast value %u is external but relation has no toast relation", toast_pointer.va_valueid);
     report_corruption(ctx,
                       psprintf("toast value %u is external but relation has no toast relation",
                                toast_pointer.va_valueid));
@@ -1840,6 +1930,7 @@ check_tuple_attribute(HeapCheckContext *ctx)
 static void
 check_toasted_attribute(HeapCheckContext *ctx, ToastedAttribute *ta)
 {
+  DBUG_TRACE;
   ScanKeyData toastkey;
   SysScanDesc toastscan;
   bool    found_toasttup;
@@ -1900,6 +1991,8 @@ static void
 check_tuple(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
             XidCommitStatus *xmin_commit_status)
 {
+  DBUG_TRACE;
+
   /*
    * Check various forms of tuple header corruption, and if the header is
    * too corrupt, do not continue with other checks.
@@ -1958,6 +2051,7 @@ check_tuple(HeapCheckContext *ctx, bool *xmin_commit_status_ok,
 static FullTransactionId
 FullTransactionIdFromXidAndCtx(TransactionId xid, const HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   uint64    nextfxid_i;
   int32   diff;
   FullTransactionId fxid;
@@ -1998,6 +2092,7 @@ FullTransactionIdFromXidAndCtx(TransactionId xid, const HeapCheckContext *ctx)
 static void
 update_cached_xid_range(HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   /* Make cached copies */
   LWLockAcquire(XidGenLock, LW_SHARED);
   ctx->next_fxid = TransamVariables->nextXid;
@@ -2015,6 +2110,7 @@ update_cached_xid_range(HeapCheckContext *ctx)
 static void
 update_cached_mxid_range(HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   ReadMultiXactIdRange(&ctx->oldest_mxact, &ctx->next_mxact);
 }
 
@@ -2025,6 +2121,7 @@ update_cached_mxid_range(HeapCheckContext *ctx)
 static inline bool
 fxid_in_cached_range(FullTransactionId fxid, const HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   return (FullTransactionIdPrecedesOrEquals(ctx->oldest_fxid, fxid) &&
           FullTransactionIdPrecedes(fxid, ctx->next_fxid));
 }
@@ -2036,6 +2133,8 @@ fxid_in_cached_range(FullTransactionId fxid, const HeapCheckContext *ctx)
 static XidBoundsViolation
 check_mxid_in_range(MultiXactId mxid, HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
+
   if (!TransactionIdIsValid(mxid))
     return XID_INVALID;
 
@@ -2062,6 +2161,7 @@ check_mxid_in_range(MultiXactId mxid, HeapCheckContext *ctx)
 static XidBoundsViolation
 check_mxid_valid_in_rel(MultiXactId mxid, HeapCheckContext *ctx)
 {
+  DBUG_TRACE;
   XidBoundsViolation result;
 
   result = check_mxid_in_range(mxid, ctx);
@@ -2096,6 +2196,7 @@ static XidBoundsViolation
 get_xid_status(TransactionId xid, HeapCheckContext *ctx,
                XidCommitStatus *status)
 {
+  DBUG_TRACE;
   FullTransactionId fxid;
   FullTransactionId clog_horizon;
 

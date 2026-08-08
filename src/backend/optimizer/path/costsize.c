@@ -81,6 +81,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <math.h>
@@ -203,7 +204,334 @@ static double relation_byte_size(double tuples, int width);
 static double page_size(double tuples, int width);
 static double get_parallel_divisor(Path *path);
 
+static char *int_array_join_fast(const int *arr, int n, char *out, int out_size)
+{
+  char *p = out;
+  char *end = out + out_size - 1;
+  int i, j, v, len;
+  char buf[16];
 
+  for (i = 0; i < n; i++) {
+    if (i > 0) {
+      if (p < end)
+        *p++ = '-';
+      else
+        break;
+    }
+
+    v = arr[i];
+    len = 0;
+
+
+    do {
+      buf[len++] = '0' + (v % 10);
+      v /= 10;
+    } while (v > 0);
+
+
+    for (j = len - 1; j >= 0; j--) {
+      if (p < end)
+        *p++ = buf[j];
+      else
+        break;
+    }
+  }
+
+  *p = '\0';
+  return out;
+}
+
+
+static void
+print_relids_tables(PlannerInfo *root, const char *prefix, Relids relids)
+{
+  int relid = -1;
+  RangeTblEntry *rte;
+
+  while ((relid = bms_next_member(relids, relid)) >= 0) {
+    rte = planner_rt_fetch(relid, root);
+
+    if (!rte) {
+      continue;
+    }
+
+    {
+      const char *alias = rte->eref ? rte->eref->aliasname : "(no alias)";
+
+      const char *relname = NULL;
+      const char *schemaname = NULL;
+      Oid nspid;
+
+      if (rte->rtekind == RTE_RELATION) {
+        relname = get_rel_name(rte->relid);
+        nspid = get_rel_namespace(rte->relid);
+        schemaname = get_namespace_name(nspid);
+      } else {
+        relname = "(subquery)";
+        schemaname = "(no schema)";
+      }
+
+      DBUG_PRINT("info", "%s (relid %d -> %s.%s (alias: %s))",
+                 prefix, relid,
+                 schemaname ? schemaname : "(null)",
+                 relname ? relname : "(null)",
+                 alias);
+    }
+  }
+}
+
+static char *
+append_int(char *p, int val)
+{
+  int n = sprintf(p, "%d", val);
+  return p + n;
+}
+
+static char *
+join_order_to_str(Path *path, char *p, int *is_ok)
+{
+  JoinPath *jpath;
+  int relid;
+
+  if (!path)
+    return p;
+
+  if (path->pathtype == T_NestLoop ||
+      path->pathtype == T_MergeJoin ||
+      path->pathtype == T_HashJoin) {
+    jpath = (JoinPath *) path;
+    p = join_order_to_str(jpath->outerjoinpath, p, is_ok);
+    *p++ = '-';
+    p = join_order_to_str(jpath->innerjoinpath, p, is_ok);
+  } else {
+    if (path->parent->reloptkind == RELOPT_BASEREL) {
+      relid = path->parent->relid;
+      p = append_int(p, relid);
+    } else {
+
+      if (IsA(path, GatherPath)) {
+        path = ((GatherPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, GatherMergePath)) {
+        path = ((GatherMergePath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, MaterialPath)) {
+        path = ((MaterialPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else {
+        *is_ok = 0;
+        DBUG_PRINT("info", "path type:%d", path->pathtype);
+      }
+    }
+  }
+
+  return p;
+}
+
+static void
+output_relids(Path *outer_path, Path *inner_path)
+{
+  char out[4096];
+  int is_ok = 1;
+  char *p = join_order_to_str(outer_path, out, &is_ok);
+
+  if (is_ok) {
+    *p++ = '-';
+  } else {
+    return;
+  }
+
+  p = join_order_to_str(inner_path, p, &is_ok);
+
+  if (is_ok) {
+    *p = '\0';  /* null-terminate */
+    DBUG_PRINT("info", "join order(relids):%s", out);
+  }
+}
+
+
+static const char *get_plan_type_str(char* name, int type)
+{
+  const char *pname = NULL;
+
+  switch (type) {
+    case T_Result:
+      pname = "result";
+      break;
+
+    case T_ProjectSet:
+      pname = "project set";
+      break;
+
+    case T_ModifyTable:
+      pname = "modify table";
+      break;
+
+    case T_Append:
+      pname = "append";
+      break;
+
+    case T_MergeAppend:
+      pname = "merge append";
+      break;
+
+    case T_RecursiveUnion:
+      pname = "recursive union";
+      break;
+
+    case T_BitmapAnd:
+      pname = "bitmap and";
+      break;
+
+    case T_BitmapOr:
+      pname = "bitmap or";
+      break;
+
+    case T_NestLoop:
+      pname = "nested loop";
+      break;
+
+    case T_MergeJoin:
+      pname = "merge join";
+      break;
+
+    case T_HashJoin:
+      pname = "hash join";
+      break;
+
+    case T_SeqScan:
+      pname = "seq scan";
+      break;
+
+    case T_SampleScan:
+      pname = "sample scan";
+      break;
+
+    case T_Gather:
+      pname = "gather";
+      break;
+
+    case T_GatherMerge:
+      pname = "gather merge";
+      break;
+
+    case T_IndexScan:
+      pname = "index scan";
+      break;
+
+    case T_IndexOnlyScan:
+      pname = "index only scan";
+      break;
+
+    case T_BitmapIndexScan:
+      pname = "bitmap index scan";
+      break;
+
+    case T_BitmapHeapScan:
+      pname = "bitmap heap scan";
+      break;
+
+    case T_TidScan:
+      pname = "tid scan";
+      break;
+
+    case T_TidRangeScan:
+      pname = "tid range scan";
+      break;
+
+    case T_SubqueryScan:
+      pname = "subquery scan";
+      break;
+
+    case T_FunctionScan:
+      pname = "function scan";
+      break;
+
+    case T_TableFuncScan:
+      pname = "table function scan";
+      break;
+
+    case T_ValuesScan:
+      pname = "values scan";
+      break;
+
+    case T_CteScan:
+      pname = "cte Scan";
+      break;
+
+    case T_NamedTuplestoreScan:
+      pname = "named tuplestore scan";
+      break;
+
+    case T_WorkTableScan:
+      pname = "work table scan";
+      break;
+
+    case T_ForeignScan:
+      pname = "foreign Scan";
+      break;
+
+    case T_CustomScan:
+      pname = "custom scan";
+      break;
+
+    case T_Material:
+      pname = "materialize";
+      break;
+
+    case T_Memoize:
+      pname = "memoize";
+      break;
+
+    case T_Sort:
+      pname = "sort";
+      break;
+
+    case T_IncrementalSort:
+      pname = "incremental sort";
+      break;
+
+    case T_Group:
+      pname = "group";
+      break;
+
+    case T_Agg: {
+      pname = "aggregate";
+    }
+    break;
+
+    case T_WindowAgg:
+      pname = "window agg";
+      break;
+
+    case T_Unique:
+      pname = "unique";
+      break;
+
+    case T_SetOp:
+      pname = "set op";
+      break;
+
+    case T_LockRows:
+      pname = "lock rows";
+      break;
+
+    case T_Limit:
+      pname = "limit";
+      break;
+
+    case T_Hash:
+      pname = "hash";
+      break;
+
+    default:
+      pname = "???";
+      break;
+  }
+
+  strcpy(name, pname);
+  return name;
+}
 /*
  * clamp_row_est
  *    Force a row-count estimate to a sane value.
@@ -211,6 +539,8 @@ static double get_parallel_divisor(Path *path);
 double
 clamp_row_est(double nrows)
 {
+  DBUG_TRACE;
+
   /*
    * Avoid infinite and NaN row estimates.  Costs derived from such values
    * are going to be useless.  Also force the estimate to be at least one
@@ -224,6 +554,7 @@ clamp_row_est(double nrows)
   else
     nrows = rint(nrows);
 
+  DBUG_PRINT("info", "force a row-count estimate to a sane value:%g", nrows);
   return nrows;
 }
 
@@ -240,6 +571,8 @@ clamp_row_est(double nrows)
 int32
 clamp_width_est(int64 tuple_width)
 {
+  DBUG_TRACE;
+
   /*
    * Anything more than MaxAllocSize is clearly bogus, since we could not
    * create a tuple that large.
@@ -253,6 +586,7 @@ clamp_width_est(int64 tuple_width)
    */
   Assert(tuple_width >= 0);
 
+  DBUG_PRINT("info", "force a tuple-width estimate to a sane value:%d", (int32) tuple_width);
   return (int32) tuple_width;
 }
 
@@ -295,6 +629,7 @@ void
 cost_seqscan(Path *path, PlannerInfo *root,
              RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    cpu_run_cost;
   Cost    disk_run_cost;
@@ -317,10 +652,12 @@ cost_seqscan(Path *path, PlannerInfo *root,
                             NULL,
                             &spc_seq_page_cost);
 
+  DBUG_PRINT("info", "fetch estimated page cost for tablespace containing table:%g", spc_seq_page_cost);
   /*
    * disk costs
    */
   disk_run_cost = spc_seq_page_cost * baserel->pages;
+  DBUG_PRINT("info", "disk costs:%g", disk_run_cost);
 
   /* CPU costs */
   get_restriction_qual_cost(root, baserel, param_info, &qpqual_cost);
@@ -328,8 +665,11 @@ cost_seqscan(Path *path, PlannerInfo *root,
   startup_cost += qpqual_cost.startup;
   cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
   cpu_run_cost = cpu_per_tuple * baserel->tuples;
+  DBUG_PRINT("info", "cpu_per_tuple:%g, per_tuple:%g", cpu_per_tuple, qpqual_cost.per_tuple);
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->pathtarget->cost.startup;
+  DBUG_PRINT("info", "add cost to cpu_run_cost(per_tuple:%g, path rows:%g), old:%g", path->pathtarget->cost.per_tuple, path->rows, cpu_run_cost);
   cpu_run_cost += path->pathtarget->cost.per_tuple * path->rows;
 
   /* Adjust costing for parallelism, if used. */
@@ -351,11 +691,14 @@ cost_seqscan(Path *path, PlannerInfo *root,
      * the number of tuples processed per worker.
      */
     path->rows = clamp_row_est(path->rows / parallel_divisor);
+    DBUG_PRINT("info", "in the case of a parallel plan, the row count needs to represent the number of tuples processed per worker");
+    DBUG_PRINT("info", "path rows:%g", path->rows);
   }
 
   path->disabled_nodes = enable_seqscan ? 0 : 1;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + cpu_run_cost + disk_run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g, tuples:%g", path->startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -369,6 +712,7 @@ void
 cost_samplescan(Path *path, PlannerInfo *root,
                 RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   RangeTblEntry *rte;
@@ -422,6 +766,7 @@ cost_samplescan(Path *path, PlannerInfo *root,
   startup_cost += qpqual_cost.startup;
   cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
   run_cost += cpu_per_tuple * baserel->tuples;
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->pathtarget->cost.startup;
   run_cost += path->pathtarget->cost.per_tuple * path->rows;
@@ -429,6 +774,7 @@ cost_samplescan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -446,6 +792,7 @@ cost_gather(GatherPath *path, PlannerInfo *root,
             RelOptInfo *rel, ParamPathInfo *param_info,
             double *rows)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
 
@@ -461,13 +808,17 @@ cost_gather(GatherPath *path, PlannerInfo *root,
 
   run_cost = path->subpath->total_cost - path->subpath->startup_cost;
 
+  DBUG_PRINT("info", "old startup_cost:%g, old total cost:%g, parallel_setup_cost:%g",
+             startup_cost, path->subpath->total_cost, parallel_setup_cost);
   /* Parallel setup and communication cost. */
+  DBUG_PRINT("info", "parallel communication cost:%g", parallel_tuple_cost);
   startup_cost += parallel_setup_cost;
   run_cost += parallel_tuple_cost * path->path.rows;
 
   path->path.disabled_nodes = path->subpath->disabled_nodes;
   path->path.startup_cost = startup_cost;
   path->path.total_cost = (startup_cost + run_cost);
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -487,6 +838,7 @@ cost_gather_merge(GatherMergePath *path, PlannerInfo *root,
                   Cost input_startup_cost, Cost input_total_cost,
                   double *rows)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   Cost    comparison_cost;
@@ -528,13 +880,18 @@ cost_gather_merge(GatherMergePath *path, PlannerInfo *root,
    * worker, we bump the IPC cost up a little bit as compared with Gather.
    * For lack of a better idea, charge an extra 5%.
    */
+  DBUG_PRINT("info", "parallel setup cost:%g and communication cost:%g", parallel_setup_cost, parallel_tuple_cost);
   startup_cost += parallel_setup_cost;
   run_cost += parallel_tuple_cost * path->path.rows * 1.05;
 
   path->path.disabled_nodes = input_disabled_nodes
                               + (enable_gathermerge ? 0 : 1);
+
+  DBUG_PRINT("info", "startup cost:%g and input start cost:%g", startup_cost, input_startup_cost);
   path->path.startup_cost = startup_cost + input_startup_cost;
+  DBUG_PRINT("info", "run_cost:%g and input_total_cost:%g", run_cost, input_total_cost);
   path->path.total_cost = (startup_cost + run_cost + input_total_cost);
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -559,11 +916,13 @@ void
 cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
            bool partial_path)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   RelOptInfo *baserel = index->rel;
   bool    indexonly = (path->path.pathtype == T_IndexOnlyScan);
   amcostestimate_function amcostestimate;
   List     *qpquals;
+  char        name[32];
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   Cost    cpu_run_cost = 0;
@@ -582,6 +941,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
   double    pages_fetched;
   double    rand_heap_pages;
   double    index_pages;
+  const char    *index_name = get_rel_name(index->indexoid);
 
   /* Should only be applied to base relations */
   Assert(IsA(baserel, RelOptInfo) &&
@@ -598,6 +958,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
    */
   if (path->path.param_info) {
     path->path.rows = path->path.param_info->ppi_rows;
+    DBUG_PRINT("info", "index name:%s with param_info row estimate:%g", index_name, path->path.rows);
     /* qpquals come from the rel's restriction clauses and ppi_clauses */
     qpquals = list_concat(extract_nonindex_conditions(path->indexinfo->indrestrictinfo,
                           path->indexclauses),
@@ -605,6 +966,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
                               path->indexclauses));
   } else {
     path->path.rows = baserel->rows;
+    DBUG_PRINT("info", "index name:%s with row estimate:%g", index_name, path->path.rows);
     /* qpquals come from just the rel's restriction clauses */
     qpquals = extract_nonindex_conditions(path->indexinfo->indrestrictinfo,
                                           path->indexclauses);
@@ -620,6 +982,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
    * correlation to the main-table tuple order.  We need a cast here because
    * pathnodes.h uses a weak function type to avoid including amapi.h.
    */
+  DBUG_PRINT("info", "call index-access-method-specific code to estimate the processing cost for scanning the index");
   amcostestimate = (amcostestimate_function) index->amcostestimate;
   amcostestimate(root, path, loop_count,
                  &indexStartupCost, &indexTotalCost,
@@ -634,13 +997,16 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
   path->indextotalcost = indexTotalCost;
   path->indexselectivity = indexSelectivity;
 
+  DBUG_PRINT("info", "indexTotalCost:%g, indexSelectivity:%g", indexTotalCost, indexSelectivity);
   /* all costs for touching index itself included here */
   startup_cost += indexStartupCost;
   run_cost += indexTotalCost - indexStartupCost;
+  DBUG_PRINT("info", "all costs for touching index:%g, indexTotalCost:%g, indexStartupCost:%g", run_cost, indexTotalCost, indexStartupCost);
 
   /* estimate number of main-table tuples fetched */
   tuples_fetched = clamp_row_est(indexSelectivity * baserel->tuples);
 
+  DBUG_PRINT("info", "estimate number of main-table tuples fetched:%g", tuples_fetched);
   /* fetch estimated page costs for tablespace containing table */
   get_tablespace_page_costs(baserel->reltablespace,
                             &spc_random_page_cost,
@@ -692,6 +1058,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
 
     rand_heap_pages = pages_fetched;
 
+    DBUG_PRINT("info", "pages_fetched:%g, spc_random_page_cost:%g, loop_count:%g for max io cost", pages_fetched, spc_random_page_cost, loop_count);
     max_IO_cost = (pages_fetched * spc_random_page_cost) / loop_count;
 
     /*
@@ -730,6 +1097,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
 
     rand_heap_pages = pages_fetched;
 
+    DBUG_PRINT("info", "pages_fetched:%g, spc_random_page_cost:%g for max io cost", pages_fetched, spc_random_page_cost);
     /* max_IO_cost is for the perfectly uncorrelated case (csquared=0) */
     max_IO_cost = pages_fetched * spc_random_page_cost;
 
@@ -747,6 +1115,8 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
     } else
       min_IO_cost = 0;
   }
+
+  DBUG_PRINT("info", "pages_fetched:%g", pages_fetched);
 
   if (partial_path) {
     /*
@@ -767,6 +1137,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
                                   rand_heap_pages,
                                   index_pages,
                                   max_parallel_workers_per_gather);
+    DBUG_PRINT("info", "estimate the number of parallel workers required to scan index:%d", path->path.parallel_workers);
 
     /*
      * Fall out if workers can't be assigned for parallel scan, because in
@@ -785,6 +1156,8 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
    */
   csquared = indexCorrelation * indexCorrelation;
 
+  DBUG_PRINT("info", "max_IO_cost:%g, min_IO_cost:%g, csquared:%g", max_IO_cost, min_IO_cost, csquared);
+  DBUG_PRINT("info", "add disk I/O cost:%g, old run_cost:%g", (max_IO_cost + csquared * (min_IO_cost - max_IO_cost)), run_cost);
   run_cost += max_IO_cost + csquared * (min_IO_cost - max_IO_cost);
 
   /*
@@ -798,6 +1171,7 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
   startup_cost += qpqual_cost.startup;
   cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
 
+  DBUG_PRINT("info", "per_tuple:%g, cpu_per_tuple:%g", qpqual_cost.per_tuple, cpu_per_tuple);
   cpu_run_cost += cpu_per_tuple * tuples_fetched;
 
   /* tlist eval costs are paid per output row, not per tuple scanned */
@@ -807,17 +1181,23 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
   /* Adjust costing for parallelism, if used. */
   if (path->path.parallel_workers > 0) {
     double    parallel_divisor = get_parallel_divisor(&path->path);
+    DBUG_PRINT("info", "adjust costing for parallelism");
 
     path->path.rows = clamp_row_est(path->path.rows / parallel_divisor);
 
     /* The CPU cost is divided among all the workers. */
     cpu_run_cost /= parallel_divisor;
+    DBUG_PRINT("info", "the CPU cost is divided among all the workers:%g", parallel_divisor);
   }
 
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
+  DBUG_PRINT("info", "add cpu_run_cost:%g, old run_cost:%g", cpu_run_cost, run_cost);
   run_cost += cpu_run_cost;
 
   path->path.startup_cost = startup_cost;
   path->path.total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "type:%s, startup_cost:%g, total cost:%g ,tuples:%g",
+             get_plan_type_str(name, path->path.pathtype), path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -839,18 +1219,24 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
 static List *
 extract_nonindex_conditions(List *qual_clauses, List *indexclauses)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
   foreach(lc, qual_clauses) {
     RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
 
-    if (rinfo->pseudoconstant)
+    if (rinfo->pseudoconstant) {
+      DBUG_PRINT("info", "we may drop pseudoconstants here");
       continue;     /* we may drop pseudoconstants here */
+    }
 
-    if (is_redundant_with_indexclauses(rinfo, indexclauses))
+    if (is_redundant_with_indexclauses(rinfo, indexclauses)) {
+      DBUG_PRINT("info", "dup or derived from same EquivalenceClass");
       continue;     /* dup or derived from same EquivalenceClass */
+    }
 
+    DBUG_PRINT("info", "add the RestrictInfo to the list");
     /* ... skip the predicate proof attempt createplan.c will try ... */
     result = lappend(result, rinfo);
   }
@@ -900,6 +1286,7 @@ double
 index_pages_fetched(double tuples_fetched, BlockNumber pages,
                     double index_pages, PlannerInfo *root)
 {
+  DBUG_TRACE;
   double    pages_fetched;
   double    total_pages;
   double    T,
@@ -947,6 +1334,8 @@ index_pages_fetched(double tuples_fetched, BlockNumber pages,
     pages_fetched = ceil(pages_fetched);
   }
 
+  DBUG_PRINT("info", "pages fetched:%g", pages_fetched);
+
   return pages_fetched;
 }
 
@@ -962,6 +1351,7 @@ index_pages_fetched(double tuples_fetched, BlockNumber pages,
 static double
 get_indexpath_pages(Path *bitmapqual)
 {
+  DBUG_TRACE;
   double    result = 0;
   ListCell   *l;
 
@@ -984,6 +1374,7 @@ get_indexpath_pages(Path *bitmapqual)
   } else
     elog(ERROR, "unrecognized node type: %d", nodeTag(bitmapqual));
 
+  DBUG_PRINT("info", "the total size of the indexes:%g", result);
   return result;
 }
 
@@ -1006,6 +1397,7 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
                       ParamPathInfo *param_info,
                       Path *bitmapqual, double loop_count)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   Cost    indexTotalCost;
@@ -1030,6 +1422,7 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
   else
     path->rows = baserel->rows;
 
+  DBUG_PRINT("info", "mark the path with the correct row estimate:%g", path->rows);
   pages_fetched = compute_bitmap_pages(root, baserel, bitmapqual,
                                        loop_count, &indexTotalCost,
                                        &tuples_fetched);
@@ -1057,6 +1450,7 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
     cost_per_page = spc_random_page_cost;
 
   run_cost += pages_fetched * cost_per_page;
+  DBUG_PRINT("info", "pages_fetched:%g, cost_per_page:%g", pages_fetched, cost_per_page);
 
   /*
    * Estimate CPU costs per tuple.
@@ -1072,6 +1466,7 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
   startup_cost += qpqual_cost.startup;
   cpu_per_tuple = cpu_tuple_cost + qpqual_cost.per_tuple;
   cpu_run_cost = cpu_per_tuple * tuples_fetched;
+  DBUG_PRINT("info", "estimate CPU costs per tuple(cpu_per_tuple:%g, tuples_fetched:%g)", cpu_per_tuple, tuples_fetched);
 
   /* Adjust costing for parallelism, if used. */
   if (path->parallel_workers > 0) {
@@ -1081,6 +1476,8 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
     cpu_run_cost /= parallel_divisor;
 
     path->rows = clamp_row_est(path->rows / parallel_divisor);
+    DBUG_PRINT("info", "parallel_divisor:%g", parallel_divisor);
+    DBUG_PRINT("info", "adjust path rows:%g", path->rows);
   }
 
 
@@ -1090,9 +1487,12 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
   startup_cost += path->pathtarget->cost.startup;
   run_cost += path->pathtarget->cost.per_tuple * path->rows;
 
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
+
   path->disabled_nodes = enable_bitmapscan ? 0 : 1;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1102,6 +1502,8 @@ cost_bitmap_heap_scan(Path *path, PlannerInfo *root, RelOptInfo *baserel,
 void
 cost_bitmap_tree_node(Path *path, Cost *cost, Selectivity *selec)
 {
+  DBUG_TRACE;
+
   if (IsA(path, IndexPath)) {
     *cost = ((IndexPath *) path)->indextotalcost;
     *selec = ((IndexPath *) path)->indexselectivity;
@@ -1123,6 +1525,9 @@ cost_bitmap_tree_node(Path *path, Cost *cost, Selectivity *selec)
     elog(ERROR, "unrecognized node type: %d", nodeTag(path));
     *cost = *selec = 0;   /* keep compiler quiet */
   }
+
+  DBUG_PRINT("info", "extract cost from a bitmap tree node:%g", *cost);
+
 }
 
 /*
@@ -1138,6 +1543,7 @@ cost_bitmap_tree_node(Path *path, Cost *cost, Selectivity *selec)
 void
 cost_bitmap_and_node(BitmapAndPath *path, PlannerInfo *root)
 {
+  DBUG_TRACE;
   Cost    totalCost;
   Selectivity selec;
   ListCell   *l;
@@ -1170,10 +1576,12 @@ cost_bitmap_and_node(BitmapAndPath *path, PlannerInfo *root)
   }
 
   path->bitmapselectivity = selec;
+  DBUG_PRINT("info", "set bitmapselectivity:%g", selec);
   path->path.rows = 0;    /* per above, not used */
   path->path.disabled_nodes = 0;
   path->path.startup_cost = totalCost;
   path->path.total_cost = totalCost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -1185,6 +1593,7 @@ cost_bitmap_and_node(BitmapAndPath *path, PlannerInfo *root)
 void
 cost_bitmap_or_node(BitmapOrPath *path, PlannerInfo *root)
 {
+  DBUG_TRACE;
   Cost    totalCost;
   Selectivity selec;
   ListCell   *l;
@@ -1219,9 +1628,11 @@ cost_bitmap_or_node(BitmapOrPath *path, PlannerInfo *root)
   }
 
   path->bitmapselectivity = Min(selec, 1.0);
+  DBUG_PRINT("info", "set bitmapselectivity:%g", path->bitmapselectivity);
   path->path.rows = 0;    /* per above, not used */
   path->path.startup_cost = totalCost;
   path->path.total_cost = totalCost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -1236,6 +1647,7 @@ void
 cost_tidscan(Path *path, PlannerInfo *root,
              RelOptInfo *baserel, List *tidquals, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
@@ -1245,6 +1657,7 @@ cost_tidscan(Path *path, PlannerInfo *root,
   ListCell   *l;
   double    spc_random_page_cost;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a relation using TIDs");
   /* Should only be applied to base relations */
   Assert(baserel->relid > 0);
   Assert(baserel->rtekind == RTE_RELATION);
@@ -1313,6 +1726,7 @@ cost_tidscan(Path *path, PlannerInfo *root,
   startup_cost += path->pathtarget->cost.startup;
   run_cost += path->pathtarget->cost.per_tuple * path->rows;
 
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
   /*
    * There are assertions above verifying that we only reach this function
    * either when enable_tidscan=true or when the TID scan is the only legal
@@ -1321,6 +1735,7 @@ cost_tidscan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1337,6 +1752,7 @@ cost_tidrangescan(Path *path, PlannerInfo *root,
                   RelOptInfo *baserel, List *tidrangequals,
                   ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Selectivity selectivity;
   double    pages;
   Cost    startup_cost = 0;
@@ -1349,6 +1765,7 @@ cost_tidrangescan(Path *path, PlannerInfo *root,
   double    spc_random_page_cost;
   double    spc_seq_page_cost;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a relation using a range of TIDs for 'path'");
   /* Should only be applied to base relations */
   Assert(baserel->relid > 0);
   Assert(baserel->rtekind == RTE_RELATION);
@@ -1363,6 +1780,7 @@ cost_tidrangescan(Path *path, PlannerInfo *root,
   selectivity = clauselist_selectivity(root, tidrangequals, baserel->relid,
                                        JOIN_INNER, NULL);
   pages = ceil(selectivity * baserel->pages);
+  DBUG_PRINT("info", "count pages we expect to scan:%g, selectivity:%g", pages, selectivity);
 
   if (pages <= 0.0)
     pages = 1.0;
@@ -1410,12 +1828,14 @@ cost_tidrangescan(Path *path, PlannerInfo *root,
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->pathtarget->cost.startup;
   run_cost += path->pathtarget->cost.per_tuple * path->rows;
+  DBUG_PRINT("info", "relid:%d, tuples:%g, pages:%u", baserel->relid, baserel->tuples, baserel->pages);
 
   /* we should not generate this path type when enable_tidscan=false */
   Assert(enable_tidscan);
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1431,12 +1851,14 @@ cost_subqueryscan(SubqueryScanPath *path, PlannerInfo *root,
                   RelOptInfo *baserel, ParamPathInfo *param_info,
                   bool trivial_pathtarget)
 {
+  DBUG_TRACE;
   Cost    startup_cost;
   Cost    run_cost;
   List     *qpquals;
   QualCost  qpqual_cost;
   Cost    cpu_per_tuple;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a subquery RTE");
   /* Should only be applied to base relations that are subqueries */
   Assert(baserel->relid > 0);
   Assert(baserel->rtekind == RTE_SUBQUERY);
@@ -1498,6 +1920,7 @@ cost_subqueryscan(SubqueryScanPath *path, PlannerInfo *root,
 
   path->path.startup_cost += startup_cost;
   path->path.total_cost += startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", path->path.startup_cost, path->path.total_cost, path->path.rows);
 }
 
 /*
@@ -1511,6 +1934,7 @@ void
 cost_functionscan(Path *path, PlannerInfo *root,
                   RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
@@ -1560,6 +1984,7 @@ cost_functionscan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1573,6 +1998,7 @@ void
 cost_tablefuncscan(Path *path, PlannerInfo *root,
                    RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
@@ -1580,6 +2006,7 @@ cost_tablefuncscan(Path *path, PlannerInfo *root,
   RangeTblEntry *rte;
   QualCost  exprcost;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a table function");
   /* Should only be applied to base relations that are functions */
   Assert(baserel->relid > 0);
   rte = planner_rt_fetch(baserel->relid, root);
@@ -1617,6 +2044,7 @@ cost_tablefuncscan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1630,11 +2058,13 @@ void
 cost_valuesscan(Path *path, PlannerInfo *root,
                 RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
   Cost    cpu_per_tuple;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a VALUES RTE");
   /* Should only be applied to base relations that are values lists */
   Assert(baserel->relid > 0);
   Assert(baserel->rtekind == RTE_VALUES);
@@ -1665,6 +2095,7 @@ cost_valuesscan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1681,11 +2112,13 @@ void
 cost_ctescan(Path *path, PlannerInfo *root,
              RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
   Cost    cpu_per_tuple;
 
+  DBUG_PRINT("info", "determines and returns the cost of scanning a CTE RTE");
   /* Should only be applied to base relations that are CTEs */
   Assert(baserel->relid > 0);
   Assert(baserel->rtekind == RTE_CTE);
@@ -1705,14 +2138,17 @@ cost_ctescan(Path *path, PlannerInfo *root,
   startup_cost += qpqual_cost.startup;
   cpu_per_tuple += cpu_tuple_cost + qpqual_cost.per_tuple;
   run_cost += cpu_per_tuple * baserel->tuples;
+  DBUG_PRINT("info", "cpu_per_tuple:%g, baserel->tuples:%g, run cost:%g", cpu_per_tuple, baserel->tuples, run_cost);
 
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->pathtarget->cost.startup;
   run_cost += path->pathtarget->cost.per_tuple * path->rows;
+  DBUG_PRINT("info", "per_tuple:%g, path->rows:%g, run cost:%g", path->pathtarget->cost.per_tuple, path->rows, run_cost);
 
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1723,6 +2159,7 @@ void
 cost_namedtuplestorescan(Path *path, PlannerInfo *root,
                          RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
@@ -1751,6 +2188,7 @@ cost_namedtuplestorescan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1761,6 +2199,7 @@ void
 cost_resultscan(Path *path, PlannerInfo *root,
                 RelOptInfo *baserel, ParamPathInfo *param_info)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   QualCost  qpqual_cost;
@@ -1786,6 +2225,7 @@ cost_resultscan(Path *path, PlannerInfo *root,
   path->disabled_nodes = 0;
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -1798,6 +2238,7 @@ cost_resultscan(Path *path, PlannerInfo *root,
 void
 cost_recursive_union(Path *runion, Path *nrterm, Path *rterm)
 {
+  DBUG_TRACE;
   Cost    startup_cost;
   Cost    total_cost;
   double    total_rows;
@@ -1807,6 +2248,7 @@ cost_recursive_union(Path *runion, Path *nrterm, Path *rterm)
   total_cost = nrterm->total_cost;
   total_rows = nrterm->rows;
 
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g, rows:%g for the non-recursive term", startup_cost, total_cost, total_rows);
   /*
    * We arbitrarily assume that about 10 recursive iterations will be
    * needed, and that we've managed to get a good fix on the cost and output
@@ -1816,12 +2258,15 @@ cost_recursive_union(Path *runion, Path *nrterm, Path *rterm)
   total_cost += 10 * rterm->total_cost;
   total_rows += 10 * rterm->rows;
 
+  DBUG_PRINT("info", "total cost:%g, rows:%g after 10 recursive iterations", total_cost, total_rows);
+  DBUG_PRINT("info", "these are mighty shaky assumptions but it's hard to see how to do better");
   /*
    * Also charge cpu_tuple_cost per row to account for the costs of
    * manipulating the tuplestores.  (We don't worry about possible
    * spill-to-disk costs.)
    */
   total_cost += cpu_tuple_cost * total_rows;
+  DBUG_PRINT("info", "total cost:%g, total rows:%g", total_cost, total_rows);
 
   runion->disabled_nodes = nrterm->disabled_nodes + rterm->disabled_nodes;
   runion->startup_cost = startup_cost;
@@ -1829,6 +2274,8 @@ cost_recursive_union(Path *runion, Path *nrterm, Path *rterm)
   runion->rows = total_rows;
   runion->pathtarget->width = Max(nrterm->pathtarget->width,
                                   rterm->pathtarget->width);
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, total_cost, total_rows);
+
 }
 
 /*
@@ -1873,6 +2320,7 @@ cost_tuplesort(Cost *startup_cost, Cost *run_cost,
                Cost comparison_cost, int sort_mem,
                double limit_tuples)
 {
+  DBUG_TRACE;
   double    input_bytes = relation_byte_size(tuples, width);
   double    output_bytes;
   double    output_tuples;
@@ -1948,6 +2396,7 @@ cost_tuplesort(Cost *startup_cost, Cost *run_cost,
    * counting the LIMIT otherwise.
    */
   *run_cost = cpu_operator_cost * tuples;
+  DBUG_PRINT("info", "startup_cost:%g, run cost:%g ,tuples:%g", *startup_cost, *run_cost, tuples);
 }
 
 /*
@@ -1970,6 +2419,7 @@ cost_incremental_sort(Path *path,
                       double input_tuples, int width, Cost comparison_cost, int sort_mem,
                       double limit_tuples)
 {
+  DBUG_TRACE;
   Cost    startup_cost,
           run_cost,
           input_run_cost = input_total_cost - input_startup_cost;
@@ -2090,6 +2540,7 @@ cost_incremental_sort(Path *path,
 
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g", startup_cost, path->total_cost, path->rows);
 }
 
 /*
@@ -2112,6 +2563,7 @@ cost_sort(Path *path, PlannerInfo *root,
           double limit_tuples)
 
 {
+  DBUG_TRACE;
   Cost    startup_cost;
   Cost    run_cost;
 
@@ -2126,6 +2578,7 @@ cost_sort(Path *path, PlannerInfo *root,
   path->disabled_nodes = input_disabled_nodes + (enable_sort ? 0 : 1);
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g ,tuples:%g, input cost:%g", startup_cost, path->total_cost, tuples, input_cost);
 }
 
 /*
@@ -2137,6 +2590,7 @@ cost_sort(Path *path, PlannerInfo *root,
 static Cost
 append_nonpartial_cost(List *subpaths, int numpaths, int parallel_workers)
 {
+  DBUG_TRACE;
   Cost     *costarr;
   int     arrlen;
   ListCell   *l;
@@ -2213,6 +2667,7 @@ append_nonpartial_cost(List *subpaths, int numpaths, int parallel_workers)
 void
 cost_append(AppendPath *apath)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   apath->path.disabled_nodes = 0;
@@ -2354,6 +2809,7 @@ cost_append(AppendPath *apath)
    */
   apath->path.total_cost +=
     cpu_tuple_cost * APPEND_CPU_COST_MULTIPLIER * apath->path.rows;
+  DBUG_PRINT("info", "total cost:%g",  apath->path.total_cost);
 }
 
 /*
@@ -2388,6 +2844,7 @@ cost_merge_append(Path *path, PlannerInfo *root,
                   Cost input_startup_cost, Cost input_total_cost,
                   double tuples)
 {
+  DBUG_TRACE;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
   Cost    comparison_cost;
@@ -2418,6 +2875,7 @@ cost_merge_append(Path *path, PlannerInfo *root,
   path->disabled_nodes = input_disabled_nodes;
   path->startup_cost = startup_cost + input_startup_cost;
   path->total_cost = startup_cost + run_cost + input_total_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total cost:%g", path->startup_cost, path->total_cost);
 }
 
 /*
@@ -2438,6 +2896,7 @@ cost_material(Path *path,
               Cost input_startup_cost, Cost input_total_cost,
               double tuples, int width)
 {
+  DBUG_TRACE;
   Cost    startup_cost = input_startup_cost;
   Cost    run_cost = input_total_cost - input_startup_cost;
   double    nbytes = relation_byte_size(tuples, width);
@@ -2474,6 +2933,9 @@ cost_material(Path *path,
   path->disabled_nodes = input_disabled_nodes + (enable_material ? 0 : 1);
   path->startup_cost = startup_cost;
   path->total_cost = startup_cost + run_cost;
+
+  DBUG_PRINT("info", "startup:%g, total cost:%g",
+             path->startup_cost, path->total_cost);
 }
 
 /*
@@ -2493,6 +2955,7 @@ static void
 cost_memoize_rescan(PlannerInfo *root, MemoizePath *mpath,
                     Cost *rescan_startup_cost, Cost *rescan_total_cost)
 {
+  DBUG_TRACE;
   EstimationInfo estinfo;
   ListCell   *lc;
   Cost    input_startup_cost = mpath->subpath->startup_cost;
@@ -2617,6 +3080,8 @@ cost_memoize_rescan(PlannerInfo *root, MemoizePath *mpath,
 
   *rescan_startup_cost = startup_cost;
   *rescan_total_cost = total_cost;
+  DBUG_PRINT("info", "startup:%g, total cost:%g",
+             startup_cost, total_cost);
 }
 
 /*
@@ -2639,6 +3104,7 @@ cost_agg(Path *path, PlannerInfo *root,
          Cost input_startup_cost, Cost input_total_cost,
          double input_tuples, double input_width)
 {
+  DBUG_TRACE;
   double    output_tuples;
   Cost    startup_cost;
   Cost    total_cost;
@@ -2680,6 +3146,7 @@ cost_agg(Path *path, PlannerInfo *root,
     startup_cost += aggcosts->finalCost.per_tuple;
     /* we aren't grouping */
     total_cost = startup_cost + cpu_tuple_cost;
+    DBUG_PRINT("info", "we aren't grouping and total cost:%g, old total cost:%g", total_cost, input_total_cost);
     output_tuples = 1;
   } else if (aggstrategy == AGG_SORTED || aggstrategy == AGG_MIXED) {
     /* Here we are able to deliver output on-the-fly */
@@ -2697,6 +3164,7 @@ cost_agg(Path *path, PlannerInfo *root,
     total_cost += aggcosts->finalCost.per_tuple * numGroups;
     total_cost += cpu_tuple_cost * numGroups;
     output_tuples = numGroups;
+    DBUG_PRINT("info", "here we are able to deliver output on-the-fly and total cost:%g, old total cost:%g", total_cost, input_total_cost);
   } else {
     /* must be AGG_HASHED */
     startup_cost = input_total_cost;
@@ -2715,6 +3183,7 @@ cost_agg(Path *path, PlannerInfo *root,
     /* cost of retrieving from hash table */
     total_cost += cpu_tuple_cost * numGroups;
     output_tuples = numGroups;
+    DBUG_PRINT("info", "must be AGG_HASHED and total cost:%g, old total cost:%g", total_cost, input_total_cost);
   }
 
   /*
@@ -2788,6 +3257,7 @@ cost_agg(Path *path, PlannerInfo *root,
     spill_cost = depth * input_tuples * 2.0 * cpu_tuple_cost;
     startup_cost += spill_cost;
     total_cost += spill_cost;
+    DBUG_PRINT("info", "add the disk costs of hash aggregation that spills to disk and total_cost:%g", total_cost);
   }
 
   /*
@@ -2797,6 +3267,7 @@ cost_agg(Path *path, PlannerInfo *root,
   if (quals) {
     QualCost  qual_cost;
 
+    DBUG_PRINT("info", "when there are quals (HAVING quals), account for their cost and selectivity");
     cost_qual_eval(&qual_cost, quals, root);
     startup_cost += qual_cost.startup;
     total_cost += qual_cost.startup + output_tuples * qual_cost.per_tuple;
@@ -2807,12 +3278,15 @@ cost_agg(Path *path, PlannerInfo *root,
                                       0,
                                       JOIN_INNER,
                                       NULL));
+    DBUG_PRINT("info", "total cost:%g, output_tuples:%g", total_cost, output_tuples);
   }
 
   path->rows = output_tuples;
   path->disabled_nodes = disabled_nodes;
   path->startup_cost = startup_cost;
   path->total_cost = total_cost;
+  DBUG_PRINT("info", "path rows:%g, startup:%g, total cost:%g",
+             path->rows, path->startup_cost, path->total_cost);
 }
 
 /*
@@ -2832,6 +3306,7 @@ static double
 get_windowclause_startup_tuples(PlannerInfo *root, WindowClause *wc,
                                 double input_tuples)
 {
+  DBUG_TRACE;
   int     frameOptions = wc->frameOptions;
   double    partition_tuples;
   double    return_tuples;
@@ -3017,6 +3492,7 @@ cost_windowagg(Path *path, PlannerInfo *root,
                Cost input_startup_cost, Cost input_total_cost,
                double input_tuples)
 {
+  DBUG_TRACE;
   Cost    startup_cost;
   Cost    total_cost;
   double    startup_tuples;
@@ -3096,6 +3572,9 @@ cost_windowagg(Path *path, PlannerInfo *root,
   if (startup_tuples > 1.0)
     path->startup_cost += (total_cost - startup_cost) / input_tuples *
                           (startup_tuples - 1.0);
+
+  DBUG_PRINT("info", "rows:%g, start cost:%g, total cost:%g",
+             path->rows, path->startup_cost, path->total_cost);
 }
 
 /*
@@ -3114,6 +3593,7 @@ cost_group(Path *path, PlannerInfo *root,
            Cost input_startup_cost, Cost input_total_cost,
            double input_tuples)
 {
+  DBUG_TRACE;
   double    output_tuples;
   Cost    startup_cost;
   Cost    total_cost;
@@ -3151,6 +3631,9 @@ cost_group(Path *path, PlannerInfo *root,
   path->disabled_nodes = input_disabled_nodes;
   path->startup_cost = startup_cost;
   path->total_cost = total_cost;
+
+  DBUG_PRINT("info", "rows:%g, start cost:%g, total cost:%g",
+             path->rows, path->startup_cost, path->total_cost);
 }
 
 /*
@@ -3183,6 +3666,7 @@ initial_cost_nestloop(PlannerInfo *root, JoinCostWorkspace *workspace,
                       Path *outer_path, Path *inner_path,
                       JoinPathExtraData *extra)
 {
+  DBUG_TRACE;
   int     disabled_nodes;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
@@ -3213,8 +3697,68 @@ initial_cost_nestloop(PlannerInfo *root, JoinCostWorkspace *workspace,
   startup_cost += outer_path->startup_cost + inner_path->startup_cost;
   run_cost += outer_path->total_cost - outer_path->startup_cost;
 
-  if (outer_path_rows > 1)
+  {
+    bool inner_join = false;
+    bool outer_join = false;
+
+    if (root) {
+      output_relids(outer_path, inner_path);
+
+      if (outer_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[outer_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "outer parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, outer_path->parent->relid);
+        }
+      } else if (outer_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: join");
+        print_relids_tables(root, "outer joinrel", outer_path->parent->relids);
+        outer_join = true;
+      } else if (outer_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: upper rel");
+        print_relids_tables(root, "outer upper_rel", outer_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "outer parent's reloptkind:%d", outer_path->parent->reloptkind);
+      }
+
+      if (inner_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[inner_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "inner parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, inner_path->parent->relid);
+        }
+      } else if (inner_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: join");
+        inner_join = true;
+        print_relids_tables(root, "inner joinrel", inner_path->parent->relids);
+      } else if (inner_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: upper rel");
+        print_relids_tables(root, "inner upper_rel", inner_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "inner parent's reloptkind:%d", inner_path->parent->reloptkind);
+      }
+
+      if (inner_join && outer_join) {
+        DBUG_PRINT("info", "this join operation is a bushy join");
+      } else if (inner_join) {
+        DBUG_PRINT("info", "this join operation is a right-deep join");
+      } else if (outer_join) {
+        DBUG_PRINT("info", "this join operation is a left-deep join");
+      }
+    }
+  }
+  DBUG_PRINT("info", "outer path startup_cost:%g, inner path startup_cost:%g, now startup_cost:%g",
+             outer_path->startup_cost, inner_path->startup_cost, startup_cost);
+  DBUG_PRINT("info", "outer path total_cost:%g, inner path total_cost:%g, now run_cost:%g",
+             outer_path->total_cost, inner_path->total_cost, run_cost);
+
+  if (outer_path_rows > 1) {
     run_cost += (outer_path_rows - 1) * inner_rescan_start_cost;
+    DBUG_PRINT("info", "outer path rows:%g, inner_rescan_start_cost:%g, now run_cost:%g",
+               outer_path_rows, inner_rescan_start_cost, run_cost);
+  } else {
+    DBUG_PRINT("info", "outer_path_rows:%g", outer_path_rows);
+  }
 
   inner_run_cost = inner_path->total_cost - inner_path->startup_cost;
   inner_rescan_run_cost = inner_rescan_total_cost - inner_rescan_start_cost;
@@ -3229,15 +3773,22 @@ initial_cost_nestloop(PlannerInfo *root, JoinCostWorkspace *workspace,
      * which we choose to postpone to final_cost_nestloop.
      */
 
+    DBUG_PRINT("info", "the executor will stop after the first match");
     /* Save private data for final_cost_nestloop */
     workspace->inner_run_cost = inner_run_cost;
     workspace->inner_rescan_run_cost = inner_rescan_run_cost;
+    DBUG_PRINT("info", "save private data for final_cost_nestloop(inner_run_cost:%g, inner_rescan_run_cost:%g)",
+               inner_run_cost, inner_rescan_run_cost);
   } else {
     /* Normal case; we'll scan whole input rel for each outer row */
     run_cost += inner_run_cost;
 
     if (outer_path_rows > 1)
       run_cost += (outer_path_rows - 1) * inner_rescan_run_cost;
+
+    DBUG_PRINT("info", "normal case; we'll scan whole input rel for each outer row");
+    DBUG_PRINT("info", "inner_run_cost:%g, outer_path_rows:%g, now run_cost:%g",
+               inner_run_cost, outer_path_rows, run_cost);
   }
 
   /* CPU costs left for later */
@@ -3248,6 +3799,7 @@ initial_cost_nestloop(PlannerInfo *root, JoinCostWorkspace *workspace,
   workspace->total_cost = startup_cost + run_cost;
   /* Save private data for final_cost_nestloop */
   workspace->run_cost = run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, total_cost:%g, run_cost:%g", startup_cost, workspace->total_cost, run_cost);
 }
 
 /*
@@ -3263,6 +3815,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
                     JoinCostWorkspace *workspace,
                     JoinPathExtraData *extra)
 {
+  DBUG_TRACE;
   Path     *outer_path = path->jpath.outerjoinpath;
   Path     *inner_path = path->jpath.innerjoinpath;
   double    outer_path_rows = outer_path->rows;
@@ -3284,10 +3837,13 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
     inner_path_rows = 1;
 
   /* Mark the path with the correct row estimate */
-  if (path->jpath.path.param_info)
+  if (path->jpath.path.param_info) {
     path->jpath.path.rows = path->jpath.path.param_info->ppi_rows;
-  else
+    DBUG_PRINT("info", "mark the path with the correct row estimate:%g from param_info", path->jpath.path.rows);
+  } else {
     path->jpath.path.rows = path->jpath.path.parent->rows;
+    DBUG_PRINT("info", "mark the path with the correct row estimate:%g", path->jpath.path.rows);
+  }
 
   /* For partial paths, scale row estimate. */
   if (path->jpath.path.parallel_workers > 0) {
@@ -3295,6 +3851,7 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
 
     path->jpath.path.rows =
       clamp_row_est(path->jpath.path.rows / parallel_divisor);
+    DBUG_PRINT("info", "for partial paths, scale row estimate:%g", path->jpath.path.rows);
   }
 
   /* cost of inner-relation source data (we already dealt with outer rel) */
@@ -3329,6 +3886,8 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
      * account for successfully-matched outer rows.
      */
     ntuples = outer_matched_rows * inner_path_rows * inner_scan_frac;
+    DBUG_PRINT("info", "outer_matched_rows:%g, inner_path_rows:%g, inner_scan_frac:%g, ntuples:%g",
+               outer_matched_rows, inner_path_rows, inner_scan_frac, ntuples);
 
     /*
      * Now we need to estimate the actual costs of scanning the inner
@@ -3356,8 +3915,14 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
        */
       run_cost += inner_run_cost * inner_scan_frac;
 
-      if (outer_matched_rows > 1)
+      DBUG_PRINT("info", "run_cost:%g, inner_run_cost:%g, inner_scan_frac:%g", run_cost, inner_run_cost, inner_scan_frac);
+
+      if (outer_matched_rows > 1) {
         run_cost += (outer_matched_rows - 1) * inner_rescan_run_cost * inner_scan_frac;
+        DBUG_PRINT("info", "run_cost:%g, inner_rescan_run_cost:%g, inner_scan_frac:%g, outer_matched_rows:%g",
+                   run_cost, inner_run_cost, inner_scan_frac, outer_matched_rows);
+
+      }
 
       /*
        * Add the cost of inner-scan executions for unmatched outer rows.
@@ -3367,6 +3932,9 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
        */
       run_cost += outer_unmatched_rows *
                   inner_rescan_run_cost / inner_path_rows;
+      DBUG_PRINT("info", "add the cost of inner-scan executions for unmatched outer rows");
+      DBUG_PRINT("info", "run_cost:%g, outer_unmatched_rows:%g, inner_rescan_run_cost:%g, inner_path_rows:%g", run_cost,
+                 outer_unmatched_rows, inner_rescan_run_cost, inner_path_rows);
 
       /*
        * We won't be evaluating any quals at all for unmatched rows, so
@@ -3387,29 +3955,44 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
        */
 
       /* First, count all unmatched join tuples as being processed */
+      DBUG_PRINT("info", "old ntuples:%g, outer_unmatched_rows:%g, inner_path_rows:%g",
+                 ntuples, outer_unmatched_rows, inner_path_rows);
       ntuples += outer_unmatched_rows * inner_path_rows;
+      DBUG_PRINT("info", "first, count all unmatched join tuples as being processed(ntuples:%g)", ntuples);
 
       /* Now add the forced full scan, and decrement appropriate count */
       run_cost += inner_run_cost;
+      DBUG_PRINT("info", "now add the forced full scan, and decrement appropriate count");
 
       if (outer_unmatched_rows >= 1)
         outer_unmatched_rows -= 1;
       else
         outer_matched_rows -= 1;
 
+      DBUG_PRINT("info", "run_cost:%g, outer_matched_rows:%g", run_cost, outer_matched_rows);
+
       /* Add inner run cost for additional outer tuples having matches */
-      if (outer_matched_rows > 0)
+      if (outer_matched_rows > 0) {
         run_cost += outer_matched_rows * inner_rescan_run_cost * inner_scan_frac;
+        DBUG_PRINT("info", "add inner run cost for additional outer tuples having matches");
+        DBUG_PRINT("info", "run_cost:%g, outer_matched_rows:%g, inner_rescan_run_cost:%g, inner_scan_frac:%g",
+                   run_cost, outer_matched_rows, inner_rescan_run_cost, inner_scan_frac);
+      }
 
       /* Add inner run cost for additional unmatched outer tuples */
-      if (outer_unmatched_rows > 0)
+      if (outer_unmatched_rows > 0) {
+        DBUG_PRINT("info", "add inner run cost for additional unmatched outer tuples");
         run_cost += outer_unmatched_rows * inner_rescan_run_cost;
+        DBUG_PRINT("info", "run_cost:%g, outer_unmatched_rows:%g, inner_rescan_run_cost:%g", run_cost, outer_unmatched_rows, inner_rescan_run_cost);
+      }
     }
   } else {
     /* Normal-case source costs were included in preliminary estimate */
 
     /* Compute number of tuples processed (not number emitted!) */
     ntuples = outer_path_rows * inner_path_rows;
+    DBUG_PRINT("info", "outer_path_rows:%g, inner_path_rows:%g", outer_path_rows, inner_path_rows);
+    DBUG_PRINT("info", "compute number of tuples processed:%g", ntuples);
   }
 
   /* CPU costs */
@@ -3417,13 +4000,18 @@ final_cost_nestloop(PlannerInfo *root, NestPath *path,
   startup_cost += restrict_qual_cost.startup;
   cpu_per_tuple = cpu_tuple_cost + restrict_qual_cost.per_tuple;
   run_cost += cpu_per_tuple * ntuples;
+  DBUG_PRINT("info", "cpu costs-startup_cost:%g, cpu_per_tuple:%g, ntuples:%g and run_cost:%0.2f", startup_cost, cpu_per_tuple, ntuples, run_cost);
 
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->jpath.path.pathtarget->cost.startup;
   run_cost += path->jpath.path.pathtarget->cost.per_tuple * path->jpath.path.rows;
+  DBUG_PRINT("info", "tlist eval costs-startup_cost:%g, per_tuple:%g, rows:%g and run_cost:%0.2f",
+             startup_cost, path->jpath.path.pathtarget->cost.per_tuple, path->jpath.path.rows, run_cost);
 
   path->jpath.path.startup_cost = startup_cost;
   path->jpath.path.total_cost = startup_cost + run_cost;
+  DBUG_PRINT("info", "start cost:%g, total cost:%g",
+             path->jpath.path.startup_cost, path->jpath.path.total_cost);
 }
 
 /*
@@ -3467,6 +4055,7 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
                        int outer_presorted_keys,
                        JoinPathExtraData *extra)
 {
+  DBUG_TRACE;
   int     disabled_nodes;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
@@ -3490,6 +4079,58 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
 
   if (inner_path_rows <= 0)
     inner_path_rows = 1;
+
+  {
+    bool inner_join = false;
+    bool outer_join = false;
+
+    if (root) {
+      output_relids(outer_path, inner_path);
+
+      if (outer_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[outer_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "outer parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, outer_path->parent->relid);
+        }
+      } else if (outer_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: join");
+        print_relids_tables(root, "outer joinrel", outer_path->parent->relids);
+        outer_join = true;
+      } else if (outer_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: upper rel");
+        print_relids_tables(root, "outer upper_rel", outer_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "outer parent's reloptkind:%d", outer_path->parent->reloptkind);
+      }
+
+      if (inner_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[inner_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "inner parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, inner_path->parent->relid);
+        }
+      } else if (inner_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: join");
+        inner_join = true;
+        print_relids_tables(root, "inner joinrel", inner_path->parent->relids);
+      } else if (inner_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: upper rel");
+        print_relids_tables(root, "inner upper_rel", inner_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "inner parent's reloptkind:%d", inner_path->parent->reloptkind);
+      }
+
+
+      if (inner_join && outer_join) {
+        DBUG_PRINT("info", "this join operation is a bushy join");
+      } else if (inner_join) {
+        DBUG_PRINT("info", "this join operation is a right-deep join");
+      } else if (outer_join) {
+        DBUG_PRINT("info", "this join operation is a left-deep join");
+      }
+    }
+  }
 
   /*
    * A merge join will stop as soon as it exhausts either input stream
@@ -3531,12 +4172,14 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
     if (bms_is_subset(firstclause->left_relids,
                       outer_path->parent->relids)) {
       /* left side of clause is outer */
+      DBUG_PRINT("info", "left side of clause is outer");
       outerstartsel = cache->leftstartsel;
       outerendsel = cache->leftendsel;
       innerstartsel = cache->rightstartsel;
       innerendsel = cache->rightendsel;
     } else {
       /* left side of clause is inner */
+      DBUG_PRINT("info", "left side of clause is inner");
       outerstartsel = cache->rightstartsel;
       outerendsel = cache->rightendsel;
       innerstartsel = cache->leftstartsel;
@@ -3554,6 +4197,7 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
     }
   } else {
     /* cope with clauseless or full mergejoin */
+    DBUG_PRINT("info", "cope with clauseless or full mergejoin");
     outerstartsel = innerstartsel = 0.0;
     outerendsel = innerendsel = 1.0;
   }
@@ -3570,6 +4214,7 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
   Assert(outer_skip_rows <= outer_rows);
   Assert(inner_skip_rows <= inner_rows);
 
+  DBUG_PRINT("info", "convert selectivities to row counts(outer_rows:%g, inner_rows:%g)", outer_rows, inner_rows);
   /*
    * Readjust scan selectivities to account for above rounding.  This is
    * normally an insignificant effect, but when there are only a few rows in
@@ -3585,9 +4230,11 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
 
   disabled_nodes = enable_mergejoin ? 0 : 1;
 
+  DBUG_PRINT("info", "outer_path_rows:%g, inner_path_rows:%g", outer_path_rows, inner_path_rows);
   /* cost of source data */
 
   if (outersortkeys) {    /* do we need to sort outer? */
+    DBUG_PRINT("info", "we need to sort outer");
     /*
      * We can assert that the outer path is not already ordered
      * appropriately for the mergejoin; otherwise, outersortkeys would
@@ -3632,12 +4279,16 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
     run_cost += (sort_path.total_cost - sort_path.startup_cost)
                 * (outerendsel - outerstartsel);
   } else {
+    DBUG_PRINT("info", "we need not to sort outer");
     disabled_nodes += outer_path->disabled_nodes;
     startup_cost += outer_path->startup_cost;
     startup_cost += (outer_path->total_cost - outer_path->startup_cost)
                     * outerstartsel;
+    DBUG_PRINT("info", "outer path total cost:%g, startup cost:%g, outerendsel:%g, outerstartsel:%g",
+               outer_path->total_cost, outer_path->startup_cost, outerendsel, outerstartsel);
     run_cost += (outer_path->total_cost - outer_path->startup_cost)
                 * (outerendsel - outerstartsel);
+
   }
 
   if (innersortkeys) {    /* do we need to sort inner? */
@@ -3646,6 +4297,7 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
      * appropriately for the mergejoin; otherwise, innersortkeys would
      * have been set to NIL.
      */
+    DBUG_PRINT("info", "we need to sort inner");
     Assert(!pathkeys_contained_in(innersortkeys, inner_path->pathkeys));
 
     /*
@@ -3692,6 +4344,8 @@ initial_cost_mergejoin(PlannerInfo *root, JoinCostWorkspace *workspace,
   workspace->disabled_nodes = disabled_nodes;
   workspace->startup_cost = startup_cost;
   workspace->total_cost = startup_cost + run_cost + inner_run_cost;
+  DBUG_PRINT("info", "startup_cost:%g, run_cost:%g, inner_run_cost:%g, total_cost:%g", startup_cost,
+             run_cost, inner_run_cost, workspace->total_cost);
   /* Save private data for final_cost_mergejoin */
   workspace->run_cost = run_cost;
   workspace->inner_run_cost = inner_run_cost;
@@ -3733,6 +4387,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
                      JoinCostWorkspace *workspace,
                      JoinPathExtraData *extra)
 {
+  DBUG_TRACE;
   Path     *outer_path = path->jpath.outerjoinpath;
   Path     *inner_path = path->jpath.innerjoinpath;
   double    inner_path_rows = inner_path->rows;
@@ -3767,12 +4422,15 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
   else
     path->jpath.path.rows = path->jpath.path.parent->rows;
 
+  DBUG_PRINT("info", "mark the path with the correct row estimate:%g", path->jpath.path.rows);
+
   /* For partial paths, scale row estimate. */
   if (path->jpath.path.parallel_workers > 0) {
     double    parallel_divisor = get_parallel_divisor(&path->jpath.path);
 
     path->jpath.path.rows =
       clamp_row_est(path->jpath.path.rows / parallel_divisor);
+    DBUG_PRINT("info", "for partial paths, scale row estimate and rows:%g", path->jpath.path.rows);
   }
 
   /*
@@ -3804,6 +4462,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
    * here because we need an estimate done with JOIN_INNER semantics.
    */
   mergejointuples = approx_tuple_count(root, &path->jpath, mergeclauses);
+  DBUG_PRINT("info", "get approx %g tuples passing the mergequals", mergejointuples);
 
   /*
    * When there are equal merge keys in the outer relation, the mergejoin
@@ -3858,6 +4517,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
    * rescanratio.
    */
   bare_inner_cost = inner_run_cost * rescanratio;
+  DBUG_PRINT("info", "inner_run_cost:%g, rescanratio:%g, bare_inner_cost:%g", inner_run_cost, rescanratio, bare_inner_cost);
 
   /*
    * When we interpose a Material node the re-fetch cost is assumed to be
@@ -3885,8 +4545,11 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
    * Prefer materializing if it looks cheaper, unless the user has asked to
    * suppress materialization.
    */
-  else if (enable_material && mat_inner_cost < bare_inner_cost)
+  else if (enable_material && mat_inner_cost < bare_inner_cost) {
+    DBUG_PRINT("info", "prefer materializing if it looks cheaper(mat_inner_cost:%g, bare_inner_cost:%g",
+               mat_inner_cost, bare_inner_cost);
     path->materialize_inner = true;
+  }
 
   /*
    * Even if materializing doesn't look cheaper, we *must* do it if the
@@ -3905,8 +4568,11 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
    * it off does not entitle us to deliver an invalid plan.
    */
   else if (innersortkeys == NIL &&
-           !ExecSupportsMarkRestore(inner_path))
+           !ExecSupportsMarkRestore(inner_path)) {
     path->materialize_inner = true;
+    DBUG_PRINT("info", "even if materializing doesn't look cheaper, prefer materializing if the inner path is to be used directly");
+    DBUG_PRINT("info", "and it doesn't support mark/restore");
+  }
 
   /*
    * Also, force materializing if the inner path is to be sorted and the
@@ -3922,16 +4588,21 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
   else if (enable_material && innersortkeys != NIL &&
            relation_byte_size(inner_path_rows,
                               inner_path->pathtarget->width) >
-           work_mem * (Size) 1024)
+           work_mem * (Size) 1024) {
     path->materialize_inner = true;
-  else
+    DBUG_PRINT("info", "force materializing if the inner path is to be sorted and the sort is expected to spill to disk");
+  } else {
     path->materialize_inner = false;
+  }
 
   /* Charge the right incremental cost for the chosen case */
-  if (path->materialize_inner)
+  if (path->materialize_inner) {
     run_cost += mat_inner_cost;
-  else
+    DBUG_PRINT("info", "materialize_inner is true and charge the right incremental cost:%g, now run_cost:%g", mat_inner_cost, run_cost);
+  } else {
     run_cost += bare_inner_cost;
+    DBUG_PRINT("info", "charge the right incremental cost:%g, now run_cost:%g", bare_inner_cost, run_cost);
+  }
 
   /* CPU costs */
 
@@ -3947,6 +4618,9 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
               ((outer_rows - outer_skip_rows) +
                (inner_rows - inner_skip_rows) * rescanratio);
 
+  DBUG_PRINT("info", "merge qual cost per tuple:%g, (outer_rows -outer_skip_rows):%g", merge_qual_cost.per_tuple, outer_rows - outer_skip_rows);
+  DBUG_PRINT("info", "rescanratio:%g, (inner_rows - inner_skip_rows):%g", rescanratio, inner_rows - inner_skip_rows);
+  DBUG_PRINT("info", "startup_cost:%g, run_cost:%g", startup_cost, run_cost);
   /*
    * For each tuple that gets through the mergejoin proper, we charge
    * cpu_tuple_cost plus the cost of evaluating additional restriction
@@ -3960,12 +4634,23 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
   cpu_per_tuple = cpu_tuple_cost + qp_qual_cost.per_tuple;
   run_cost += cpu_per_tuple * mergejointuples;
 
+  DBUG_PRINT("info", "we charge cpu_tuple_cost plus the cost of evaluating additional restriction clauses");
+  DBUG_PRINT("info", "cpu_per_tuple:%g, mergejointuples:%g", cpu_per_tuple, mergejointuples);
+  DBUG_PRINT("info", "startup_cost:%g, run_cost:%g", startup_cost, run_cost);
+
+  DBUG_PRINT("info", "tlist eval costs are paid per output row, not per tuple scanned");
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->jpath.path.pathtarget->cost.startup;
   run_cost += path->jpath.path.pathtarget->cost.per_tuple * path->jpath.path.rows;
 
+  DBUG_PRINT("info", "cpu_per_tuple:%g, rows:%g", path->jpath.path.pathtarget->cost.per_tuple, path->jpath.path.rows);
+  DBUG_PRINT("info", "startup_cost:%g, run_cost:%g", startup_cost, run_cost);
+
   path->jpath.path.startup_cost = startup_cost;
   path->jpath.path.total_cost = startup_cost + run_cost;
+
+  DBUG_PRINT("info", "start cost:%g, total cost:%g",
+             path->jpath.path.startup_cost, path->jpath.path.total_cost);
 }
 
 /*
@@ -3974,6 +4659,7 @@ final_cost_mergejoin(PlannerInfo *root, MergePath *path,
 static MergeScanSelCache *
 cached_scansel(PlannerInfo *root, RestrictInfo *rinfo, PathKey *pathkey)
 {
+  DBUG_TRACE;
   MergeScanSelCache *cache;
   ListCell   *lc;
   Selectivity leftstartsel,
@@ -4058,6 +4744,7 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
                       JoinPathExtraData *extra,
                       bool parallel_hash)
 {
+  DBUG_TRACE;
   int     disabled_nodes;
   Cost    startup_cost = 0;
   Cost    run_cost = 0;
@@ -4070,6 +4757,58 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
   int     num_skew_mcvs;
   size_t    space_allowed;  /* unused */
 
+  {
+    bool inner_join = false;
+    bool outer_join = false;
+
+    if (root) {
+      output_relids(outer_path, inner_path);
+
+      if (outer_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[outer_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "outer parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, outer_path->parent->relid);
+        }
+      } else if (outer_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: join");
+        print_relids_tables(root, "outer joinrel", outer_path->parent->relids);
+        outer_join = true;
+      } else if (outer_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "outer parent's reloptkind: upper rel");
+        print_relids_tables(root, "outer upper_rel", outer_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "outer parent's reloptkind:%d", outer_path->parent->reloptkind);
+      }
+
+      if (inner_path->parent->reloptkind == RELOPT_BASEREL) {
+        RangeTblEntry *rte = root->simple_rte_array[inner_path->parent->relid];
+
+        if (rte) {
+          DBUG_PRINT("info", "inner parent's reloptkind: relation and table:%s, relid:%d", rte->eref->aliasname, inner_path->parent->relid);
+        }
+      } else if (inner_path->parent->reloptkind == RELOPT_JOINREL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: join");
+        inner_join = true;
+        print_relids_tables(root, "inner joinrel", inner_path->parent->relids);
+      } else if (inner_path->parent->reloptkind == RELOPT_UPPER_REL) {
+        DBUG_PRINT("info", "inner parent's reloptkind: upper rel");
+        print_relids_tables(root, "inner upper_rel", inner_path->parent->relids);
+      } else {
+        DBUG_PRINT("info", "inner parent's reloptkind:%d", inner_path->parent->reloptkind);
+      }
+
+
+      if (inner_join && outer_join) {
+        DBUG_PRINT("info", "this join operation is a bushy join");
+      } else if (inner_join) {
+        DBUG_PRINT("info", "this join operation is a right-deep join");
+      } else if (outer_join) {
+        DBUG_PRINT("info", "this join operation is a left-deep join");
+      }
+    }
+  }
+
   /* Count up disabled nodes. */
   disabled_nodes = enable_hashjoin ? 0 : 1;
   disabled_nodes += inner_path->disabled_nodes;
@@ -4079,6 +4818,10 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
   startup_cost += outer_path->startup_cost;
   run_cost += outer_path->total_cost - outer_path->startup_cost;
   startup_cost += inner_path->total_cost;
+
+  DBUG_PRINT("info", "outer path startup_cost:%g, total_cost:%g", outer_path->startup_cost, outer_path->total_cost);
+  DBUG_PRINT("info", "inner path startup_cost:%g, total_cost:%g", inner_path->startup_cost, inner_path->total_cost);
+  DBUG_PRINT("info", "now hashjoin path startup_cost:%g, run_cost:%g", startup_cost, run_cost);
 
   /*
    * Cost of computing hash function: must do it once per input tuple. We
@@ -4093,6 +4836,8 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
   startup_cost += (cpu_operator_cost * num_hashclauses + cpu_tuple_cost)
                   * inner_path_rows;
   run_cost += cpu_operator_cost * num_hashclauses * outer_path_rows;
+
+  DBUG_PRINT("info", "add the cost of computing hash function and now startup_cost:%g, run_cost:%g", startup_cost, run_cost);
 
   /*
    * If this is a parallel hash build, then the value we have for
@@ -4138,6 +4883,8 @@ initial_cost_hashjoin(PlannerInfo *root, JoinCostWorkspace *workspace,
 
     startup_cost += seq_page_cost * innerpages;
     run_cost += seq_page_cost * (innerpages + 2 * outerpages);
+    DBUG_PRINT("info", "if inner relation is too big then we will need to 'batch' the join");
+    DBUG_PRINT("info", "add the cost of batching and now startup_cost:%g, run_cost:%g", startup_cost, run_cost);
   }
 
   /* CPU costs left for later */
@@ -4169,6 +4916,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
                     JoinCostWorkspace *workspace,
                     JoinPathExtraData *extra)
 {
+  DBUG_TRACE;
   Path     *outer_path = path->jpath.outerjoinpath;
   Path     *inner_path = path->jpath.innerjoinpath;
   double    outer_path_rows = outer_path->rows;
@@ -4188,6 +4936,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
   Selectivity innermcvfreq;
   ListCell   *hcl;
 
+
   /* Set the number of disabled nodes. */
   path->jpath.path.disabled_nodes = workspace->disabled_nodes;
 
@@ -4197,22 +4946,28 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
   else
     path->jpath.path.rows = path->jpath.path.parent->rows;
 
+  DBUG_PRINT("info", "mark the path with the correct row estimate:%g", path->jpath.path.rows);
+
   /* For partial paths, scale row estimate. */
   if (path->jpath.path.parallel_workers > 0) {
     double    parallel_divisor = get_parallel_divisor(&path->jpath.path);
 
     path->jpath.path.rows =
       clamp_row_est(path->jpath.path.rows / parallel_divisor);
+    DBUG_PRINT("info", "for partial paths, scale row estimate:%g", path->jpath.path.rows);
   }
 
   /* mark the path with estimated # of batches */
   path->num_batches = numbatches;
+  DBUG_PRINT("info", "mark the path with estimated batches:%d", numbatches);
 
   /* store the total number of tuples (sum of partial row estimates) */
   path->inner_rows_total = inner_path_rows_total;
+  DBUG_PRINT("info", "store the total number of tuples(inner):%g", path->inner_rows_total);
 
   /* and compute the number of "virtual" buckets in the whole join */
   virtualbuckets = (double) numbuckets * (double) numbatches;
+  DBUG_PRINT("info", "compute the number of 'virtual' buckets in the whole join:%g", virtualbuckets);
 
   /*
    * Determine bucketsize fraction and MCV frequency for the inner relation.
@@ -4227,6 +4982,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
   if (IsA(inner_path, UniquePath)) {
     innerbucketsize = 1.0 / virtualbuckets;
     innermcvfreq = 0.0;
+    DBUG_PRINT("info", "set innerbucketsize:%g and virtualbuckets:%g", innerbucketsize, virtualbuckets);
   } else {
     List     *otherclauses;
 
@@ -4257,6 +5013,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
                         inner_path->parent->relids)) {
         /* righthand side is inner */
         thisbucketsize = restrictinfo->right_bucketsize;
+        DBUG_PRINT("info", "righthand side is inner and thisbucketsize:%g", thisbucketsize);
 
         if (thisbucketsize < 0) {
           /* not cached yet */
@@ -4274,6 +5031,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
                              inner_path->parent->relids));
         /* lefthand side is inner */
         thisbucketsize = restrictinfo->left_bucketsize;
+        DBUG_PRINT("info", "lefthand side is inner and thisbucketsize:%g", thisbucketsize);
 
         if (thisbucketsize < 0) {
           /* not cached yet */
@@ -4293,6 +5051,8 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 
       if (innermcvfreq > thismcvfreq)
         innermcvfreq = thismcvfreq;
+
+      DBUG_PRINT("info", "set innerbucketsize:%g and thisbucketsize:%g", innerbucketsize, thisbucketsize);
     }
   }
 
@@ -4305,8 +5065,10 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
    * when this is true.)
    */
   if (relation_byte_size(clamp_row_est(inner_path_rows * innermcvfreq),
-                         inner_path->pathtarget->width) > get_hash_memory_limit())
+                         inner_path->pathtarget->width) > get_hash_memory_limit()) {
     startup_cost += disable_cost;
+    DBUG_PRINT("info", "apply disable_cost:%g, now startup_cost:%g", disable_cost, startup_cost);
+  }
 
   /*
    * Compute cost of the hashquals and qpquals (other restriction clauses)
@@ -4340,9 +5102,14 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
     outer_matched_rows = rint(outer_path_rows * extra->semifactors.outer_match_frac);
     inner_scan_frac = 2.0 / (extra->semifactors.match_count + 1.0);
 
+    DBUG_PRINT("info", "old startup_cost:%g, old run_cost:%g", startup_cost, run_cost);
     startup_cost += hash_qual_cost.startup;
     run_cost += hash_qual_cost.per_tuple * outer_matched_rows *
                 clamp_row_est(inner_path_rows * innerbucketsize * inner_scan_frac) * 0.5;
+
+    DBUG_PRINT("info", "hash_qual_cost(per_tuple:%g), outer_matched_rows:%g", hash_qual_cost.per_tuple, outer_matched_rows);
+    DBUG_PRINT("info", "inner_path_rows:%g, innerbucketsize:%g, inner_scan_frac:%g", inner_path_rows, innerbucketsize, inner_scan_frac);
+    DBUG_PRINT("info", "now startup_cost:%g, run_cost:%g", startup_cost, run_cost);
 
     /*
      * For unmatched outer-rel rows, the picture is quite a lot different.
@@ -4360,12 +5127,16 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
     run_cost += hash_qual_cost.per_tuple *
                 (outer_path_rows - outer_matched_rows) *
                 clamp_row_est(inner_path_rows / virtualbuckets) * 0.05;
+    DBUG_PRINT("info", "now run_cost:%g", run_cost);
 
     /* Get # of tuples that will pass the basic join */
-    if (path->jpath.jointype == JOIN_ANTI)
+    if (path->jpath.jointype == JOIN_ANTI) {
       hashjointuples = outer_path_rows - outer_matched_rows;
-    else
+      DBUG_PRINT("info", "get %g of tuples that will pass the basic join for an anti join", hashjointuples);
+    } else {
       hashjointuples = outer_matched_rows;
+      DBUG_PRINT("info", "get %g of tuples that will pass the basic join, except for anti-joins", hashjointuples);
+    }
   } else {
     /*
      * The number of tuple comparisons needed is the number of outer
@@ -4377,9 +5148,13 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
      * exactly.  For lack of a better idea, halve the cost estimate to
      * allow for that.
      */
+    DBUG_PRINT("info", "old startup_cost:%g, old run_cost:%g", startup_cost, run_cost);
     startup_cost += hash_qual_cost.startup;
     run_cost += hash_qual_cost.per_tuple * outer_path_rows *
                 clamp_row_est(inner_path_rows * innerbucketsize) * 0.5;
+    DBUG_PRINT("info", "hash_qual_cost(per_tuple:%g), outer_path_rows:%g", hash_qual_cost.per_tuple, outer_path_rows);
+    DBUG_PRINT("info", "inner_path_rows:%g, innerbucketsize:%g", inner_path_rows, innerbucketsize);
+    DBUG_PRINT("info", "now startup_cost:%g, run_cost:%g", startup_cost, run_cost);
 
     /*
      * Get approx # tuples passing the hashquals.  We use
@@ -4387,6 +5162,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
      * JOIN_INNER semantics.
      */
     hashjointuples = approx_tuple_count(root, &path->jpath, hashclauses);
+    DBUG_PRINT("info", "get approx %g of tuples passing the hashquals", hashjointuples);
   }
 
   /*
@@ -4399,12 +5175,20 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
   cpu_per_tuple = cpu_tuple_cost + qp_qual_cost.per_tuple;
   run_cost += cpu_per_tuple * hashjointuples;
 
+  DBUG_PRINT("info", "cpu_per_tuple:%g, hashjointuples:%g, now run_cost:%g, startup_cost:%g",
+             cpu_per_tuple, hashjointuples, run_cost, startup_cost);
+
   /* tlist eval costs are paid per output row, not per tuple scanned */
   startup_cost += path->jpath.path.pathtarget->cost.startup;
   run_cost += path->jpath.path.pathtarget->cost.per_tuple * path->jpath.path.rows;
 
+  DBUG_PRINT("info", "tlist eval costs are paid per output row, not per tuple scanned");
+  DBUG_PRINT("info", "now startup_cost:%g, run_cost:%g", startup_cost, run_cost);
   path->jpath.path.startup_cost = startup_cost;
   path->jpath.path.total_cost = startup_cost + run_cost;
+
+  DBUG_PRINT("info", "start cost:%g, total cost:%g",
+             path->jpath.path.startup_cost, path->jpath.path.total_cost);
 }
 
 
@@ -4418,6 +5202,7 @@ final_cost_hashjoin(PlannerInfo *root, HashPath *path,
 void
 cost_subplan(PlannerInfo *root, SubPlan *subplan, Plan *plan)
 {
+  DBUG_TRACE;
   QualCost  sp_cost;
 
   /*
@@ -4497,6 +5282,9 @@ cost_subplan(PlannerInfo *root, SubPlan *subplan, Plan *plan)
 
   subplan->startup_cost = sp_cost.startup;
   subplan->per_call_cost = sp_cost.per_tuple;
+
+  DBUG_PRINT("info", "subplan start cost:%g, per call cost:%g",
+             subplan->startup_cost, subplan->per_call_cost);
 }
 
 
@@ -4519,6 +5307,8 @@ cost_rescan(PlannerInfo *root, Path *path,
             Cost *rescan_startup_cost,  /* output parameters */
             Cost *rescan_total_cost)
 {
+  DBUG_TRACE;
+
   switch (path->pathtype) {
     case T_FunctionScan:
 
@@ -4529,11 +5319,14 @@ cost_rescan(PlannerInfo *root, Path *path,
        * and isn't paid over again on rescans. However, all run costs
        * will be paid over again.
        */
+      DBUG_PRINT("info", "path type: function scan");
       *rescan_startup_cost = 0;
       *rescan_total_cost = path->total_cost - path->startup_cost;
       break;
 
     case T_HashJoin:
+
+      DBUG_PRINT("info", "path type: hash join");
 
       /*
        * If it's a single-batch join, we don't need to rebuild the hash
@@ -4564,6 +5357,12 @@ cost_rescan(PlannerInfo *root, Path *path,
                                             path->pathtarget->width);
       double    work_mem_bytes = work_mem * (Size) 1024;
 
+      if (path->pathtype == T_CteScan) {
+        DBUG_PRINT("info", "path type: cte scan");
+      } else {
+        DBUG_PRINT("info", "path type: work table scan");
+      }
+
       if (nbytes > work_mem_bytes) {
         /* It will spill, so account for re-read cost */
         double    npages = ceil(nbytes / BLCKSZ);
@@ -4591,6 +5390,12 @@ cost_rescan(PlannerInfo *root, Path *path,
                                             path->pathtarget->width);
       double    work_mem_bytes = work_mem * (Size) 1024;
 
+      if (path->pathtype == T_Material) {
+        DBUG_PRINT("info", "path type: material");
+      } else {
+        DBUG_PRINT("info", "path type: sort");
+      }
+
       if (nbytes > work_mem_bytes) {
         /* It will spill, so account for re-read cost */
         double    npages = ceil(nbytes / BLCKSZ);
@@ -4604,12 +5409,14 @@ cost_rescan(PlannerInfo *root, Path *path,
     break;
 
     case T_Memoize:
+      DBUG_PRINT("info", "path type: memoize");
       /* All the hard work is done by cost_memoize_rescan */
       cost_memoize_rescan(root, (MemoizePath *) path,
                           rescan_startup_cost, rescan_total_cost);
       break;
 
     default:
+      DBUG_PRINT("info", "set the rescan cost equal to the path cost");
       *rescan_startup_cost = path->startup_cost;
       *rescan_total_cost = path->total_cost;
       break;
@@ -4632,9 +5439,11 @@ cost_rescan(PlannerInfo *root, Path *path,
 void
 cost_qual_eval(QualCost *cost, List *quals, PlannerInfo *root)
 {
+  DBUG_TRACE;
   cost_qual_eval_context context;
   ListCell   *l;
 
+  DBUG_PRINT("info", "estimate the CPU costs of evaluating a WHERE clause");
   context.root = root;
   context.total.startup = 0;
   context.total.per_tuple = 0;
@@ -4648,6 +5457,7 @@ cost_qual_eval(QualCost *cost, List *quals, PlannerInfo *root)
   }
 
   *cost = context.total;
+  DBUG_PRINT("info", "startup:%g, per_tuple:%g", cost->startup, cost->per_tuple);
 }
 
 /*
@@ -4657,6 +5467,7 @@ cost_qual_eval(QualCost *cost, List *quals, PlannerInfo *root)
 void
 cost_qual_eval_node(QualCost *cost, Node *qual, PlannerInfo *root)
 {
+  DBUG_TRACE;
   cost_qual_eval_context context;
 
   context.root = root;
@@ -4666,13 +5477,18 @@ cost_qual_eval_node(QualCost *cost, Node *qual, PlannerInfo *root)
   cost_qual_eval_walker(qual, &context);
 
   *cost = context.total;
+  DBUG_PRINT("info", "startup:%g ,per_tuple:%g", cost->startup, cost->per_tuple);
 }
 
 static bool
 cost_qual_eval_walker(Node *node, cost_qual_eval_context *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "return false because node is nullptr");
     return false;
+  }
 
   /*
    * RestrictInfo nodes contain an eval_cost field reserved for this
@@ -4714,6 +5530,7 @@ cost_qual_eval_walker(Node *node, cost_qual_eval_context *context)
 
     context->total.startup += rinfo->eval_cost.startup;
     context->total.per_tuple += rinfo->eval_cost.per_tuple;
+    DBUG_PRINT("info", "do not recurse into children");
     /* do NOT recurse into children */
     return false;
   }
@@ -4965,6 +5782,7 @@ compute_semi_anti_join_factors(PlannerInfo *root,
                                List *restrictlist,
                                SemiAntiJoinFactors *semifactors)
 {
+  DBUG_TRACE;
   Selectivity jselec;
   Selectivity nselec;
   Selectivity avgmatch;
@@ -5000,6 +5818,7 @@ compute_semi_anti_join_factors(PlannerInfo *root,
                                   (jointype == JOIN_ANTI) ? JOIN_ANTI : JOIN_SEMI,
                                   sjinfo);
 
+  DBUG_PRINT("info", "get the JOIN_SEMI or JOIN_ANTI selectivity of the join clauses:%g", jselec);
   /*
    * Also get the normal inner-join selectivity of the join clauses.
    */
@@ -5010,6 +5829,8 @@ compute_semi_anti_join_factors(PlannerInfo *root,
                                   0,
                                   JOIN_INNER,
                                   &norm_sjinfo);
+
+  DBUG_PRINT("info", "get the normal inner-join selectivity of the join clauses:%g", nselec);
 
   /* Avoid leaking a lot of ListCells */
   if (IS_OUTER_JOIN(jointype))
@@ -5051,6 +5872,7 @@ compute_semi_anti_join_factors(PlannerInfo *root,
 static bool
 has_indexed_join_quals(NestPath *path)
 {
+  DBUG_TRACE;
   JoinPath   *joinpath = &path->jpath;
   Relids    joinrelids = joinpath->path.parent->relids;
   Path     *innerpath = joinpath->innerjoinpath;
@@ -5058,13 +5880,19 @@ has_indexed_join_quals(NestPath *path)
   bool    found_one;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "check whether all the joinquals of a nestloop join are used as inner index quals");
+
   /* If join still has quals to evaluate, it's not fast */
-  if (joinpath->joinrestrictinfo != NIL)
+  if (joinpath->joinrestrictinfo != NIL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Nor if the inner path isn't parameterized at all */
-  if (innerpath->param_info == NULL)
+  if (innerpath->param_info == NULL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Find the indexclauses list for the inner scan */
   switch (innerpath->pathtype) {
@@ -5079,8 +5907,10 @@ has_indexed_join_quals(NestPath *path)
 
       if (IsA(bmqual, IndexPath))
         indexclauses = ((IndexPath *) bmqual)->indexclauses;
-      else
+      else {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
       break;
     }
@@ -5092,6 +5922,7 @@ has_indexed_join_quals(NestPath *path)
        * for zero rows out, even if it's a parameterized path using all
        * the joinquals.
        */
+      DBUG_PRINT("info", "return false");
       return false;
   }
 
@@ -5109,11 +5940,19 @@ has_indexed_join_quals(NestPath *path)
     if (join_clause_is_movable_into(rinfo,
                                     innerpath->parent->relids,
                                     joinrelids)) {
-      if (!is_redundant_with_indexclauses(rinfo, indexclauses))
+      if (!is_redundant_with_indexclauses(rinfo, indexclauses)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
       found_one = true;
     }
+  }
+
+  if (found_one) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   return found_one;
@@ -5147,6 +5986,7 @@ has_indexed_join_quals(NestPath *path)
 static double
 approx_tuple_count(PlannerInfo *root, JoinPath *path, List *quals)
 {
+  DBUG_TRACE;
   double    tuples;
   double    outer_tuples = path->outerjoinpath->rows;
   double    inner_tuples = path->innerjoinpath->rows;
@@ -5161,16 +6001,23 @@ approx_tuple_count(PlannerInfo *root, JoinPath *path, List *quals)
                     path->innerjoinpath->parent->relids);
 
   /* Get the approximate selectivity */
+  DBUG_PRINT("info", "get the approximate selectivity");
+
   foreach(l, quals) {
     Node     *qual = (Node *) lfirst(l);
 
     /* Note that clause_selectivity will be able to cache its result */
-    selec *= clause_selectivity(root, qual, 0, JOIN_INNER, &sjinfo);
+    Selectivity value = clause_selectivity(root, qual, 0, JOIN_INNER, &sjinfo);
+    selec *= value;
+    DBUG_PRINT("info", "now selectivity: %g multiplied by %g", selec, value);
   }
 
   /* Apply it to the input relation sizes */
   tuples = selec * outer_tuples * inner_tuples;
 
+  DBUG_PRINT("info", "selec:%g, outer_tuples:%g, inner_tuples:%g", selec, outer_tuples, inner_tuples);
+
+  DBUG_PRINT("info", "apply it to the input relation sizes:%g", tuples);
   return clamp_row_est(tuples);
 }
 
@@ -5191,6 +6038,7 @@ approx_tuple_count(PlannerInfo *root, JoinPath *path, List *quals)
 void
 set_baserel_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   double    nrows;
 
   /* Should only be applied to base relations */
@@ -5205,6 +6053,7 @@ set_baserel_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 
   rel->rows = clamp_row_est(nrows);
 
+  DBUG_PRINT("info", "set the size estimates:%g for the given base relation", rel->rows);
   cost_qual_eval(&rel->baserestrictcost, rel->baserestrictinfo, root);
 
   set_rel_width(root, rel);
@@ -5222,6 +6071,7 @@ double
 get_parameterized_baserel_size(PlannerInfo *root, RelOptInfo *rel,
                                List *param_clauses)
 {
+  DBUG_TRACE;
   List     *allclauses;
   double    nrows;
 
@@ -5244,7 +6094,43 @@ get_parameterized_baserel_size(PlannerInfo *root, RelOptInfo *rel,
   if (nrows > rel->rows)
     nrows = rel->rows;
 
+  DBUG_PRINT("info", "make a size estimate for a parameterized scan of a base relation:%g", nrows);
   return nrows;
+}
+
+
+static void
+output_join_relids(RelOptInfo *parent, double rows)
+{
+  int relids[100];
+  int index = 0;
+  char out[2048];
+  int relid = -1;
+  {
+    if (parent->reloptkind == RELOPT_BASEREL) {
+      relids[index++] = parent->relid;
+    } else if (parent->reloptkind == RELOPT_JOINREL) {
+      while ((relid = bms_next_member(parent->relids, relid)) >= 0) {
+        relids[index++] = relid;
+
+        if (index >= 100) {
+          break;
+        }
+      }
+    } else if (parent->reloptkind == RELOPT_UPPER_REL) {
+      while ((relid = bms_next_member(parent->relids, relid)) >= 0) {
+        relids[index++] = relid;
+
+        if (index >= 100) {
+          break;
+        }
+      }
+    }
+
+  }
+
+  DBUG_PRINT("info", "join relids len:%d, relids:%s and set the new size estimates:%g",
+             index, int_array_join_fast(relids, index, out, 2048), rows);
 }
 
 /*
@@ -5276,6 +6162,8 @@ set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
                            SpecialJoinInfo *sjinfo,
                            List *restrictlist)
 {
+  DBUG_TRACE;
+  double orig = rel->rows;
   rel->rows = calc_joinrel_size_estimate(root,
                                          rel,
                                          outer_rel,
@@ -5284,6 +6172,13 @@ set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
                                          inner_rel->rows,
                                          sjinfo,
                                          restrictlist);
+
+  if (orig != rel->rows) {
+    DBUG_PRINT("info", "orig:%g, rel->rows:%g", orig, rel->rows);
+    output_join_relids(rel, rel->rows);
+  } else {
+    DBUG_PRINT("info", "set the size estimates:%g for the given join relation", rel->rows);
+  }
 }
 
 /*
@@ -5308,6 +6203,7 @@ get_parameterized_joinrel_size(PlannerInfo *root, RelOptInfo *rel,
                                SpecialJoinInfo *sjinfo,
                                List *restrict_clauses)
 {
+  DBUG_TRACE;
   double    nrows;
 
   /*
@@ -5332,6 +6228,7 @@ get_parameterized_joinrel_size(PlannerInfo *root, RelOptInfo *rel,
   if (nrows > rel->rows)
     nrows = rel->rows;
 
+  DBUG_PRINT("info", "make a size estimate for a parameterized scan of a join relation:%g", nrows);
   return nrows;
 }
 
@@ -5354,6 +6251,7 @@ calc_joinrel_size_estimate(PlannerInfo *root,
                            SpecialJoinInfo *sjinfo,
                            List *restrictlist)
 {
+  DBUG_TRACE;
   JoinType  jointype = sjinfo->jointype;
   Selectivity fkselec;
   Selectivity jselec;
@@ -5381,6 +6279,8 @@ calc_joinrel_size_estimate(PlannerInfo *root,
             sjinfo,
             &restrictlist);
 
+  DBUG_PRINT("info", "compute foreign key join selectivity:%g", fkselec);
+
   /*
    * For an outer join, we have to distinguish the selectivity of the join's
    * own clauses (JOIN/ON conditions) from any clauses that were "pushed
@@ -5390,6 +6290,8 @@ calc_joinrel_size_estimate(PlannerInfo *root,
     List     *joinquals = NIL;
     List     *pushedquals = NIL;
     ListCell   *l;
+
+    DBUG_PRINT("info", "for an outer join, we have to distinguish the selectivity of the join's own clauses");
 
     /* Grovel through the clauses to separate into two lists */
     foreach(l, restrictlist) {
@@ -5425,6 +6327,8 @@ calc_joinrel_size_estimate(PlannerInfo *root,
     pselec = 0.0;     /* not used, keep compiler quiet */
   }
 
+  DBUG_PRINT("info", "pushed down selectivity:%g", pselec);
+
   /*
    * Basically, we multiply size of Cartesian product by selectivity.
    *
@@ -5440,10 +6344,13 @@ calc_joinrel_size_estimate(PlannerInfo *root,
   switch (jointype) {
     case JOIN_INNER:
       nrows = outer_rows * inner_rows * fkselec * jselec;
+      DBUG_PRINT("info", "inner join type, outer_rows:%g, inner_rows:%g, fkselec:%g, jselec:%g",
+                 outer_rows, inner_rows, fkselec, jselec);
       /* pselec not used */
       break;
 
     case JOIN_LEFT:
+      DBUG_PRINT("info", "join left type");
       nrows = outer_rows * inner_rows * fkselec * jselec;
 
       if (nrows < outer_rows)
@@ -5453,6 +6360,7 @@ calc_joinrel_size_estimate(PlannerInfo *root,
       break;
 
     case JOIN_FULL:
+      DBUG_PRINT("info", "join full type");
       nrows = outer_rows * inner_rows * fkselec * jselec;
 
       if (nrows < outer_rows)
@@ -5465,11 +6373,13 @@ calc_joinrel_size_estimate(PlannerInfo *root,
       break;
 
     case JOIN_SEMI:
+      DBUG_PRINT("info", "join semi type");
       nrows = outer_rows * fkselec * jselec;
       /* pselec not used */
       break;
 
     case JOIN_ANTI:
+      DBUG_PRINT("info", "join anti type");
       nrows = outer_rows * (1.0 - fkselec * jselec);
       nrows *= pselec;
       break;
@@ -5481,6 +6391,7 @@ calc_joinrel_size_estimate(PlannerInfo *root,
       break;
   }
 
+  DBUG_PRINT("info", "nrows:%g", nrows);
   return clamp_row_est(nrows);
 }
 
@@ -5506,6 +6417,7 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
                                  SpecialJoinInfo *sjinfo,
                                  List **restrictlist)
 {
+  DBUG_TRACE;
   Selectivity fkselec = 1.0;
   JoinType  jointype = sjinfo->jointype;
   List     *worklist = *restrictlist;
@@ -5672,7 +6584,10 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
       RelOptInfo *ref_rel = find_base_rel(root, fkinfo->ref_relid);
       double    ref_tuples = Max(ref_rel->tuples, 1.0);
 
+      DBUG_PRINT("info", "for JOIN_SEMI and JOIN_ANTI, we only get here when the FK's referenced table is exactly the inside of the join");
+      DBUG_PRINT("info", "ref_rel->rows:%g, ref_tuples:%g", ref_rel->rows, ref_tuples);
       fkselec *= ref_rel->rows / ref_tuples;
+      DBUG_PRINT("info", "fkselec:%g", fkselec);
     } else {
       /*
        * Otherwise, selectivity is exactly 1/referenced-table-size; but
@@ -5682,7 +6597,9 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
       RelOptInfo *ref_rel = find_base_rel(root, fkinfo->ref_relid);
       double    ref_tuples = Max(ref_rel->tuples, 1.0);
 
+      DBUG_PRINT("info", "otherwise, selectivity is exactly 1/referenced-table-size:%g", ref_tuples);
       fkselec *= 1.0 / ref_tuples;
+      DBUG_PRINT("info", "fkselec:%g", fkselec);
     }
 
     /*
@@ -5714,8 +6631,11 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
                                     jointype,
                                     sjinfo);
 
-            if (s0 > 0)
+            if (s0 > 0) {
+              DBUG_PRINT("info", "fkselect:%g divided by s0:%g", fkselec, s0);
               fkselec /= s0;
+              DBUG_PRINT("info", "new fkselect:%g", fkselec);
+            }
           }
         }
       }
@@ -5724,6 +6644,7 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
 
   *restrictlist = worklist;
   CLAMP_PROBABILITY(fkselec);
+  DBUG_PRINT("info", "return fkselec:%g", fkselec);
   return fkselec;
 }
 
@@ -5740,6 +6661,7 @@ get_foreign_key_join_selectivity(PlannerInfo *root,
 void
 set_subquery_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   PlannerInfo *subroot = rel->subroot;
   RelOptInfo *sub_final_rel;
   ListCell   *lc;
@@ -5819,6 +6741,7 @@ set_subquery_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_function_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte;
   ListCell   *lc;
 
@@ -5857,6 +6780,7 @@ set_function_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_tablefunc_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   /* Should only be applied to base relations that are functions */
   Assert(rel->relid > 0);
   Assert(planner_rt_fetch(rel->relid, root)->rtekind == RTE_TABLEFUNC);
@@ -5879,6 +6803,7 @@ set_tablefunc_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_values_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte;
 
   /* Should only be applied to base relations that are values lists */
@@ -5911,6 +6836,7 @@ set_values_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_cte_size_estimates(PlannerInfo *root, RelOptInfo *rel, double cte_rows)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte;
 
   /* Should only be applied to base relations that are CTE references */
@@ -5946,6 +6872,7 @@ set_cte_size_estimates(PlannerInfo *root, RelOptInfo *rel, double cte_rows)
 void
 set_namedtuplestore_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte;
 
   /* Should only be applied to base relations that are tuplestore references */
@@ -5980,6 +6907,7 @@ set_namedtuplestore_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_result_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   /* Should only be applied to RTE_RESULT base relations */
   Assert(rel->relid > 0);
   Assert(planner_rt_fetch(rel->relid, root)->rtekind == RTE_RESULT);
@@ -6009,6 +6937,7 @@ set_result_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 void
 set_foreign_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   /* Should only be applied to base relations */
   Assert(rel->relid > 0);
 
@@ -6044,6 +6973,7 @@ set_foreign_size_estimates(PlannerInfo *root, RelOptInfo *rel)
 static void
 set_rel_width(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Oid     reloid = planner_rt_fetch(rel->relid, root)->relid;
   int64   tuple_width = 0;
   bool    have_wholerow_var = false;
@@ -6171,6 +7101,7 @@ set_rel_width(PlannerInfo *root, RelOptInfo *rel)
   }
 
   rel->reltarget->width = clamp_width_est(tuple_width);
+  DBUG_PRINT("info", "set the estimated output width of a base relation:%d", rel->reltarget->width);
 }
 
 /*
@@ -6188,6 +7119,7 @@ set_rel_width(PlannerInfo *root, RelOptInfo *rel)
 PathTarget *
 set_pathtarget_cost_width(PlannerInfo *root, PathTarget *target)
 {
+  DBUG_TRACE;
   int64   tuple_width = 0;
   ListCell   *lc;
 
@@ -6224,6 +7156,7 @@ set_pathtarget_cost_width(PlannerInfo *root, PathTarget *target)
 static int32
 get_expr_width(PlannerInfo *root, const Node *expr)
 {
+  DBUG_TRACE;
   int32   width;
 
   if (IsA(expr, Var)) {
@@ -6253,11 +7186,13 @@ get_expr_width(PlannerInfo *root, const Node *expr)
     width = get_typavgwidth(var->vartype, var->vartypmod);
     Assert(width > 0);
 
+    DBUG_PRINT("info", "width:%d", width);
     return width;
   }
 
   width = get_typavgwidth(exprType(expr), exprTypmod(expr));
   Assert(width > 0);
+  DBUG_PRINT("info", "width:%d", width);
   return width;
 }
 
@@ -6290,6 +7225,7 @@ page_size(double tuples, int width)
 static double
 get_parallel_divisor(Path *path)
 {
+  DBUG_TRACE;
   double    parallel_divisor = path->parallel_workers;
 
   /*
@@ -6312,6 +7248,7 @@ get_parallel_divisor(Path *path)
       parallel_divisor += leader_contribution;
   }
 
+  DBUG_PRINT("info", "parallel divisor:%g", parallel_divisor);
   return parallel_divisor;
 }
 
@@ -6332,6 +7269,7 @@ compute_bitmap_pages(PlannerInfo *root, RelOptInfo *baserel,
                      Path *bitmapqual, double loop_count,
                      Cost *cost_p, double *tuples_p)
 {
+  DBUG_TRACE;
   Cost    indexTotalCost;
   Selectivity indexSelectivity;
   double    T;
@@ -6424,6 +7362,7 @@ compute_bitmap_pages(PlannerInfo *root, RelOptInfo *baserel,
   if (tuples_p)
     *tuples_p = tuples_fetched;
 
+  DBUG_PRINT("info", "pages fetched:%g", pages_fetched);
   return pages_fetched;
 }
 

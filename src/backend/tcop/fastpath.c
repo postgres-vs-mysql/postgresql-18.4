@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/xact.h"
@@ -65,6 +66,7 @@ static int16 parse_fcall_arguments(StringInfo msgBuf, struct fp_info *fip,
 static void
 SendFunctionResult(Datum retval, bool isnull, Oid rettype, int16 format)
 {
+  DBUG_TRACE;
   StringInfoData buf;
 
   pq_beginmessage(&buf, PqMsg_FunctionCallResponse);
@@ -110,6 +112,7 @@ SendFunctionResult(Datum retval, bool isnull, Oid rettype, int16 format)
 static void
 fetch_fp_info(Oid func_id, struct fp_info *fip)
 {
+  DBUG_TRACE;
   HeapTuple func_htp;
   Form_pg_proc pp;
 
@@ -181,6 +184,7 @@ fetch_fp_info(Oid func_id, struct fp_info *fip)
 void
 HandleFunctionRequest(StringInfo msgBuf)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   Oid     fid;
   AclResult aclresult;
@@ -321,6 +325,7 @@ static int16
 parse_fcall_arguments(StringInfo msgBuf, struct fp_info *fip,
                       FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   int     nargs;
   int     i;
   int     numAFormats;

@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/transam.h"
@@ -31,6 +32,7 @@
 Datum
 pg_control_system(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   values[4];
   bool    nulls[4];
   TupleDesc tupdesc;
@@ -70,6 +72,7 @@ pg_control_system(PG_FUNCTION_ARGS)
 Datum
 pg_control_checkpoint(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   values[18];
   bool    nulls[18];
   TupleDesc tupdesc;
@@ -164,6 +167,7 @@ pg_control_checkpoint(PG_FUNCTION_ARGS)
 Datum
 pg_control_recovery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   values[5];
   bool    nulls[5];
   TupleDesc tupdesc;
@@ -206,6 +210,7 @@ pg_control_recovery(PG_FUNCTION_ARGS)
 Datum
 pg_control_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   values[12];
   bool    nulls[12];
   TupleDesc tupdesc;

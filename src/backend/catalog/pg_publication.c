@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -54,6 +55,8 @@ typedef struct {
 static void
 check_publication_add_relation(Relation targetrel)
 {
+  DBUG_TRACE;
+
   /* Must be a regular or partitioned table */
   if (RelationGetForm(targetrel)->relkind != RELKIND_RELATION &&
       RelationGetForm(targetrel)->relkind != RELKIND_PARTITIONED_TABLE)
@@ -93,6 +96,8 @@ check_publication_add_relation(Relation targetrel)
 static void
 check_publication_add_schema(Oid schemaid)
 {
+  DBUG_TRACE;
+
   /* Can't be system namespace */
   if (IsCatalogNamespace(schemaid) || IsToastNamespace(schemaid))
     ereport(ERROR,
@@ -132,6 +137,7 @@ check_publication_add_schema(Oid schemaid)
 static bool
 is_publishable_class(Oid relid, Form_pg_class reltuple)
 {
+  DBUG_TRACE;
   return (reltuple->relkind == RELKIND_RELATION ||
           reltuple->relkind == RELKIND_PARTITIONED_TABLE) &&
          !IsCatalogRelationOid(relid) &&
@@ -145,6 +151,7 @@ is_publishable_class(Oid relid, Form_pg_class reltuple)
 bool
 is_publishable_relation(Relation rel)
 {
+  DBUG_TRACE;
   return is_publishable_class(RelationGetRelid(rel), rel->rd_rel);
 }
 
@@ -158,6 +165,7 @@ is_publishable_relation(Relation rel)
 Datum
 pg_relation_is_publishable(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   HeapTuple tuple;
   bool    result;
@@ -179,6 +187,7 @@ pg_relation_is_publishable(PG_FUNCTION_ARGS)
 static bool
 is_ancestor_member_tableinfos(Oid ancestor, List *table_infos)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, table_infos) {
@@ -197,6 +206,7 @@ is_ancestor_member_tableinfos(Oid ancestor, List *table_infos)
 static void
 filter_partitions(List *table_infos)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, table_infos) {
@@ -229,6 +239,7 @@ filter_partitions(List *table_infos)
 bool
 is_schema_publication(Oid pubid)
 {
+  DBUG_TRACE;
   Relation  pubschsrel;
   ScanKeyData scankey;
   SysScanDesc scan;
@@ -306,6 +317,8 @@ List *
 GetPubPartitionOptionRelations(List *result, PublicationPartOpt pub_partopt,
                                Oid relid)
 {
+  DBUG_TRACE;
+
   if (get_rel_relkind(relid) == RELKIND_PARTITIONED_TABLE &&
       pub_partopt != PUBLICATION_PART_ROOT) {
     List     *all_parts = find_all_inheritors(relid, NoLock,
@@ -344,6 +357,7 @@ GetPubPartitionOptionRelations(List *result, PublicationPartOpt pub_partopt,
 Oid
 GetTopMostAncestorInPublication(Oid puboid, List *ancestors, int *ancestor_level)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   Oid     topmost_relid = InvalidOid;
   int     level = 0;
@@ -414,6 +428,7 @@ ObjectAddress
 publication_add_relation(Oid pubid, PublicationRelInfo *pri,
                          bool if_not_exists)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Datum   values[Natts_pg_publication_rel];
@@ -540,6 +555,7 @@ publication_add_relation(Oid pubid, PublicationRelInfo *pri,
 Bitmapset *
 pub_collist_validate(Relation targetrel, List *columns)
 {
+  DBUG_TRACE;
   Bitmapset  *set = NULL;
   ListCell   *lc;
   TupleDesc tupdesc = RelationGetDescr(targetrel);
@@ -620,6 +636,7 @@ pub_collist_to_bitmapset(Bitmapset *columns, Datum pubcols, MemoryContext mcxt)
 Bitmapset *
 pub_form_cols_map(Relation relation, PublishGencolsType include_gencols_type)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
   TupleDesc desc = RelationGetDescr(relation);
 
@@ -651,6 +668,7 @@ pub_form_cols_map(Relation relation, PublishGencolsType include_gencols_type)
 ObjectAddress
 publication_add_schema(Oid pubid, Oid schemaid, bool if_not_exists)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   Datum   values[Natts_pg_publication_namespace];
@@ -731,6 +749,7 @@ publication_add_schema(Oid pubid, Oid schemaid, bool if_not_exists)
 List *
 GetRelationPublications(Oid relid)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   CatCList   *pubrellist;
   int     i;
@@ -760,6 +779,7 @@ GetRelationPublications(Oid relid)
 List *
 GetPublicationRelations(Oid pubid, PublicationPartOpt pub_partopt)
 {
+  DBUG_TRACE;
   List     *result;
   Relation  pubrelsrel;
   ScanKeyData scankey;
@@ -803,6 +823,7 @@ GetPublicationRelations(Oid pubid, PublicationPartOpt pub_partopt)
 List *
 GetAllTablesPublications(void)
 {
+  DBUG_TRACE;
   List     *result;
   Relation  rel;
   ScanKeyData scankey;
@@ -844,6 +865,7 @@ GetAllTablesPublications(void)
 List *
 GetAllTablesPublicationRelations(bool pubviaroot)
 {
+  DBUG_TRACE;
   Relation  classRel;
   ScanKeyData key[1];
   TableScanDesc scan;
@@ -902,6 +924,7 @@ GetAllTablesPublicationRelations(bool pubviaroot)
 List *
 GetPublicationSchemas(Oid pubid)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Relation  pubschsrel;
   ScanKeyData scankey;
@@ -940,6 +963,7 @@ GetPublicationSchemas(Oid pubid)
 List *
 GetSchemaPublications(Oid schemaid)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   CatCList   *pubschlist;
   int     i;
@@ -966,6 +990,7 @@ GetSchemaPublications(Oid schemaid)
 List *
 GetSchemaPublicationRelations(Oid schemaid, PublicationPartOpt pub_partopt)
 {
+  DBUG_TRACE;
   Relation  classRel;
   ScanKeyData key[1];
   TableScanDesc scan;
@@ -1023,6 +1048,7 @@ GetSchemaPublicationRelations(Oid schemaid, PublicationPartOpt pub_partopt)
 List *
 GetAllSchemaPublicationRelations(Oid pubid, PublicationPartOpt pub_partopt)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   List     *pubschemalist = GetPublicationSchemas(pubid);
   ListCell   *cell;
@@ -1046,6 +1072,7 @@ GetAllSchemaPublicationRelations(Oid pubid, PublicationPartOpt pub_partopt)
 Publication *
 GetPublication(Oid pubid)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Publication *pub;
   Form_pg_publication pubform;
@@ -1079,6 +1106,7 @@ GetPublication(Oid pubid)
 Publication *
 GetPublicationByName(const char *pubname, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     oid;
 
   oid = get_publication_oid(pubname, missing_ok);
@@ -1094,6 +1122,7 @@ GetPublicationByName(const char *pubname, bool missing_ok)
 Datum
 pg_get_publication_tables(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define NUM_PUBLICATION_TABLES_ELEM 4
   FuncCallContext *funcctx;
   List     *table_infos = NIL;

@@ -14,6 +14,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/reloptions.h"
@@ -50,6 +51,7 @@ typedef struct {
 static void
 InvalidateAttoptCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   AttoptCacheEntry *attopt;
 
@@ -94,6 +96,7 @@ relatt_cache_syshash(const void *key, Size keysize)
 static void
 InitializeAttoptCache(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   /* Initialize the hash table. */
@@ -128,6 +131,7 @@ InitializeAttoptCache(void)
 AttributeOpts *
 get_attribute_options(Oid attrelid, int attnum)
 {
+  DBUG_TRACE;
   AttoptCacheKey key;
   AttoptCacheEntry *attopt;
   AttributeOpts *result;

@@ -33,8 +33,7 @@ is_valid_ascii(const unsigned char *s, int len)
 
   Assert(len % sizeof(chunk) == 0);
 
-  while (s < s_end)
-  {
+  while (s < s_end) {
     vector8_load(&chunk, s);
 
     /* Capture any zero bytes in this chunk. */

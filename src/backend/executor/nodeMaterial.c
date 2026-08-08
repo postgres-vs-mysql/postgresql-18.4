@@ -20,6 +20,7 @@
  *
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeMaterial.h"
@@ -38,6 +39,7 @@
 static TupleTableSlot *     /* result tuple from subplan */
 ExecMaterial(PlanState *pstate)
 {
+  DBUG_TRACE;
   MaterialState *node = castNode(MaterialState, pstate);
   EState     *estate;
   ScanDirection dir;
@@ -162,6 +164,7 @@ ExecMaterial(PlanState *pstate)
 MaterialState *
 ExecInitMaterial(Material *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   MaterialState *matstate;
   Plan     *outerPlan;
 
@@ -238,6 +241,8 @@ ExecInitMaterial(Material *node, EState *estate, int eflags)
 void
 ExecEndMaterial(MaterialState *node)
 {
+  DBUG_TRACE;
+
   /*
    * Release tuplestore resources
    */
@@ -261,6 +266,7 @@ ExecEndMaterial(MaterialState *node)
 void
 ExecMaterialMarkPos(MaterialState *node)
 {
+  DBUG_TRACE;
   Assert(node->eflags & EXEC_FLAG_MARK);
 
   /*
@@ -289,6 +295,7 @@ ExecMaterialMarkPos(MaterialState *node)
 void
 ExecMaterialRestrPos(MaterialState *node)
 {
+  DBUG_TRACE;
   Assert(node->eflags & EXEC_FLAG_MARK);
 
   /*
@@ -312,6 +319,7 @@ ExecMaterialRestrPos(MaterialState *node)
 void
 ExecReScanMaterial(MaterialState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);

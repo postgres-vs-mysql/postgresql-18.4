@@ -18,6 +18,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -108,13 +109,27 @@ static int  oid_compare(const void *a, const void *b);
 void
 InitCatalogCache(void)
 {
+  DBUG_TRACE;
   int     cacheId;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
+
 
   Assert(!CacheInitialized);
 
   SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
 
   for (cacheId = 0; cacheId < SysCacheSize; cacheId++) {
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
     /*
      * Assert that every enumeration value defined in syscache.h has been
      * populated in the cacheinfo array.
@@ -143,6 +158,14 @@ InitCatalogCache(void)
       cacheinfo[cacheId].indoid;
     /* see comments for RelationInvalidatesSnapshotsOnly */
     Assert(!RelationInvalidatesSnapshotsOnly(cacheinfo[cacheId].reloid));
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   Assert(SysCacheRelationOidSize <= lengthof(SysCacheRelationOid));
@@ -179,12 +202,36 @@ InitCatalogCache(void)
 void
 InitCatalogCachePhase2(void)
 {
+  DBUG_TRACE;
   int     cacheId;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   Assert(CacheInitialized);
 
-  for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
+  DBUG_PRINT("info", "SysCacheSize:%d", SysCacheSize);
+
+  for (cacheId = 0; cacheId < SysCacheSize; cacheId++) {
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     InitCatCachePhase2(SysCache[cacheId], true);
+    count++;
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
 }
 
 
@@ -211,6 +258,7 @@ SearchSysCache(int cacheId,
                Datum key3,
                Datum key4)
 {
+  DBUG_TRACE;
   Assert(cacheId >= 0 && cacheId < SysCacheSize &&
          PointerIsValid(SysCache[cacheId]));
 
@@ -221,6 +269,7 @@ HeapTuple
 SearchSysCache1(int cacheId,
                 Datum key1)
 {
+  DBUG_TRACE;
   Assert(cacheId >= 0 && cacheId < SysCacheSize &&
          PointerIsValid(SysCache[cacheId]));
   Assert(SysCache[cacheId]->cc_nkeys == 1);
@@ -232,6 +281,7 @@ HeapTuple
 SearchSysCache2(int cacheId,
                 Datum key1, Datum key2)
 {
+  DBUG_TRACE;
   Assert(cacheId >= 0 && cacheId < SysCacheSize &&
          PointerIsValid(SysCache[cacheId]));
   Assert(SysCache[cacheId]->cc_nkeys == 2);
@@ -243,6 +293,7 @@ HeapTuple
 SearchSysCache3(int cacheId,
                 Datum key1, Datum key2, Datum key3)
 {
+  DBUG_TRACE;
   Assert(cacheId >= 0 && cacheId < SysCacheSize &&
          PointerIsValid(SysCache[cacheId]));
   Assert(SysCache[cacheId]->cc_nkeys == 3);
@@ -254,6 +305,7 @@ HeapTuple
 SearchSysCache4(int cacheId,
                 Datum key1, Datum key2, Datum key3, Datum key4)
 {
+  DBUG_TRACE;
   Assert(cacheId >= 0 && cacheId < SysCacheSize &&
          PointerIsValid(SysCache[cacheId]));
   Assert(SysCache[cacheId]->cc_nkeys == 4);
@@ -268,6 +320,7 @@ SearchSysCache4(int cacheId,
 void
 ReleaseSysCache(HeapTuple tuple)
 {
+  DBUG_TRACE;
   ReleaseCatCache(tuple);
 }
 
@@ -287,6 +340,7 @@ HeapTuple
 SearchSysCacheLocked1(int cacheId,
                       Datum key1)
 {
+  DBUG_TRACE;
   CatCache   *cache = SysCache[cacheId];
   ItemPointerData tid;
   LOCKTAG   tag;
@@ -382,6 +436,7 @@ SearchSysCacheCopy(int cacheId,
                    Datum key3,
                    Datum key4)
 {
+  DBUG_TRACE;
   HeapTuple tuple,
             newtuple;
 
@@ -406,6 +461,7 @@ HeapTuple
 SearchSysCacheLockedCopy1(int cacheId,
                           Datum key1)
 {
+  DBUG_TRACE;
   HeapTuple tuple,
             newtuple;
 
@@ -432,14 +488,19 @@ SearchSysCacheExists(int cacheId,
                      Datum key3,
                      Datum key4)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
 
   tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   ReleaseSysCache(tuple);
+
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -458,6 +519,7 @@ GetSysCacheOid(int cacheId,
                Datum key3,
                Datum key4)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   bool    isNull;
   Oid     result;
@@ -487,6 +549,7 @@ GetSysCacheOid(int cacheId,
 HeapTuple
 SearchSysCacheAttName(Oid relid, const char *attname)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
 
   tuple = SearchSysCache2(ATTNAME,
@@ -512,6 +575,7 @@ SearchSysCacheAttName(Oid relid, const char *attname)
 HeapTuple
 SearchSysCacheCopyAttName(Oid relid, const char *attname)
 {
+  DBUG_TRACE;
   HeapTuple tuple,
             newtuple;
 
@@ -533,6 +597,7 @@ SearchSysCacheCopyAttName(Oid relid, const char *attname)
 bool
 SearchSysCacheExistsAttName(Oid relid, const char *attname)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
 
   tuple = SearchSysCacheAttName(relid, attname);
@@ -556,6 +621,7 @@ SearchSysCacheExistsAttName(Oid relid, const char *attname)
 HeapTuple
 SearchSysCacheAttNum(Oid relid, int16 attnum)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
 
   tuple = SearchSysCache2(ATTNUM,
@@ -581,6 +647,7 @@ SearchSysCacheAttNum(Oid relid, int16 attnum)
 HeapTuple
 SearchSysCacheCopyAttNum(Oid relid, int16 attnum)
 {
+  DBUG_TRACE;
   HeapTuple tuple,
             newtuple;
 
@@ -619,6 +686,8 @@ SysCacheGetAttr(int cacheId, HeapTuple tup,
                 AttrNumber attributeNumber,
                 bool *isNull)
 {
+  DBUG_TRACE;
+
   /*
    * We just need to get the TupleDesc out of the cache entry, and then we
    * can apply heap_getattr().  Normally the cache control data is already
@@ -634,6 +703,7 @@ SysCacheGetAttr(int cacheId, HeapTuple tup,
     Assert(PointerIsValid(SysCache[cacheId]->cc_tupdesc));
   }
 
+  DBUG_PRINT("info", "attributeNumber:%d", attributeNumber);
   return heap_getattr(tup, attributeNumber,
                       SysCache[cacheId]->cc_tupdesc,
                       isNull);
@@ -649,6 +719,7 @@ Datum
 SysCacheGetAttrNotNull(int cacheId, HeapTuple tup,
                        AttrNumber attributeNumber)
 {
+  DBUG_TRACE;
   bool    isnull;
   Datum   attr;
 
@@ -681,6 +752,8 @@ GetSysCacheHashValue(int cacheId,
                      Datum key3,
                      Datum key4)
 {
+  DBUG_TRACE;
+
   if (cacheId < 0 || cacheId >= SysCacheSize ||
       !PointerIsValid(SysCache[cacheId]))
     elog(ERROR, "invalid cache ID: %d", cacheId);
@@ -695,6 +768,8 @@ struct catclist *
 SearchSysCacheList(int cacheId, int nkeys,
                    Datum key1, Datum key2, Datum key3)
 {
+  DBUG_TRACE;
+
   if (cacheId < 0 || cacheId >= SysCacheSize ||
       !PointerIsValid(SysCache[cacheId]))
     elog(ERROR, "invalid cache ID: %d", cacheId);
@@ -714,6 +789,8 @@ SearchSysCacheList(int cacheId, int nkeys,
 void
 SysCacheInvalidate(int cacheId, uint32 hashValue)
 {
+  DBUG_TRACE;
+
   if (cacheId < 0 || cacheId >= SysCacheSize)
     elog(ERROR, "invalid cache ID: %d", cacheId);
 
@@ -738,6 +815,8 @@ SysCacheInvalidate(int cacheId, uint32 hashValue)
 bool
 RelationInvalidatesSnapshotsOnly(Oid relid)
 {
+  DBUG_TRACE;
+
   switch (relid) {
     case DbRoleSettingRelationId:
     case DependRelationId:
@@ -761,14 +840,17 @@ RelationInvalidatesSnapshotsOnly(Oid relid)
 bool
 RelationHasSysCache(Oid relid)
 {
+  DBUG_TRACE;
   int     low = 0,
           high = SysCacheRelationOidSize - 1;
 
   while (low <= high) {
     int     middle = low + (high - low) / 2;
 
-    if (SysCacheRelationOid[middle] == relid)
+    if (SysCacheRelationOid[middle] == relid) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
 
     if (SysCacheRelationOid[middle] < relid)
       low = middle + 1;
@@ -776,6 +858,8 @@ RelationHasSysCache(Oid relid)
       high = middle - 1;
   }
 
+
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -792,8 +876,9 @@ RelationSupportsSysCache(Oid relid)
   while (low <= high) {
     int     middle = low + (high - low) / 2;
 
-    if (SysCacheSupportingRelOid[middle] == relid)
+    if (SysCacheSupportingRelOid[middle] == relid) {
       return true;
+    }
 
     if (SysCacheSupportingRelOid[middle] < relid)
       low = middle + 1;

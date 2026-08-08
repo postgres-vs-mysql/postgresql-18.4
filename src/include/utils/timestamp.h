@@ -110,6 +110,7 @@ extern int32 anytimestamp_typmod_check(bool istz, int32 typmod);
 extern TimestampTz GetCurrentTimestamp(void);
 extern TimestampTz GetSQLCurrentTimestamp(int32 typmod);
 extern Timestamp GetSQLLocalTimestamp(int32 typmod);
+extern char *get_timestamp_string(Timestamp timestamp, char *buf);
 extern void TimestampDifference(TimestampTz start_time, TimestampTz stop_time,
                                 long *secs, int *microsecs);
 extern long TimestampDifferenceMilliseconds(TimestampTz start_time,

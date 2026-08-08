@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/xact.h"
@@ -247,6 +248,7 @@ prepare_sql_fn_parse_info(HeapTuple procedureTuple,
                           Node *call_expr,
                           Oid inputCollation)
 {
+  DBUG_TRACE;
   SQLFunctionParseInfoPtr pinfo;
   Form_pg_proc procedureStruct = (Form_pg_proc) GETSTRUCT(procedureTuple);
   int     nargs;
@@ -280,11 +282,14 @@ prepare_sql_fn_parse_info(HeapTuple procedureTuple,
       if (IsPolymorphicType(argtype)) {
         argtype = get_call_expr_argtype(call_expr, argnum);
 
-        if (argtype == InvalidOid)
+        if (argtype == InvalidOid) {
+          char *format_str = format_type_be(argOidVect[argnum]);
+          DBUG_INSTANT_PRINT("info", "could not determine actual type of argument declared %s", format_str);
           ereport(ERROR,
                   (errcode(ERRCODE_DATATYPE_MISMATCH),
                    errmsg("could not determine actual type of argument declared %s",
-                          format_type_be(argOidVect[argnum]))));
+                          format_str)));
+        }
 
         argOidVect[argnum] = argtype;
       }
@@ -334,6 +339,7 @@ prepare_sql_fn_parse_info(HeapTuple procedureTuple,
 void
 sql_fn_parser_setup(struct ParseState *pstate, SQLFunctionParseInfoPtr pinfo)
 {
+  DBUG_TRACE;
   pstate->p_pre_columnref_hook = NULL;
   pstate->p_post_columnref_hook = sql_fn_post_column_ref;
   pstate->p_paramref_hook = sql_fn_param_ref;
@@ -347,6 +353,7 @@ sql_fn_parser_setup(struct ParseState *pstate, SQLFunctionParseInfoPtr pinfo)
 static Node *
 sql_fn_post_column_ref(ParseState *pstate, ColumnRef *cref, Node *var)
 {
+  DBUG_TRACE;
   SQLFunctionParseInfoPtr pinfo = (SQLFunctionParseInfoPtr) pstate->p_ref_hook_state;
   int     nnames;
   Node     *field1;
@@ -454,6 +461,7 @@ sql_fn_post_column_ref(ParseState *pstate, ColumnRef *cref, Node *var)
 static Node *
 sql_fn_param_ref(ParseState *pstate, ParamRef *pref)
 {
+  DBUG_TRACE;
   SQLFunctionParseInfoPtr pinfo = (SQLFunctionParseInfoPtr) pstate->p_ref_hook_state;
   int     paramno = pref->number;
 
@@ -471,6 +479,7 @@ static Node *
 sql_fn_make_param(SQLFunctionParseInfoPtr pinfo,
                   int paramno, int location)
 {
+  DBUG_TRACE;
   Param    *param;
 
   param = makeNode(Param);
@@ -501,6 +510,7 @@ static Node *
 sql_fn_resolve_param_name(SQLFunctionParseInfoPtr pinfo,
                           const char *paramname, int location)
 {
+  DBUG_TRACE;
   int     i;
 
   if (pinfo->argnames == NULL)
@@ -520,6 +530,7 @@ sql_fn_resolve_param_name(SQLFunctionParseInfoPtr pinfo,
 static SQLFunctionCache *
 init_sql_fcache(FunctionCallInfo fcinfo, bool lazyEvalOK)
 {
+  DBUG_TRACE;
   FmgrInfo   *finfo = fcinfo->flinfo;
   SQLFunctionHashEntry *func;
   SQLFunctionCache *fcache;
@@ -634,6 +645,7 @@ init_sql_fcache(FunctionCallInfo fcinfo, bool lazyEvalOK)
 static bool
 init_execution_state(SQLFunctionCachePtr fcache)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
   execution_state *preves = NULL;
   execution_state *lasttages = NULL;
@@ -711,25 +723,31 @@ init_execution_state(SQLFunctionCachePtr fcache)
      */
     if (stmt->commandType == CMD_UTILITY) {
       if (IsA(stmt->utilityStmt, CopyStmt) &&
-          ((CopyStmt *) stmt->utilityStmt)->filename == NULL)
+          ((CopyStmt *) stmt->utilityStmt)->filename == NULL) {
+        DBUG_INSTANT_PRINT("info", "cannot COPY to/from client in an SQL function");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot COPY to/from client in an SQL function")));
+      }
 
-      if (IsA(stmt->utilityStmt, TransactionStmt))
+      if (IsA(stmt->utilityStmt, TransactionStmt)) {
+        DBUG_INSTANT_PRINT("info", "%s is not allowed in an SQL function", CreateCommandName(stmt->utilityStmt));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  /* translator: %s is a SQL statement name */
                  errmsg("%s is not allowed in an SQL function",
                         CreateCommandName(stmt->utilityStmt))));
+      }
     }
 
-    if (fcache->func->readonly_func && !CommandIsReadOnly(stmt))
+    if (fcache->func->readonly_func && !CommandIsReadOnly(stmt)) {
+      DBUG_INSTANT_PRINT("info", "%s is not allowed in a non-volatile function", CreateCommandName((Node *) stmt));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /* translator: %s is a SQL statement name */
                errmsg("%s is not allowed in a non-volatile function",
                       CreateCommandName((Node *) stmt))));
+    }
 
     /* OK, build the execution_state for this query */
     newes = &fcache->esarray[foreach_current_index(lc)];
@@ -1156,12 +1174,15 @@ sql_compile_callback(FunctionCallInfo fcinfo,
    * check_sql_stmt_retval, but we'll never reach that if there's no last
    * statement.
    */
-  if (func->num_queries == 0 && rettype != VOIDOID)
+  if (func->num_queries == 0 && rettype != VOIDOID) {
+    char *format1 = format_type_be(rettype);
+    DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("return type mismatch in function declared to return %s",
-                    format_type_be(rettype)),
+                    format1),
              errdetail("Function's final statement must be SELECT or INSERT/UPDATE/DELETE/MERGE RETURNING.")));
+  }
 
   /* Save the source trees in pcontext for now. */
   MemoryContextSwitchTo(pcontext);
@@ -1253,6 +1274,7 @@ sql_postrewrite_callback(List *querytree_list, void *arg)
 static void
 postquel_start(execution_state *es, SQLFunctionCachePtr fcache)
 {
+  DBUG_TRACE;
   DestReceiver *dest;
   MemoryContext oldcontext = CurrentMemoryContext;
 
@@ -1369,6 +1391,7 @@ postquel_start(execution_state *es, SQLFunctionCachePtr fcache)
 static bool
 postquel_getnext(execution_state *es, SQLFunctionCachePtr fcache)
 {
+  DBUG_TRACE;
   bool    result;
   MemoryContext oldcontext;
 
@@ -1407,6 +1430,7 @@ postquel_getnext(execution_state *es, SQLFunctionCachePtr fcache)
 static void
 postquel_end(execution_state *es, SQLFunctionCachePtr fcache)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
 
   /* Run the sub-executor in subcontext */
@@ -1440,6 +1464,7 @@ static void
 postquel_sub_params(SQLFunctionCachePtr fcache,
                     FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   int     nargs = fcinfo->nargs;
 
   if (nargs > 0) {
@@ -1498,6 +1523,7 @@ postquel_get_single_result(TupleTableSlot *slot,
                            FunctionCallInfo fcinfo,
                            SQLFunctionCachePtr fcache)
 {
+  DBUG_TRACE;
   Datum   value;
 
   /*
@@ -1533,6 +1559,7 @@ postquel_get_single_result(TupleTableSlot *slot,
 Datum
 fmgr_sql(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SQLFunctionCachePtr fcache;
   ErrorContextCallback sqlerrcontext;
   MemoryContext tscontext;
@@ -1555,10 +1582,12 @@ fmgr_sql(PG_FUNCTION_ARGS)
      */
     if (!rsi || !IsA(rsi, ReturnSetInfo) ||
         (rsi->allowedModes & SFRM_ValuePerCall) == 0 ||
-        (rsi->allowedModes & SFRM_Materialize) == 0)
+        (rsi->allowedModes & SFRM_Materialize) == 0) {
+      DBUG_INSTANT_PRINT("info", "set-valued function called in context that cannot accept a set");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("set-valued function called in context that cannot accept a set")));
+    }
 
     randomAccess = rsi->allowedModes & SFRM_Materialize_Random;
     lazyEvalOK = !(rsi->allowedModes & SFRM_Materialize_Preferred);
@@ -1866,6 +1895,7 @@ sql_compile_error_callback(void *arg)
 static void
 sql_exec_error_callback(void *arg)
 {
+  DBUG_TRACE;
   SQLFunctionCachePtr fcache = (SQLFunctionCachePtr) arg;
   int     syntaxerrposition;
 
@@ -1904,6 +1934,7 @@ sql_exec_error_callback(void *arg)
 static void
 ShutdownSQLFunction(Datum arg)
 {
+  DBUG_TRACE;
   SQLFunctionCachePtr fcache = (SQLFunctionCachePtr) DatumGetPointer(arg);
   execution_state *es;
 
@@ -1974,6 +2005,7 @@ RemoveSQLFunctionCache(void *arg)
 void
 check_sql_fn_statements(List *queryTreeLists)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* We are given a list of sublists of Queries */
@@ -2006,10 +2038,12 @@ check_sql_fn_statement(List *queryTreeList)
         IsA(query->utilityStmt, CallStmt)) {
       CallStmt   *stmt = (CallStmt *) query->utilityStmt;
 
-      if (stmt->outargs != NIL)
+      if (stmt->outargs != NIL) {
+        DBUG_INSTANT_PRINT("info", "calling procedures with output arguments is not supported in SQL functions");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("calling procedures with output arguments is not supported in SQL functions")));
+      }
     }
   }
 }
@@ -2088,6 +2122,7 @@ check_sql_stmt_retval(List *queryTreeList,
                       Oid rettype, TupleDesc rettupdesc,
                       char prokind, bool insertDroppedCols)
 {
+  DBUG_TRACE;
   bool    is_tuple_result = false;
   Query    *parse;
   ListCell   *parse_cell;
@@ -2186,12 +2221,15 @@ check_sql_stmt_retval(List *queryTreeList,
      */
     TargetEntry *tle;
 
-    if (tlistlen != 1)
+    if (tlistlen != 1) {
+      char *format_str = format_type_be(rettype);
+      DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format_str);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("return type mismatch in function declared to return %s",
-                      format_type_be(rettype)),
+                      format_str),
                errdetail("Final statement must return exactly one column.")));
+    }
 
     /* We assume here that non-junk TLEs must come first in tlists */
     tle = (TargetEntry *) linitial(tlist);
@@ -2200,13 +2238,16 @@ check_sql_stmt_retval(List *queryTreeList,
     if (!coerce_fn_result_column(tle, rettype, -1,
                                  tlist_is_modifiable,
                                  &upper_tlist,
-                                 &upper_tlist_nontrivial))
+                                 &upper_tlist_nontrivial)) {
+      char *format_str = format_type_be(rettype);
+      DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format_str);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("return type mismatch in function declared to return %s",
-                      format_type_be(rettype)),
+                      format_str),
                errdetail("Actual return type is %s.",
                          format_type_be(exprType((Node *) tle->expr)))));
+    }
   } else if (fn_typtype == TYPTYPE_COMPOSITE || rettype == RECORDOID) {
     /*
      * Returns a rowtype.
@@ -2286,12 +2327,15 @@ check_sql_stmt_retval(List *queryTreeList,
       do {
         colindex++;
 
-        if (colindex > tupnatts)
+        if (colindex > tupnatts) {
+          char *format_str = format_type_be(rettype);
+          DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format_str);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("return type mismatch in function declared to return %s",
-                          format_type_be(rettype)),
+                          format_str),
                    errdetail("Final statement returns too many columns.")));
+        }
 
         attr = TupleDescAttr(rettupdesc, colindex - 1);
 
@@ -2321,25 +2365,31 @@ check_sql_stmt_retval(List *queryTreeList,
                                    attr->atttypid, attr->atttypmod,
                                    tlist_is_modifiable,
                                    &upper_tlist,
-                                   &upper_tlist_nontrivial))
+                                   &upper_tlist_nontrivial)) {
+        char *format1 = format_type_be(rettype);
+        DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("return type mismatch in function declared to return %s",
-                        format_type_be(rettype)),
+                        format1),
                  errdetail("Final statement returns %s instead of %s at column %d.",
                            format_type_be(exprType((Node *) tle->expr)),
                            format_type_be(attr->atttypid),
                            tuplogcols)));
+      }
     }
 
     /* remaining columns in rettupdesc had better all be dropped */
     for (colindex++; colindex <= tupnatts; colindex++) {
-      if (!TupleDescCompactAttr(rettupdesc, colindex - 1)->attisdropped)
+      if (!TupleDescCompactAttr(rettupdesc, colindex - 1)->attisdropped) {
+        char *format1 = format_type_be(rettype);
+        DBUG_INSTANT_PRINT("info", "return type mismatch in function declared to return %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("return type mismatch in function declared to return %s",
-                        format_type_be(rettype)),
+                        format1),
                  errdetail("Final statement returns too few columns.")));
+      }
 
       if (insertDroppedCols) {
         Expr     *null_expr;
@@ -2363,11 +2413,14 @@ check_sql_stmt_retval(List *queryTreeList,
 
     /* Report that we are returning entire tuple result */
     is_tuple_result = true;
-  } else
+  } else {
+    char *format_str = format_type_be(rettype);
+    DBUG_INSTANT_PRINT("info", "return type %s is not supported for SQL functions", format_str);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("return type %s is not supported for SQL functions",
-                    format_type_be(rettype))));
+                    format_str)));
+  }
 
 tlist_coercion_finished:
 
@@ -2450,6 +2503,7 @@ coerce_fn_result_column(TargetEntry *src_tle,
                         List **upper_tlist,
                         bool *upper_tlist_nontrivial)
 {
+  DBUG_TRACE;
   TargetEntry *new_tle;
   Expr     *new_tle_expr;
   Node     *cast_result;
@@ -2546,6 +2600,7 @@ get_sql_fn_result_tlist(List *queryTreeList)
 DestReceiver *
 CreateSQLFunctionDestReceiver(void)
 {
+  DBUG_TRACE;
   DR_sqlfunction *self = (DR_sqlfunction *) palloc0(sizeof(DR_sqlfunction));
 
   self->pub.receiveSlot = sqlfunction_receive;

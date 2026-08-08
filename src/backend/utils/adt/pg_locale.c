@@ -29,6 +29,7 @@
  */
 
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <time.h>
@@ -196,6 +197,7 @@ static char *IsoLocaleName(const char *);
 char *
 pg_perm_setlocale(int category, const char *locale)
 {
+  DBUG_TRACE;
   char     *result;
   const char *envvar;
 
@@ -289,6 +291,7 @@ pg_perm_setlocale(int category, const char *locale)
   if (setenv(envvar, result, 1) != 0)
     return NULL;
 
+  DBUG_PRINT("info", "locale:'%s', envvar:'%s', result:'%s'", locale, envvar, result);
   return result;
 }
 
@@ -306,6 +309,7 @@ pg_perm_setlocale(int category, const char *locale)
 bool
 check_locale(int category, const char *locale, char **canonname)
 {
+  DBUG_TRACE;
   char     *save;
   char     *res;
 
@@ -315,6 +319,7 @@ check_locale(int category, const char *locale, char **canonname)
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("locale name \"%s\" contains non-ASCII characters",
                     locale)));
+    DBUG_PRINT("info", "result: false");
     return false;
   }
 
@@ -323,8 +328,10 @@ check_locale(int category, const char *locale, char **canonname)
 
   save = setlocale(category, NULL);
 
-  if (!save)
+  if (!save) {
+    DBUG_PRINT("info", "result: false");
     return false;     /* won't happen, we hope */
+  }
 
   /* save may be pointing at a modifiable scratch variable, see above. */
   save = pstrdup(save);
@@ -350,7 +357,14 @@ check_locale(int category, const char *locale, char **canonname)
                     *canonname)));
     pfree(*canonname);
     *canonname = NULL;
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
+
+  if (res != NULL) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
   }
 
   return (res != NULL);
@@ -371,6 +385,7 @@ check_locale(int category, const char *locale, char **canonname)
 bool
 check_locale_monetary(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   return check_locale(LC_MONETARY, *newval, NULL);
 }
 
@@ -383,6 +398,7 @@ assign_locale_monetary(const char *newval, void *extra)
 bool
 check_locale_numeric(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   return check_locale(LC_NUMERIC, *newval, NULL);
 }
 
@@ -395,6 +411,7 @@ assign_locale_numeric(const char *newval, void *extra)
 bool
 check_locale_time(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   return check_locale(LC_TIME, *newval, NULL);
 }
 
@@ -417,6 +434,8 @@ assign_locale_time(const char *newval, void *extra)
 bool
 check_locale_messages(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   if (**newval == '\0') {
     if (source == PGC_S_DEFAULT)
       return true;
@@ -516,6 +535,7 @@ struct_lconv_is_valid(struct lconv *s)
 static void
 db_encoding_convert(int encoding, char **str)
 {
+  DBUG_TRACE;
   char     *pstr;
   char     *mstr;
 
@@ -548,6 +568,7 @@ db_encoding_convert(int encoding, char **str)
 struct lconv *
 PGLC_localeconv(void)
 {
+  DBUG_TRACE;
   static struct lconv CurrentLocaleConv;
   static bool CurrentLocaleConvAllocated = false;
   struct lconv *extlconv;
@@ -748,6 +769,7 @@ cache_single_string(char **dst, const char *src, int encoding)
 void
 cache_locale_time(void)
 {
+  DBUG_TRACE;
   char    buf[(2 * 7 + 2 * 12) * MAX_L10N_DATA];
   char     *bufptr;
   time_t    timenow;
@@ -944,6 +966,7 @@ cache_locale_time(void)
 static BOOL CALLBACK
 search_locale_enum(LPWSTR pStr, DWORD dwFlags, LPARAM lparam)
 {
+  DBUG_TRACE;
   wchar_t   test_locale[LOCALE_NAME_MAX_LENGTH];
   wchar_t   **argv;
 
@@ -1005,6 +1028,7 @@ search_locale_enum(LPWSTR pStr, DWORD dwFlags, LPARAM lparam)
 static char *
 get_iso_localename(const char *winlocname)
 {
+  DBUG_TRACE;
   wchar_t   wc_locale_name[LOCALE_NAME_MAX_LENGTH];
   wchar_t   buffer[LOCALE_NAME_MAX_LENGTH];
   static char iso_lc_messages[LOCALE_NAME_MAX_LENGTH];
@@ -1074,6 +1098,7 @@ get_iso_localename(const char *winlocname)
     if (hyphen)
       *hyphen = '_';
 
+    DBUG_PRINT("info", "iso_lc_messages:%s", iso_lc_messages);
     return iso_lc_messages;
   }
 
@@ -1083,6 +1108,7 @@ get_iso_localename(const char *winlocname)
 static char *
 IsoLocaleName(const char *winlocname)
 {
+  DBUG_TRACE;
   static char iso_lc_messages[LOCALE_NAME_MAX_LENGTH];
 
   if (pg_strcasecmp("c", winlocname) == 0 ||
@@ -1101,6 +1127,7 @@ IsoLocaleName(const char *winlocname)
 static pg_locale_t
 create_pg_locale(Oid collid, MemoryContext context)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_collation collform;
   pg_locale_t result;
@@ -1182,6 +1209,7 @@ create_pg_locale(Oid collid, MemoryContext context)
 void
 init_database_collation(void)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_database dbform;
   pg_locale_t result;
@@ -1226,6 +1254,7 @@ init_database_collation(void)
 pg_locale_t
 pg_newlocale_from_collation(Oid collid)
 {
+  DBUG_TRACE;
   collation_cache_entry *cache_entry;
   bool    found;
 
@@ -1524,6 +1553,8 @@ pg_strnxfrm_prefix(char *dest, size_t destsize, const char *src,
 int
 builtin_locale_encoding(const char *locale)
 {
+  DBUG_TRACE;
+
   if (strcmp(locale, "C") == 0)
     return -1;
   else if (strcmp(locale, "C.UTF-8") == 0)
@@ -1548,6 +1579,7 @@ builtin_locale_encoding(const char *locale)
 const char *
 builtin_validate_locale(int encoding, const char *locale)
 {
+  DBUG_TRACE;
   const char *canonical_name = NULL;
   int     required_encoding;
 
@@ -1589,6 +1621,7 @@ builtin_validate_locale(int encoding, const char *locale)
 char *
 icu_language_tag(const char *loc_str, int elevel)
 {
+  DBUG_TRACE;
 #ifdef USE_ICU
   UErrorCode  status;
   char     *langtag;
@@ -1646,6 +1679,7 @@ icu_language_tag(const char *loc_str, int elevel)
 void
 icu_validate_locale(const char *loc_str)
 {
+  DBUG_TRACE;
 #ifdef USE_ICU
   UCollator  *collator;
   UErrorCode  status;

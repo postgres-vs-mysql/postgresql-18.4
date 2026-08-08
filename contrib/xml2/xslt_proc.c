@@ -6,6 +6,7 @@
  * John Gray, for Torchbox 2003-04-01
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "utils/builtins.h"
@@ -44,6 +45,7 @@ PG_FUNCTION_INFO_V1(xslt_process);
 Datum
 xslt_process(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXSLT
 
   text     *doct = PG_GETARG_TEXT_PP(0);

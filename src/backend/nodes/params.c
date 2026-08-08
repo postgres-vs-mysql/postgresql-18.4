@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -332,6 +333,7 @@ RestoreParamList(char **start_address)
 char *
 BuildParamLogString(ParamListInfo params, char **knownTextValues, int maxlen)
 {
+  DBUG_TRACE;
   MemoryContext tmpCxt,
                 oldCxt;
   StringInfoData buf;

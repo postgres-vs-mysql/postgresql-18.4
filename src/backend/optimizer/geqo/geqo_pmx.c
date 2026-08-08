@@ -34,6 +34,7 @@
 /*************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo.h"
 
 #if defined(PMX)
@@ -48,6 +49,7 @@
 void
 pmx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring, int num_gene)
 {
+  DBUG_TRACE;
   int      *failed = (int *) palloc((num_gene + 1) * sizeof(int));
   int      *from = (int *) palloc((num_gene + 1) * sizeof(int));
   int      *indx = (int *) palloc((num_gene + 1) * sizeof(int));
@@ -62,7 +64,7 @@ pmx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring, int num_gene)
   int     mx_fail,
           found,
           mx_hold;
-
+  DBUG_PRINT("info", "partially matched crossover");
 
   /* no mutation so start up the pmx replacement algorithm */
   /* initialize failed[], from[], check_list[] */

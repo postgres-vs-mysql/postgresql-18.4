@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "mb/pg_wchar.h"
 #include "../../Unicode/iso8859_10_to_utf8.map"
@@ -127,6 +128,7 @@ static const pg_conv_map maps[] = {
 Datum
 iso8859_to_utf8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     encoding = PG_GETARG_INT32(0);
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
@@ -161,6 +163,7 @@ iso8859_to_utf8(PG_FUNCTION_ARGS)
 Datum
 utf8_to_iso8859(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     encoding = PG_GETARG_INT32(1);
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);

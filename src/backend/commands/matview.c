@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -77,11 +78,13 @@ static void CloseMatViewIncrementalMaintenance(void);
 void
 SetMatViewPopulatedState(Relation relation, bool newstate)
 {
+  DBUG_TRACE;
   Relation  pgrel;
   HeapTuple tuple;
 
   Assert(relation->rd_rel->relkind == RELKIND_MATVIEW);
 
+  DBUG_PRINT("info", "mark a materialized view as populated, or not");
   /*
    * Update relation's pg_class entry.  Crucial side-effect: other backends
    * (and this one too!) are sent SI message to make them rebuild relcache
@@ -121,15 +124,18 @@ ObjectAddress
 ExecRefreshMatView(RefreshMatViewStmt *stmt, const char *queryString,
                    QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Oid     matviewOid;
   LOCKMODE  lockmode;
 
+  DBUG_PRINT("info", "execute a REFRESH MATERIALIZED VIEW command");
   /* Determine strength of lock needed. */
   lockmode = stmt->concurrent ? ExclusiveLock : AccessExclusiveLock;
 
   /*
    * Get a lock until end of transaction.
    */
+  DBUG_PRINT("info", "determine strength of lock needed and get a lock until end of transaction");
   matviewOid = RangeVarGetRelidExtended(stmt->relation,
                                         lockmode, 0,
                                         RangeVarCallbackMaintainsTable,
@@ -166,6 +172,7 @@ RefreshMatViewByOid(Oid matviewOid, bool is_create, bool skipData,
                     bool concurrent, const char *queryString,
                     QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Relation  matviewRel;
   RewriteRule *rule;
   List     *actions;
@@ -180,6 +187,7 @@ RefreshMatViewByOid(Oid matviewOid, bool is_create, bool skipData,
   int     save_nestlevel;
   ObjectAddress address;
 
+  DBUG_PRINT("info", "refresh materialized view by OID:%d", matviewOid);
   matviewRel = table_open(matviewOid, NoLock);
   relowner = matviewRel->rd_rel->relowner;
 
@@ -195,53 +203,68 @@ RefreshMatViewByOid(Oid matviewOid, bool is_create, bool skipData,
   RestrictSearchPath();
 
   /* Make sure it is a materialized view. */
-  if (matviewRel->rd_rel->relkind != RELKIND_MATVIEW)
+  if (matviewRel->rd_rel->relkind != RELKIND_MATVIEW) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a materialized view", RelationGetRelationName(matviewRel));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("\"%s\" is not a materialized view",
                     RelationGetRelationName(matviewRel))));
+  }
+
+
+  DBUG_PRINT("info", "make sure it is a materialized view");
 
   /* Check that CONCURRENTLY is not specified if not populated. */
-  if (concurrent && !RelationIsPopulated(matviewRel))
+  if (concurrent && !RelationIsPopulated(matviewRel)) {
+    DBUG_INSTANT_PRINT("info", "CONCURRENTLY cannot be used when the materialized view is not populated");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("CONCURRENTLY cannot be used when the materialized view is not populated")));
+  }
 
   /* Check that conflicting options have not been specified. */
-  if (concurrent && skipData)
+  if (concurrent && skipData) {
+    DBUG_INSTANT_PRINT("info", "%s and %s options cannot be used together", "CONCURRENTLY", "WITH NO DATA");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s and %s options cannot be used together",
                     "CONCURRENTLY", "WITH NO DATA")));
+  }
 
   /*
    * Check that everything is correct for a refresh. Problems at this point
    * are internal errors, so elog is sufficient.
    */
   if (matviewRel->rd_rel->relhasrules == false ||
-      matviewRel->rd_rules->numLocks < 1)
+      matviewRel->rd_rules->numLocks < 1) {
     elog(ERROR,
          "materialized view \"%s\" is missing rewrite information",
          RelationGetRelationName(matviewRel));
+  }
 
-  if (matviewRel->rd_rules->numLocks > 1)
+  if (matviewRel->rd_rules->numLocks > 1) {
     elog(ERROR,
          "materialized view \"%s\" has too many rules",
          RelationGetRelationName(matviewRel));
+  }
 
   rule = matviewRel->rd_rules->rules[0];
 
-  if (rule->event != CMD_SELECT || !(rule->isInstead))
+  if (rule->event != CMD_SELECT || !(rule->isInstead)) {
     elog(ERROR,
          "the rule for materialized view \"%s\" is not a SELECT INSTEAD OF rule",
          RelationGetRelationName(matviewRel));
+  }
 
   actions = rule->actions;
 
-  if (list_length(actions) != 1)
+  if (list_length(actions) != 1) {
     elog(ERROR,
          "the rule for materialized view \"%s\" is not a single action",
          RelationGetRelationName(matviewRel));
+  }
+
+  DBUG_PRINT("info", "check that everything is correct for a refresh");
 
   /*
    * Check that there is a unique index with no WHERE clause on one or more
@@ -268,13 +291,17 @@ RefreshMatViewByOid(Oid matviewOid, bool is_create, bool skipData,
 
     list_free(indexoidlist);
 
-    if (!hasUniqueIndex)
+    if (!hasUniqueIndex) {
+
+      char *tmp = quote_qualified_identifier(get_namespace_name(RelationGetNamespace(matviewRel)), RelationGetRelationName(matviewRel));
+      DBUG_INSTANT_PRINT("info", "cannot refresh materialized view \"%s\" concurrently",
+                         tmp);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("cannot refresh materialized view \"%s\" concurrently",
-                      quote_qualified_identifier(get_namespace_name(RelationGetNamespace(matviewRel)),
-                          RelationGetRelationName(matviewRel))),
+                      tmp),
                errhint("Create a unique index with no WHERE clause on one or more columns of the materialized view.")));
+    }
   }
 
   /*
@@ -400,6 +427,7 @@ static uint64
 refresh_matview_datafill(DestReceiver *dest, Query *query,
                          const char *queryString, bool is_create)
 {
+  DBUG_TRACE;
   List     *rewritten;
   PlannedStmt *plan;
   QueryDesc  *queryDesc;
@@ -478,6 +506,7 @@ CreateTransientRelDestReceiver(Oid transientoid)
 static void
 transientrel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
+  DBUG_TRACE;
   DR_transientrel *myState = (DR_transientrel *) self;
   Relation  transientrel;
 
@@ -504,6 +533,7 @@ transientrel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 static bool
 transientrel_receive(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   DR_transientrel *myState = (DR_transientrel *) self;
 
   /*
@@ -532,6 +562,7 @@ transientrel_receive(TupleTableSlot *slot, DestReceiver *self)
 static void
 transientrel_shutdown(DestReceiver *self)
 {
+  DBUG_TRACE;
   DR_transientrel *myState = (DR_transientrel *) self;
 
   FreeBulkInsertState(myState->bistate);
@@ -566,6 +597,7 @@ transientrel_destroy(DestReceiver *self)
 static char *
 make_temptable_name_n(char *tempname, int n)
 {
+  DBUG_TRACE;
   StringInfoData namebuf;
 
   initStringInfo(&namebuf);
@@ -610,6 +642,7 @@ static void
 refresh_by_match_merge(Oid matviewOid, Oid tempOid, Oid relowner,
                        int save_sec_context)
 {
+  DBUG_TRACE;
   StringInfoData querybuf;
   Relation  matviewRel;
   Relation  tempRel;
@@ -622,6 +655,8 @@ refresh_by_match_merge(Oid matviewOid, Oid tempOid, Oid relowner,
   ListCell   *indexoidscan;
   int16   relnatts;
   Oid      *opUsedForQual;
+
+  DBUG_PRINT("info", "refresh a materialized view with transactional semantics");
 
   initStringInfo(&querybuf);
   matviewRel = table_open(matviewOid, NoLock);
@@ -675,6 +710,8 @@ refresh_by_match_merge(Oid matviewOid, Oid tempOid, Oid relowner,
      * owner of the mat view (or a superuser) and therefore there is no
      * need to check for access to data in the mat view.
      */
+    DBUG_INSTANT_PRINT("info", "new data for materialized view \"%s\" contains duplicate rows without any null columns",
+                       RelationGetRelationName(matviewRel));
     ereport(ERROR,
             (errcode(ERRCODE_CARDINALITY_VIOLATION),
              errmsg("new data for materialized view \"%s\" contains duplicate rows without any null columns",
@@ -911,6 +948,7 @@ refresh_by_match_merge(Oid matviewOid, Oid tempOid, Oid relowner,
 static void
 refresh_by_heap_swap(Oid matviewOid, Oid OIDNewHeap, char relpersistence)
 {
+  DBUG_TRACE;
   finish_heap_swap(matviewOid, OIDNewHeap, false, false, true, true,
                    RecentXmin, ReadNextMultiXactId(), relpersistence);
 }
@@ -921,7 +959,10 @@ refresh_by_heap_swap(Oid matviewOid, Oid OIDNewHeap, char relpersistence)
 static bool
 is_usable_unique_index(Relation indexRel)
 {
+  DBUG_TRACE;
   Form_pg_index indexStruct = indexRel->rd_index;
+
+  DBUG_PRINT("info", "check whether specified index is usable for match merge");
 
   /*
    * Must be unique, valid, immediate, non-partial, and be defined over
@@ -945,13 +986,17 @@ is_usable_unique_index(Relation indexRel)
     for (i = 0; i < numatts; i++) {
       int     attnum = indexStruct->indkey.values[i];
 
-      if (attnum <= 0)
+      if (attnum <= 0) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
     }
 
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 

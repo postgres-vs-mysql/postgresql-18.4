@@ -33,6 +33,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 /*
  * BASE64 - duplicated :(
@@ -44,6 +45,7 @@ static const unsigned char _base64[] =
 static int
 pg_base64_encode(const uint8 *src, unsigned len, uint8 *dst)
 {
+  DBUG_TRACE;
   uint8    *p,
            *lend = dst + 76;
   const uint8 *s,
@@ -92,6 +94,7 @@ pg_base64_encode(const uint8 *src, unsigned len, uint8 *dst)
 static int
 pg_base64_decode(const uint8 *src, unsigned len, uint8 *dst)
 {
+  DBUG_TRACE;
   const uint8 *srcend = src + len,
                *s = src;
   uint8    *p = dst;
@@ -187,6 +190,7 @@ static const char *const armor_footer = "\n-----END PGP MESSAGE-----\n";
 static long
 crc24(const uint8 *data, unsigned len)
 {
+  DBUG_TRACE;
   unsigned  crc = CRC24_INIT;
   int     i;
 
@@ -208,6 +212,7 @@ void
 pgp_armor_encode(const uint8 *src, unsigned len, StringInfo dst,
                  int num_headers, char **keys, char **values)
 {
+  DBUG_TRACE;
   int     n;
   int     res;
   unsigned  b64len;
@@ -246,6 +251,7 @@ pgp_armor_encode(const uint8 *src, unsigned len, StringInfo dst,
 static const uint8 *
 find_str(const uint8 *data, const uint8 *data_end, const char *str, int strlen)
 {
+  DBUG_TRACE;
   const uint8 *p = data;
 
   if (!strlen)
@@ -276,6 +282,7 @@ static int
 find_header(const uint8 *data, const uint8 *datend,
             const uint8 **start_p, int is_end)
 {
+  DBUG_TRACE;
   const uint8 *p = data;
   static const char *start_sep = "-----BEGIN";
   static const char *end_sep = "-----END";
@@ -330,6 +337,7 @@ find_header(const uint8 *data, const uint8 *datend,
 int
 pgp_armor_decode(const uint8 *src, int len, StringInfo dst)
 {
+  DBUG_TRACE;
   const uint8 *p = src;
   const uint8 *data_end = src + len;
   long    crc;
@@ -414,6 +422,7 @@ int
 pgp_extract_armor_headers(const uint8 *src, unsigned len,
                           int *nheaders, char ***keys, char ***values)
 {
+  DBUG_TRACE;
   const uint8 *data_end = src + len;
   const uint8 *p;
   const uint8 *base64_start;

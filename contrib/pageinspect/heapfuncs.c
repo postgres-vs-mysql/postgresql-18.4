@@ -24,6 +24,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -127,6 +128,7 @@ typedef struct heap_page_items_state {
 Datum
 heap_page_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   heap_page_items_state *inter_call_data = NULL;
   FuncCallContext *fctx;
@@ -152,6 +154,8 @@ heap_page_items(PG_FUNCTION_ARGS)
     mctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
     inter_call_data = palloc(sizeof(heap_page_items_state));
+
+    DBUG_PRINT("pageinspect", "build a tuple descriptor for our result type");
 
     /* Build a tuple descriptor for our result type */
     if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -186,6 +190,7 @@ heap_page_items(PG_FUNCTION_ARGS)
 
     /* Extract information from the line pointer */
 
+    DBUG_PRINT("pageinspect", "extract information from the line pointer");
     id = PageGetItemId(page, inter_call_data->offset);
 
     lp_offset = ItemIdGetOffset(id);
@@ -281,6 +286,7 @@ heap_page_items(PG_FUNCTION_ARGS)
     }
 
     /* Build and return the result tuple. */
+    DBUG_PRINT("pageinspect", "build and return the result tuple");
     resultTuple = heap_form_tuple(inter_call_data->tupd, values, nulls);
     result = HeapTupleGetDatum(resultTuple);
 
@@ -305,6 +311,7 @@ tuple_data_split_internal(Oid relid, char *tupdata,
                           uint16 t_infomask2, bits8 *t_bits,
                           bool do_detoast)
 {
+  DBUG_TRACE;
   ArrayBuildState *raw_attrs;
   int     nattrs;
   int     i;
@@ -312,6 +319,7 @@ tuple_data_split_internal(Oid relid, char *tupdata,
   Relation  rel;
   TupleDesc tupdesc;
 
+  DBUG_PRINT("pageinspect", "split raw tuple data taken directly from a page into an array of bytea elements");
   /* Get tuple descriptor from relation OID */
   rel = relation_open(relid, AccessShareLock);
   tupdesc = RelationGetDescr(rel);
@@ -420,6 +428,7 @@ PG_FUNCTION_INFO_V1(tuple_data_split);
 Datum
 tuple_data_split(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid;
   bytea    *raw_data;
   uint16    t_infomask;
@@ -503,6 +512,7 @@ PG_FUNCTION_INFO_V1(heap_tuple_infomask_flags);
 Datum
 heap_tuple_infomask_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define HEAP_TUPLE_INFOMASK_COLS 2
   Datum   values[HEAP_TUPLE_INFOMASK_COLS] = {0};
   bool    nulls[HEAP_TUPLE_INFOMASK_COLS] = {0};

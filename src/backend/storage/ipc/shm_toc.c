@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "port/atomics.h"
@@ -37,6 +38,7 @@ struct shm_toc {
 shm_toc *
 shm_toc_create(uint64 magic, void *address, Size nbytes)
 {
+  DBUG_TRACE;
   shm_toc    *toc = (shm_toc *) address;
 
   Assert(nbytes > offsetof(shm_toc, toc_entry));
@@ -61,6 +63,7 @@ shm_toc_create(uint64 magic, void *address, Size nbytes)
 shm_toc *
 shm_toc_attach(uint64 magic, void *address)
 {
+  DBUG_TRACE;
   shm_toc    *toc = (shm_toc *) address;
 
   if (toc->toc_magic != magic)
@@ -85,6 +88,7 @@ shm_toc_attach(uint64 magic, void *address)
 void *
 shm_toc_allocate(shm_toc *toc, Size nbytes)
 {
+  DBUG_TRACE;
   volatile shm_toc *vtoc = toc;
   Size    total_bytes;
   Size    allocated_bytes;
@@ -128,6 +132,7 @@ shm_toc_allocate(shm_toc *toc, Size nbytes)
 Size
 shm_toc_freespace(shm_toc *toc)
 {
+  DBUG_TRACE;
   volatile shm_toc *vtoc = toc;
   Size    total_bytes;
   Size    allocated_bytes;
@@ -168,6 +173,7 @@ shm_toc_freespace(shm_toc *toc)
 void
 shm_toc_insert(shm_toc *toc, uint64 key, void *address)
 {
+  DBUG_TRACE;
   volatile shm_toc *vtoc = toc;
   Size    total_bytes;
   Size    allocated_bytes;
@@ -228,6 +234,7 @@ shm_toc_insert(shm_toc *toc, uint64 key, void *address)
 void *
 shm_toc_lookup(shm_toc *toc, uint64 key, bool noError)
 {
+  DBUG_TRACE;
   uint32    nentry;
   uint32    i;
 
@@ -259,6 +266,7 @@ shm_toc_lookup(shm_toc *toc, uint64 key, bool noError)
 Size
 shm_toc_estimate(shm_toc_estimator *e)
 {
+  DBUG_TRACE;
   Size    sz;
 
   sz = offsetof(shm_toc, toc_entry);

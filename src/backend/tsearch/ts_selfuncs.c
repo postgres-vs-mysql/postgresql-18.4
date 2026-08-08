@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -64,6 +65,7 @@ static int  compare_lexeme_textfreq(const void *e1, const void *e2);
 Datum
 tsmatchsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -76,19 +78,26 @@ tsmatchsel(PG_FUNCTION_ARGS)
   bool    varonleft;
   Selectivity selec;
 
+  DBUG_PRINT("info", "selectivity of '@@'");
+
   /*
    * If expression is not variable = something or something = variable, then
    * punt and return a default estimate.
    */
   if (!get_restriction_variable(root, args, varRelid,
-                                &vardata, &other, &varonleft))
+                                &vardata, &other, &varonleft)) {
+    DBUG_PRINT("info", "if expression is not variable = something or something = variable, then punt and return a default estimate");
+    DBUG_PRINT("info", "return selectivity of '@@': %g", DEFAULT_TS_MATCH_SEL);
     PG_RETURN_FLOAT8(DEFAULT_TS_MATCH_SEL);
+  }
 
   /*
    * Can't do anything useful if the something is not a constant, either.
    */
   if (!IsA(other, Const)) {
     ReleaseVariableStats(vardata);
+    DBUG_PRINT("info", "can't do anything useful if the something is not a constant, either");
+    DBUG_PRINT("info", "return selectivity of '@@': %g", DEFAULT_TS_MATCH_SEL);
     PG_RETURN_FLOAT8(DEFAULT_TS_MATCH_SEL);
   }
 
@@ -97,6 +106,8 @@ tsmatchsel(PG_FUNCTION_ARGS)
    */
   if (((Const *) other)->constisnull) {
     ReleaseVariableStats(vardata);
+    DBUG_PRINT("info", "the '@@' operator is strict, so we can cope with NULL right away");
+    DBUG_PRINT("info", "return selectivity of '@@': 0.0");
     PG_RETURN_FLOAT8(0.0);
   }
 
@@ -121,6 +132,7 @@ tsmatchsel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity of '@@':%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -133,7 +145,9 @@ tsmatchsel(PG_FUNCTION_ARGS)
 Datum
 tsmatchjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* for the moment we just punt */
+  DBUG_PRINT("info", "return join selectivity of '@@':%g", DEFAULT_TS_MATCH_SEL);
   PG_RETURN_FLOAT8(DEFAULT_TS_MATCH_SEL);
 }
 
@@ -144,6 +158,7 @@ tsmatchjoinsel(PG_FUNCTION_ARGS)
 static Selectivity
 tsquerysel(VariableStatData *vardata, Datum constval)
 {
+  DBUG_TRACE;
   Selectivity selec;
   TSQuery   query;
 
@@ -151,8 +166,10 @@ tsquerysel(VariableStatData *vardata, Datum constval)
   query = DatumGetTSQuery(constval);
 
   /* Empty query matches nothing */
-  if (query->size == 0)
+  if (query->size == 0) {
+    DBUG_PRINT("info", "empty query matches nothing");
     return (Selectivity) 0.0;
+  }
 
   if (HeapTupleIsValid(vardata->statsTuple)) {
     Form_pg_statistic stats;
@@ -186,6 +203,7 @@ tsquerysel(VariableStatData *vardata, Datum constval)
     /* we assume no nulls here, so no stanullfrac correction */
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -196,6 +214,7 @@ static Selectivity
 mcelem_tsquery_selec(TSQuery query, Datum *mcelem, int nmcelem,
                      float4 *numbers, int nnumbers)
 {
+  DBUG_TRACE;
   float4    minfreq;
   TextFreq   *lookup;
   Selectivity selec;
@@ -238,6 +257,7 @@ mcelem_tsquery_selec(TSQuery query, Datum *mcelem, int nmcelem,
 
   pfree(lookup);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -267,6 +287,7 @@ static Selectivity
 tsquery_opr_selec(QueryItem *item, char *operand,
                   TextFreq *lookup, int length, float4 minfreq)
 {
+  DBUG_TRACE;
   Selectivity selec;
 
   /* since this function recurses, it could be driven to stack overflow */
@@ -400,6 +421,7 @@ tsquery_opr_selec(QueryItem *item, char *operand,
   /* Clamp intermediate results to stay sane despite roundoff error */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 

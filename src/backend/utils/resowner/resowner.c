@@ -44,6 +44,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/hashfn.h"
 #include "common/int.h"
@@ -415,6 +416,7 @@ ResourceOwnerReleaseAll(ResourceOwner owner, ResourceReleasePhase phase,
 ResourceOwner
 ResourceOwnerCreate(ResourceOwner parent, const char *name)
 {
+  DBUG_TRACE;
   ResourceOwner owner;
 
   owner = (ResourceOwner) MemoryContextAllocZero(TopMemoryContext,
@@ -670,6 +672,7 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
                              bool isCommit,
                              bool isTopLevel)
 {
+  DBUG_TRACE;
   ResourceOwner child;
   ResourceOwner save;
   ResourceReleaseCallbackItem *item;
@@ -790,6 +793,8 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
 void
 ResourceOwnerReleaseAllOfKind(ResourceOwner owner, const ResourceOwnerDesc *kind)
 {
+  DBUG_TRACE;
+
   /* Mustn't call this after we have already started releasing resources. */
   if (owner->releasing)
     elog(ERROR, "ResourceOwnerForget called for %s after release started", kind->name);
@@ -841,6 +846,7 @@ ResourceOwnerReleaseAllOfKind(ResourceOwner owner, const ResourceOwnerDesc *kind
 void
 ResourceOwnerDelete(ResourceOwner owner)
 {
+  DBUG_TRACE;
   /* We had better not be deleting CurrentResourceOwner ... */
   Assert(owner != CurrentResourceOwner);
 
@@ -925,6 +931,7 @@ ResourceOwnerNewParent(ResourceOwner owner,
 void
 RegisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 {
+  DBUG_TRACE;
   ResourceReleaseCallbackItem *item;
 
   item = (ResourceReleaseCallbackItem *)
@@ -939,6 +946,7 @@ RegisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 void
 UnregisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 {
+  DBUG_TRACE;
   ResourceReleaseCallbackItem *item;
   ResourceReleaseCallbackItem *prev;
 
@@ -963,6 +971,7 @@ UnregisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 void
 CreateAuxProcessResourceOwner(void)
 {
+  DBUG_TRACE;
   Assert(AuxProcessResourceOwner == NULL);
   Assert(CurrentResourceOwner == NULL);
   AuxProcessResourceOwner = ResourceOwnerCreate(NULL, "AuxiliaryProcess");
@@ -983,6 +992,7 @@ CreateAuxProcessResourceOwner(void)
 void
 ReleaseAuxProcessResources(bool isCommit)
 {
+  DBUG_TRACE;
   /*
    * At this writing, the only thing that could actually get released is
    * buffer pins; but we may as well do the full release protocol.

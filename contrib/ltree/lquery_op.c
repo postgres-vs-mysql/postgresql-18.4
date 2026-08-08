@@ -4,6 +4,7 @@
  * contrib/ltree/lquery_op.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -274,6 +275,7 @@ checkCond(lquery_level *curq, int qlen,
 Datum
 ltq_regex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *tree = PG_GETARG_LTREE_P(0);
   lquery     *query = PG_GETARG_LQUERY_P(1);
   bool    res;
@@ -289,6 +291,7 @@ ltq_regex(PG_FUNCTION_ARGS)
 Datum
 ltq_rregex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(ltq_regex,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -298,6 +301,7 @@ ltq_rregex(PG_FUNCTION_ARGS)
 Datum
 lt_q_regex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *tree = PG_GETARG_LTREE_P(0);
   ArrayType  *_query = PG_GETARG_ARRAYTYPE_P(1);
   lquery     *query = (lquery *) ARR_DATA_PTR(_query);
@@ -334,6 +338,7 @@ lt_q_regex(PG_FUNCTION_ARGS)
 Datum
 lt_q_rregex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(lt_q_regex,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)

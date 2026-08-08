@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -183,6 +184,7 @@ verify_compact_attribute(TupleDesc tupdesc, int attnum)
 TupleDesc
 CreateTemplateTupleDesc(int natts)
 {
+  DBUG_TRACE;
   TupleDesc desc;
 
   /*
@@ -230,6 +232,7 @@ CreateTemplateTupleDesc(int natts)
 TupleDesc
 CreateTupleDesc(int natts, Form_pg_attribute *attrs)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   int     i;
 
@@ -253,6 +256,7 @@ CreateTupleDesc(int natts, Form_pg_attribute *attrs)
 TupleDesc
 CreateTupleDescCopy(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   int     i;
 
@@ -339,6 +343,7 @@ CreateTupleDescTruncatedCopy(TupleDesc tupdesc, int natts)
 TupleDesc
 CreateTupleDescCopyConstr(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   TupleConstr *constr = tupdesc->constr;
   int     i;
@@ -422,6 +427,7 @@ CreateTupleDescCopyConstr(TupleDesc tupdesc)
 void
 TupleDescCopy(TupleDesc dst, TupleDesc src)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Flat-copy the header and attribute arrays */
@@ -496,6 +502,7 @@ TupleDescCopyEntry(TupleDesc dst, AttrNumber dstAttno,
 void
 FreeTupleDesc(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -553,11 +560,13 @@ FreeTupleDesc(TupleDesc tupdesc)
 void
 IncrTupleDescRefCount(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   Assert(tupdesc->tdrefcount >= 0);
 
   ResourceOwnerEnlarge(CurrentResourceOwner);
   tupdesc->tdrefcount++;
   ResourceOwnerRememberTupleDesc(CurrentResourceOwner, tupdesc);
+  DBUG_PRINT("info", "tupdesc->tdrefcount:%d", tupdesc->tdrefcount);
 }
 
 /*
@@ -571,12 +580,15 @@ IncrTupleDescRefCount(TupleDesc tupdesc)
 void
 DecrTupleDescRefCount(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   Assert(tupdesc->tdrefcount > 0);
 
   ResourceOwnerForgetTupleDesc(CurrentResourceOwner, tupdesc);
 
   if (--tupdesc->tdrefcount == 0)
     FreeTupleDesc(tupdesc);
+
+  DBUG_PRINT("info", "tupdesc->tdrefcount:%d", tupdesc->tdrefcount);
 }
 
 /*
@@ -585,14 +597,19 @@ DecrTupleDescRefCount(TupleDesc tupdesc)
 bool
 equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
 {
+  DBUG_TRACE;
   int     i,
           n;
 
-  if (tupdesc1->natts != tupdesc2->natts)
+  if (tupdesc1->natts != tupdesc2->natts) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
-  if (tupdesc1->tdtypeid != tupdesc2->tdtypeid)
+  if (tupdesc1->tdtypeid != tupdesc2->tdtypeid) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
   /* tdtypmod and tdrefcount are not checked */
 
@@ -612,35 +629,55 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
      * We intentionally ignore atthasmissing, since that's not very
      * relevant in tupdescs, which lack the attmissingval field.
      */
-    if (strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0)
+    if (strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->atttypid != attr2->atttypid)
+    if (attr1->atttypid != attr2->atttypid) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attlen != attr2->attlen)
+    if (attr1->attlen != attr2->attlen) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attndims != attr2->attndims)
+    if (attr1->attndims != attr2->attndims) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->atttypmod != attr2->atttypmod)
+    if (attr1->atttypmod != attr2->atttypmod) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attbyval != attr2->attbyval)
+    if (attr1->attbyval != attr2->attbyval) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attalign != attr2->attalign)
+    if (attr1->attalign != attr2->attalign) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attstorage != attr2->attstorage)
+    if (attr1->attstorage != attr2->attstorage) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attcompression != attr2->attcompression)
+    if (attr1->attcompression != attr2->attcompression) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attnotnull != attr2->attnotnull)
+    if (attr1->attnotnull != attr2->attnotnull) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /*
      * When the column has a not-null constraint, we also need to consider
@@ -655,30 +692,46 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
       Assert((cattr1->attnullability == ATTNULLABLE_UNKNOWN) ==
              (cattr2->attnullability == ATTNULLABLE_UNKNOWN));
 
-      if (cattr1->attnullability != cattr2->attnullability)
+      if (cattr1->attnullability != cattr2->attnullability) {
+        DBUG_PRINT("info", "result: false");
         return false;
+      }
     }
 
-    if (attr1->atthasdef != attr2->atthasdef)
+    if (attr1->atthasdef != attr2->atthasdef) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attidentity != attr2->attidentity)
+    if (attr1->attidentity != attr2->attidentity) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attgenerated != attr2->attgenerated)
+    if (attr1->attgenerated != attr2->attgenerated) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attisdropped != attr2->attisdropped)
+    if (attr1->attisdropped != attr2->attisdropped) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attislocal != attr2->attislocal)
+    if (attr1->attislocal != attr2->attislocal) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attinhcount != attr2->attinhcount)
+    if (attr1->attinhcount != attr2->attinhcount) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attcollation != attr2->attcollation)
+    if (attr1->attcollation != attr2->attcollation) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /* variable-length fields are not even present... */
   }
@@ -687,61 +740,85 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
     TupleConstr *constr1 = tupdesc1->constr;
     TupleConstr *constr2 = tupdesc2->constr;
 
-    if (constr2 == NULL)
+    if (constr2 == NULL) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (constr1->has_not_null != constr2->has_not_null)
+    if (constr1->has_not_null != constr2->has_not_null) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (constr1->has_generated_stored != constr2->has_generated_stored)
+    if (constr1->has_generated_stored != constr2->has_generated_stored) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (constr1->has_generated_virtual != constr2->has_generated_virtual)
+    if (constr1->has_generated_virtual != constr2->has_generated_virtual) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     n = constr1->num_defval;
 
-    if (n != (int) constr2->num_defval)
+    if (n != (int) constr2->num_defval) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /* We assume here that both AttrDefault arrays are in adnum order */
     for (i = 0; i < n; i++) {
       AttrDefault *defval1 = constr1->defval + i;
       AttrDefault *defval2 = constr2->defval + i;
 
-      if (defval1->adnum != defval2->adnum)
+      if (defval1->adnum != defval2->adnum) {
+        DBUG_PRINT("info", "result: false");
         return false;
+      }
 
-      if (strcmp(defval1->adbin, defval2->adbin) != 0)
+      if (strcmp(defval1->adbin, defval2->adbin) != 0) {
+        DBUG_PRINT("info", "result: false");
         return false;
+      }
     }
 
     if (constr1->missing) {
-      if (!constr2->missing)
+      if (!constr2->missing) {
+        DBUG_PRINT("info", "result: false");
         return false;
+      }
 
       for (i = 0; i < tupdesc1->natts; i++) {
         AttrMissing *missval1 = constr1->missing + i;
         AttrMissing *missval2 = constr2->missing + i;
 
-        if (missval1->am_present != missval2->am_present)
+        if (missval1->am_present != missval2->am_present) {
+          DBUG_PRINT("info", "result: false");
           return false;
+        }
 
         if (missval1->am_present) {
           CompactAttribute *missatt1 = TupleDescCompactAttr(tupdesc1, i);
 
           if (!datumIsEqual(missval1->am_value, missval2->am_value,
-                            missatt1->attbyval, missatt1->attlen))
+                            missatt1->attbyval, missatt1->attlen)) {
+            DBUG_PRINT("info", "result: false");
             return false;
+          }
         }
       }
-    } else if (constr2->missing)
+    } else if (constr2->missing) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     n = constr1->num_check;
 
-    if (n != (int) constr2->num_check)
+    if (n != (int) constr2->num_check) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /*
      * Similarly, we rely here on the ConstrCheck entries being sorted by
@@ -756,12 +833,17 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
             strcmp(check1->ccbin, check2->ccbin) == 0 &&
             check1->ccenforced == check2->ccenforced &&
             check1->ccvalid == check2->ccvalid &&
-            check1->ccnoinherit == check2->ccnoinherit))
+            check1->ccnoinherit == check2->ccnoinherit)) {
+        DBUG_PRINT("info", "result: false");
         return false;
+      }
     }
-  } else if (tupdesc2->constr != NULL)
+  } else if (tupdesc2->constr != NULL) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
+  DBUG_PRINT("info", "result: true");
   return true;
 }
 
@@ -793,33 +875,50 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
 bool
 equalRowTypes(TupleDesc tupdesc1, TupleDesc tupdesc2)
 {
-  if (tupdesc1->natts != tupdesc2->natts)
-    return false;
+  DBUG_TRACE;
 
-  if (tupdesc1->tdtypeid != tupdesc2->tdtypeid)
+  if (tupdesc1->natts != tupdesc2->natts) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
+
+  if (tupdesc1->tdtypeid != tupdesc2->tdtypeid) {
+    DBUG_PRINT("info", "result: false");
+    return false;
+  }
 
   for (int i = 0; i < tupdesc1->natts; i++) {
     Form_pg_attribute attr1 = TupleDescAttr(tupdesc1, i);
     Form_pg_attribute attr2 = TupleDescAttr(tupdesc2, i);
 
-    if (strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0)
+    if (strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->atttypid != attr2->atttypid)
+    if (attr1->atttypid != attr2->atttypid) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->atttypmod != attr2->atttypmod)
+    if (attr1->atttypmod != attr2->atttypmod) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
-    if (attr1->attcollation != attr2->attcollation)
+    if (attr1->attcollation != attr2->attcollation) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /* Record types derived from tables could have dropped fields. */
-    if (attr1->attisdropped != attr2->attisdropped)
+    if (attr1->attisdropped != attr2->attisdropped) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "result: true");
   return true;
 }
 
@@ -867,6 +966,7 @@ TupleDescInitEntry(TupleDesc desc,
                    int32 typmod,
                    int attdim)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_type typeForm;
   Form_pg_attribute att;
@@ -945,6 +1045,7 @@ TupleDescInitBuiltinEntry(TupleDesc desc,
                           int32 typmod,
                           int attdim)
 {
+  DBUG_TRACE;
   Form_pg_attribute att;
 
   /* sanity checks */
@@ -1049,6 +1150,7 @@ TupleDescInitEntryCollation(TupleDesc desc,
                             AttrNumber attributeNumber,
                             Oid collationid)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1072,6 +1174,7 @@ TupleDescInitEntryCollation(TupleDesc desc,
 TupleDesc
 BuildDescFromLists(const List *names, const List *types, const List *typmods, const List *collations)
 {
+  DBUG_TRACE;
   int     natts;
   AttrNumber  attnum;
   ListCell   *l1;
@@ -1112,6 +1215,7 @@ BuildDescFromLists(const List *names, const List *types, const List *typmods, co
 Node *
 TupleDescGetDefault(TupleDesc tupdesc, AttrNumber attnum)
 {
+  DBUG_TRACE;
   Node     *result = NULL;
 
   if (tupdesc->constr) {
@@ -1133,6 +1237,7 @@ TupleDescGetDefault(TupleDesc tupdesc, AttrNumber attnum)
 static void
 ResOwnerReleaseTupleDesc(Datum res)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = (TupleDesc) DatumGetPointer(res);
 
   /* Like DecrTupleDescRefCount, but don't call ResourceOwnerForget() */

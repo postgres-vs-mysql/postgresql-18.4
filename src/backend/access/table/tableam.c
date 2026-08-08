@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  *
  * tableam.c
- *    Table access method routines too big to be inline functions.
+ *      Table access method routines too big to be inline functions.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -18,6 +18,7 @@
  *----------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -39,15 +40,15 @@
  */
 
 /* The number of I/O chunks we try to break a parallel seqscan down into */
-#define PARALLEL_SEQSCAN_NCHUNKS      2048
+#define PARALLEL_SEQSCAN_NCHUNKS            2048
 /* Ramp down size of allocations when we've only this number of chunks left */
-#define PARALLEL_SEQSCAN_RAMPDOWN_CHUNKS  64
+#define PARALLEL_SEQSCAN_RAMPDOWN_CHUNKS    64
 /* Cap the size of parallel I/O chunks to this number of blocks */
-#define PARALLEL_SEQSCAN_MAX_CHUNK_SIZE   8192
+#define PARALLEL_SEQSCAN_MAX_CHUNK_SIZE     8192
 
 /* GUC variables */
-char     *default_table_access_method = DEFAULT_TABLE_ACCESS_METHOD;
-bool    synchronize_seqscans = true;
+char       *default_table_access_method = DEFAULT_TABLE_ACCESS_METHOD;
+bool        synchronize_seqscans = true;
 
 
 /* ----------------------------------------------------------------------------
@@ -109,10 +110,11 @@ table_slot_create(Relation relation, List **reglist)
 TableScanDesc
 table_beginscan_catalog(Relation relation, int nkeys, struct ScanKeyData *key)
 {
-  uint32    flags = SO_TYPE_SEQSCAN |
-                    SO_ALLOW_STRAT | SO_ALLOW_SYNC | SO_ALLOW_PAGEMODE | SO_TEMP_SNAPSHOT;
-  Oid     relid = RelationGetRelid(relation);
-  Snapshot  snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
+  DBUG_TRACE;
+  uint32      flags = SO_TYPE_SEQSCAN |
+                      SO_ALLOW_STRAT | SO_ALLOW_SYNC | SO_ALLOW_PAGEMODE | SO_TEMP_SNAPSHOT;
+  Oid         relid = RelationGetRelid(relation);
+  Snapshot    snapshot = RegisterSnapshot(GetCatalogSnapshot(relid));
 
   return relation->rd_tableam->scan_begin(relation, snapshot, nkeys, key,
                                           NULL, flags);
@@ -127,7 +129,8 @@ table_beginscan_catalog(Relation relation, int nkeys, struct ScanKeyData *key)
 Size
 table_parallelscan_estimate(Relation rel, Snapshot snapshot)
 {
-  Size    sz = 0;
+  DBUG_TRACE;
+  Size        sz = 0;
 
   if (IsMVCCSnapshot(snapshot))
     sz = add_size(sz, EstimateSnapshotSpace(snapshot));
@@ -143,7 +146,8 @@ void
 table_parallelscan_initialize(Relation rel, ParallelTableScanDesc pscan,
                               Snapshot snapshot)
 {
-  Size    snapshot_off = rel->rd_tableam->parallelscan_initialize(rel, pscan);
+  DBUG_TRACE;
+  Size        snapshot_off = rel->rd_tableam->parallelscan_initialize(rel, pscan);
 
   pscan->phs_snapshot_off = snapshot_off;
 
@@ -159,9 +163,10 @@ table_parallelscan_initialize(Relation rel, ParallelTableScanDesc pscan,
 TableScanDesc
 table_beginscan_parallel(Relation relation, ParallelTableScanDesc pscan)
 {
-  Snapshot  snapshot;
-  uint32    flags = SO_TYPE_SEQSCAN |
-                    SO_ALLOW_STRAT | SO_ALLOW_SYNC | SO_ALLOW_PAGEMODE;
+  DBUG_TRACE;
+  Snapshot    snapshot;
+  uint32      flags = SO_TYPE_SEQSCAN |
+                      SO_ALLOW_STRAT | SO_ALLOW_SYNC | SO_ALLOW_PAGEMODE;
 
   Assert(RelFileLocatorEquals(relation->rd_locator, pscan->phs_locator));
 
@@ -202,10 +207,11 @@ table_index_fetch_tuple_check(Relation rel,
                               Snapshot snapshot,
                               bool *all_dead)
 {
+  DBUG_TRACE;
   IndexFetchTableData *scan;
   TupleTableSlot *slot;
-  bool    call_again = false;
-  bool    found;
+  bool        call_again = false;
+  bool        found;
 
   slot = table_slot_create(rel, NULL);
   scan = table_index_fetch_begin(rel);
@@ -226,7 +232,8 @@ table_index_fetch_tuple_check(Relation rel,
 void
 table_tuple_get_latest_tid(TableScanDesc scan, ItemPointer tid)
 {
-  Relation  rel = scan->rs_rd;
+  DBUG_TRACE;
+  Relation    rel = scan->rs_rd;
   const TableAmRoutine *tableam = rel->rd_tableam;
 
   /*
@@ -281,7 +288,8 @@ simple_table_tuple_insert(Relation rel, TupleTableSlot *slot)
 void
 simple_table_tuple_delete(Relation rel, ItemPointer tid, Snapshot snapshot)
 {
-  TM_Result result;
+  DBUG_TRACE;
+  TM_Result   result;
   TM_FailureData tmfd;
 
   result = table_tuple_delete(rel, tid,
@@ -328,7 +336,8 @@ simple_table_tuple_update(Relation rel, ItemPointer otid,
                           Snapshot snapshot,
                           TU_UpdateIndexes *update_indexes)
 {
-  TM_Result result;
+  DBUG_TRACE;
+  TM_Result   result;
   TM_FailureData tmfd;
   LockTupleMode lockmode;
 
@@ -377,6 +386,7 @@ table_block_parallelscan_estimate(Relation rel)
 Size
 table_block_parallelscan_initialize(Relation rel, ParallelTableScanDesc pscan)
 {
+  DBUG_TRACE;
   ParallelBlockTableScanDesc bpscan = (ParallelBlockTableScanDesc) pscan;
 
   bpscan->base.phs_locator = rel->rd_locator;
@@ -412,6 +422,7 @@ table_block_parallelscan_startblock_init(Relation rel,
     ParallelBlockTableScanWorker pbscanwork,
     ParallelBlockTableScanDesc pbscan)
 {
+  DBUG_TRACE;
   BlockNumber sync_startpage = InvalidBlockNumber;
 
   /* Reset the state we use for controlling allocation size. */
@@ -481,8 +492,9 @@ table_block_parallelscan_nextpage(Relation rel,
                                   ParallelBlockTableScanWorker pbscanwork,
                                   ParallelBlockTableScanDesc pbscan)
 {
+  DBUG_TRACE;
   BlockNumber page;
-  uint64    nallocated;
+  uint64      nallocated;
 
   /*
    * The logic below allocates block numbers out to parallel workers in a
@@ -581,6 +593,7 @@ table_block_parallelscan_nextpage(Relation rel,
       ss_report_location(rel, pbscan->phs_startblock);
   }
 
+  DBUG_PRINT("info", "get the next page to scan:%u", page);
   return page;
 }
 
@@ -600,7 +613,8 @@ table_block_parallelscan_nextpage(Relation rel,
 uint64
 table_block_relation_size(Relation rel, ForkNumber forkNumber)
 {
-  uint64    nblocks = 0;
+  DBUG_TRACE;
+  uint64      nblocks = 0;
 
   /* InvalidForkNumber indicates returning the size for all forks */
   if (forkNumber == InvalidForkNumber) {
@@ -609,6 +623,7 @@ table_block_relation_size(Relation rel, ForkNumber forkNumber)
   } else
     nblocks = smgrnblocks(RelationGetSmgr(rel), forkNumber);
 
+  DBUG_PRINT("info", "nblocks:%lu, BLCKSZ:%d", nblocks, BLCKSZ);
   return nblocks * BLCKSZ;
 }
 
@@ -639,11 +654,12 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
                                    Size overhead_bytes_per_tuple,
                                    Size usable_bytes_per_page)
 {
+  DBUG_TRACE;
   BlockNumber curpages;
   BlockNumber relpages;
-  double    reltuples;
+  double      reltuples;
   BlockNumber relallvisible;
-  double    density;
+  double      density;
 
   /* it should have storage, so we can call the smgr */
   curpages = RelationGetNumberOfBlocks(rel);
@@ -708,8 +724,8 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
      * default plans which are kind of a headache for regression testing,
      * and (c) different table AMs might use different padding schemes.
      */
-    int32   tuple_width;
-    int     fillfactor;
+    int32       tuple_width;
+    int         fillfactor;
 
     /*
      * Without reltuples/relpages, we also need to consider fillfactor.

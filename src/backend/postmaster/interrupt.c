@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -33,6 +34,8 @@ volatile sig_atomic_t ShutdownRequestPending = false;
 void
 ProcessMainLoopInterrupts(void)
 {
+  DBUG_TRACE;
+
   if (ProcSignalBarrierPending)
     ProcessProcSignalBarrier();
 

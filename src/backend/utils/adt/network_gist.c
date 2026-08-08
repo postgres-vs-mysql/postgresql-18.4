@@ -44,6 +44,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/socket.h>
 
@@ -113,6 +114,7 @@ typedef struct GistInetKey {
 Datum
 inet_gist_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *ent = (GISTENTRY *) PG_GETARG_POINTER(0);
   inet     *query = PG_GETARG_INET_PP(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -123,6 +125,7 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
   int     minbits,
           order;
 
+  DBUG_PRINT("info", "the GiST query consistency check");
   /* All operators served by this function are exact. */
   *recheck = false;
 
@@ -134,6 +137,7 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
    */
   if (gk_ip_family(key) == 0) {
     Assert(!GIST_LEAF(ent));
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
   }
 
@@ -146,19 +150,24 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
     switch (strategy) {
       case INETSTRAT_LT:
       case INETSTRAT_LE:
-        if (gk_ip_family(key) < ip_family(query))
+        if (gk_ip_family(key) < ip_family(query)) {
+          DBUG_PRINT("info", "return true");
           PG_RETURN_BOOL(true);
+        }
 
         break;
 
       case INETSTRAT_GE:
       case INETSTRAT_GT:
-        if (gk_ip_family(key) > ip_family(query))
+        if (gk_ip_family(key) > ip_family(query)) {
+          DBUG_PRINT("info", "return true");
           PG_RETURN_BOOL(true);
+        }
 
         break;
 
       case INETSTRAT_NE:
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
     }
 
@@ -176,27 +185,35 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
    */
   switch (strategy) {
     case INETSTRAT_SUB:
-      if (GIST_LEAF(ent) && gk_ip_minbits(key) <= ip_bits(query))
+      if (GIST_LEAF(ent) && gk_ip_minbits(key) <= ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_SUBEQ:
-      if (GIST_LEAF(ent) && gk_ip_minbits(key) < ip_bits(query))
+      if (GIST_LEAF(ent) && gk_ip_minbits(key) < ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_SUPEQ:
     case INETSTRAT_EQ:
-      if (gk_ip_minbits(key) > ip_bits(query))
+      if (gk_ip_minbits(key) > ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_SUP:
-      if (gk_ip_minbits(key) >= ip_bits(query))
+      if (gk_ip_minbits(key) >= ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
   }
@@ -224,40 +241,60 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
     case INETSTRAT_OVERLAPS:
     case INETSTRAT_SUPEQ:
     case INETSTRAT_SUP:
+      if (order == 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order == 0);
 
     case INETSTRAT_LT:
     case INETSTRAT_LE:
-      if (order > 0)
+      if (order > 0) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
-      if (order < 0 || !GIST_LEAF(ent))
+      if (order < 0 || !GIST_LEAF(ent)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       break;
 
     case INETSTRAT_EQ:
-      if (order != 0)
+      if (order != 0) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
-      if (!GIST_LEAF(ent))
+      if (!GIST_LEAF(ent)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       break;
 
     case INETSTRAT_GE:
     case INETSTRAT_GT:
-      if (order < 0)
+      if (order < 0) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
-      if (order > 0 || !GIST_LEAF(ent))
+      if (order > 0 || !GIST_LEAF(ent)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       break;
 
     case INETSTRAT_NE:
-      if (order != 0 || !GIST_LEAF(ent))
+      if (order != 0 || !GIST_LEAF(ent)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       break;
   }
@@ -278,33 +315,45 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
   switch (strategy) {
     case INETSTRAT_LT:
     case INETSTRAT_LE:
-      if (gk_ip_minbits(key) < ip_bits(query))
+      if (gk_ip_minbits(key) < ip_bits(query)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
-      if (gk_ip_minbits(key) > ip_bits(query))
+      if (gk_ip_minbits(key) > ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_EQ:
-      if (gk_ip_minbits(key) != ip_bits(query))
+      if (gk_ip_minbits(key) != ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_GE:
     case INETSTRAT_GT:
-      if (gk_ip_minbits(key) > ip_bits(query))
+      if (gk_ip_minbits(key) > ip_bits(query)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
-      if (gk_ip_minbits(key) < ip_bits(query))
+      if (gk_ip_minbits(key) < ip_bits(query)) {
+        DBUG_PRINT("info", "return false");
         PG_RETURN_BOOL(false);
+      }
 
       break;
 
     case INETSTRAT_NE:
-      if (gk_ip_minbits(key) != ip_bits(query))
+      if (gk_ip_minbits(key) != ip_bits(query)) {
+        DBUG_PRINT("info", "return true");
         PG_RETURN_BOOL(true);
+      }
 
       break;
   }
@@ -318,21 +367,57 @@ inet_gist_consistent(PG_FUNCTION_ARGS)
 
   switch (strategy) {
     case INETSTRAT_LT:
+      if (order < 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order < 0);
 
     case INETSTRAT_LE:
+      if (order <= 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order <= 0);
 
     case INETSTRAT_EQ:
+      if (order == 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order == 0);
 
     case INETSTRAT_GE:
+      if (order >= 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order >= 0);
 
     case INETSTRAT_GT:
+      if (order > 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order > 0);
 
     case INETSTRAT_NE:
+      if (order != 0) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(order != 0);
   }
 
@@ -518,6 +603,7 @@ build_inet_union_key(int family, int minbits, int commonbits,
 Datum
 inet_gist_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GISTENTRY  *ent = entryvec->vector;
   int     minfamily,
@@ -555,6 +641,7 @@ inet_gist_union(PG_FUNCTION_ARGS)
 Datum
 inet_gist_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
 
@@ -600,6 +687,7 @@ inet_gist_compress(PG_FUNCTION_ARGS)
 Datum
 inet_gist_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GistInetKey *key = DatumGetInetKeyP(entry->key);
   GISTENTRY  *retval;
@@ -630,6 +718,7 @@ inet_gist_fetch(PG_FUNCTION_ARGS)
 Datum
 inet_gist_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origent = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *newent = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -652,6 +741,7 @@ inet_gist_penalty(PG_FUNCTION_ARGS)
   } else
     *penalty = 4;
 
+  DBUG_PRINT("info", "the GiST page split penalty function(penalty:%g)", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -670,6 +760,7 @@ inet_gist_penalty(PG_FUNCTION_ARGS)
 Datum
 inet_gist_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *splitvec = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   GISTENTRY  *ent = entryvec->vector;
@@ -803,6 +894,7 @@ inet_gist_picksplit(PG_FUNCTION_ARGS)
 Datum
 inet_gist_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistInetKey *left = DatumGetInetKeyP(PG_GETARG_DATUM(0));
   GistInetKey *right = DatumGetInetKeyP(PG_GETARG_DATUM(1));
   bool     *result = (bool *) PG_GETARG_POINTER(2);

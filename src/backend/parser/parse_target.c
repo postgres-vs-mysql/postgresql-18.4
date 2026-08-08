@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/namespace.h"
 #include "catalog/pg_type.h"
@@ -79,6 +80,8 @@ transformTargetEntry(ParseState *pstate,
                      char *colname,
                      bool resjunk)
 {
+  DBUG_TRACE;
+
   /* Transform the node if caller didn't do it already */
   if (expr == NULL) {
     /*
@@ -119,10 +122,12 @@ List *
 transformTargetList(ParseState *pstate, List *targetlist,
                     ParseExprKind exprKind)
 {
+  DBUG_TRACE;
   List     *p_target = NIL;
   bool    expand_star;
   ListCell   *o_target;
 
+  DBUG_PRINT("info", "turn a list of ResTarget's into a list of TargetEntry's");
   /* Shouldn't have any leftover multiassign items at start */
   Assert(pstate->p_multiassign_exprs == NIL);
 
@@ -210,6 +215,7 @@ List *
 transformExpressionList(ParseState *pstate, List *exprlist,
                         ParseExprKind exprKind, bool allowDefault)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -271,6 +277,7 @@ transformExpressionList(ParseState *pstate, List *exprlist,
 void
 resolveTargetListUnknowns(ParseState *pstate, List *targetlist)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, targetlist) {
@@ -299,6 +306,7 @@ resolveTargetListUnknowns(ParseState *pstate, List *targetlist)
 void
 markTargetListOrigins(ParseState *pstate, List *targetlist)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, targetlist) {
@@ -451,6 +459,7 @@ transformAssignedExpr(ParseState *pstate,
                       List *indirection,
                       int location)
 {
+  DBUG_TRACE;
   Relation  rd = pstate->p_target_relation;
   Oid     type_id;    /* type of value provided */
   Oid     attrtype;   /* type of target column */
@@ -469,12 +478,14 @@ transformAssignedExpr(ParseState *pstate,
 
   Assert(rd != NULL);
 
-  if (attrno <= 0)
+  if (attrno <= 0) {
+    DBUG_INSTANT_PRINT("info", "cannot assign to system column \"%s\"", colname);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot assign to system column \"%s\"",
                     colname),
              parser_errposition(pstate, location)));
+  }
 
   attrtype = attnumTypeId(rd, attrno);
   attrtypmod = TupleDescAttr(rd->rd_att, attrno - 1)->atttypmod;
@@ -497,16 +508,19 @@ transformAssignedExpr(ParseState *pstate,
     def->collation = attrcollation;
 
     if (indirection) {
-      if (IsA(linitial(indirection), A_Indices))
+      if (IsA(linitial(indirection), A_Indices)) {
+        DBUG_INSTANT_PRINT("info", "cannot set an array element to DEFAULT");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot set an array element to DEFAULT"),
                  parser_errposition(pstate, location)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "cannot set a subfield to DEFAULT");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot set a subfield to DEFAULT"),
                  parser_errposition(pstate, location)));
+      }
     }
   }
 
@@ -571,16 +585,21 @@ transformAssignedExpr(ParseState *pstate,
                                  COERCE_IMPLICIT_CAST,
                                  -1);
 
-    if (expr == NULL)
+    if (expr == NULL) {
+      char *format1 = format_type_be(attrtype);
+      char *format2 = format_type_be(type_id);
+      DBUG_INSTANT_PRINT("info", "column \"%s\" is of type %s but expression is of type %s",
+                         colname, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("column \"%s\" is of type %s"
                       " but expression is of type %s",
                       colname,
-                      format_type_be(attrtype),
-                      format_type_be(type_id)),
+                      format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression."),
                parser_errposition(pstate, exprLocation(orig_expr))));
+    }
   }
 
   pstate->p_expr_kind = sv_expr_kind;
@@ -613,6 +632,7 @@ updateTargetListEntry(ParseState *pstate,
                       List *indirection,
                       int location)
 {
+  DBUG_TRACE;
   /* Fix up expression as needed */
   tle->expr = transformAssignedExpr(pstate,
                                     tle->expr,
@@ -683,6 +703,7 @@ transformAssignmentIndirection(ParseState *pstate,
                                CoercionContext ccontext,
                                int location)
 {
+  DBUG_TRACE;
   Node     *result;
   List     *subscripts = NIL;
   ListCell   *i;
@@ -714,6 +735,7 @@ transformAssignmentIndirection(ParseState *pstate,
     if (IsA(n, A_Indices))
       subscripts = lappend(subscripts, n);
     else if (IsA(n, A_Star)) {
+      DBUG_INSTANT_PRINT("info", "row expansion via \"*\" is not supported here");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("row expansion via \"*\" is not supported here"),
@@ -758,30 +780,40 @@ transformAssignmentIndirection(ParseState *pstate,
 
       typrelid = typeidTypeRelid(baseTypeId);
 
-      if (!typrelid)
+      if (!typrelid) {
+        char *format1 = format_type_be(targetTypeId);
+        DBUG_INSTANT_PRINT("info", "cannot assign to field \"%s\" of column \"%s\" because its type %s is not a composite type",
+                           strVal(n), targetName, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("cannot assign to field \"%s\" of column \"%s\" because its type %s is not a composite type",
                         strVal(n), targetName,
-                        format_type_be(targetTypeId)),
+                        format1),
                  parser_errposition(pstate, location)));
+      }
 
       attnum = get_attnum(typrelid, strVal(n));
 
-      if (attnum == InvalidAttrNumber)
+      if (attnum == InvalidAttrNumber) {
+        char *format1 = format_type_be(targetTypeId);
+        DBUG_INSTANT_PRINT("info", "cannot assign to field \"%s\" of column \"%s\" because there is no such column in data type %s",
+                           strVal(n), targetName, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("cannot assign to field \"%s\" of column \"%s\" because there is no such column in data type %s",
                         strVal(n), targetName,
-                        format_type_be(targetTypeId)),
+                        format1),
                  parser_errposition(pstate, location)));
+      }
 
-      if (attnum < 0)
+      if (attnum < 0) {
+        DBUG_INSTANT_PRINT("info", "cannot assign to system column \"%s\"", strVal(n));
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("cannot assign to system column \"%s\"",
                         strVal(n)),
                  parser_errposition(pstate, location)));
+      }
 
       get_atttypetypmodcoll(typrelid, attnum,
                             &fieldTypeId, &fieldTypMod, &fieldCollation);
@@ -857,26 +889,33 @@ transformAssignmentIndirection(ParseState *pstate,
                                  -1);
 
   if (result == NULL) {
-    if (targetIsSubscripting)
+    if (targetIsSubscripting) {
+      char *format1 = format_type_be(targetTypeId);
+      char *format2 = format_type_be(exprType(rhs));
+      DBUG_INSTANT_PRINT("info", "subscripted assignment to \"%s\" requires type %s, but expression is of type %s",
+                         targetName, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("subscripted assignment to \"%s\" requires type %s"
                       " but expression is of type %s",
                       targetName,
-                      format_type_be(targetTypeId),
-                      format_type_be(exprType(rhs))),
+                      format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression."),
                parser_errposition(pstate, location)));
-    else
+    } else {
+      char *format1 = format_type_be(targetTypeId);
+      char *format2 = format_type_be(exprType(rhs));
+      DBUG_INSTANT_PRINT("info", "subfield \"%s\" is of type %s but expression is of type %s", targetName, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("subfield \"%s\" is of type %s"
                       " but expression is of type %s",
-                      targetName,
-                      format_type_be(targetTypeId),
-                      format_type_be(exprType(rhs))),
+                      targetName, format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression."),
                parser_errposition(pstate, location)));
+    }
   }
 
   return result;
@@ -899,6 +938,7 @@ transformAssignmentSubscripts(ParseState *pstate,
                               CoercionContext ccontext,
                               int location)
 {
+  DBUG_TRACE;
   Node     *result;
   SubscriptingRef *sbsref;
   Oid     containerType;
@@ -978,13 +1018,17 @@ transformAssignmentSubscripts(ParseState *pstate,
                                    -1);
 
     /* can fail if we had int2vector/oidvector, but not for true domains */
-    if (result == NULL)
+    if (result == NULL) {
+      char *format1 = format_type_be(resulttype);
+      char *format2 = format_type_be(targetTypeId);
+      DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_CANNOT_COERCE),
                errmsg("cannot cast type %s to %s",
-                      format_type_be(resulttype),
-                      format_type_be(targetTypeId)),
+                      format1,
+                      format2),
                parser_errposition(pstate, location)));
+    }
   }
 
   return result;
@@ -1000,6 +1044,7 @@ transformAssignmentSubscripts(ParseState *pstate,
 List *
 checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
 {
+  DBUG_TRACE;
   *attrnos = NIL;
 
   if (cols == NIL) {
@@ -1043,13 +1088,15 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
       /* Lookup column name, ereport on failure */
       attrno = attnameAttNum(pstate->p_target_relation, name, false);
 
-      if (attrno == InvalidAttrNumber)
+      if (attrno == InvalidAttrNumber) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", name, RelationGetRelationName(pstate->p_target_relation));
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("column \"%s\" of relation \"%s\" does not exist",
                         name,
                         RelationGetRelationName(pstate->p_target_relation)),
                  parser_errposition(pstate, col->location)));
+      }
 
       /*
        * Check for duplicates, but only of whole columns --- we allow
@@ -1058,22 +1105,26 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
       if (col->indirection == NIL) {
         /* whole column; must not have any other assignment */
         if (bms_is_member(attrno, wholecols) ||
-            bms_is_member(attrno, partialcols))
+            bms_is_member(attrno, partialcols)) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" specified more than once", name);
           ereport(ERROR,
                   (errcode(ERRCODE_DUPLICATE_COLUMN),
                    errmsg("column \"%s\" specified more than once",
                           name),
                    parser_errposition(pstate, col->location)));
+        }
 
         wholecols = bms_add_member(wholecols, attrno);
       } else {
         /* partial column; must not have any whole assignment */
-        if (bms_is_member(attrno, wholecols))
+        if (bms_is_member(attrno, wholecols)) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" specified more than once", name);
           ereport(ERROR,
                   (errcode(ERRCODE_DUPLICATE_COLUMN),
                    errmsg("column \"%s\" specified more than once",
                           name),
                    parser_errposition(pstate, col->location)));
+        }
 
         partialcols = bms_add_member(partialcols, attrno);
       }
@@ -1101,6 +1152,7 @@ static List *
 ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
                     bool make_target_entry)
 {
+  DBUG_TRACE;
   List     *fields = cref->fields;
   int     numnames = list_length(fields);
 
@@ -1209,12 +1261,14 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
                                            (Node *) (nsitem ? nsitem->p_rte : NULL));
 
       if (node != NULL) {
-        if (nsitem != NULL)
+        if (nsitem != NULL) {
+          DBUG_INSTANT_PRINT("info", "column reference \"%s\" is ambiguous", NameListToString(cref->fields));
           ereport(ERROR,
                   (errcode(ERRCODE_AMBIGUOUS_COLUMN),
                    errmsg("column reference \"%s\" is ambiguous",
                           NameListToString(cref->fields)),
                    parser_errposition(pstate, cref->location)));
+        }
 
         return ExpandRowReference(pstate, node, make_target_entry);
       }
@@ -1231,6 +1285,7 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
           break;
 
         case CRSERR_WRONG_DB:
+          DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: %s", NameListToString(cref->fields));
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cross-database references are not implemented: %s",
@@ -1239,6 +1294,7 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
           break;
 
         case CRSERR_TOO_MANY:
+          DBUG_INSTANT_PRINT("info", "improper qualified name (too many dotted names): %s", NameListToString(cref->fields));
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("improper qualified name (too many dotted names): %s",
@@ -1270,6 +1326,7 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 static List *
 ExpandAllTables(ParseState *pstate, int location)
 {
+  DBUG_TRACE;
   List     *target = NIL;
   bool    found_table = false;
   ListCell   *l;
@@ -1299,11 +1356,13 @@ ExpandAllTables(ParseState *pstate, int location)
    * target == NIL, because we want to allow SELECT * FROM a zero_column
    * table.
    */
-  if (!found_table)
+  if (!found_table) {
+    DBUG_INSTANT_PRINT("info", "SELECT * with no tables specified is not valid");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("SELECT * with no tables specified is not valid"),
              parser_errposition(pstate, location)));
+  }
 
   return target;
 }
@@ -1323,6 +1382,7 @@ static List *
 ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
                       bool make_target_entry, ParseExprKind exprKind)
 {
+  DBUG_TRACE;
   Node     *expr;
 
   /* Strip off the '*' to create a reference to the rowtype object */
@@ -1350,6 +1410,8 @@ static List *
 ExpandSingleTable(ParseState *pstate, ParseNamespaceItem *nsitem,
                   int sublevels_up, int location, bool make_target_entry)
 {
+  DBUG_TRACE;
+
   if (make_target_entry) {
     /* expandNSItemAttrs handles permissions marking */
     return expandNSItemAttrs(pstate, nsitem, sublevels_up, true, location);
@@ -1396,6 +1458,7 @@ static List *
 ExpandRowReference(ParseState *pstate, Node *expr,
                    bool make_target_entry)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   TupleDesc tupleDesc;
   int     numAttrs;
@@ -1489,6 +1552,7 @@ ExpandRowReference(ParseState *pstate, Node *expr,
 TupleDesc
 expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc;
   int     netlevelsup;
   RangeTblEntry *rte;

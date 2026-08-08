@@ -577,8 +577,7 @@ typedef struct ViewOptions
 static inline SMgrRelation
 RelationGetSmgr(Relation rel)
 {
-  if (unlikely(rel->rd_smgr == NULL))
-  {
+  if (unlikely(rel->rd_smgr == NULL)) {
     rel->rd_smgr = smgropen(rel->rd_locator, rel->rd_backend);
     smgrpin(rel->rd_smgr);
   }
@@ -593,8 +592,7 @@ RelationGetSmgr(Relation rel)
 static inline void
 RelationCloseSmgr(Relation relation)
 {
-  if (relation->rd_smgr != NULL)
-  {
+  if (relation->rd_smgr != NULL) {
     smgrunpin(relation->rd_smgr);
     smgrclose(relation->rd_smgr);
     relation->rd_smgr = NULL;

@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/tableam.h"
 #include "access/xact.h"
@@ -37,6 +38,7 @@
 static TupleTableSlot *     /* return: a tuple or NULL */
 ExecLockRows(PlanState *pstate)
 {
+  DBUG_TRACE;
   LockRowsState *node = castNode(LockRowsState, pstate);
   TupleTableSlot *slot;
   EState     *estate;
@@ -188,6 +190,7 @@ lnext:
     if (!IsolationUsesXactSnapshot())
       lockflags |= TUPLE_LOCK_FLAG_FIND_LAST_VERSION;
 
+    DBUG_PRINT("info", "lock a tuple in the specified mode");
     test = table_tuple_lock(erm->relation, &tid, estate->es_snapshot,
                             markSlot, estate->es_output_cid,
                             lockmode, erm->waitPolicy,
@@ -196,10 +199,12 @@ lnext:
 
     switch (test) {
       case TM_WouldBlock:
+        DBUG_PRINT("info", "couldn't lock tuple in SKIP LOCKED mode");
         /* couldn't lock tuple in SKIP LOCKED mode */
         goto lnext;
 
       case TM_SelfModified:
+        DBUG_PRINT("info", "treat the tuple as deleted and do not process");
 
         /*
          * The target tuple was already updated or deleted by the
@@ -218,6 +223,8 @@ lnext:
 
       case TM_Ok:
 
+        DBUG_PRINT("info", "got the lock successfully");
+
         /*
          * Got the lock successfully, the locked tuple saved in
          * markSlot for, if needed, EvalPlanQual testing below.
@@ -228,29 +235,37 @@ lnext:
         break;
 
       case TM_Updated:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
+        DBUG_INSTANT_PRINT("info", "unexpected table_tuple_lock status: %u", test);
         elog(ERROR, "unexpected table_tuple_lock status: %u",
              test);
         break;
 
       case TM_Deleted:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
+        DBUG_PRINT("info", "tuple was deleted so don't return it");
         /* tuple was deleted so don't return it */
         goto lnext;
 
       case TM_Invisible:
+        DBUG_INSTANT_PRINT("info", "attempted to lock invisible tuple");
         elog(ERROR, "attempted to lock invisible tuple");
         break;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unrecognized table_tuple_lock status: %u", test);
         elog(ERROR, "unrecognized table_tuple_lock status: %u",
              test);
     }
@@ -297,6 +312,7 @@ lnext:
 LockRowsState *
 ExecInitLockRows(LockRows *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   LockRowsState *lrstate;
   Plan     *outerPlan = outerPlan(node);
   List     *epq_arowmarks;
@@ -400,6 +416,7 @@ ExecInitLockRows(LockRows *node, EState *estate, int eflags)
 void
 ExecEndLockRows(LockRowsState *node)
 {
+  DBUG_TRACE;
   /* We may have shut down EPQ already, but no harm in another call */
   EvalPlanQualEnd(&node->lr_epqstate);
   ExecEndNode(outerPlanState(node));
@@ -409,6 +426,7 @@ ExecEndLockRows(LockRowsState *node)
 void
 ExecReScanLockRows(LockRowsState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*

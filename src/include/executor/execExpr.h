@@ -316,11 +316,10 @@ typedef struct ExprEvalStep
    * no more than 40 bytes on 64-bit systems (so that the entire struct is
    * no more than 64 bytes, a single cacheline on common systems).
    */
-  union
-  {
+  union {
     /* for EEOP_INNER/OUTER/SCAN/OLD/NEW_FETCHSOME */
-    struct
-    {
+struct
+{
       /* attribute number up to which to fetch (inclusive) */
       int     last_var;
       /* will the type of slot be the same for every invocation */
@@ -332,8 +331,8 @@ typedef struct ExprEvalStep
     }     fetch;
 
     /* for EEOP_INNER/OUTER/SCAN/OLD/NEW_[SYS]VAR */
-    struct
-    {
+struct
+{
       /* attnum is attr number - 1 for regular VAR ... */
       /* but it's just the normal (negative) attr number for SYSVAR */
       int     attnum;
@@ -342,8 +341,8 @@ typedef struct ExprEvalStep
     }     var;
 
     /* for EEOP_WHOLEROW */
-    struct
-    {
+struct
+{
       Var      *var;  /* original Var node in plan tree */
       bool    first;  /* first time through, need to initialize? */
       bool    slow; /* need runtime check for nulls? */
@@ -352,8 +351,8 @@ typedef struct ExprEvalStep
     }     wholerow;
 
     /* for EEOP_ASSIGN_*_VAR */
-    struct
-    {
+struct
+{
       /* target index in ExprState->resultslot->tts_values/nulls */
       int     resultnum;
       /* source attribute number - 1 */
@@ -361,30 +360,30 @@ typedef struct ExprEvalStep
     }     assign_var;
 
     /* for EEOP_ASSIGN_TMP[_MAKE_RO] */
-    struct
-    {
+struct
+{
       /* target index in ExprState->resultslot->tts_values/nulls */
       int     resultnum;
     }     assign_tmp;
 
     /* for EEOP_RETURNINGEXPR */
-    struct
-    {
+struct
+{
       uint8   nullflag; /* flag to test if OLD/NEW row is NULL */
       int     jumpdone; /* jump here if OLD/NEW row is NULL */
     }     returningexpr;
 
     /* for EEOP_CONST */
-    struct
-    {
+struct
+{
       /* constant's value */
       Datum   value;
       bool    isnull;
     }     constval;
 
     /* for EEOP_FUNCEXPR_* / NULLIF / DISTINCT */
-    struct
-    {
+struct
+{
       FmgrInfo   *finfo;  /* function's lookup data */
       FunctionCallInfo fcinfo_data; /* arguments etc */
       /* faster to access without additional indirection: */
@@ -394,41 +393,41 @@ typedef struct ExprEvalStep
     }     func;
 
     /* for EEOP_BOOL_*_STEP */
-    struct
-    {
+struct
+{
       bool     *anynull;  /* track if any input was NULL */
       int     jumpdone; /* jump here if result determined */
     }     boolexpr;
 
     /* for EEOP_QUAL */
-    struct
-    {
+struct
+{
       int     jumpdone; /* jump here on false or null */
     }     qualexpr;
 
     /* for EEOP_JUMP[_CONDITION] */
-    struct
-    {
+struct
+{
       int     jumpdone; /* target instruction's index */
     }     jump;
 
     /* for EEOP_NULLTEST_ROWIS[NOT]NULL */
-    struct
-    {
+struct
+{
       /* cached descriptor for composite type - filled at runtime */
       ExprEvalRowtypeCache rowcache;
     }     nulltest_row;
 
     /* for EEOP_PARAM_EXEC/EXTERN and EEOP_PARAM_SET */
-    struct
-    {
+struct
+{
       int     paramid;  /* numeric ID for parameter */
       Oid     paramtype;  /* OID of parameter's datatype */
     }     param;
 
     /* for EEOP_PARAM_CALLBACK */
-    struct
-    {
+struct
+{
       ExecEvalSubroutine paramfunc; /* add-on evaluation subroutine */
       void     *paramarg; /* private data for same */
       void     *paramarg2;  /* more private data for same */
@@ -437,22 +436,22 @@ typedef struct ExprEvalStep
     }     cparam;
 
     /* for EEOP_CASE_TESTVAL/DOMAIN_TESTVAL */
-    struct
-    {
+struct
+{
       Datum    *value;  /* value to return */
       bool     *isnull;
     }     casetest;
 
     /* for EEOP_MAKE_READONLY */
-    struct
-    {
+struct
+{
       Datum    *value;  /* value to coerce to read-only */
       bool     *isnull;
     }     make_readonly;
 
     /* for EEOP_IOCOERCE */
-    struct
-    {
+struct
+{
       /* lookup and call info for source type's output function */
       FmgrInfo   *finfo_out;
       FunctionCallInfo fcinfo_data_out;
@@ -462,21 +461,21 @@ typedef struct ExprEvalStep
     }     iocoerce;
 
     /* for EEOP_SQLVALUEFUNCTION */
-    struct
-    {
+struct
+{
       SQLValueFunction *svf;
     }     sqlvaluefunction;
 
     /* for EEOP_NEXTVALUEEXPR */
-    struct
-    {
+struct
+{
       Oid     seqid;
       Oid     seqtypid;
     }     nextvalueexpr;
 
     /* for EEOP_ARRAYEXPR */
-    struct
-    {
+struct
+{
       Datum    *elemvalues; /* element values get stored here */
       bool     *elemnulls;
       int     nelems; /* length of the above arrays */
@@ -488,16 +487,16 @@ typedef struct ExprEvalStep
     }     arrayexpr;
 
     /* for EEOP_ARRAYCOERCE */
-    struct
-    {
+struct
+{
       ExprState  *elemexprstate;  /* null if no per-element work */
       Oid     resultelemtype; /* element type of result array */
       struct ArrayMapState *amstate;  /* workspace for array_map */
     }     arraycoerce;
 
     /* for EEOP_ROW */
-    struct
-    {
+struct
+{
       TupleDesc tupdesc;  /* descriptor for result tuples */
       /* workspace for the values constituting the row: */
       Datum    *elemvalues;
@@ -505,8 +504,8 @@ typedef struct ExprEvalStep
     }     row;
 
     /* for EEOP_ROWCOMPARE_STEP */
-    struct
-    {
+struct
+{
       /* lookup and call data for column comparison function */
       FmgrInfo   *finfo;
       FunctionCallInfo fcinfo_data;
@@ -518,14 +517,14 @@ typedef struct ExprEvalStep
     }     rowcompare_step;
 
     /* for EEOP_ROWCOMPARE_FINAL */
-    struct
-    {
+struct
+{
       CompareType cmptype;
     }     rowcompare_final;
 
     /* for EEOP_MINMAX */
-    struct
-    {
+struct
+{
       /* workspace for argument values */
       Datum    *values;
       bool     *nulls;
@@ -538,8 +537,8 @@ typedef struct ExprEvalStep
     }     minmax;
 
     /* for EEOP_FIELDSELECT */
-    struct
-    {
+struct
+{
       AttrNumber  fieldnum; /* field number to extract */
       Oid     resulttype; /* field's type */
       /* cached descriptor for composite type - filled at runtime */
@@ -547,8 +546,8 @@ typedef struct ExprEvalStep
     }     fieldselect;
 
     /* for EEOP_FIELDSTORE_DEFORM / FIELDSTORE_FORM */
-    struct
-    {
+struct
+{
       /* original expression node */
       FieldStore *fstore;
 
@@ -563,8 +562,8 @@ typedef struct ExprEvalStep
     }     fieldstore;
 
     /* for EEOP_SBSREF_SUBSCRIPTS */
-    struct
-    {
+struct
+{
       ExecEvalBoolSubroutine subscriptfunc; /* evaluation subroutine */
       /* too big to have inline */
       struct SubscriptingRefState *state;
@@ -572,16 +571,16 @@ typedef struct ExprEvalStep
     }     sbsref_subscript;
 
     /* for EEOP_SBSREF_OLD / ASSIGN / FETCH */
-    struct
-    {
+struct
+{
       ExecEvalSubroutine subscriptfunc; /* evaluation subroutine */
       /* too big to have inline */
       struct SubscriptingRefState *state;
     }     sbsref;
 
     /* for EEOP_DOMAIN_NOTNULL / DOMAIN_CHECK */
-    struct
-    {
+struct
+{
       /* name of constraint */
       char     *constraintname;
       /* where the result of a CHECK constraint will be stored */
@@ -593,15 +592,15 @@ typedef struct ExprEvalStep
     }     domaincheck;
 
     /* for EEOP_HASH_SET_INITVAL */
-    struct
-    {
+struct
+{
       Datum   init_value;
 
     }     hashdatum_initvalue;
 
     /* for EEOP_HASHDATUM_(FIRST|NEXT32)[_STRICT] */
-    struct
-    {
+struct
+{
       FmgrInfo   *finfo;  /* function's lookup data */
       FunctionCallInfo fcinfo_data; /* arguments etc */
       /* faster to access without additional indirection: */
@@ -611,8 +610,8 @@ typedef struct ExprEvalStep
     }     hashdatum;
 
     /* for EEOP_CONVERT_ROWTYPE */
-    struct
-    {
+struct
+{
       Oid     inputtype;  /* input composite type */
       Oid     outputtype; /* output composite type */
       /* these three fields are filled at runtime: */
@@ -622,8 +621,8 @@ typedef struct ExprEvalStep
     }     convert_rowtype;
 
     /* for EEOP_SCALARARRAYOP */
-    struct
-    {
+struct
+{
       /* element_type/typlen/typbyval/typalign are filled at runtime */
       Oid     element_type; /* InvalidOid if not yet filled */
       bool    useOr;  /* use OR or AND semantics? */
@@ -637,8 +636,8 @@ typedef struct ExprEvalStep
     }     scalararrayop;
 
     /* for EEOP_HASHED_SCALARARRAYOP */
-    struct
-    {
+struct
+{
       bool    has_nulls;
       bool    inclause; /* true for IN and false for NOT IN */
       bool    null_lhs_result;  /* for non-strict lookups, we
@@ -652,8 +651,8 @@ typedef struct ExprEvalStep
     }     hashedscalararrayop;
 
     /* for EEOP_XMLEXPR */
-    struct
-    {
+struct
+{
       XmlExpr    *xexpr;  /* original expression node */
       /* workspace for evaluating named args, if any */
       Datum    *named_argvalue;
@@ -664,47 +663,47 @@ typedef struct ExprEvalStep
     }     xmlexpr;
 
     /* for EEOP_JSON_CONSTRUCTOR */
-    struct
-    {
+struct
+{
       struct JsonConstructorExprState *jcstate;
     }     json_constructor;
 
     /* for EEOP_AGGREF */
-    struct
-    {
+struct
+{
       int     aggno;
     }     aggref;
 
     /* for EEOP_GROUPING_FUNC */
-    struct
-    {
+struct
+{
       List     *clauses;  /* integer list of column numbers */
     }     grouping_func;
 
     /* for EEOP_WINDOW_FUNC */
-    struct
-    {
+struct
+{
       /* out-of-line state, modified by nodeWindowAgg.c */
       WindowFuncExprState *wfstate;
     }     window_func;
 
     /* for EEOP_SUBPLAN */
-    struct
-    {
+struct
+{
       /* out-of-line state, created by nodeSubplan.c */
       SubPlanState *sstate;
     }     subplan;
 
     /* for EEOP_AGG_*DESERIALIZE */
-    struct
-    {
+struct
+{
       FunctionCallInfo fcinfo_data;
       int     jumpnull;
     }     agg_deserialize;
 
     /* for EEOP_AGG_STRICT_INPUT_CHECK_NULLS / STRICT_INPUT_CHECK_ARGS */
-    struct
-    {
+struct
+{
       /*
        * For EEOP_AGG_STRICT_INPUT_CHECK_ARGS args contains pointers to
        * the NullableDatums that need to be checked for NULLs.
@@ -723,15 +722,15 @@ typedef struct ExprEvalStep
     }     agg_strict_input_check;
 
     /* for EEOP_AGG_PLAIN_PERGROUP_NULLCHECK */
-    struct
-    {
+struct
+{
       int     setoff;
       int     jumpnull;
     }     agg_plain_pergroup_nullcheck;
 
     /* for EEOP_AGG_PRESORTED_DISTINCT_{SINGLE,MULTI} */
-    struct
-    {
+struct
+{
       AggStatePerTrans pertrans;
       ExprContext *aggcontext;
       int     jumpdistinct;
@@ -739,8 +738,8 @@ typedef struct ExprEvalStep
 
     /* for EEOP_AGG_PLAIN_TRANS_[INIT_][STRICT_]{BYVAL,BYREF} */
     /* for EEOP_AGG_ORDERED_TRANS_{DATUM,TUPLE} */
-    struct
-    {
+struct
+{
       AggStatePerTrans pertrans;
       ExprContext *aggcontext;
       int     setno;
@@ -749,20 +748,20 @@ typedef struct ExprEvalStep
     }     agg_trans;
 
     /* for EEOP_IS_JSON */
-    struct
-    {
+struct
+{
       JsonIsPredicate *pred;  /* original expression node */
     }     is_json;
 
     /* for EEOP_JSONEXPR_PATH */
-    struct
-    {
+struct
+{
       struct JsonExprState *jsestate;
     }     jsonexpr;
 
     /* for EEOP_JSONEXPR_COERCION */
-    struct
-    {
+struct
+{
       Oid     targettype;
       int32   targettypmod;
       bool    omit_quotes;
@@ -828,8 +827,8 @@ typedef struct JsonConstructorExprState
   Datum    *arg_values;
   bool     *arg_nulls;
   Oid      *arg_types;
-  struct
-  {
+struct
+{
     int     category;
     Oid     outfuncid;
   }      *arg_type_cache; /* cache for datum_to_json[b]() */

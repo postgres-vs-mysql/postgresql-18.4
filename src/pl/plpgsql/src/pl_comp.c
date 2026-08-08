@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -104,8 +105,10 @@ static void plpgsql_finish_datums(PLpgSQL_function *function);
 PLpgSQL_function *
 plpgsql_compile(FunctionCallInfo fcinfo, bool forValidator)
 {
+  DBUG_TRACE;
   PLpgSQL_function *function;
 
+  DBUG_PRINT("info", "make an execution tree for a PL/pgSQL function");
   /*
    * funccache.c manages re-use of existing PLpgSQL_function caches.
    *
@@ -168,6 +171,7 @@ plpgsql_compile_callback(FunctionCallInfo fcinfo,
                          CachedFunction *cfunc,
                          bool forValidator)
 {
+  DBUG_TRACE;
   PLpgSQL_function *function = (PLpgSQL_function *) cfunc;
   Form_pg_proc procStruct = (Form_pg_proc) GETSTRUCT(procTup);
   bool    is_dml_trigger = CALLED_AS_TRIGGER(fcinfo);
@@ -731,6 +735,7 @@ plpgsql_compile_callback(FunctionCallInfo fcinfo,
 PLpgSQL_function *
 plpgsql_compile_inline(char *proc_source)
 {
+  DBUG_TRACE;
   yyscan_t  scanner;
   char     *func_name = "inline_code_block";
   PLpgSQL_function *function;
@@ -878,6 +883,7 @@ plpgsql_compile_inline(char *proc_source)
 static void
 plpgsql_compile_error_callback(void *arg)
 {
+  DBUG_TRACE;
   struct compile_error_callback_arg *cbarg = (struct compile_error_callback_arg *) arg;
   yyscan_t  yyscanner = cbarg->yyscanner;
 
@@ -907,6 +913,8 @@ plpgsql_compile_error_callback(void *arg)
 static void
 add_parameter_name(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
 {
+  DBUG_TRACE;
+
   /*
    * Before adding the name, check for duplicates.  We need this even though
    * functioncmds.c has a similar check, because that code explicitly
@@ -923,6 +931,7 @@ add_parameter_name(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
                     name)));
 
   /* OK, add the name */
+  DBUG_PRINT("info", "add a name('%s') for a function parameter to the function's namespace", name);
   plpgsql_ns_additem(itemtype, itemno, name);
 }
 
@@ -932,6 +941,8 @@ add_parameter_name(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
 static void
 add_dummy_return(PLpgSQL_function *function)
 {
+  DBUG_TRACE;
+
   /*
    * If the outer block has an EXCEPTION clause, we need to make a new outer
    * block, since the added RETURN shouldn't act like it is inside the
@@ -976,6 +987,7 @@ add_dummy_return(PLpgSQL_function *function)
 void
 plpgsql_parser_setup(struct ParseState *pstate, PLpgSQL_expr *expr)
 {
+  DBUG_TRACE;
   pstate->p_pre_columnref_hook = plpgsql_pre_column_ref;
   pstate->p_post_columnref_hook = plpgsql_post_column_ref;
   pstate->p_paramref_hook = plpgsql_param_ref;
@@ -1003,6 +1015,7 @@ plpgsql_pre_column_ref(ParseState *pstate, ColumnRef *cref)
 static Node *
 plpgsql_post_column_ref(ParseState *pstate, ColumnRef *cref, Node *var)
 {
+  DBUG_TRACE;
   PLpgSQL_expr *expr = (PLpgSQL_expr *) pstate->p_ref_hook_state;
   Node     *myvar;
 
@@ -1046,6 +1059,7 @@ plpgsql_post_column_ref(ParseState *pstate, ColumnRef *cref, Node *var)
 static Node *
 plpgsql_param_ref(ParseState *pstate, ParamRef *pref)
 {
+  DBUG_TRACE;
   PLpgSQL_expr *expr = (PLpgSQL_expr *) pstate->p_ref_hook_state;
   char    pname[32];
   PLpgSQL_nsitem *nse;
@@ -1074,6 +1088,7 @@ static Node *
 resolve_column_ref(ParseState *pstate, PLpgSQL_expr *expr,
                    ColumnRef *cref, bool error_if_no_field)
 {
+  DBUG_TRACE;
   PLpgSQL_execstate *estate;
   PLpgSQL_nsitem *nse;
   const char *name1;
@@ -1232,6 +1247,7 @@ resolve_column_ref(ParseState *pstate, PLpgSQL_expr *expr,
 static Node *
 make_datum_param(PLpgSQL_expr *expr, int dno, int location)
 {
+  DBUG_TRACE;
   PLpgSQL_execstate *estate;
   PLpgSQL_datum *datum;
   Param    *param;
@@ -1286,7 +1302,10 @@ bool
 plpgsql_parse_word(char *word1, const char *yytxt, bool lookup,
                    PLwdatum *wdatum, PLword *word)
 {
+  DBUG_TRACE;
   PLpgSQL_nsitem *ns;
+
+  DBUG_PRINT("info", "word1:'%s'", word1);
 
   /*
    * We should not lookup variables in DECLARE sections.  In SQL
@@ -1297,6 +1316,7 @@ plpgsql_parse_word(char *word1, const char *yytxt, bool lookup,
     /*
      * Do a lookup in the current namespace stack
      */
+    DBUG_PRINT("info", "do a lookup in the current namespace stack:'%s'", word1);
     ns = plpgsql_ns_lookup(plpgsql_ns_top(), false,
                            word1, NULL, NULL,
                            NULL);
@@ -1323,6 +1343,7 @@ plpgsql_parse_word(char *word1, const char *yytxt, bool lookup,
    * Nothing found - up to now it's a word without any special meaning for
    * us.
    */
+  DBUG_PRINT("info", "nothing found - up to now it's a word without any special meaning for us");
   word->ident = word1;
   word->quoted = (yytxt[0] == '"');
   return false;
@@ -1338,10 +1359,12 @@ bool
 plpgsql_parse_dblword(char *word1, char *word2,
                       PLwdatum *wdatum, PLcword *cword)
 {
+  DBUG_TRACE;
   PLpgSQL_nsitem *ns;
   List     *idents;
   int     nnames;
 
+  DBUG_PRINT("info", "word1:'%s', word2:'%s'", word1, word2);
   idents = list_make2(makeString(word1),
                       makeString(word2));
 
@@ -1415,9 +1438,13 @@ bool
 plpgsql_parse_tripword(char *word1, char *word2, char *word3,
                        PLwdatum *wdatum, PLcword *cword)
 {
+  DBUG_TRACE;
   PLpgSQL_nsitem *ns;
   List     *idents;
   int     nnames;
+
+
+  DBUG_PRINT("info", "word1:'%s', word2:'%s', word3:'%s'", word1, word2, word3);
 
   /*
    * We should do nothing in DECLARE sections.  In SQL expressions, we need
@@ -1535,6 +1562,7 @@ plpgsql_parse_wordtype(char *ident)
 PLpgSQL_type *
 plpgsql_parse_cwordtype(List *idents)
 {
+  DBUG_TRACE;
   PLpgSQL_type *dtype = NULL;
   PLpgSQL_nsitem *nse;
   int     nnames;
@@ -1646,6 +1674,7 @@ done:
 PLpgSQL_type *
 plpgsql_parse_wordrowtype(char *ident)
 {
+  DBUG_TRACE;
   Oid     classOid;
   Oid     typOid;
 
@@ -1685,6 +1714,7 @@ plpgsql_parse_wordrowtype(char *ident)
 PLpgSQL_type *
 plpgsql_parse_cwordrowtype(List *idents)
 {
+  DBUG_TRACE;
   Oid     classOid;
   Oid     typOid;
   RangeVar   *relvar;
@@ -1731,6 +1761,7 @@ PLpgSQL_variable *
 plpgsql_build_variable(const char *refname, int lineno, PLpgSQL_type *dtype,
                        bool add2namespace)
 {
+  DBUG_TRACE;
   PLpgSQL_variable *result;
 
   switch (dtype->ttype) {
@@ -1797,6 +1828,7 @@ plpgsql_build_record(const char *refname, int lineno,
                      PLpgSQL_type *dtype, Oid rectypeid,
                      bool add2namespace)
 {
+  DBUG_TRACE;
   PLpgSQL_rec *rec;
 
   rec = palloc0(sizeof(PLpgSQL_rec));
@@ -1823,6 +1855,7 @@ plpgsql_build_record(const char *refname, int lineno,
 static PLpgSQL_row *
 build_row_from_vars(PLpgSQL_variable **vars, int numvars)
 {
+  DBUG_TRACE;
   PLpgSQL_row *row;
   int     i;
 
@@ -1938,6 +1971,7 @@ PLpgSQL_type *
 plpgsql_build_datatype(Oid typeOid, int32 typmod,
                        Oid collation, TypeName *origtypname)
 {
+  DBUG_TRACE;
   HeapTuple typeTup;
   PLpgSQL_type *typ;
 
@@ -1961,8 +1995,11 @@ static PLpgSQL_type *
 build_datatype(HeapTuple typeTup, int32 typmod,
                Oid collation, TypeName *origtypname)
 {
+  DBUG_TRACE;
   Form_pg_type typeStruct = (Form_pg_type) GETSTRUCT(typeTup);
   PLpgSQL_type *typ;
+
+  DBUG_PRINT("info", "type name:'%s'", NameStr(typeStruct->typname));
 
   if (!typeStruct->typisdefined)
     ereport(ERROR,
@@ -2077,6 +2114,7 @@ build_datatype(HeapTuple typeTup, int32 typmod,
 PLpgSQL_type *
 plpgsql_build_datatype_arrayof(PLpgSQL_type *dtype)
 {
+  DBUG_TRACE;
   Oid     array_typeid;
 
   /*
@@ -2109,6 +2147,7 @@ plpgsql_build_datatype_arrayof(PLpgSQL_type *dtype)
 int
 plpgsql_recognize_err_condition(const char *condname, bool allow_sqlstate)
 {
+  DBUG_TRACE;
   int     i;
 
   if (allow_sqlstate) {
@@ -2143,6 +2182,7 @@ plpgsql_recognize_err_condition(const char *condname, bool allow_sqlstate)
 PLpgSQL_condition *
 plpgsql_parse_err_condition(char *condname)
 {
+  DBUG_TRACE;
   int     i;
   PLpgSQL_condition *new;
   PLpgSQL_condition *prev;
@@ -2188,6 +2228,7 @@ plpgsql_parse_err_condition(char *condname)
 static void
 plpgsql_start_datums(void)
 {
+  DBUG_TRACE;
   datums_alloc = 128;
   plpgsql_nDatums = 0;
   /* This is short-lived, so needn't allocate in function's cxt */
@@ -2205,6 +2246,8 @@ plpgsql_start_datums(void)
 void
 plpgsql_adddatum(PLpgSQL_datum *newdatum)
 {
+  DBUG_TRACE;
+
   if (plpgsql_nDatums == datums_alloc) {
     datums_alloc *= 2;
     plpgsql_Datums = repalloc(plpgsql_Datums, sizeof(PLpgSQL_datum *) * datums_alloc);
@@ -2221,6 +2264,7 @@ plpgsql_adddatum(PLpgSQL_datum *newdatum)
 static void
 plpgsql_finish_datums(PLpgSQL_function *function)
 {
+  DBUG_TRACE;
   Size    copiable_size = 0;
   int     i;
 
@@ -2267,6 +2311,7 @@ plpgsql_finish_datums(PLpgSQL_function *function)
 int
 plpgsql_add_initdatums(int **varnos)
 {
+  DBUG_TRACE;
   int     i;
   int     n = 0;
 

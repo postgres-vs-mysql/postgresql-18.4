@@ -28,6 +28,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -72,6 +73,7 @@ static Relation lo_index_r = NULL;
 static void
 open_lo_relation(void)
 {
+  DBUG_TRACE;
   ResourceOwner currentOwner;
 
   if (lo_heap_r && lo_index_r)
@@ -97,6 +99,8 @@ open_lo_relation(void)
 void
 close_lo_relation(bool isCommit)
 {
+  DBUG_TRACE;
+
   if (lo_heap_r || lo_index_r) {
     /*
      * Only bother to close if committing; else abort cleanup will handle
@@ -134,6 +138,7 @@ getdatafield(Form_pg_largeobject tuple,
              int *plen,
              bool *pfreeit)
 {
+  DBUG_TRACE;
   bytea    *datafield;
   int     len;
   bool    freeit;
@@ -176,6 +181,7 @@ getdatafield(Form_pg_largeobject tuple,
 Oid
 inv_create(Oid lobjId)
 {
+  DBUG_TRACE;
   Oid     lobjId_new;
 
   /*
@@ -218,6 +224,7 @@ inv_create(Oid lobjId)
 LargeObjectDesc *
 inv_open(Oid lobjId, int flags, MemoryContext mcxt)
 {
+  DBUG_TRACE;
   LargeObjectDesc *retval;
   Snapshot  snapshot = NULL;
   int     descflags = 0;
@@ -302,6 +309,7 @@ inv_open(Oid lobjId, int flags, MemoryContext mcxt)
 void
 inv_close(LargeObjectDesc *obj_desc)
 {
+  DBUG_TRACE;
   Assert(PointerIsValid(obj_desc));
   pfree(obj_desc);
 }
@@ -314,6 +322,7 @@ inv_close(LargeObjectDesc *obj_desc)
 int
 inv_drop(Oid lobjId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
 
   /*
@@ -343,6 +352,7 @@ inv_drop(Oid lobjId)
 static uint64
 inv_getsize(LargeObjectDesc *obj_desc)
 {
+  DBUG_TRACE;
   uint64    lastbyte = 0;
   ScanKeyData skey[1];
   SysScanDesc sd;
@@ -393,6 +403,7 @@ inv_getsize(LargeObjectDesc *obj_desc)
 int64
 inv_seek(LargeObjectDesc *obj_desc, int64 offset, int whence)
 {
+  DBUG_TRACE;
   int64   newoffset;
 
   Assert(PointerIsValid(obj_desc));
@@ -457,6 +468,7 @@ inv_tell(LargeObjectDesc *obj_desc)
 int
 inv_read(LargeObjectDesc *obj_desc, char *buf, int nbytes)
 {
+  DBUG_TRACE;
   int     nread = 0;
   int64   n;
   int64   off;
@@ -550,6 +562,7 @@ inv_read(LargeObjectDesc *obj_desc, char *buf, int nbytes)
 int
 inv_write(LargeObjectDesc *obj_desc, const char *buf, int nbytes)
 {
+  DBUG_TRACE;
   int     nwritten = 0;
   int     n;
   int     off;
@@ -746,6 +759,7 @@ inv_write(LargeObjectDesc *obj_desc, const char *buf, int nbytes)
 void
 inv_truncate(LargeObjectDesc *obj_desc, int64 len)
 {
+  DBUG_TRACE;
   int32   pageno = (int32) (len / LOBLKSIZE);
   int32   off;
   ScanKeyData skey[2];

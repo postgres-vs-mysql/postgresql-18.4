@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/heapam.h"
@@ -105,6 +106,7 @@ static bool cluster_is_permitted_for_relation(Oid relid, Oid userid);
 void
 cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   ClusterParams params = {0};
   bool    verbose = false;
@@ -119,12 +121,14 @@ cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
 
     if (strcmp(opt->defname, "verbose") == 0)
       verbose = defGetBoolean(opt);
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "unrecognized %s option \"%s\"", "CLUSTER", opt->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized %s option \"%s\"",
                       "CLUSTER", opt->defname),
                parser_errposition(pstate, opt->location)));
+    }
   }
 
   params.options = (verbose ? CLUOPT_VERBOSE : 0);
@@ -149,10 +153,12 @@ cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
      * Reject clustering a remote temp table ... their local buffer
      * manager is not going to cope.
      */
-    if (RELATION_IS_OTHER_TEMP(rel))
+    if (RELATION_IS_OTHER_TEMP(rel)) {
+      DBUG_INSTANT_PRINT("info", "cannot cluster temporary tables of other sessions");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot cluster temporary tables of other sessions")));
+    }
 
     if (stmt->indexname == NULL) {
       ListCell   *index;
@@ -167,11 +173,13 @@ cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
         indexOid = InvalidOid;
       }
 
-      if (!OidIsValid(indexOid))
+      if (!OidIsValid(indexOid)) {
+        DBUG_INSTANT_PRINT("info", "there is no previously clustered index for table \"%s\"", stmt->relation->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("there is no previously clustered index for table \"%s\"",
                         stmt->relation->relname)));
+      }
     } else {
       /*
        * The index is expected to be in the same namespace as the
@@ -180,11 +188,13 @@ cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
       indexOid = get_relname_relid(stmt->indexname,
                                    rel->rd_rel->relnamespace);
 
-      if (!OidIsValid(indexOid))
+      if (!OidIsValid(indexOid)) {
+        DBUG_INSTANT_PRINT("info", "index \"%s\" for table \"%s\" does not exist", stmt->indexname, stmt->relation->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("index \"%s\" for table \"%s\" does not exist",
                         stmt->indexname, stmt->relation->relname)));
+      }
     }
 
     /* For non-partitioned tables, do what we came here to do. */
@@ -255,6 +265,7 @@ cluster(ParseState *pstate, ClusterStmt *stmt, bool isTopLevel)
 static void
 cluster_multiple_rels(List *rtcs, ClusterParams *params)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Commit to get out of starting transaction */
@@ -302,6 +313,7 @@ cluster_multiple_rels(List *rtcs, ClusterParams *params)
 void
 cluster_rel(Relation OldHeap, Oid indexOid, ClusterParams *params)
 {
+  DBUG_TRACE;
   Oid     tableOid = RelationGetRelid(OldHeap);
   Oid     save_userid;
   int     save_sec_context;
@@ -391,24 +403,29 @@ cluster_rel(Relation OldHeap, Oid indexOid, ClusterParams *params)
    * indisclustered in the current database, leading to unexpected behavior
    * if CLUSTER were later invoked in another database.
    */
-  if (OidIsValid(indexOid) && OldHeap->rd_rel->relisshared)
+  if (OidIsValid(indexOid) && OldHeap->rd_rel->relisshared) {
+    DBUG_INSTANT_PRINT("info", "cannot cluster a shared catalog");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot cluster a shared catalog")));
+  }
 
   /*
    * Don't process temp tables of other backends ... their local buffer
    * manager is not going to cope.
    */
   if (RELATION_IS_OTHER_TEMP(OldHeap)) {
-    if (OidIsValid(indexOid))
+    if (OidIsValid(indexOid)) {
+      DBUG_INSTANT_PRINT("info", "cannot cluster temporary tables of other sessions");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot cluster temporary tables of other sessions")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "cannot vacuum temporary tables of other sessions");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot vacuum temporary tables of other sessions")));
+    }
   }
 
   /*
@@ -476,6 +493,7 @@ out:
 void
 check_index_is_clusterable(Relation OldHeap, Oid indexOid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  OldIndex;
 
   OldIndex = index_open(indexOid, lockmode);
@@ -484,19 +502,24 @@ check_index_is_clusterable(Relation OldHeap, Oid indexOid, LOCKMODE lockmode)
    * Check that index is in fact an index on the given relation
    */
   if (OldIndex->rd_index == NULL ||
-      OldIndex->rd_index->indrelid != RelationGetRelid(OldHeap))
+      OldIndex->rd_index->indrelid != RelationGetRelid(OldHeap)) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not an index for table \"%s\"",
+                       RelationGetRelationName(OldIndex), RelationGetRelationName(OldHeap));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not an index for table \"%s\"",
                     RelationGetRelationName(OldIndex),
                     RelationGetRelationName(OldHeap))));
+  }
 
   /* Index AM must allow clustering */
-  if (!OldIndex->rd_indam->amclusterable)
+  if (!OldIndex->rd_indam->amclusterable) {
+    DBUG_INSTANT_PRINT("info", "cannot cluster on index \"%s\" because access method does not support clustering", RelationGetRelationName(OldIndex));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot cluster on index \"%s\" because access method does not support clustering",
                     RelationGetRelationName(OldIndex))));
+  }
 
   /*
    * Disallow clustering on incomplete indexes (those that might not index
@@ -504,11 +527,13 @@ check_index_is_clusterable(Relation OldHeap, Oid indexOid, LOCKMODE lockmode)
    * seqscan pass over the table to copy the missing rows, but that seems
    * expensive and tedious.
    */
-  if (!heap_attisnull(OldIndex->rd_indextuple, Anum_pg_index_indpred, NULL))
+  if (!heap_attisnull(OldIndex->rd_indextuple, Anum_pg_index_indpred, NULL)) {
+    DBUG_INSTANT_PRINT("info", "cannot cluster on partial index \"%s\"", RelationGetRelationName(OldIndex));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot cluster on partial index \"%s\"",
                     RelationGetRelationName(OldIndex))));
+  }
 
   /*
    * Disallow if index is left over from a failed CREATE INDEX CONCURRENTLY;
@@ -518,11 +543,13 @@ check_index_is_clusterable(Relation OldHeap, Oid indexOid, LOCKMODE lockmode)
    * might put recently-dead tuples out-of-order in the new table, and there
    * is little harm in that.)
    */
-  if (!OldIndex->rd_index->indisvalid)
+  if (!OldIndex->rd_index->indisvalid) {
+    DBUG_INSTANT_PRINT("info", "cannot cluster on invalid index \"%s\"", RelationGetRelationName(OldIndex));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot cluster on invalid index \"%s\"",
                     RelationGetRelationName(OldIndex))));
+  }
 
   /* Drop relcache refcnt on OldIndex, but keep lock */
   index_close(OldIndex, NoLock);
@@ -536,16 +563,19 @@ check_index_is_clusterable(Relation OldHeap, Oid indexOid, LOCKMODE lockmode)
 void
 mark_index_clustered(Relation rel, Oid indexOid, bool is_internal)
 {
+  DBUG_TRACE;
   HeapTuple indexTuple;
   Form_pg_index indexForm;
   Relation  pg_index;
   ListCell   *index;
 
   /* Disallow applying to a partitioned table */
-  if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+  if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "cannot mark index clustered in partitioned table");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot mark index clustered in partitioned table")));
+  }
 
   /*
    * If the index is already marked clustered, no need to do anything.
@@ -609,6 +639,7 @@ mark_index_clustered(Relation rel, Oid indexOid, bool is_internal)
 static void
 rebuild_relation(Relation OldHeap, Relation index, bool verbose)
 {
+  DBUG_TRACE;
   Oid     tableOid = RelationGetRelid(OldHeap);
   Oid     accessMethod = OldHeap->rd_rel->relam;
   Oid     tableSpace = OldHeap->rd_rel->reltablespace;
@@ -687,6 +718,7 @@ Oid
 make_new_heap(Oid OIDOldHeap, Oid NewTableSpace, Oid NewAccessMethod,
               char relpersistence, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   TupleDesc OldHeapDesc;
   char    NewHeapName[NAMEDATALEN];
   Oid     OIDNewHeap;
@@ -820,6 +852,7 @@ copy_table_data(Relation NewHeap, Relation OldHeap, Relation OldIndex, bool verb
                 bool *pSwapToastByContent, TransactionId *pFreezeXid,
                 MultiXactId *pCutoffMulti)
 {
+  DBUG_TRACE;
   Relation  relRelation;
   HeapTuple reltup;
   Form_pg_class relform;
@@ -942,22 +975,23 @@ copy_table_data(Relation NewHeap, Relation OldHeap, Relation OldIndex, bool verb
     use_sort = false;
 
   /* Log what we're doing */
-  if (OldIndex != NULL && !use_sort)
+  if (OldIndex != NULL && !use_sort) {
     ereport(elevel,
             (errmsg("clustering \"%s.%s\" using index scan on \"%s\"",
                     nspname,
                     RelationGetRelationName(OldHeap),
                     RelationGetRelationName(OldIndex))));
-  else if (use_sort)
+  } else if (use_sort) {
     ereport(elevel,
             (errmsg("clustering \"%s.%s\" using sequential scan and sort",
                     nspname,
                     RelationGetRelationName(OldHeap))));
-  else
+  } else {
     ereport(elevel,
             (errmsg("vacuuming \"%s.%s\"",
                     nspname,
                     RelationGetRelationName(OldHeap))));
+  }
 
   /*
    * Hand off the actual copying to AM specific function, the generic code
@@ -1055,6 +1089,7 @@ swap_relation_files(Oid r1, Oid r2, bool target_is_pg_class,
                     MultiXactId cutoffMulti,
                     Oid *mapped_tables)
 {
+  DBUG_TRACE;
   Relation  relRelation;
   HeapTuple reltup1,
             reltup2;
@@ -1066,6 +1101,18 @@ swap_relation_files(Oid r1, Oid r2, bool target_is_pg_class,
   char    swptmpchr;
   Oid     relam1,
           relam2;
+  char *relation1, *relation2;
+
+  {
+    if (r1 && r2) {
+      relation1 = get_rel_name(r1);
+      relation2 = get_rel_name(r2);
+      DBUG_PRINT("info", "swap the physical files of two given relations(%s and %s)",
+                 relation1, relation2);
+      pfree(relation1);
+      pfree(relation2);
+    }
+  }
 
   /* We need writable copies of both pg_class tuples. */
   relRelation = table_open(RelationRelationId, RowExclusiveLock);
@@ -1432,6 +1479,7 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
                  MultiXactId cutoffMulti,
                  char newrelpersistence)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   Oid     mapped_tables[4];
   int     reindex_flags;
@@ -1624,6 +1672,7 @@ finish_heap_swap(Oid OIDOldHeap, Oid OIDNewHeap,
 static List *
 get_tables_to_cluster(MemoryContext cluster_context)
 {
+  DBUG_TRACE;
   Relation  indRelation;
   TableScanDesc scan;
   ScanKeyData entry;
@@ -1679,6 +1728,7 @@ get_tables_to_cluster(MemoryContext cluster_context)
 static List *
 get_tables_to_cluster_partitioned(MemoryContext cluster_context, Oid indexOid)
 {
+  DBUG_TRACE;
   List     *inhoids;
   ListCell   *lc;
   List     *rtcs = NIL;
@@ -1726,11 +1776,17 @@ get_tables_to_cluster_partitioned(MemoryContext cluster_context, Oid indexOid)
 static bool
 cluster_is_permitted_for_relation(Oid relid, Oid userid)
 {
+  DBUG_TRACE;
+
+  char *rel_name;
+
   if (pg_class_aclcheck(relid, userid, ACL_MAINTAIN) == ACLCHECK_OK)
     return true;
 
+  rel_name = get_rel_name(relid);
+  DBUG_INSTANT_PRINT("info", "permission denied to cluster \"%s\", skipping it", rel_name);
   ereport(WARNING,
           (errmsg("permission denied to cluster \"%s\", skipping it",
-                  get_rel_name(relid))));
+                  rel_name)));
   return false;
 }

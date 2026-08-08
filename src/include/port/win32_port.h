@@ -251,8 +251,8 @@ typedef int pid_t;
  * The struct stat is 32 bit in MSVC, so we redefine it as a copy of
  * struct __stat64.  This also fixes the struct size for MINGW builds.
  */
-struct stat           /* This should match struct __stat64 */
-{
+struct stat
+{         /* This should match struct __stat64 */
   _dev_t    st_dev;
   _ino_t    st_ino;
   unsigned short st_mode;

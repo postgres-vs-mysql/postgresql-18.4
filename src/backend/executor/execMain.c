@@ -36,6 +36,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "access/table.h"
@@ -121,6 +122,8 @@ static void ReportNotNullViolationError(ResultRelInfo *resultRelInfo,
 void
 ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "this routine must be called at the beginning of any execution of any query plan");
   /*
    * In some cases (e.g. an EXECUTE statement or an execute message with the
    * extended query protocol) the query_id won't be reported, so do it now.
@@ -131,15 +134,19 @@ ExecutorStart(QueryDesc *queryDesc, int eflags)
    */
   pgstat_report_query_id(queryDesc->plannedstmt->queryId, false);
 
-  if (ExecutorStart_hook)
+  if (ExecutorStart_hook) {
+    DBUG_PRINT("info", "invoke ExecutorStart_hook");
     (*ExecutorStart_hook) (queryDesc, eflags);
-  else
+  } else {
+    DBUG_PRINT("info", "invoke standard_ExecutorStart");
     standard_ExecutorStart(queryDesc, eflags);
+  }
 }
 
 void
 standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
 {
+  DBUG_TRACE;
   EState     *estate;
   MemoryContext oldcontext;
 
@@ -172,6 +179,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
   /*
    * Build EState, switch into per-query memory context for startup.
    */
+  DBUG_PRINT("info", "build EState, switch into per-query memory context for startup");
   estate = CreateExecutorState();
   queryDesc->estate = estate;
 
@@ -211,8 +219,15 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
        * tuples
        */
       if (queryDesc->plannedstmt->rowMarks != NIL ||
-          queryDesc->plannedstmt->hasModifyingCTE)
+          queryDesc->plannedstmt->hasModifyingCTE) {
+        if (queryDesc->plannedstmt->hasModifyingCTE) {
+          DBUG_PRINT("info", "modifying CTEs need to mark tuples");
+        } else {
+          DBUG_PRINT("info", "ELECT FOR [KEY] UPDATE/SHARE need to mark tuples");
+        }
+
         estate->es_output_cid = GetCurrentCommandId(true);
+      }
 
       /*
        * A SELECT without modifying CTEs can't possibly queue triggers,
@@ -233,6 +248,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "unrecognized operation code: %d", (int) queryDesc->operation);
       elog(ERROR, "unrecognized operation code: %d",
            (int) queryDesc->operation);
       break;
@@ -257,6 +273,7 @@ standard_ExecutorStart(QueryDesc *queryDesc, int eflags)
   /*
    * Initialize the plan state tree
    */
+  DBUG_PRINT("info", "initialize the plan state tree");
   InitPlan(queryDesc, eflags);
 
   MemoryContextSwitchTo(oldcontext);
@@ -296,16 +313,23 @@ void
 ExecutorRun(QueryDesc *queryDesc,
             ScanDirection direction, uint64 count)
 {
-  if (ExecutorRun_hook)
+  DBUG_TRACE;
+  DBUG_PRINT("info", "this is the main routine of the executor module");
+
+  if (ExecutorRun_hook) {
+    DBUG_PRINT("info", "invoke ExecutorRun_hook");
     (*ExecutorRun_hook) (queryDesc, direction, count);
-  else
+  } else {
+    DBUG_PRINT("info", "invoke standard_ExecutorRun");
     standard_ExecutorRun(queryDesc, direction, count);
+  }
 }
 
 void
 standard_ExecutorRun(QueryDesc *queryDesc,
                      ScanDirection direction, uint64 count)
 {
+  DBUG_TRACE;
   EState     *estate;
   CmdType   operation;
   DestReceiver *dest;
@@ -326,6 +350,7 @@ standard_ExecutorRun(QueryDesc *queryDesc,
   /*
    * Switch into per-query memory context
    */
+  DBUG_PRINT("info", "switch into per-query memory context");
   oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
 
   /* Allow instrumentation of Executor overall runtime */
@@ -361,13 +386,15 @@ standard_ExecutorRun(QueryDesc *queryDesc,
    * necessarily non-parallel execution request occurs after completing a
    * parallel execution.  (That case should work, but it's untested.)
    */
-  if (!ScanDirectionIsNoMovement(direction))
+  if (!ScanDirectionIsNoMovement(direction)) {
+    DBUG_PRINT("info", "run plan");
     ExecutePlan(queryDesc,
                 operation,
                 sendTuples,
                 count,
                 direction,
                 dest);
+  }
 
   /*
    * Update es_total_processed to keep track of the number of tuples
@@ -404,6 +431,8 @@ standard_ExecutorRun(QueryDesc *queryDesc,
 void
 ExecutorFinish(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
+
   if (ExecutorFinish_hook)
     (*ExecutorFinish_hook) (queryDesc);
   else
@@ -413,6 +442,7 @@ ExecutorFinish(QueryDesc *queryDesc)
 void
 standard_ExecutorFinish(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   EState     *estate;
   MemoryContext oldcontext;
 
@@ -464,6 +494,8 @@ standard_ExecutorFinish(QueryDesc *queryDesc)
 void
 ExecutorEnd(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
+
   if (ExecutorEnd_hook)
     (*ExecutorEnd_hook) (queryDesc);
   else
@@ -473,6 +505,7 @@ ExecutorEnd(QueryDesc *queryDesc)
 void
 standard_ExecutorEnd(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   EState     *estate;
   MemoryContext oldcontext;
 
@@ -534,6 +567,7 @@ standard_ExecutorEnd(QueryDesc *queryDesc)
 void
 ExecutorRewind(QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   EState     *estate;
   MemoryContext oldcontext;
 
@@ -581,6 +615,7 @@ bool
 ExecCheckPermissions(List *rangeTable, List *rteperminfos,
                      bool ereport_on_violation)
 {
+  DBUG_TRACE;
   ListCell   *l;
   bool    result = true;
 
@@ -748,6 +783,7 @@ static bool
 ExecCheckPermissionsModified(Oid relOid, Oid userid, Bitmapset *modifiedCols,
                              AclMode requiredPerms)
 {
+  DBUG_TRACE;
   int     col = -1;
 
   /*
@@ -767,6 +803,7 @@ ExecCheckPermissionsModified(Oid relOid, Oid userid, Bitmapset *modifiedCols,
 
     if (attno == InvalidAttrNumber) {
       /* whole-row reference can't happen here */
+      DBUG_INSTANT_PRINT("info", "whole-row update is not implemented");
       elog(ERROR, "whole-row update is not implemented");
     } else {
       if (pg_attribute_aclcheck(relOid, attno, userid,
@@ -790,6 +827,7 @@ ExecCheckPermissionsModified(Oid relOid, Oid userid, Bitmapset *modifiedCols,
 static void
 ExecCheckXactReadOnly(PlannedStmt *plannedstmt)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /*
@@ -823,6 +861,7 @@ ExecCheckXactReadOnly(PlannedStmt *plannedstmt)
 static void
 InitPlan(QueryDesc *queryDesc, int eflags)
 {
+  DBUG_TRACE;
   CmdType   operation = queryDesc->operation;
   PlannedStmt *plannedstmt = queryDesc->plannedstmt;
   Plan     *plan = plannedstmt->planTree;
@@ -903,6 +942,7 @@ InitPlan(QueryDesc *queryDesc, int eflags)
           break;
 
         default:
+          DBUG_INSTANT_PRINT("info", "unrecognized markType: %d", rc->markType);
           elog(ERROR, "unrecognized markType: %d", rc->markType);
           relation = NULL;  /* keep compiler quiet */
           break;
@@ -1039,6 +1079,7 @@ void
 CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
                     OnConflictAction onConflictAction, List *mergeActions)
 {
+  DBUG_TRACE;
   Relation  resultRel = resultRelInfo->ri_RelationDesc;
   FdwRoutine *fdwroutine;
 
@@ -1070,6 +1111,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
       break;
 
     case RELKIND_SEQUENCE:
+      DBUG_INSTANT_PRINT("info", "cannot change sequence \"%s\"", RelationGetRelationName(resultRel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot change sequence \"%s\"",
@@ -1077,6 +1119,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
       break;
 
     case RELKIND_TOASTVALUE:
+      DBUG_INSTANT_PRINT("info", "cannot change TOAST relation \"%s\"", RelationGetRelationName(resultRel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot change TOAST relation \"%s\"",
@@ -1098,11 +1141,13 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
       break;
 
     case RELKIND_MATVIEW:
-      if (!MatViewIncrementalMaintenanceIsEnabled())
+      if (!MatViewIncrementalMaintenanceIsEnabled()) {
+        DBUG_INSTANT_PRINT("info", "cannot change materialized view \"%s\"", RelationGetRelationName(resultRel));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("cannot change materialized view \"%s\"",
                         RelationGetRelationName(resultRel))));
+      }
 
       break;
 
@@ -1112,54 +1157,67 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
 
       switch (operation) {
         case CMD_INSERT:
-          if (fdwroutine->ExecForeignInsert == NULL)
+          if (fdwroutine->ExecForeignInsert == NULL) {
+            DBUG_INSTANT_PRINT("info", "cannot insert into foreign table \"%s\"", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                      errmsg("cannot insert into foreign table \"%s\"",
                             RelationGetRelationName(resultRel))));
+          }
 
           if (fdwroutine->IsForeignRelUpdatable != NULL &&
-              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_INSERT)) == 0)
+              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_INSERT)) == 0) {
+            DBUG_INSTANT_PRINT("info", "foreign table \"%s\" does not allow inserts", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                      errmsg("foreign table \"%s\" does not allow inserts",
                             RelationGetRelationName(resultRel))));
+          }
 
           break;
 
         case CMD_UPDATE:
-          if (fdwroutine->ExecForeignUpdate == NULL)
+          if (fdwroutine->ExecForeignUpdate == NULL) {
+            DBUG_INSTANT_PRINT("info", "cannot update foreign table \"%s\"", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                      errmsg("cannot update foreign table \"%s\"",
                             RelationGetRelationName(resultRel))));
+          }
 
           if (fdwroutine->IsForeignRelUpdatable != NULL &&
-              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_UPDATE)) == 0)
+              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_UPDATE)) == 0) {
+            DBUG_INSTANT_PRINT("info", "foreign table \"%s\" does not allow updates", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                      errmsg("foreign table \"%s\" does not allow updates",
                             RelationGetRelationName(resultRel))));
+          }
 
           break;
 
         case CMD_DELETE:
-          if (fdwroutine->ExecForeignDelete == NULL)
+          if (fdwroutine->ExecForeignDelete == NULL) {
+            DBUG_INSTANT_PRINT("info", "cannot delete from foreign table \"%s\"", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                      errmsg("cannot delete from foreign table \"%s\"",
                             RelationGetRelationName(resultRel))));
+          }
 
           if (fdwroutine->IsForeignRelUpdatable != NULL &&
-              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_DELETE)) == 0)
+              (fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_DELETE)) == 0) {
+            DBUG_INSTANT_PRINT("info", "foreign table \"%s\" does not allow deletes", RelationGetRelationName(resultRel));
             ereport(ERROR,
                     (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                      errmsg("foreign table \"%s\" does not allow deletes",
                             RelationGetRelationName(resultRel))));
+          }
 
           break;
 
         default:
+          DBUG_INSTANT_PRINT("info", "unrecognized CmdType: %d", (int) operation);
           elog(ERROR, "unrecognized CmdType: %d", (int) operation);
           break;
       }
@@ -1167,6 +1225,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "cannot change relation \"%s\"", RelationGetRelationName(resultRel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot change relation \"%s\"",
@@ -1184,6 +1243,7 @@ CheckValidResultRel(ResultRelInfo *resultRelInfo, CmdType operation,
 static void
 CheckValidRowMarkRel(Relation rel, RowMarkType markType)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine;
 
   switch (rel->rd_rel->relkind) {
@@ -1194,6 +1254,7 @@ CheckValidRowMarkRel(Relation rel, RowMarkType markType)
 
     case RELKIND_SEQUENCE:
       /* Must disallow this because we don't vacuum sequences */
+      DBUG_INSTANT_PRINT("info", "cannot lock rows in sequence \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot lock rows in sequence \"%s\"",
@@ -1202,6 +1263,7 @@ CheckValidRowMarkRel(Relation rel, RowMarkType markType)
 
     case RELKIND_TOASTVALUE:
       /* We could allow this, but there seems no good reason to */
+      DBUG_INSTANT_PRINT("info", "cannot lock rows in TOAST relation \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot lock rows in TOAST relation \"%s\"",
@@ -1210,6 +1272,7 @@ CheckValidRowMarkRel(Relation rel, RowMarkType markType)
 
     case RELKIND_VIEW:
       /* Should not get here; planner should have expanded the view */
+      DBUG_INSTANT_PRINT("info", "cannot lock rows in view \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot lock rows in view \"%s\"",
@@ -1219,11 +1282,13 @@ CheckValidRowMarkRel(Relation rel, RowMarkType markType)
     case RELKIND_MATVIEW:
 
       /* Allow referencing a matview, but not actual locking clauses */
-      if (markType != ROW_MARK_REFERENCE)
+      if (markType != ROW_MARK_REFERENCE) {
+        DBUG_INSTANT_PRINT("info", "cannot lock rows in materialized view \"%s\"", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("cannot lock rows in materialized view \"%s\"",
                         RelationGetRelationName(rel))));
+      }
 
       break;
 
@@ -1231,15 +1296,18 @@ CheckValidRowMarkRel(Relation rel, RowMarkType markType)
       /* Okay only if the FDW supports it */
       fdwroutine = GetFdwRoutineForRelation(rel, false);
 
-      if (fdwroutine->RefetchForeignRow == NULL)
+      if (fdwroutine->RefetchForeignRow == NULL) {
+        DBUG_INSTANT_PRINT("info", "cannot lock rows in foreign table \"%s\"", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot lock rows in foreign table \"%s\"",
                         RelationGetRelationName(rel))));
+      }
 
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "cannot lock rows in relation \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot lock rows in relation \"%s\"",
@@ -1262,6 +1330,7 @@ InitResultRelInfo(ResultRelInfo *resultRelInfo,
                   ResultRelInfo *partition_root_rri,
                   int instrument_options)
 {
+  DBUG_TRACE;
   MemSet(resultRelInfo, 0, sizeof(ResultRelInfo));
   resultRelInfo->type = T_ResultRelInfo;
   resultRelInfo->ri_RangeTableIndex = resultRelationIndex;
@@ -1359,6 +1428,7 @@ ResultRelInfo *
 ExecGetTriggerResultRel(EState *estate, Oid relid,
                         ResultRelInfo *rootRelInfo)
 {
+  DBUG_TRACE;
   ResultRelInfo *rInfo;
   ListCell   *l;
   Relation  rel;
@@ -1446,12 +1516,15 @@ ExecGetTriggerResultRel(EState *estate, Oid relid,
 List *
 ExecGetAncestorResultRels(EState *estate, ResultRelInfo *resultRelInfo)
 {
+  DBUG_TRACE;
   ResultRelInfo *rootRelInfo = resultRelInfo->ri_RootResultRelInfo;
   Relation  partRel = resultRelInfo->ri_RelationDesc;
   Oid     rootRelOid;
 
-  if (!partRel->rd_rel->relispartition)
+  if (!partRel->rd_rel->relispartition) {
+    DBUG_INSTANT_PRINT("info", "cannot find ancestors of a non-partition result relation");
     elog(ERROR, "cannot find ancestors of a non-partition result relation");
+  }
 
   Assert(rootRelInfo != NULL);
   rootRelOid = RelationGetRelid(rootRelInfo->ri_RelationDesc);
@@ -1507,6 +1580,7 @@ ExecGetAncestorResultRels(EState *estate, ResultRelInfo *resultRelInfo)
 static void
 ExecPostprocessPlan(EState *estate)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*
@@ -1551,6 +1625,7 @@ ExecPostprocessPlan(EState *estate)
 static void
 ExecEndPlan(PlanState *planstate, EState *estate)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /*
@@ -1589,6 +1664,7 @@ ExecEndPlan(PlanState *planstate, EState *estate)
 void
 ExecCloseResultRelations(EState *estate)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /*
@@ -1647,6 +1723,7 @@ ExecCloseResultRelations(EState *estate)
 void
 ExecCloseRangeTableRelations(EState *estate)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < estate->es_range_table_size; i++) {
@@ -1672,11 +1749,20 @@ ExecutePlan(QueryDesc *queryDesc,
             ScanDirection direction,
             DestReceiver *dest)
 {
+  DBUG_TRACE;
   EState     *estate = queryDesc->estate;
   PlanState  *planstate = queryDesc->planstate;
   bool    use_parallel_mode;
   TupleTableSlot *slot;
   uint64    current_tuple_count;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
+
+  if (numberTuples) {
+    DBUG_PRINT("info", "process the query plan until we have retrieved %lu tuples", numberTuples);
+  } else {
+    DBUG_PRINT("info", "process the query plan");
+  }
 
   /*
    * initialize local variables
@@ -1686,6 +1772,14 @@ ExecutePlan(QueryDesc *queryDesc,
   /*
    * Set the direction.
    */
+  if (direction == BackwardScanDirection) {
+    DBUG_PRINT("info", "set the backward scan direction");
+  } else if (direction == ForwardScanDirection) {
+    DBUG_PRINT("info", "set forward scan direction");
+  } else {
+    DBUG_PRINT("info", "set no movement scan direction");
+  }
+
   estate->es_direction = direction;
 
   /*
@@ -1704,13 +1798,29 @@ ExecutePlan(QueryDesc *queryDesc,
 
   estate->es_use_parallel_mode = use_parallel_mode;
 
-  if (use_parallel_mode)
+  if (use_parallel_mode) {
+    DBUG_PRINT("info", "enter parallel mode");
     EnterParallelMode();
+  }
 
   /*
    * Loop until we've processed the proper number of tuples from the plan.
    */
+  if (numberTuples) {
+    DBUG_PRINT("info", "loop until we've processed the proper number of tuples from the plan");
+  }
+
   for (;;) {
+
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /* Reset the per-output-tuple exprcontext */
     ResetPerTupleExprContext(estate);
 
@@ -1723,8 +1833,10 @@ ExecutePlan(QueryDesc *queryDesc,
      * if the tuple is null, then we assume there is nothing more to
      * process so we just end the loop...
      */
-    if (TupIsNull(slot))
+    if (TupIsNull(slot)) {
+      DBUG_PRINT("info", "the tuple is null and there is nothing more to process");
       break;
+    }
 
     /*
      * If we have a junk filter, then project a new tuple with the junk
@@ -1742,13 +1854,17 @@ ExecutePlan(QueryDesc *queryDesc,
      * practice, this is probably always the case at this point.)
      */
     if (sendTuples) {
+      DBUG_PRINT("info", "we are supposed to send the tuple somewhere");
+
       /*
        * If we are not able to send the tuple, we assume the destination
        * has closed and no more tuples can be sent. If that's the case,
        * end the loop.
        */
-      if (!dest->receiveSlot(slot, dest))
+      if (!dest->receiveSlot(slot, dest)) {
+        DBUG_PRINT("info", "we are not able to send the tuple and end the loop");
         break;
+      }
     }
 
     /*
@@ -1759,6 +1875,7 @@ ExecutePlan(QueryDesc *queryDesc,
     if (operation == CMD_SELECT)
       (estate->es_processed)++;
 
+    count++;
     /*
      * check our tuple count.. if we've processed the proper number then
      * quit, else loop again and process more tuples.  Zero numberTuples
@@ -1766,8 +1883,21 @@ ExecutePlan(QueryDesc *queryDesc,
      */
     current_tuple_count++;
 
-    if (numberTuples && numberTuples == current_tuple_count)
+    if (numberTuples && numberTuples == current_tuple_count) {
+      DBUG_PRINT("info", "we've processed the proper number then quit");
       break;
+    }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+  }
+
+  if (numberTuples) {
+    DBUG_PRINT("info", "tuple count:%ld processed", current_tuple_count);
   }
 
   /*
@@ -1791,6 +1921,7 @@ static const char *
 ExecRelCheck(ResultRelInfo *resultRelInfo,
              TupleTableSlot *slot, EState *estate)
 {
+  DBUG_TRACE;
   Relation  rel = resultRelInfo->ri_RelationDesc;
   int     ncheck = rel->rd_att->constr->num_check;
   ConstrCheck *check = rel->rd_att->constr->check;
@@ -1802,9 +1933,11 @@ ExecRelCheck(ResultRelInfo *resultRelInfo,
    * should fail rather than possibly failing to enforce an important
    * constraint.
    */
-  if (ncheck != rel->rd_rel->relchecks)
+  if (ncheck != rel->rd_rel->relchecks) {
+    DBUG_INSTANT_PRINT("info", "%d pg_constraint record(s) missing for relation \"%s\"", rel->rd_rel->relchecks - ncheck, RelationGetRelationName(rel));
     elog(ERROR, "%d pg_constraint record(s) missing for relation \"%s\"",
          rel->rd_rel->relchecks - ncheck, RelationGetRelationName(rel));
+  }
 
   /*
    * If first time through for this result relation, build expression
@@ -1868,6 +2001,7 @@ bool
 ExecPartitionCheck(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
                    EState *estate, bool emitError)
 {
+  DBUG_TRACE;
   ExprContext *econtext;
   bool    success;
 
@@ -1921,6 +2055,7 @@ ExecPartitionCheckEmitError(ResultRelInfo *resultRelInfo,
                             TupleTableSlot *slot,
                             EState *estate)
 {
+  DBUG_TRACE;
   Oid     root_relid;
   TupleDesc tupdesc;
   char     *val_desc;
@@ -1966,6 +2101,8 @@ ExecPartitionCheckEmitError(ResultRelInfo *resultRelInfo,
              tupdesc,
              modifiedCols,
              64);
+  DBUG_INSTANT_PRINT("info", "new row for relation \"%s\" violates partition constraint",
+                     RelationGetRelationName(resultRelInfo->ri_RelationDesc));
   ereport(ERROR,
           (errcode(ERRCODE_CHECK_VIOLATION),
            errmsg("new row for relation \"%s\" violates partition constraint",
@@ -1989,12 +2126,14 @@ void
 ExecConstraints(ResultRelInfo *resultRelInfo,
                 TupleTableSlot *slot, EState *estate)
 {
+  DBUG_TRACE;
   Relation  rel = resultRelInfo->ri_RelationDesc;
   TupleDesc tupdesc = RelationGetDescr(rel);
   TupleConstr *constr = tupdesc->constr;
   Bitmapset  *modifiedCols;
   List     *notnull_virtual_attrs = NIL;
 
+  DBUG_PRINT("info", "this checks the traditional NOT NULL and check constraints");
   Assert(constr);       /* we should not be called otherwise */
 
   /*
@@ -2074,6 +2213,9 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
                  tupdesc,
                  modifiedCols,
                  64);
+
+      DBUG_INSTANT_PRINT("info", "new row for relation \"%s\" violates check constraint \"%s\"",
+                         RelationGetRelationName(orig_rel), failed);
       ereport(ERROR,
               (errcode(ERRCODE_CHECK_VIOLATION),
                errmsg("new row for relation \"%s\" violates check constraint \"%s\"",
@@ -2208,6 +2350,9 @@ ReportNotNullViolationError(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
              tupdesc,
              modifiedCols,
              64);
+
+  DBUG_INSTANT_PRINT("info", "null value in column \"%s\" of relation \"%s\" violates not-null constraint",
+                     NameStr(att->attname), RelationGetRelationName(orig_rel));
   ereport(ERROR,
           errcode(ERRCODE_NOT_NULL_VIOLATION),
           errmsg("null value in column \"%s\" of relation \"%s\" violates not-null constraint",
@@ -2230,6 +2375,7 @@ void
 ExecWithCheckOptions(WCOKind kind, ResultRelInfo *resultRelInfo,
                      TupleTableSlot *slot, EState *estate)
 {
+  DBUG_TRACE;
   Relation  rel = resultRelInfo->ri_RelationDesc;
   TupleDesc tupdesc = RelationGetDescr(rel);
   ExprContext *econtext;
@@ -2314,6 +2460,7 @@ ExecWithCheckOptions(WCOKind kind, ResultRelInfo *resultRelInfo,
                      modifiedCols,
                      64);
 
+          DBUG_INSTANT_PRINT("info", "new row violates check option for view \"%s\"", wco->relname);
           ereport(ERROR,
                   (errcode(ERRCODE_WITH_CHECK_OPTION_VIOLATION),
                    errmsg("new row violates check option for view \"%s\"",
@@ -2324,49 +2471,63 @@ ExecWithCheckOptions(WCOKind kind, ResultRelInfo *resultRelInfo,
 
         case WCO_RLS_INSERT_CHECK:
         case WCO_RLS_UPDATE_CHECK:
-          if (wco->polname != NULL)
+          if (wco->polname != NULL) {
+            DBUG_INSTANT_PRINT("info", "new row violates row-level security policy \"%s\" for table \"%s\"",
+                               wco->polname, wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("new row violates row-level security policy \"%s\" for table \"%s\"",
                             wco->polname, wco->relname)));
-          else
+          } else {
+            DBUG_INSTANT_PRINT("info", "new row violates row-level security policy for table \"%s\"", wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("new row violates row-level security policy for table \"%s\"",
                             wco->relname)));
+          }
 
           break;
 
         case WCO_RLS_MERGE_UPDATE_CHECK:
         case WCO_RLS_MERGE_DELETE_CHECK:
-          if (wco->polname != NULL)
+          if (wco->polname != NULL) {
+            DBUG_INSTANT_PRINT("info", "target row violates row-level security policy \"%s\" (USING expression) for table \"%s\"",
+                               wco->polname, wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("target row violates row-level security policy \"%s\" (USING expression) for table \"%s\"",
                             wco->polname, wco->relname)));
-          else
+          } else {
+            DBUG_INSTANT_PRINT("info", "target row violates row-level security policy (USING expression) for table \"%s\"", wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("target row violates row-level security policy (USING expression) for table \"%s\"",
                             wco->relname)));
+          }
 
           break;
 
         case WCO_RLS_CONFLICT_CHECK:
-          if (wco->polname != NULL)
+          if (wco->polname != NULL) {
+            DBUG_INSTANT_PRINT("info", "new row violates row-level security policy \"%s\" (USING expression) for table \"%s\"",
+                               wco->polname, wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("new row violates row-level security policy \"%s\" (USING expression) for table \"%s\"",
                             wco->polname, wco->relname)));
-          else
+          } else {
+            DBUG_INSTANT_PRINT("info", "new row violates row-level security policy (USING expression) for table \"%s\"",
+                               wco->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                      errmsg("new row violates row-level security policy (USING expression) for table \"%s\"",
                             wco->relname)));
+          }
 
           break;
 
         default:
+          DBUG_INSTANT_PRINT("info", "unrecognized WCO kind: %u", wco->kind);
           elog(ERROR, "unrecognized WCO kind: %u", wco->kind);
           break;
       }
@@ -2400,6 +2561,7 @@ ExecBuildSlotValueDescription(Oid reloid,
                               Bitmapset *modifiedCols,
                               int maxfieldlen)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   StringInfoData collist;
   bool    write_comma = false;
@@ -2529,6 +2691,7 @@ ExecBuildSlotValueDescription(Oid reloid,
 LockTupleMode
 ExecUpdateLockMode(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   Bitmapset  *keyCols;
   Bitmapset  *updatedCols;
 
@@ -2555,6 +2718,8 @@ ExecUpdateLockMode(EState *estate, ResultRelInfo *relinfo)
 ExecRowMark *
 ExecFindRowMark(EState *estate, Index rti, bool missing_ok)
 {
+  DBUG_TRACE;
+
   if (rti > 0 && rti <= estate->es_range_table_size &&
       estate->es_rowmarks != NULL) {
     ExecRowMark *erm = estate->es_rowmarks[rti - 1];
@@ -2563,8 +2728,10 @@ ExecFindRowMark(EState *estate, Index rti, bool missing_ok)
       return erm;
   }
 
-  if (!missing_ok)
+  if (!missing_ok) {
+    DBUG_INSTANT_PRINT("info", "failed to find ExecRowMark for rangetable index %u", rti);
     elog(ERROR, "failed to find ExecRowMark for rangetable index %u", rti);
+  }
 
   return NULL;
 }
@@ -2579,6 +2746,7 @@ ExecFindRowMark(EState *estate, Index rti, bool missing_ok)
 ExecAuxRowMark *
 ExecBuildAuxRowMark(ExecRowMark *erm, List *targetlist)
 {
+  DBUG_TRACE;
   ExecAuxRowMark *aerm = (ExecAuxRowMark *) palloc0(sizeof(ExecAuxRowMark));
   char    resname[32];
 
@@ -2591,16 +2759,20 @@ ExecBuildAuxRowMark(ExecRowMark *erm, List *targetlist)
     aerm->ctidAttNo = ExecFindJunkAttributeInTlist(targetlist,
                       resname);
 
-    if (!AttributeNumberIsValid(aerm->ctidAttNo))
+    if (!AttributeNumberIsValid(aerm->ctidAttNo)) {
+      DBUG_INSTANT_PRINT("info", "could not find junk %s column", resname);
       elog(ERROR, "could not find junk %s column", resname);
+    }
   } else {
     /* need wholerow if COPY */
     snprintf(resname, sizeof(resname), "wholerow%u", erm->rowmarkId);
     aerm->wholeAttNo = ExecFindJunkAttributeInTlist(targetlist,
                        resname);
 
-    if (!AttributeNumberIsValid(aerm->wholeAttNo))
+    if (!AttributeNumberIsValid(aerm->wholeAttNo)) {
+      DBUG_INSTANT_PRINT("info", "could not find junk %s column", resname);
       elog(ERROR, "could not find junk %s column", resname);
+    }
   }
 
   /* if child rel, need tableoid */
@@ -2609,8 +2781,10 @@ ExecBuildAuxRowMark(ExecRowMark *erm, List *targetlist)
     aerm->toidAttNo = ExecFindJunkAttributeInTlist(targetlist,
                       resname);
 
-    if (!AttributeNumberIsValid(aerm->toidAttNo))
+    if (!AttributeNumberIsValid(aerm->toidAttNo)) {
+      DBUG_INSTANT_PRINT("info", "could not find junk %s column", resname);
       elog(ERROR, "could not find junk %s column", resname);
+    }
   }
 
   return aerm;
@@ -2649,6 +2823,7 @@ TupleTableSlot *
 EvalPlanQual(EPQState *epqstate, Relation relation,
              Index rti, TupleTableSlot *inputslot)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
   TupleTableSlot *testslot;
 
@@ -2720,6 +2895,7 @@ EvalPlanQualInit(EPQState *epqstate, EState *parentestate,
                  Plan *subplan, List *auxrowmarks,
                  int epqParam, List *resultRelations)
 {
+  DBUG_TRACE;
   Index   rtsize = parentestate->es_range_table_size;
 
   /* initialize data not changing over EPQState's lifetime */
@@ -2778,6 +2954,7 @@ TupleTableSlot *
 EvalPlanQualSlot(EPQState *epqstate,
                  Relation relation, Index rti)
 {
+  DBUG_TRACE;
   TupleTableSlot **slot;
 
   Assert(relation);
@@ -2804,6 +2981,7 @@ EvalPlanQualSlot(EPQState *epqstate,
 bool
 EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   ExecAuxRowMark *earm = epqstate->relsubs_rowmark[rti - 1];
   ExecRowMark *erm;
   Datum   datum;
@@ -2814,8 +2992,10 @@ EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
 
   erm = earm->rowmark;
 
-  if (RowMarkRequiresRowShareLock(erm->markType))
+  if (RowMarkRequiresRowShareLock(erm->markType)) {
+    DBUG_INSTANT_PRINT("info", "EvalPlanQual doesn't support locking rowmarks");
     elog(ERROR, "EvalPlanQual doesn't support locking rowmarks");
+  }
 
   /* if child rel, must check whether it produced this row */
   if (erm->rti != erm->prti) {
@@ -2859,11 +3039,13 @@ EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
       fdwroutine = GetFdwRoutineForRelation(erm->relation, false);
 
       /* this should have been checked already, but let's be safe */
-      if (fdwroutine->RefetchForeignRow == NULL)
+      if (fdwroutine->RefetchForeignRow == NULL) {
+        DBUG_INSTANT_PRINT("info", "cannot lock rows in foreign table \"%s\"", RelationGetRelationName(erm->relation));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot lock rows in foreign table \"%s\"",
                         RelationGetRelationName(erm->relation))));
+      }
 
       fdwroutine->RefetchForeignRow(epqstate->recheckestate,
                                     erm,
@@ -2871,8 +3053,10 @@ EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
                                     slot,
                                     &updated);
 
-      if (TupIsNull(slot))
+      if (TupIsNull(slot)) {
+        DBUG_INSTANT_PRINT("info", "failed to fetch tuple for EvalPlanQual recheck");
         elog(ERROR, "failed to fetch tuple for EvalPlanQual recheck");
+      }
 
       /*
        * Ideally we'd insist on updated == false here, but that assumes
@@ -2884,8 +3068,10 @@ EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
       /* ordinary table, fetch the tuple */
       if (!table_tuple_fetch_row_version(erm->relation,
                                          (ItemPointer) DatumGetPointer(datum),
-                                         SnapshotAny, slot))
+                                         SnapshotAny, slot)) {
+        DBUG_INSTANT_PRINT("info", "failed to fetch tuple for EvalPlanQual recheck");
         elog(ERROR, "failed to fetch tuple for EvalPlanQual recheck");
+      }
 
       return true;
     }
@@ -2914,6 +3100,7 @@ EvalPlanQualFetchRowMark(EPQState *epqstate, Index rti, TupleTableSlot *slot)
 TupleTableSlot *
 EvalPlanQualNext(EPQState *epqstate)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   TupleTableSlot *slot;
 
@@ -2930,6 +3117,7 @@ EvalPlanQualNext(EPQState *epqstate)
 void
 EvalPlanQualBegin(EPQState *epqstate)
 {
+  DBUG_TRACE;
   EState     *parentestate = epqstate->parentestate;
   EState     *recheckestate = epqstate->recheckestate;
 
@@ -2992,6 +3180,7 @@ EvalPlanQualBegin(EPQState *epqstate)
 static void
 EvalPlanQualStart(EPQState *epqstate, Plan *planTree)
 {
+  DBUG_TRACE;
   EState     *parentestate = epqstate->parentestate;
   Index   rtsize = parentestate->es_range_table_size;
   EState     *rcestate;
@@ -3174,6 +3363,7 @@ EvalPlanQualStart(EPQState *epqstate, Plan *planTree)
 void
 EvalPlanQualEnd(EPQState *epqstate)
 {
+  DBUG_TRACE;
   EState     *estate = epqstate->recheckestate;
   Index   rtsize;
   MemoryContext oldcontext;

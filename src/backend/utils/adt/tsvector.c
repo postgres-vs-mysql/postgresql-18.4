@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/int.h"
 #include "libpq/pqformat.h"
@@ -50,8 +51,11 @@ compareWordEntryPos(const void *a, const void *b)
 static int
 uniquePos(WordEntryPos *a, int l)
 {
+  DBUG_TRACE;
   WordEntryPos *ptr,
                *res;
+
+  DBUG_PRINT("info", "remove duplicate pos entries");
 
   if (l <= 1)
     return l;
@@ -101,10 +105,12 @@ compareentry(const void *va, const void *vb, void *arg)
 static int
 uniqueentry(WordEntryIN *a, int l, char *buf, int *outbuflen)
 {
+  DBUG_TRACE;
   int     buflen;
   WordEntryIN *ptr,
               *res;
 
+  DBUG_PRINT("info", "sort an array of WordEntryIN, remove duplicates");
   Assert(l >= 1);
 
   if (l > 1)
@@ -170,6 +176,7 @@ uniqueentry(WordEntryIN *a, int l, char *buf, int *outbuflen)
 Datum
 tsvectorin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *buf = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   TSVectorParseState state;
@@ -195,6 +202,7 @@ tsvectorin(PG_FUNCTION_ARGS)
   char     *cur;
   int     buflen = 256; /* allocated size of tmpbuf */
 
+  DBUG_PRINT("info", "%s", buf);
   state = init_tsvector_parser(buf, 0, escontext);
 
   arrlen = 64;
@@ -307,6 +315,7 @@ tsvectorin(PG_FUNCTION_ARGS)
 Datum
 tsvectorout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  out = PG_GETARG_TSVECTOR(0);
   char     *outbuf;
   int32   i,
@@ -409,6 +418,7 @@ tsvectorout(PG_FUNCTION_ARGS)
 Datum
 tsvectorsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  vec = PG_GETARG_TSVECTOR(0);
   StringInfoData buf;
   int     i,
@@ -448,6 +458,7 @@ tsvectorsend(PG_FUNCTION_ARGS)
 Datum
 tsvectorrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   TSVector  vec;
   int     i;

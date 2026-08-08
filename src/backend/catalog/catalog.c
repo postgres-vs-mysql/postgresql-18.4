@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -73,7 +74,16 @@
 bool
 IsSystemRelation(Relation relation)
 {
-  return IsSystemClass(RelationGetRelid(relation), relation->rd_rel);
+  DBUG_TRACE;
+  bool result = IsSystemClass(RelationGetRelid(relation), relation->rd_rel);
+
+  if (result) {
+    DBUG_PRINT("info", "the relation is a system catalog or a toast table");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -103,7 +113,16 @@ IsSystemClass(Oid relid, Form_pg_class reltuple)
 bool
 IsCatalogRelation(Relation relation)
 {
-  return IsCatalogRelationOid(RelationGetRelid(relation));
+  DBUG_TRACE;
+  bool result = IsCatalogRelationOid(RelationGetRelid(relation));
+
+  if (result) {
+    DBUG_PRINT("info", "the relation is a system catalog");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -182,7 +201,16 @@ IsCatalogTextUniqueIndexOid(Oid relid)
 bool
 IsInplaceUpdateRelation(Relation relation)
 {
-  return IsInplaceUpdateOid(RelationGetRelid(relation));
+  DBUG_TRACE;
+  bool result = IsInplaceUpdateOid(RelationGetRelid(relation));
+
+  if (result) {
+    DBUG_PRINT("info", "core code performs inplace updates on the relation");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -205,6 +233,7 @@ IsInplaceUpdateOid(Oid relid)
 bool
 IsToastRelation(Relation relation)
 {
+  DBUG_TRACE;
   /*
    * What we actually check is whether the relation belongs to a pg_toast
    * namespace.  This should be equivalent because of restrictions that are
@@ -213,7 +242,15 @@ IsToastRelation(Relation relation)
    * will not say "true" for toast tables belonging to other sessions' temp
    * tables; we expect that other mechanisms will prevent access to those.
    */
-  return IsToastNamespace(RelationGetNamespace(relation));
+  bool result = IsToastNamespace(RelationGetNamespace(relation));
+
+  if (result) {
+    DBUG_PRINT("info", "the relation is a TOAST support relation");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -225,9 +262,18 @@ IsToastRelation(Relation relation)
 bool
 IsToastClass(Form_pg_class reltuple)
 {
+  DBUG_TRACE;
   Oid     relnamespace = reltuple->relnamespace;
 
-  return IsToastNamespace(relnamespace);
+  bool result = IsToastNamespace(relnamespace);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -303,6 +349,8 @@ IsReservedName(const char *name)
 bool
 IsSharedRelation(Oid relationId)
 {
+  DBUG_TRACE;
+
   /* These are the shared catalogs (look for BKI_SHARED_RELATION) */
   if (relationId == AuthIdRelationId ||
       relationId == AuthMemRelationId ||
@@ -314,8 +362,10 @@ IsSharedRelation(Oid relationId)
       relationId == SharedDescriptionRelationId ||
       relationId == SharedSecLabelRelationId ||
       relationId == SubscriptionRelationId ||
-      relationId == TableSpaceRelationId)
+      relationId == TableSpaceRelationId) {
+    DBUG_PRINT("info", "these are the shared catalogs");
     return true;
+  }
 
   /* These are their indexes */
   if (relationId == AuthIdOidIndexId ||
@@ -338,8 +388,10 @@ IsSharedRelation(Oid relationId)
       relationId == SubscriptionNameIndexId ||
       relationId == SubscriptionObjectIndexId ||
       relationId == TablespaceNameIndexId ||
-      relationId == TablespaceOidIndexId)
+      relationId == TablespaceOidIndexId) {
+    DBUG_PRINT("info", "these are their indexes");
     return true;
+  }
 
   /* These are their toast tables and toast indexes */
   if (relationId == PgDatabaseToastTable ||
@@ -355,9 +407,12 @@ IsSharedRelation(Oid relationId)
       relationId == PgSubscriptionToastTable ||
       relationId == PgSubscriptionToastIndex ||
       relationId == PgTablespaceToastTable ||
-      relationId == PgTablespaceToastIndex)
+      relationId == PgTablespaceToastIndex) {
+    DBUG_PRINT("info", "these are their toast tables and toast indexes");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -372,20 +427,26 @@ IsSharedRelation(Oid relationId)
 bool
 IsPinnedObject(Oid classId, Oid objectId)
 {
+  DBUG_TRACE;
+
   /*
    * Objects with OIDs above FirstUnpinnedObjectId are never pinned.  Since
    * the OID generator skips this range when wrapping around, this check
    * guarantees that user-defined objects are never considered pinned.
    */
-  if (objectId >= FirstUnpinnedObjectId)
+  if (objectId >= FirstUnpinnedObjectId) {
+    DBUG_PRINT("info", "objects with OIDs above FirstUnpinnedObjectId are never pinned");
     return false;
+  }
 
   /*
    * Large objects are never pinned.  We need this special case because
    * their OIDs can be user-assigned.
    */
-  if (classId == LargeObjectRelationId)
+  if (classId == LargeObjectRelationId) {
+    DBUG_PRINT("info", "large objects are never pinned");
     return false;
+  }
 
   /*
    * There are a few objects defined in the catalog .dat files that, as a
@@ -401,8 +462,10 @@ IsPinnedObject(Oid classId, Oid objectId)
 
   /* the public namespace is not pinned */
   if (classId == NamespaceRelationId &&
-      objectId == PG_PUBLIC_NAMESPACE)
+      objectId == PG_PUBLIC_NAMESPACE) {
+    DBUG_PRINT("info", "the public namespace is not pinned");
     return false;
+  }
 
   /*
    * Databases are never pinned.  It might seem that it'd be prudent to pin
@@ -410,8 +473,10 @@ IsPinnedObject(Oid classId, Oid objectId)
    * template1 can be rebuilt from each other, thus letting them serve as
    * mutual backups (as long as you've not modified template1, anyway).
    */
-  if (classId == DatabaseRelationId)
+  if (classId == DatabaseRelationId) {
+    DBUG_PRINT("info", "databases are never pinned");
     return false;
+  }
 
   /*
    * All other initdb-created objects are pinned.  This is overkill (the
@@ -420,6 +485,7 @@ IsPinnedObject(Oid classId, Oid objectId)
    * seems hard, and enforcing an accurate list would be much more expensive
    * than the simple range test used here.
    */
+  DBUG_PRINT("info", "all other initdb-created objects are pinned");
   return true;
 }
 
@@ -450,6 +516,7 @@ IsPinnedObject(Oid classId, Oid objectId)
 Oid
 GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 {
+  DBUG_TRACE;
   Oid     newOid;
   SysScanDesc scan;
   ScanKeyData key;
@@ -501,9 +568,11 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
      * messages.
      */
     if (retries >= retries_before_log) {
+      char *rel_name = RelationGetRelationName(relation);
+      DBUG_PRINT("info", "still searching for an unused OID in relation \"%s\"", rel_name);
       ereport(LOG,
               (errmsg("still searching for an unused OID in relation \"%s\"",
-                      RelationGetRelationName(relation)),
+                      rel_name),
                errdetail_plural("OID candidates have been checked %" PRIu64 " time, but no unused OID has been found yet.",
                                 "OID candidates have been checked %" PRIu64 " times, but no unused OID has been found yet.",
                                 retries,
@@ -527,12 +596,15 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
    * assignment.
    */
   if (retries > GETNEWOID_LOG_THRESHOLD) {
+    char *rel_name = RelationGetRelationName(relation);
     ereport(LOG,
             (errmsg_plural("new OID has been assigned in relation \"%s\" after %" PRIu64 " retry",
                            "new OID has been assigned in relation \"%s\" after %" PRIu64 " retries",
                            retries,
-                           RelationGetRelationName(relation), retries)));
+                           rel_name, retries)));
   }
+
+  DBUG_PRINT("info", "generate a new OID(%u) that is unique within the system relation", newOid);
 
   return newOid;
 }
@@ -556,6 +628,7 @@ GetNewOidWithIndex(Relation relation, Oid indexId, AttrNumber oidcolumn)
 RelFileNumber
 GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 {
+  DBUG_TRACE;
   RelFileLocatorBackend rlocator;
   RelPathStr  rpath;
   bool    collides;
@@ -637,6 +710,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 Datum
 pg_nextoid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
   Name    attname = PG_GETARG_NAME(1);
   Oid     idxoid = PG_GETARG_OID(2);
@@ -646,6 +720,7 @@ pg_nextoid(PG_FUNCTION_ARGS)
   Form_pg_attribute attform;
   AttrNumber  attno;
   Oid     newoid;
+  char *rel_name, *index_name;
 
   /*
    * As this function is not intended to be used during normal running, and
@@ -653,51 +728,65 @@ pg_nextoid(PG_FUNCTION_ARGS)
    * modify), just checking for superuser ought to not obstruct valid
    * usecases.
    */
-  if (!superuser())
+  if (!superuser()) {
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to call %s()",
                     "pg_nextoid")));
+  }
 
   rel = table_open(reloid, RowExclusiveLock);
   idx = index_open(idxoid, RowExclusiveLock);
 
-  if (!IsSystemRelation(rel))
+  if (!IsSystemRelation(rel)) {
+    DBUG_INSTANT_PRINT("info", "pg_nextoid() can only be used on system catalogs");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("pg_nextoid() can only be used on system catalogs")));
+  }
 
-  if (idx->rd_index->indrelid != RelationGetRelid(rel))
+  if (idx->rd_index->indrelid != RelationGetRelid(rel)) {
+    rel_name = RelationGetRelationName(rel);
+    index_name = RelationGetRelationName(idx);
+    DBUG_INSTANT_PRINT("info", "index \"%s\" does not belong to table \"%s\"", index_name, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-             errmsg("index \"%s\" does not belong to table \"%s\"",
-                    RelationGetRelationName(idx),
-                    RelationGetRelationName(rel))));
+             errmsg("index \"%s\" does not belong to table \"%s\"", index_name, rel_name)));
+  }
 
   atttuple = SearchSysCacheAttName(reloid, NameStr(*attname));
 
-  if (!HeapTupleIsValid(atttuple))
+  if (!HeapTupleIsValid(atttuple)) {
+    rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist",
+                       NameStr(*attname), rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_COLUMN),
              errmsg("column \"%s\" of relation \"%s\" does not exist",
-                    NameStr(*attname), RelationGetRelationName(rel))));
+                    NameStr(*attname), rel_name)));
+  }
 
   attform = ((Form_pg_attribute) GETSTRUCT(atttuple));
   attno = attform->attnum;
 
-  if (attform->atttypid != OIDOID)
+  if (attform->atttypid != OIDOID) {
+    DBUG_INSTANT_PRINT("info", "column \"%s\" is not of type oid", NameStr(*attname));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("column \"%s\" is not of type oid",
                     NameStr(*attname))));
+  }
 
   if (IndexRelationGetNumberOfKeyAttributes(idx) != 1 ||
-      idx->rd_index->indkey.values[0] != attno)
+      idx->rd_index->indkey.values[0] != attno) {
+    index_name = RelationGetRelationName(idx);
+    DBUG_INSTANT_PRINT("info", "index \"%s\" is not the index for column \"%s\"", index_name, NameStr(*attname));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("index \"%s\" is not the index for column \"%s\"",
-                    RelationGetRelationName(idx),
+                    index_name,
                     NameStr(*attname))));
+  }
 
   newoid = GetNewOidWithIndex(rel, idxoid, attno);
 
@@ -717,15 +806,19 @@ pg_nextoid(PG_FUNCTION_ARGS)
 Datum
 pg_stop_making_pinned_objects(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   /*
    * Belt-and-suspenders check, since StopGeneratingPinnedObjectIds will
    * fail anyway in non-single-user mode.
    */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to call pg_stop_making_pinned_objects()");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to call %s()",
                     "pg_stop_making_pinned_objects")));
+  }
 
   StopGeneratingPinnedObjectIds();
 

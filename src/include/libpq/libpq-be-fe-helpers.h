@@ -41,6 +41,7 @@
 #endif
 
 #include "libpq-fe.h"
+#include "debug_trace.h"
 #include "miscadmin.h"
 #include "storage/fd.h"
 #include "storage/latch.h"
@@ -65,6 +66,7 @@ static inline PGresult *libpqsrv_get_result(PGconn *conn, uint32 wait_event_info
 static inline PGconn *
 libpqsrv_connect(const char *conninfo, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   PGconn     *conn = NULL;
 
   libpqsrv_connect_prepare();
@@ -86,6 +88,7 @@ libpqsrv_connect_params(const char *const *keywords,
                         int expand_dbname,
                         uint32 wait_event_info)
 {
+  DBUG_TRACE;
   PGconn     *conn = NULL;
 
   libpqsrv_connect_prepare();
@@ -106,6 +109,8 @@ libpqsrv_connect_params(const char *const *keywords,
 static inline void
 libpqsrv_disconnect(PGconn *conn)
 {
+  DBUG_TRACE;
+
   /*
    * If no connection was established, we haven't reserved an FD for it (or
    * already released it). This rule makes it easier to write PG_CATCH()
@@ -130,13 +135,14 @@ libpqsrv_disconnect(PGconn *conn)
 static inline void
 libpqsrv_connect_prepare(void)
 {
+  DBUG_TRACE;
+
   /*
    * We must obey fd.c's limit on non-virtual file descriptors.  Assume that
    * a PGconn represents one long-lived FD.  (Doing this here also ensures
    * that VFDs are closed if needed to make room.)
    */
-  if (!AcquireExternalFD())
-  {
+  if (!AcquireExternalFD()) {
 #ifndef WIN32         /* can't write #if within ereport() macro */
     ereport(ERROR,
             (errcode(ERRCODE_SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION),
@@ -159,12 +165,13 @@ libpqsrv_connect_prepare(void)
 static inline void
 libpqsrv_connect_internal(PGconn *conn, uint32 wait_event_info)
 {
+  DBUG_TRACE;
+
   /*
    * With conn == NULL libpqsrv_disconnect() wouldn't release the FD. So do
    * that here.
    */
-  if (conn == NULL)
-  {
+  if (conn == NULL) {
     ReleaseExternalFD();
     return;
   }
@@ -191,8 +198,7 @@ libpqsrv_connect_internal(PGconn *conn, uint32 wait_event_info)
      */
     status = PGRES_POLLING_WRITING;
 
-    while (status != PGRES_POLLING_OK && status != PGRES_POLLING_FAILED)
-    {
+    while (status != PGRES_POLLING_OK && status != PGRES_POLLING_FAILED) {
       int     io_flag;
       int     rc;
 
@@ -219,8 +225,7 @@ libpqsrv_connect_internal(PGconn *conn, uint32 wait_event_info)
                              wait_event_info);
 
       /* Interrupted? */
-      if (rc & WL_LATCH_SET)
-      {
+      if (rc & WL_LATCH_SET) {
         ResetLatch(MyLatch);
         CHECK_FOR_INTERRUPTS();
       }
@@ -258,6 +263,8 @@ libpqsrv_connect_internal(PGconn *conn, uint32 wait_event_info)
 static inline PGresult *
 libpqsrv_exec(PGconn *conn, const char *query, uint32 wait_event_info)
 {
+  DBUG_TRACE;
+
   if (!PQsendQuery(conn, query))
     return NULL;
 
@@ -280,6 +287,8 @@ libpqsrv_exec_params(PGconn *conn,
                      int resultFormat,
                      uint32 wait_event_info)
 {
+  DBUG_TRACE;
+
   if (!PQsendQueryParams(conn, command, nParams, paramTypes, paramValues,
                          paramLengths, paramFormats, resultFormat))
     return NULL;
@@ -294,13 +303,13 @@ libpqsrv_exec_params(PGconn *conn,
 static inline PGresult *
 libpqsrv_get_result_last(PGconn *conn, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   PGresult   *volatile lastResult = NULL;
 
   /* In what follows, do not leak any PGresults on an error. */
   PG_TRY();
   {
-    for (;;)
-    {
+    for (;;) {
       /* Wait for, and collect, the next PGresult. */
       PGresult   *result;
 
@@ -339,12 +348,13 @@ libpqsrv_get_result_last(PGconn *conn, uint32 wait_event_info)
 static inline PGresult *
 libpqsrv_get_result(PGconn *conn, uint32 wait_event_info)
 {
+  DBUG_TRACE;
+
   /*
    * Collect data until PQgetResult is ready to get the result without
    * blocking.
    */
-  while (PQisBusy(conn))
-  {
+  while (PQisBusy(conn)) {
     int     rc;
 
     rc = WaitLatchOrSocket(MyLatch,
@@ -355,15 +365,13 @@ libpqsrv_get_result(PGconn *conn, uint32 wait_event_info)
                            wait_event_info);
 
     /* Interrupted? */
-    if (rc & WL_LATCH_SET)
-    {
+    if (rc & WL_LATCH_SET) {
       ResetLatch(MyLatch);
       CHECK_FOR_INTERRUPTS();
     }
 
     /* Consume whatever data is available from the socket */
-    if (PQconsumeInput(conn) == 0)
-    {
+    if (PQconsumeInput(conn) == 0) {
       /* trouble; expect PQgetResult() to return NULL */
       break;
     }
@@ -391,6 +399,7 @@ libpqsrv_get_result(PGconn *conn, uint32 wait_event_info)
 static inline const char *
 libpqsrv_cancel(PGconn *conn, TimestampTz endtime)
 {
+  DBUG_TRACE;
   PGcancelConn *cancel_conn;
   const char *error = NULL;
 
@@ -403,14 +412,12 @@ libpqsrv_cancel(PGconn *conn, TimestampTz endtime)
 
   PG_TRY();
   {
-    if (!PQcancelStart(cancel_conn))
-    {
+    if (!PQcancelStart(cancel_conn)) {
       error = pchomp(PQcancelErrorMessage(cancel_conn));
       goto exit;
     }
 
-    for (;;)
-    {
+    for (;;) {
       PostgresPollingStatusType pollres;
       TimestampTz now;
       long    cur_timeout;
@@ -425,14 +432,12 @@ libpqsrv_cancel(PGconn *conn, TimestampTz endtime)
       now = GetCurrentTimestamp();
       cur_timeout = TimestampDifferenceMilliseconds(now, endtime);
 
-      if (cur_timeout <= 0)
-      {
+      if (cur_timeout <= 0) {
         error = "cancel request timed out";
         break;
       }
 
-      switch (pollres)
-      {
+      switch (pollres) {
         case PGRES_POLLING_READING:
           waitEvents |= WL_SOCKET_READABLE;
           break;

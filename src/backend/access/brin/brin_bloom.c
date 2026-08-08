@@ -113,6 +113,7 @@
  *    src/backend/access/brin/brin_bloom.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -442,6 +443,7 @@ static FmgrInfo *bloom_get_procinfo(BrinDesc *bdesc, uint16 attno,
 Datum
 brin_bloom_opcinfo(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinOpcInfo *result;
 
   /*
@@ -532,6 +534,7 @@ brin_bloom_get_ndistinct(BrinDesc *bdesc, BloomOptions *opts)
 Datum
 brin_bloom_add_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   Datum   newval = PG_GETARG_DATUM(2);
@@ -574,6 +577,12 @@ brin_bloom_add_value(PG_FUNCTION_ARGS)
 
   column->bv_values[0] = PointerGetDatum(filter);
 
+  if (updated) {
+    DBUG_PRINT("info", "return updated:true");
+  } else {
+    DBUG_PRINT("info", "return updated:false");
+  }
+
   PG_RETURN_BOOL(updated);
 }
 
@@ -585,6 +594,7 @@ brin_bloom_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   ScanKey    *keys = (ScanKey *) PG_GETARG_POINTER(2);
@@ -642,6 +652,12 @@ brin_bloom_consistent(PG_FUNCTION_ARGS)
       break;
   }
 
+  if (matches) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(matches);
 }
 
@@ -656,6 +672,7 @@ brin_bloom_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     i;
   int     nbytes;
   BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
@@ -735,6 +752,7 @@ bloom_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum)
 Datum
 brin_bloom_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(BloomOptions));
@@ -765,6 +783,7 @@ brin_bloom_options(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * brin_bloom_summary stores the data in binary form and parsing text
    * input is not needed, so disallow this.
@@ -787,6 +806,7 @@ brin_bloom_summary_in(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BloomFilter *filter;
   StringInfoData str;
 
@@ -811,6 +831,7 @@ brin_bloom_summary_out(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "pg_brin_bloom_summary")));
@@ -828,5 +849,6 @@ brin_bloom_summary_recv(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteasend(fcinfo);
 }

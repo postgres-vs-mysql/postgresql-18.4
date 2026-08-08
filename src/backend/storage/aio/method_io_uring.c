@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 /* included early, for IOMETHOD_IO_URING_ENABLED */
 #include "storage/aio.h"
@@ -137,6 +138,7 @@ pgaio_uring_procs(void)
 static void
 pgaio_uring_check_capabilities(void)
 {
+  DBUG_TRACE;
   if (pgaio_uring_caps.checked)
     return;
 
@@ -273,6 +275,7 @@ pgaio_uring_shmem_size(void)
 static void
 pgaio_uring_shmem_init(bool first_time)
 {
+  DBUG_TRACE;
   int     TotalProcs = pgaio_uring_procs();
   bool    found;
   char     *shmem;
@@ -376,13 +379,14 @@ pgaio_uring_shmem_init(bool first_time)
               hint != NULL ? errhint("%s", hint) : 0);
     }
 
-    LWLockInitialize(&context->completion_lock, LWTRANCHE_AIO_URING_COMPLETION);
+    LWLockInitialize(&context->completion_lock, LWTRANCHE_AIO_URING_COMPLETION, contextno);
   }
 }
 
 static void
 pgaio_uring_init_backend(void)
 {
+  DBUG_TRACE;
   Assert(MyProcNumber < pgaio_uring_procs());
 
   pgaio_my_uring_context = &pgaio_uring_contexts[MyProcNumber];
@@ -391,6 +395,7 @@ pgaio_uring_init_backend(void)
 static int
 pgaio_uring_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 {
+  DBUG_TRACE;
   struct io_uring *uring_instance = &pgaio_my_uring_context->io_uring_ring;
   int     in_flight_before = dclist_count(&pgaio_my_backend->in_flight_ios);
 
@@ -438,6 +443,7 @@ pgaio_uring_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
     pgstat_report_wait_end();
 
     if (ret == -EINTR) {
+      DBUG_PRINT("info", "aio method uring: submit EINTR, nios: %d", num_staged_ios);
       pgaio_debug(DEBUG3,
                   "aio method uring: submit EINTR, nios: %d",
                   num_staged_ios);
@@ -468,6 +474,7 @@ pgaio_uring_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
       elog(PANIC, "io_uring submit submitted only %d of %d",
            ret, num_staged_ios);
     } else {
+      DBUG_PRINT("info", "aio method uring: submitted %d IOs", num_staged_ios);
       pgaio_debug(DEBUG4,
                   "aio method uring: submitted %d IOs",
                   num_staged_ios);
@@ -481,6 +488,7 @@ pgaio_uring_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 static void
 pgaio_uring_completion_error_callback(void *arg)
 {
+  DBUG_TRACE;
   ProcNumber  owner;
   PGPROC     *owner_proc;
   int32   owner_pid;
@@ -503,6 +511,7 @@ pgaio_uring_completion_error_callback(void *arg)
 static void
 pgaio_uring_drain_locked(PgAioUringContext *context)
 {
+  DBUG_TRACE;
   int     ready;
   int     orig_ready;
   ErrorContextCallback errcallback = {0};
@@ -548,6 +557,7 @@ pgaio_uring_drain_locked(PgAioUringContext *context)
 
     END_CRIT_SECTION();
 
+    DBUG_PRINT("info", "drained %d/%d, now expecting %d", ncqes, orig_ready, io_uring_cq_ready(&context->io_uring_ring));
     pgaio_debug(DEBUG3,
                 "drained %d/%d, now expecting %d",
                 ncqes, orig_ready, io_uring_cq_ready(&context->io_uring_ring));
@@ -559,6 +569,7 @@ pgaio_uring_drain_locked(PgAioUringContext *context)
 static void
 pgaio_uring_wait_one(PgAioHandle *ioh, uint64 ref_generation)
 {
+  DBUG_TRACE;
   PgAioHandleState state;
   ProcNumber  owner_procno = ioh->owner_procno;
   PgAioUringContext *owner_context = &pgaio_uring_contexts[owner_procno];
@@ -573,6 +584,7 @@ pgaio_uring_wait_one(PgAioHandle *ioh, uint64 ref_generation)
   LWLockAcquire(&owner_context->completion_lock, LW_EXCLUSIVE);
 
   while (true) {
+    DBUG_PRINT("info", "wait_one io_gen: %lu, ref_gen:%lu, cycle:%d", ioh->generation, ref_generation, waited);
     pgaio_debug_io(DEBUG3, ioh,
                    "wait_one io_gen: %" PRIu64 ", ref_gen: %" PRIu64 ", cycle %d",
                    ioh->generation,
@@ -581,9 +593,11 @@ pgaio_uring_wait_one(PgAioHandle *ioh, uint64 ref_generation)
 
     if (pgaio_io_was_recycled(ioh, ref_generation, &state) ||
         state != PGAIO_HS_SUBMITTED) {
+      DBUG_PRINT("info", "the IO was completed by another backend");
       /* the IO was completed by another backend */
       break;
     } else if (io_uring_cq_ready(&owner_context->io_uring_ring)) {
+      DBUG_PRINT("info", "no need to wait in the kernel, io_uring has a completion");
       /* no need to wait in the kernel, io_uring has a completion */
       expect_cqe = true;
     } else {
@@ -615,6 +629,7 @@ pgaio_uring_wait_one(PgAioHandle *ioh, uint64 ref_generation)
 
   LWLockRelease(&owner_context->completion_lock);
 
+  DBUG_PRINT("info", "wait_one with %d sleeps", waited);
   pgaio_debug(DEBUG3,
               "wait_one with %d sleeps",
               waited);
@@ -623,6 +638,7 @@ pgaio_uring_wait_one(PgAioHandle *ioh, uint64 ref_generation)
 static void
 pgaio_uring_sq_from_io(PgAioHandle *ioh, struct io_uring_sqe *sqe)
 {
+  DBUG_TRACE;
   struct iovec *iov;
 
   switch ((PgAioOp) ioh->op) {

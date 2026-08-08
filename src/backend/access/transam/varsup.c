@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/clog.h"
 #include "access/commit_ts.h"
@@ -46,6 +47,7 @@ VarsupShmemSize(void)
 void
 VarsupShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   /* Initialize our shared state struct */
@@ -75,6 +77,7 @@ VarsupShmemInit(void)
 FullTransactionId
 GetNewTransactionId(bool isSubXact)
 {
+  DBUG_TRACE;
   FullTransactionId full_xid;
   TransactionId xid;
 
@@ -146,38 +149,45 @@ GetNewTransactionId(bool isSubXact)
       char     *oldest_datname = get_database_name(oldest_datoid);
 
       /* complain even if that DB has disappeared */
-      if (oldest_datname)
+      if (oldest_datname) {
+        DBUG_INSTANT_PRINT("info", "database is not accepting commands that assign new transaction IDs to avoid wraparound data loss in database \"%s\"",
+            oldest_datname);
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("database is not accepting commands that assign new transaction IDs to avoid wraparound data loss in database \"%s\"",
                         oldest_datname),
                  errhint("Execute a database-wide VACUUM in that database.\n"
                          "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "database is not accepting commands that assign new transaction IDs to avoid wraparound data loss in database with OID %u", oldest_datoid);
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("database is not accepting commands that assign new transaction IDs to avoid wraparound data loss in database with OID %u",
                         oldest_datoid),
                  errhint("Execute a database-wide VACUUM in that database.\n"
                          "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+      }
     } else if (TransactionIdFollowsOrEquals(xid, xidWarnLimit)) {
       char     *oldest_datname = get_database_name(oldest_datoid);
 
       /* complain even if that DB has disappeared */
-      if (oldest_datname)
+      if (oldest_datname) {
+        DBUG_INSTANT_PRINT("info", "database \"%s\" must be vacuumed within %u transactions", oldest_datname, xidWrapLimit - xid);
         ereport(WARNING,
-                (errmsg("database \"%s\" must be vacuumed within %u transactions",
-                        oldest_datname,
-                        xidWrapLimit - xid),
-                 errhint("To avoid transaction ID assignment failures, execute a database-wide VACUUM in that database.\n"
-                         "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
-      else
+            (errmsg("database \"%s\" must be vacuumed within %u transactions",
+                    oldest_datname,
+                    xidWrapLimit - xid),
+             errhint("To avoid transaction ID assignment failures, execute a database-wide VACUUM in that database.\n"
+               "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+      } else {
+        DBUG_INSTANT_PRINT("info", "database with OID %u must be vacuumed within %u transactions", oldest_datoid, xidWrapLimit - xid);
         ereport(WARNING,
-                (errmsg("database with OID %u must be vacuumed within %u transactions",
-                        oldest_datoid,
-                        xidWrapLimit - xid),
-                 errhint("To avoid XID assignment failures, execute a database-wide VACUUM in that database.\n"
-                         "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+            (errmsg("database with OID %u must be vacuumed within %u transactions",
+                    oldest_datoid,
+                    xidWrapLimit - xid),
+             errhint("To avoid XID assignment failures, execute a database-wide VACUUM in that database.\n"
+               "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+      }
     }
 
     /* Re-acquire lock and start over */
@@ -266,6 +276,8 @@ GetNewTransactionId(bool isSubXact)
   }
 
   LWLockRelease(XidGenLock);
+
+  DBUG_PRINT("info", "full xid:%lu, a new trx id:%u",  full_xid.value, xid);
 
   return full_xid;
 }
@@ -448,6 +460,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
   LWLockRelease(XidGenLock);
 
   /* Log the info */
+  DBUG_PRINT("info", "transaction ID wrap limit is %u, limited by database with OID %u", xidWrapLimit, oldest_datoid);
   ereport(DEBUG1,
           (errmsg_internal("transaction ID wrap limit is %u, limited by database with OID %u",
                            xidWrapLimit, oldest_datoid)));
@@ -481,20 +494,23 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
     else
       oldest_datname = NULL;
 
-    if (oldest_datname)
+    if (oldest_datname) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" must be vacuumed within %u transactions", oldest_datname, xidWrapLimit - curXid);
       ereport(WARNING,
               (errmsg("database \"%s\" must be vacuumed within %u transactions",
                       oldest_datname,
                       xidWrapLimit - curXid),
                errhint("To avoid XID assignment failures, execute a database-wide VACUUM in that database.\n"
                        "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "database with OID %u must be vacuumed within %u transactions", oldest_datoid, xidWrapLimit - curXid);
       ereport(WARNING,
               (errmsg("database with OID %u must be vacuumed within %u transactions",
                       oldest_datoid,
                       xidWrapLimit - curXid),
                errhint("To avoid XID assignment failures, execute a database-wide VACUUM in that database.\n"
                        "You might also need to commit or roll back old prepared transactions, or drop stale replication slots.")));
+    }
   }
 }
 
@@ -554,6 +570,7 @@ ForceTransactionIdLimitUpdate(void)
 Oid
 GetNewObjectId(void)
 {
+  DBUG_TRACE;
   Oid     result;
 
   /* safety check, we should never get this far in a HS standby */
@@ -604,6 +621,7 @@ GetNewObjectId(void)
 
   LWLockRelease(OidGenLock);
 
+  DBUG_PRINT("info", "full xid:%u",  result);
   return result;
 }
 

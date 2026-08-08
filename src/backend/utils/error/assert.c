@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -31,6 +32,8 @@ ExceptionalCondition(const char *conditionName,
                      const char *fileName,
                      int lineNumber)
 {
+  DBUG_TRACE;
+
   /* Report the failure on stderr (or local equivalent) */
   if (!PointerIsValid(conditionName)
       || !PointerIsValid(fileName))

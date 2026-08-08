@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -179,6 +180,7 @@ get_mincount_for_mcv_list(int samplerows, double totalrows)
 MCVList *
 statext_mcv_build(StatsBuildData *data, double totalrows, int stattarget)
 {
+  DBUG_TRACE;
   int     i,
           numattrs,
           numrows,
@@ -343,6 +345,7 @@ statext_mcv_build(StatsBuildData *data, double totalrows, int stattarget)
 static MultiSortSupport
 build_mss(StatsBuildData *data)
 {
+  DBUG_TRACE;
   int     i;
   int     numattrs = data->nattnums;
 
@@ -375,6 +378,7 @@ build_mss(StatsBuildData *data)
 static int
 count_distinct_groups(int numrows, SortItem *items, MultiSortSupport mss)
 {
+  DBUG_TRACE;
   int     i;
   int     ndistinct;
 
@@ -388,6 +392,7 @@ count_distinct_groups(int numrows, SortItem *items, MultiSortSupport mss)
       ndistinct += 1;
   }
 
+  DBUG_PRINT("info", "count distinct combinations of SortItems in the array:%d", ndistinct);
   return ndistinct;
 }
 
@@ -421,6 +426,7 @@ static SortItem *
 build_distinct_groups(int numrows, SortItem *items, MultiSortSupport mss,
                       int *ndistinct)
 {
+  DBUG_TRACE;
   int     i,
           j;
   int     ngroups = count_distinct_groups(numrows, items, mss);
@@ -485,6 +491,7 @@ static SortItem **
 build_column_frequencies(SortItem *groups, int ngroups,
                          MultiSortSupport mss, int *ncounts)
 {
+  DBUG_TRACE;
   int     i,
           dim;
   SortItem  **result;
@@ -549,6 +556,7 @@ build_column_frequencies(SortItem *groups, int ngroups,
 MCVList *
 statext_mcv_load(Oid mvoid, bool inh)
 {
+  DBUG_TRACE;
   MCVList    *result;
   bool    isnull;
   Datum   mcvlist;
@@ -612,6 +620,7 @@ statext_mcv_load(Oid mvoid, bool inh)
 bytea *
 statext_mcv_serialize(MCVList *mcvlist, VacAttrStats **stats)
 {
+  DBUG_TRACE;
   int     i;
   int     dim;
   int     ndims = mcvlist->ndimensions;
@@ -966,6 +975,7 @@ statext_mcv_serialize(MCVList *mcvlist, VacAttrStats **stats)
 MCVList *
 statext_mcv_deserialize(bytea *data)
 {
+  DBUG_TRACE;
   int     dim,
           i;
   Size    expected_size;
@@ -1291,6 +1301,7 @@ statext_mcv_deserialize(bytea *data)
 Datum
 pg_stats_ext_mcvlist_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
 
   /* stuff done only on the first call of the function */
@@ -1421,6 +1432,7 @@ pg_stats_ext_mcvlist_items(PG_FUNCTION_ARGS)
 Datum
 pg_mcv_list_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * pg_mcv_list stores the data in binary form and parsing text input is
    * not needed, so disallow this.
@@ -1447,6 +1459,7 @@ pg_mcv_list_in(PG_FUNCTION_ARGS)
 Datum
 pg_mcv_list_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteaout(fcinfo);
 }
 
@@ -1456,6 +1469,7 @@ pg_mcv_list_out(PG_FUNCTION_ARGS)
 Datum
 pg_mcv_list_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "pg_mcv_list")));
@@ -1472,6 +1486,7 @@ pg_mcv_list_recv(PG_FUNCTION_ARGS)
 Datum
 pg_mcv_list_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteasend(fcinfo);
 }
 
@@ -1547,6 +1562,7 @@ mcv_get_match_bitmap(PlannerInfo *root, List *clauses,
                      Bitmapset *keys, List *exprs,
                      MCVList *mcvlist, bool is_or)
 {
+  DBUG_TRACE;
   ListCell   *l;
   bool     *matches;
 
@@ -1930,6 +1946,7 @@ mcv_combine_selectivities(Selectivity simple_sel,
                           Selectivity mcv_basesel,
                           Selectivity mcv_totalsel)
 {
+  DBUG_TRACE;
   Selectivity other_sel;
   Selectivity sel;
 
@@ -1945,6 +1962,7 @@ mcv_combine_selectivities(Selectivity simple_sel,
   sel = mcv_sel + other_sel;
   CLAMP_PROBABILITY(sel);
 
+  DBUG_PRINT("info", "return selectivity:%g", sel);
   return sel;
 }
 
@@ -1973,6 +1991,7 @@ mcv_clauselist_selectivity(PlannerInfo *root, StatisticExtInfo *stat,
                            RelOptInfo *rel,
                            Selectivity *basesel, Selectivity *totalsel)
 {
+  DBUG_TRACE;
   int     i;
   MCVList    *mcv;
   Selectivity s = 0.0;
@@ -1981,6 +2000,7 @@ mcv_clauselist_selectivity(PlannerInfo *root, StatisticExtInfo *stat,
   /* match/mismatch bitmap for each MCV item */
   bool     *matches = NULL;
 
+  DBUG_PRINT("info", "use MCV statistics to estimate the selectivity of an implicitly-ANDed list of clauses");
   /* load the MCV list stored in the statistics object */
   mcv = statext_mcv_load(stat->statOid, rte->inh);
 
@@ -1989,6 +2009,7 @@ mcv_clauselist_selectivity(PlannerInfo *root, StatisticExtInfo *stat,
                                  mcv, false);
 
   /* sum frequencies for all the matching MCV items */
+  DBUG_PRINT("info", "sum frequencies for all the matching MCV items(mcv->nitems:%d)", mcv->nitems);
   *basesel = 0.0;
   *totalsel = 0.0;
 
@@ -1996,11 +2017,14 @@ mcv_clauselist_selectivity(PlannerInfo *root, StatisticExtInfo *stat,
     *totalsel += mcv->items[i].frequency;
 
     if (matches[i] != false) {
+      DBUG_PRINT("info", "matches[%d] is true and mcv->items[%d].base_frequency:%g", i, i, mcv->items[i].base_frequency);
       *basesel += mcv->items[i].base_frequency;
       s += mcv->items[i].frequency;
+      DBUG_PRINT("info", "totalsel:%g, basesel:%g, mcv->items[%d].frequency:%g and new selec:%g", *totalsel, *basesel, i, mcv->items[i].frequency, s);
     }
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", s);
   return s;
 }
 
@@ -2049,6 +2073,7 @@ mcv_clause_selectivity_or(PlannerInfo *root, StatisticExtInfo *stat,
                           Selectivity *basesel, Selectivity *overlap_mcvsel,
                           Selectivity *overlap_basesel, Selectivity *totalsel)
 {
+  DBUG_TRACE;
   Selectivity s = 0.0;
   bool     *new_matches;
   int     i;
@@ -2090,5 +2115,6 @@ mcv_clause_selectivity_or(PlannerInfo *root, StatisticExtInfo *stat,
 
   pfree(new_matches);
 
+  DBUG_PRINT("info", "return selectivity:%g", s);
   return s;
 }

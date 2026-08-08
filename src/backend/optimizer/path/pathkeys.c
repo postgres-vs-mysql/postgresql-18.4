@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/stratnum.h"
 #include "catalog/pg_opfamily.h"
@@ -57,6 +58,7 @@ make_canonical_pathkey(PlannerInfo *root,
                        EquivalenceClass *eclass, Oid opfamily,
                        CompareType cmptype, bool nulls_first)
 {
+  DBUG_TRACE;
   PathKey    *pk;
   ListCell   *lc;
   MemoryContext oldcontext;
@@ -106,6 +108,7 @@ make_canonical_pathkey(PlannerInfo *root,
 List *
 append_pathkeys(List *target, List *source)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(target != NIL);
@@ -158,21 +161,27 @@ append_pathkeys(List *target, List *source)
 static bool
 pathkey_is_redundant(PathKey *new_pathkey, List *pathkeys)
 {
+  DBUG_TRACE;
   EquivalenceClass *new_ec = new_pathkey->pk_eclass;
   ListCell   *lc;
 
   /* Check for EC containing a constant --- unconditionally redundant */
-  if (EC_MUST_BE_REDUNDANT(new_ec))
+  if (EC_MUST_BE_REDUNDANT(new_ec)) {
+    DBUG_PRINT("info", "unconditionally redundant");
     return true;
+  }
 
   /* If same EC already used in list, then redundant */
   foreach(lc, pathkeys) {
     PathKey    *old_pathkey = (PathKey *) lfirst(lc);
 
-    if (new_ec == old_pathkey->pk_eclass)
+    if (new_ec == old_pathkey->pk_eclass) {
+      DBUG_PRINT("info", "same EC already used in list, then redundant");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "not redundant");
   return false;
 }
 
@@ -205,6 +214,7 @@ make_pathkey_from_sortinfo(PlannerInfo *root,
                            Relids rel,
                            bool create_it)
 {
+  DBUG_TRACE;
   CompareType cmptype;
   Oid     equality_op;
   List     *opfamilies;
@@ -263,6 +273,7 @@ make_pathkey_from_sortop(PlannerInfo *root,
                          Index sortref,
                          bool create_it)
 {
+  DBUG_TRACE;
   Oid     opfamily,
           opcintype,
           collation;
@@ -305,6 +316,7 @@ make_pathkey_from_sortop(PlannerInfo *root,
 PathKeysComparison
 compare_pathkeys(List *keys1, List *keys2)
 {
+  DBUG_TRACE;
   ListCell   *key1,
              *key2;
 
@@ -313,27 +325,36 @@ compare_pathkeys(List *keys1, List *keys2)
    * catches the case where both are NIL, but that's common enough to
    * warrant the test.
    */
-  if (keys1 == keys2)
+  if (keys1 == keys2) {
+    DBUG_PRINT("info", "fall out quickly when we are passed two identical lists");
     return PATHKEYS_EQUAL;
+  }
 
   forboth(key1, keys1, key2, keys2) {
     PathKey    *pathkey1 = (PathKey *) lfirst(key1);
     PathKey    *pathkey2 = (PathKey *) lfirst(key2);
 
-    if (pathkey1 != pathkey2)
+    if (pathkey1 != pathkey2) {
+      DBUG_PRINT("info", "no need to keep looking: different");
       return PATHKEYS_DIFFERENT;  /* no need to keep looking */
+    }
   }
 
   /*
    * If we reached the end of only one list, the other is longer and
    * therefore not a subset.
    */
-  if (key1 != NULL)
+  if (key1 != NULL)  {
+    DBUG_PRINT("info", "key1 is longer");
     return PATHKEYS_BETTER1;  /* key1 is longer */
+  }
 
-  if (key2 != NULL)
+  if (key2 != NULL) {
+    DBUG_PRINT("info", "key2 is longer");
     return PATHKEYS_BETTER2;  /* key2 is longer */
+  }
 
+  DBUG_PRINT("info", "key1 == key2");
   return PATHKEYS_EQUAL;
 }
 
@@ -345,15 +366,19 @@ compare_pathkeys(List *keys1, List *keys2)
 bool
 pathkeys_contained_in(List *keys1, List *keys2)
 {
+  DBUG_TRACE;
+
   switch (compare_pathkeys(keys1, keys2)) {
     case PATHKEYS_EQUAL:
     case PATHKEYS_BETTER2:
+      DBUG_PRINT("info", "return true");
       return true;
 
     default:
       break;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -375,14 +400,17 @@ group_keys_reorder_by_pathkeys(List *pathkeys, List **group_pathkeys,
                                List **group_clauses,
                                int num_groupby_pathkeys)
 {
+  DBUG_TRACE;
   List     *new_group_pathkeys = NIL,
             *new_group_clauses = NIL;
   List     *grouping_pathkeys;
   ListCell   *lc;
   int     n;
 
-  if (pathkeys == NIL || *group_pathkeys == NIL)
+  if (pathkeys == NIL || *group_pathkeys == NIL) {
+    DBUG_PRINT("info", "returns the number of GROUP BY keys with a matching pathkey:0");
     return 0;
+  }
 
   /*
    * We're going to search within just the first num_groupby_pathkeys of
@@ -450,6 +478,7 @@ group_keys_reorder_by_pathkeys(List *pathkeys, List **group_pathkeys,
                                           *group_clauses);
 
   list_free(grouping_pathkeys);
+  DBUG_PRINT("info", "returns the number of GROUP BY keys with a matching pathkey:%d", n);
   return n;
 }
 
@@ -470,6 +499,7 @@ group_keys_reorder_by_pathkeys(List *pathkeys, List **group_pathkeys,
 List *
 get_useful_group_keys_orderings(PlannerInfo *root, Path *path)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   List     *infos = NIL;
   GroupByOrdering *info;
@@ -616,6 +646,7 @@ get_cheapest_path_for_pathkeys(List *paths, List *pathkeys,
                                CostSelector cost_criterion,
                                bool require_parallel_safe)
 {
+  DBUG_TRACE;
   Path     *matched_path = NULL;
   ListCell   *l;
 
@@ -623,16 +654,20 @@ get_cheapest_path_for_pathkeys(List *paths, List *pathkeys,
     Path     *path = (Path *) lfirst(l);
 
     /* If required, reject paths that are not parallel-safe */
-    if (require_parallel_safe && !path->parallel_safe)
+    if (require_parallel_safe && !path->parallel_safe) {
+      DBUG_PRINT("info", "reject paths that are not parallel-safe");
       continue;
+    }
 
     /*
      * Since cost comparison is a lot cheaper than pathkey comparison, do
      * that first.  (XXX is that still true?)
      */
     if (matched_path != NULL &&
-        compare_path_costs(matched_path, path, cost_criterion) <= 0)
+        compare_path_costs(matched_path, path, cost_criterion) <= 0) {
+      DBUG_PRINT("info", "since cost comparison is a lot cheaper than pathkey comparison, do that first");
       continue;
+    }
 
     if (pathkeys_contained_in(pathkeys, path->pathkeys) &&
         bms_is_subset(PATH_REQ_OUTER(path), required_outer))
@@ -662,6 +697,7 @@ get_cheapest_fractional_path_for_pathkeys(List *paths,
     Relids required_outer,
     double fraction)
 {
+  DBUG_TRACE;
   Path     *matched_path = NULL;
   ListCell   *l;
 
@@ -692,6 +728,7 @@ get_cheapest_fractional_path_for_pathkeys(List *paths,
 Path *
 get_cheapest_parallel_safe_total_inner(List *paths)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, paths) {
@@ -734,12 +771,15 @@ build_index_pathkeys(PlannerInfo *root,
                      IndexOptInfo *index,
                      ScanDirection scandir)
 {
+  DBUG_TRACE;
   List     *retval = NIL;
   ListCell   *lc;
   int     i;
 
-  if (index->sortopfamily == NULL)
+  if (index->sortopfamily == NULL) {
+    DBUG_PRINT("info", "non-orderable index");
     return NIL;       /* non-orderable index */
+  }
 
   i = 0;
 
@@ -830,6 +870,7 @@ build_index_pathkeys(PlannerInfo *root,
 static bool
 partkey_is_bool_constant_for_query(RelOptInfo *partrel, int partkeycol)
 {
+  DBUG_TRACE;
   PartitionScheme partscheme = partrel->part_scheme;
   ListCell   *lc;
 
@@ -870,6 +911,7 @@ static bool
 matches_boolean_partition_clause(RestrictInfo *rinfo,
                                  RelOptInfo *partrel, int partkeycol)
 {
+  DBUG_TRACE;
   Node     *clause = (Node *) rinfo->clause;
   Node     *partexpr = (Node *) linitial(partrel->partexprs[partkeycol]);
 
@@ -904,6 +946,7 @@ List *
 build_partition_pathkeys(PlannerInfo *root, RelOptInfo *partrel,
                          ScanDirection scandir, bool *partialkeys)
 {
+  DBUG_TRACE;
   List     *retval = NIL;
   PartitionScheme partscheme = partrel->part_scheme;
   int     i;
@@ -983,6 +1026,7 @@ build_expression_pathkey(PlannerInfo *root,
                          Relids rel,
                          bool create_it)
 {
+  DBUG_TRACE;
   List     *pathkeys;
   Oid     opfamily,
           opcintype;
@@ -1035,6 +1079,7 @@ convert_subquery_pathkeys(PlannerInfo *root, RelOptInfo *rel,
                           List *subquery_pathkeys,
                           List *subquery_tlist)
 {
+  DBUG_TRACE;
   List     *retval = NIL;
   int     retvallen = 0;
   int     outer_query_keys = list_length(root->query_pathkeys);
@@ -1228,6 +1273,7 @@ convert_subquery_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 static Var *
 find_var_for_subquery_tle(RelOptInfo *rel, TargetEntry *tle)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* If the TLE is resjunk, it's certainly not visible to the outer query */
@@ -1275,6 +1321,7 @@ build_join_pathkeys(PlannerInfo *root,
                     JoinType jointype,
                     List *outer_pathkeys)
 {
+  DBUG_TRACE;
   /* RIGHT_SEMI should not come here */
   Assert(jointype != JOIN_RIGHT_SEMI);
 
@@ -1315,6 +1362,7 @@ make_pathkeys_for_sortclauses(PlannerInfo *root,
                               List *sortclauses,
                               List *tlist)
 {
+  DBUG_TRACE;
   List     *result;
   bool    sortable;
 
@@ -1368,6 +1416,7 @@ make_pathkeys_for_sortclauses_extended(PlannerInfo *root,
   ListCell   *l;
 
   *sortable = true;
+  DBUG_PRINT("info", "generate a pathkeys list that represents the sort order specified by a list of SortGroupClauses");
 
   foreach(l, *sortclauses) {
     SortGroupClause *sortcl = (SortGroupClause *) lfirst(l);
@@ -1378,6 +1427,7 @@ make_pathkeys_for_sortclauses_extended(PlannerInfo *root,
 
     if (!OidIsValid(sortcl->sortop)) {
       *sortable = false;
+      DBUG_PRINT("info", "sortable is false");
       continue;
     }
 
@@ -1442,6 +1492,7 @@ make_pathkeys_for_sortclauses_extended(PlannerInfo *root,
 void
 initialize_mergeclause_eclasses(PlannerInfo *root, RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   Expr     *clause = restrictinfo->clause;
   Oid     lefttype,
           righttype;
@@ -1526,6 +1577,7 @@ find_mergeclauses_for_outer_pathkeys(PlannerInfo *root,
                                      List *pathkeys,
                                      List *restrictinfos)
 {
+  DBUG_TRACE;
   List     *mergeclauses = NIL;
   ListCell   *i;
 
@@ -1639,6 +1691,7 @@ select_outer_pathkeys_for_merge(PlannerInfo *root,
                                 List *mergeclauses,
                                 RelOptInfo *joinrel)
 {
+  DBUG_TRACE;
   List     *pathkeys = NIL;
   int     nClauses = list_length(mergeclauses);
   EquivalenceClass **ecs;
@@ -1832,6 +1885,7 @@ make_inner_pathkeys_for_merge(PlannerInfo *root,
                               List *mergeclauses,
                               List *outer_pathkeys)
 {
+  DBUG_TRACE;
   List     *pathkeys = NIL;
   EquivalenceClass *lastoeclass;
   PathKey    *opathkey;
@@ -1932,6 +1986,7 @@ trim_mergeclauses_for_inner_pathkeys(PlannerInfo *root,
                                      List *mergeclauses,
                                      List *pathkeys)
 {
+  DBUG_TRACE;
   List     *new_mergeclauses = NIL;
   PathKey    *pathkey;
   EquivalenceClass *pathkey_ec;
@@ -2022,6 +2077,7 @@ trim_mergeclauses_for_inner_pathkeys(PlannerInfo *root,
 static int
 pathkeys_useful_for_merging(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
 {
+  DBUG_TRACE;
   int     useful = 0;
   ListCell   *i;
 
@@ -2031,8 +2087,10 @@ pathkeys_useful_for_merging(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
     ListCell   *j;
 
     /* If "wrong" direction, not useful for merging */
-    if (!right_merge_direction(root, pathkey))
+    if (!right_merge_direction(root, pathkey)) {
+      DBUG_PRINT("info", "if wrong direction, not useful for merging");
       break;
+    }
 
     /*
      * First look into the EquivalenceClass of the pathkey, to see if
@@ -2040,9 +2098,10 @@ pathkeys_useful_for_merging(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
      * surely possible to generate a mergejoin clause using them.
      */
     if (rel->has_eclass_joins &&
-        eclass_useful_for_merging(root, pathkey->pk_eclass, rel))
+        eclass_useful_for_merging(root, pathkey->pk_eclass, rel)) {
+      DBUG_PRINT("info", "it's surely possible to generate a mergejoin clause using them");
       matched = true;
-    else {
+    } else {
       /*
        * Otherwise search the rel's joininfo list, which contains
        * non-EquivalenceClass-derivable join clauses that might
@@ -2075,6 +2134,7 @@ pathkeys_useful_for_merging(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
       break;
   }
 
+  DBUG_PRINT("info", "count the number of pathkeys that may be useful for mergejoins above the given relation:%d", useful);
   return useful;
 }
 
@@ -2086,6 +2146,7 @@ pathkeys_useful_for_merging(PlannerInfo *root, RelOptInfo *rel, List *pathkeys)
 static bool
 right_merge_direction(PlannerInfo *root, PathKey *pathkey)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, root->query_pathkeys) {
@@ -2100,10 +2161,12 @@ right_merge_direction(PlannerInfo *root, PathKey *pathkey)
        * want to prefer only one of the two possible directions, and we
        * might as well use this one.
        */
+      DBUG_PRINT("info", "found a matching query sort column");
       return (pathkey->pk_cmptype == query_pathkey->pk_cmptype);
     }
   }
 
+  DBUG_PRINT("info", "if no matching ORDER BY request, prefer the ASC direction");
   /* If no matching ORDER BY request, prefer the ASC direction */
   return (pathkey->pk_cmptype == COMPARE_LT);
 }
@@ -2126,6 +2189,7 @@ pathkeys_useful_for_ordering(PlannerInfo *root, List *pathkeys)
   (void) pathkeys_count_contained_in(root->query_pathkeys, pathkeys,
                                      &n_common_pathkeys);
 
+  DBUG_PRINT("info", "count the number of pathkeys that are useful for meeting the query's requested output ordering:%d", n_common_pathkeys);
   return n_common_pathkeys;
 }
 
@@ -2151,12 +2215,15 @@ pathkeys_useful_for_ordering(PlannerInfo *root, List *pathkeys)
 static int
 pathkeys_useful_for_grouping(PlannerInfo *root, List *pathkeys)
 {
+  DBUG_TRACE;
   ListCell   *key;
   int     n = 0;
 
   /* no special ordering requested for grouping */
-  if (root->group_pathkeys == NIL)
+  if (root->group_pathkeys == NIL) {
+    DBUG_PRINT("info", "no special ordering requested for grouping");
     return 0;
+  }
 
   /* walk the pathkeys and search for matching group key */
   foreach(key, pathkeys) {
@@ -2169,6 +2236,7 @@ pathkeys_useful_for_grouping(PlannerInfo *root, List *pathkeys)
     n++;
   }
 
+  DBUG_PRINT("info", "returns the length of pathkey prefix with matching group keys:%d", n);
   return n;
 }
 

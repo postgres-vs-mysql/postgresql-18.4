@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/nodeFuncs.h"
 #include "optimizer/cost.h"
@@ -54,6 +55,7 @@ static Node *strip_noop_phvs_mutator(Node *node, void *context);
 PlaceHolderVar *
 make_placeholder_expr(PlannerInfo *root, Expr *expr, Relids phrels)
 {
+  DBUG_TRACE;
   PlaceHolderVar *phv = makeNode(PlaceHolderVar);
 
   phv->phexpr = expr;
@@ -83,6 +85,7 @@ make_placeholder_expr(PlannerInfo *root, Expr *expr, Relids phrels)
 PlaceHolderInfo *
 find_placeholder_info(PlannerInfo *root, PlaceHolderVar *phv)
 {
+  DBUG_TRACE;
   PlaceHolderInfo *phinfo;
   Relids    rels_used;
 
@@ -189,6 +192,7 @@ find_placeholder_info(PlannerInfo *root, PlaceHolderVar *phv)
 void
 find_placeholders_in_jointree(PlannerInfo *root)
 {
+  DBUG_TRACE;
   /* This must be done before freezing the set of PHIs */
   Assert(!root->placeholdersFrozen);
 
@@ -210,6 +214,8 @@ find_placeholders_in_jointree(PlannerInfo *root)
 static void
 find_placeholders_recurse(PlannerInfo *root, Node *jtnode)
 {
+  DBUG_TRACE;
+
   if (jtnode == NULL)
     return;
 
@@ -254,6 +260,7 @@ find_placeholders_recurse(PlannerInfo *root, Node *jtnode)
 static void
 find_placeholders_in_expr(PlannerInfo *root, Node *expr)
 {
+  DBUG_TRACE;
   List     *vars;
   ListCell   *vl;
 
@@ -352,6 +359,7 @@ rebuild_placeholder_attr_needed(PlannerInfo *root)
 void
 add_placeholders_to_base_rels(PlannerInfo *root)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, root->placeholder_list) {
@@ -396,6 +404,7 @@ add_placeholders_to_joinrel(PlannerInfo *root, RelOptInfo *joinrel,
                             RelOptInfo *outer_rel, RelOptInfo *inner_rel,
                             SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   Relids    relids = joinrel->relids;
   int64   tuple_width = joinrel->reltarget->width;
   ListCell   *lc;
@@ -482,6 +491,7 @@ bool
 contain_placeholder_references_to(PlannerInfo *root, Node *clause,
                                   int relid)
 {
+  DBUG_TRACE;
   contain_placeholder_references_context context;
 
   /* We can answer quickly in the common case that there's no PHVs at all */
@@ -498,6 +508,8 @@ static bool
 contain_placeholder_references_walker(Node *node,
                                       contain_placeholder_references_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 

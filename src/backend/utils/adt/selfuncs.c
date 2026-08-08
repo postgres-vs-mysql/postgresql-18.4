@@ -93,6 +93,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -234,7 +235,11 @@ static double btcost_correlation(IndexOptInfo *index,
 Datum
 eqsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8((float8) eqsel_internal(fcinfo, false));
+  DBUG_TRACE;
+  float8 result = ((float8) eqsel_internal(fcinfo, false));
+
+  DBUG_PRINT("info", "return selectivity of '=' for any data types:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -243,6 +248,7 @@ eqsel(PG_FUNCTION_ARGS)
 static double
 eqsel_internal(PG_FUNCTION_ARGS, bool negate)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -261,6 +267,7 @@ eqsel_internal(PG_FUNCTION_ARGS, bool negate)
     operator = get_negator(operator);
 
     if (!OidIsValid(operator)) {
+      DBUG_PRINT("info", "use default selectivity:%g", 1.0 - DEFAULT_EQ_SEL);
       /* Use default selectivity (should we raise an error instead?) */
       return 1.0 - DEFAULT_EQ_SEL;
     }
@@ -271,25 +278,32 @@ eqsel_internal(PG_FUNCTION_ARGS, bool negate)
    * punt and return a default estimate.
    */
   if (!get_restriction_variable(root, args, varRelid,
-                                &vardata, &other, &varonleft))
-    return negate ? (1.0 - DEFAULT_EQ_SEL) : DEFAULT_EQ_SEL;
+                                &vardata, &other, &varonleft)) {
+    selec = negate ? (1.0 - DEFAULT_EQ_SEL) : DEFAULT_EQ_SEL;
+    DBUG_PRINT("info", "if expression is not variable = something or something = variable, then");
+    DBUG_PRINT("info", "punt and return a default estimate:%g", selec);
+    return selec;
+  }
 
   /*
    * We can do a lot better if the something is a constant.  (Note: the
    * Const might result from estimation rather than being a simple constant
    * in the query.)
    */
-  if (IsA(other, Const))
+  if (IsA(other, Const)) {
     selec = var_eq_const(&vardata, operator, collation,
                          ((Const *) other)->constvalue,
                          ((Const *) other)->constisnull,
                          varonleft, negate);
-  else
+    DBUG_PRINT("info", "we can do a lot better if the something is a constant");
+  } else {
     selec = var_eq_non_const(&vardata, operator, collation, other,
                              varonleft, negate);
+  }
 
   ReleaseVariableStats(vardata);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -303,6 +317,7 @@ var_eq_const(VariableStatData *vardata, Oid oproid, Oid collation,
              Datum constval, bool constisnull,
              bool varonleft, bool negate)
 {
+  DBUG_TRACE;
   double    selec;
   double    nullfrac = 0.0;
   bool    isdefault;
@@ -452,6 +467,7 @@ var_eq_const(VariableStatData *vardata, Oid oproid, Oid collation,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -465,6 +481,7 @@ var_eq_non_const(VariableStatData *vardata, Oid oproid, Oid collation,
                  Node *other,
                  bool varonleft, bool negate)
 {
+  DBUG_TRACE;
   double    selec;
   double    nullfrac = 0.0;
   bool    isdefault;
@@ -536,6 +553,7 @@ var_eq_non_const(VariableStatData *vardata, Oid oproid, Oid collation,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -549,7 +567,10 @@ var_eq_non_const(VariableStatData *vardata, Oid oproid, Oid collation,
 Datum
 neqsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8((float8) eqsel_internal(fcinfo, true));
+  DBUG_TRACE;
+  float8 result = (float8) eqsel_internal(fcinfo, true);
+  DBUG_PRINT("info", "return selectivity of '!=' for any data types:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -574,12 +595,15 @@ scalarineqsel(PlannerInfo *root, Oid operator, bool isgt, bool iseq,
               Oid collation,
               VariableStatData *vardata, Datum constval, Oid consttype)
 {
+  DBUG_TRACE;
   Form_pg_statistic stats;
   FmgrInfo  opproc;
   double    mcv_selec,
             hist_selec,
             sumcommon;
   double    selec;
+
+  DBUG_PRINT("info", "selectivity of '<', '<=', '>', '>=' for scalars");
 
   if (!HeapTupleIsValid(vardata->statsTuple)) {
     /*
@@ -652,10 +676,12 @@ scalarineqsel(PlannerInfo *root, Oid operator, bool isgt, bool iseq,
         selec = 1.0 - selec;
 
       CLAMP_PROBABILITY(selec);
+      DBUG_PRINT("info", "return selectivity:%g", selec);
       return selec;
     }
 
     /* no stats available, so default result */
+    DBUG_PRINT("info", "no stats available, so default result:%g", DEFAULT_INEQ_SEL);
     return DEFAULT_INEQ_SEL;
   }
 
@@ -681,28 +707,35 @@ scalarineqsel(PlannerInfo *root, Oid operator, bool isgt, bool iseq,
                                           collation,
                                           constval, consttype);
 
+  DBUG_PRINT("info", "now merge the results from the MCV and histogram calculations");
   /*
    * Now merge the results from the MCV and histogram calculations,
    * realizing that the histogram covers only the non-null values that are
    * not listed in MCV.
    */
   selec = 1.0 - stats->stanullfrac - sumcommon;
+  DBUG_PRINT("info", "select:%g = 1.0 - stats->stanullfrac:%g - sumcommon:%g", selec, stats->stanullfrac, sumcommon);
 
-  if (hist_selec >= 0.0)
+  if (hist_selec >= 0.0) {
     selec *= hist_selec;
-  else {
+    DBUG_PRINT("info", "selectivity:%g = old selectivity * hist_selec:%g", selec, hist_selec );
+  } else {
     /*
      * If no histogram but there are values not accounted for by MCV,
      * arbitrarily assume half of them will match.
      */
     selec *= 0.5;
+    DBUG_PRINT("info", "if no histogram but there are values not accounted for by MCV, arbitrarily assume half of them will match");
+    DBUG_PRINT("info", "selectivity:%g = old selectivity * 0.5", selec);
   }
 
   selec += mcv_selec;
+  DBUG_PRINT("info", "selectivity:%g = old selectivity + mcv_selec:%g", selec, mcv_selec);
 
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -723,6 +756,7 @@ mcv_selectivity(VariableStatData *vardata, FmgrInfo *opproc, Oid collation,
                 Datum constval, bool varonleft,
                 double *sumcommonp)
 {
+  DBUG_TRACE;
   double    mcv_selec,
             sumcommon;
   AttStatsSlot sslot;
@@ -767,16 +801,20 @@ mcv_selectivity(VariableStatData *vardata, FmgrInfo *opproc, Oid collation,
       fcinfo->isnull = false;
       fresult = FunctionCallInvoke(fcinfo);
 
-      if (!fcinfo->isnull && DatumGetBool(fresult))
+      if (!fcinfo->isnull && DatumGetBool(fresult)) {
         mcv_selec += sslot.numbers[i];
+        DBUG_PRINT("info", "%g is added to mcv_selec(%g)", sslot.numbers[i], mcv_selec);
+      }
 
       sumcommon += sslot.numbers[i];
+      DBUG_PRINT("info", "%g is added to sumcommon(%g)", sslot.numbers[i], sumcommon);
     }
 
     free_attstatsslot(&sslot);
   }
 
   *sumcommonp = sumcommon;
+  DBUG_PRINT("info", "examine the MCV list for selectivity estimates(mcv_selec:%g, sumcommon:%g)", mcv_selec, sumcommon);
   return mcv_selec;
 }
 
@@ -819,6 +857,7 @@ histogram_selectivity(VariableStatData *vardata,
                       int min_hist_size, int n_skip,
                       int *hist_size)
 {
+  DBUG_TRACE;
   double    result;
   AttStatsSlot sslot;
 
@@ -837,6 +876,7 @@ histogram_selectivity(VariableStatData *vardata,
       LOCAL_FCINFO(fcinfo, 2);
       int     nmatch = 0;
       int     i;
+      int     count = 0;
 
       /*
        * We invoke the opproc "by hand" so that we won't fail on NULL
@@ -859,6 +899,7 @@ histogram_selectivity(VariableStatData *vardata,
 
       for (i = n_skip; i < sslot.nvalues - n_skip; i++) {
         Datum   fresult;
+        count++;
 
         if (varonleft)
           fcinfo->args[0].value = sslot.values[i];
@@ -872,6 +913,7 @@ histogram_selectivity(VariableStatData *vardata,
           nmatch++;
       }
 
+      DBUG_PRINT("info", "count:%d, nmatch:%d", count, nmatch);
       result = ((double) nmatch) / ((double) (sslot.nvalues - 2 * n_skip));
     } else
       result = -1;
@@ -882,6 +924,7 @@ histogram_selectivity(VariableStatData *vardata,
     result = -1;
   }
 
+  DBUG_PRINT("info", "examine the histogram for selectivity estimates:%g", result);
   return result;
 }
 
@@ -908,6 +951,7 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
                                 List *args, int varRelid,
                                 double default_selectivity)
 {
+  DBUG_TRACE;
   double    selec;
   VariableStatData vardata;
   Node     *other;
@@ -918,8 +962,11 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
    * then punt and return the default estimate.
    */
   if (!get_restriction_variable(root, args, varRelid,
-                                &vardata, &other, &varonleft))
+                                &vardata, &other, &varonleft)) {
+    DBUG_PRINT("info", "when expression is not variable OP something or something OP variable,");
+    DBUG_PRINT("info", "then punt and return the default estimate:%g", default_selectivity);
     return default_selectivity;
+  }
 
   /*
    * If the something is a NULL constant, assume operator is strict and
@@ -927,6 +974,7 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
    */
   if (IsA(other, Const) &&
       ((Const *) other)->constisnull) {
+    DBUG_PRINT("info", "when the something is a NULL constant, return 0.0");
     ReleaseVariableStats(vardata);
     return 0.0;
   }
@@ -945,6 +993,7 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
     /*
      * Calculate the selectivity for the column's most common values.
      */
+    DBUG_PRINT("info", "calculate the selectivity for the column's most common values");
     mcvsel = mcv_selectivity(&vardata, &opproc, collation,
                              constval, varonleft,
                              &mcvsum);
@@ -961,6 +1010,7 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
 
     if (selec < 0) {
       /* Nope, fall back on default */
+      DBUG_PRINT("info", "select:%g and fall back on default", selec);
       selec = default_selectivity;
     } else if (hist_size < 100) {
       /*
@@ -970,31 +1020,44 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
        */
       double    hist_weight = hist_size / 100.0;
 
+      DBUG_PRINT("info", "hist_weight:%g = hist_size:%d / 100.0", hist_weight, hist_size);
+      DBUG_PRINT("info", "selec = selec:%g * hist_weight:%g + default_selectivity:%g * (1.0 - hist_weight:%g)", selec, hist_weight,
+                 default_selectivity, hist_weight);
       selec = selec * hist_weight +
               default_selectivity * (1.0 - hist_weight);
+      DBUG_PRINT("info", "for histogram sizes from 10 to 100, we combine the histogram and default selectivities");
+      DBUG_PRINT("info", "putting increasingly more trust in the histogram for larger sizes:%g", selec);
     }
 
     /* In any case, don't believe extremely small or large estimates. */
-    if (selec < 0.0001)
+    if (selec < 0.0001) {
       selec = 0.0001;
-    else if (selec > 0.9999)
+      DBUG_PRINT("info", "don't believe extremely small estimates and set selec:%g", selec);
+    } else if (selec > 0.9999) {
       selec = 0.9999;
+      DBUG_PRINT("info", "don't believe extremely large estimates and set selec:%g", selec);
+    }
 
     /* Don't forget to account for nulls. */
-    if (HeapTupleIsValid(vardata.statsTuple))
+    if (HeapTupleIsValid(vardata.statsTuple)) {
       nullfrac = ((Form_pg_statistic) GETSTRUCT(vardata.statsTuple))->stanullfrac;
-    else
+      DBUG_PRINT("info", "don't forget to account for nulls and nullfrac:%g", nullfrac);
+    } else {
       nullfrac = 0.0;
+    }
 
     /*
      * Now merge the results from the MCV and histogram calculations,
      * realizing that the histogram covers only the non-null values that
      * are not listed in MCV.
      */
+    DBUG_PRINT("info", "now merge the results from the MCV and histogram calculations");
     selec *= 1.0 - nullfrac - mcvsum;
     selec += mcvsel;
+    DBUG_PRINT("info", "mcvsum:%g, nullfrac:%g, mcvsel:%g and selec:%g", mcvsum, nullfrac, mcvsel, selec);
   } else {
     /* Comparison value is not constant, so we can't do anything */
+    DBUG_PRINT("info", "comparison value is not constant, so we can't do anything");
     selec = default_selectivity;
   }
 
@@ -1003,6 +1066,7 @@ generic_restriction_selectivity(PlannerInfo *root, Oid oproid, Oid collation,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -1031,6 +1095,7 @@ ineq_histogram_selectivity(PlannerInfo *root,
                            Oid collation,
                            Datum constval, Oid consttype)
 {
+  DBUG_TRACE;
   double    hist_selec;
   AttStatsSlot sslot;
 
@@ -1361,6 +1426,7 @@ ineq_histogram_selectivity(PlannerInfo *root,
     free_attstatsslot(&sslot);
   }
 
+  DBUG_PRINT("info", "examine the histogram for scalarineqsel:%g", hist_selec);
   return hist_selec;
 }
 
@@ -1371,6 +1437,7 @@ ineq_histogram_selectivity(PlannerInfo *root,
 static Datum
 scalarineqsel_wrapper(PG_FUNCTION_ARGS, bool isgt, bool iseq)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -1432,6 +1499,7 @@ scalarineqsel_wrapper(PG_FUNCTION_ARGS, bool isgt, bool iseq)
 
   ReleaseVariableStats(vardata);
 
+  DBUG_PRINT("info", "selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -1441,6 +1509,8 @@ scalarineqsel_wrapper(PG_FUNCTION_ARGS, bool isgt, bool iseq)
 Datum
 scalarltsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "selectivity of '<' for scalars");
   return scalarineqsel_wrapper(fcinfo, false, false);
 }
 
@@ -1450,6 +1520,8 @@ scalarltsel(PG_FUNCTION_ARGS)
 Datum
 scalarlesel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "selectivity of '<=' for scalars");
   return scalarineqsel_wrapper(fcinfo, false, true);
 }
 
@@ -1459,6 +1531,8 @@ scalarlesel(PG_FUNCTION_ARGS)
 Datum
 scalargtsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "selectivity of '>' for scalars");
   return scalarineqsel_wrapper(fcinfo, true, false);
 }
 
@@ -1468,6 +1542,8 @@ scalargtsel(PG_FUNCTION_ARGS)
 Datum
 scalargesel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "selectivity of '>=' for scalars");
   return scalarineqsel_wrapper(fcinfo, true, true);
 }
 
@@ -1482,6 +1558,7 @@ scalargesel(PG_FUNCTION_ARGS)
 Selectivity
 boolvarsel(PlannerInfo *root, Node *arg, int varRelid)
 {
+  DBUG_TRACE;
   VariableStatData vardata;
   double    selec;
 
@@ -1500,6 +1577,7 @@ boolvarsel(PlannerInfo *root, Node *arg, int varRelid)
   }
 
   ReleaseVariableStats(vardata);
+  DBUG_PRINT("info", "selectivity of Boolean variable:%g", selec);
   return selec;
 }
 
@@ -1510,6 +1588,7 @@ Selectivity
 booltestsel(PlannerInfo *root, BoolTestType booltesttype, Node *arg,
             int varRelid, JoinType jointype, SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   VariableStatData vardata;
   double    selec;
 
@@ -1663,6 +1742,7 @@ booltestsel(PlannerInfo *root, BoolTestType booltesttype, Node *arg,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "selectivity of BooleanTest Node:%g", selec);
   return (Selectivity) selec;
 }
 
@@ -1673,6 +1753,7 @@ Selectivity
 nulltestsel(PlannerInfo *root, NullTestType nulltesttype, Node *arg,
             int varRelid, JoinType jointype, SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   VariableStatData vardata;
   double    selec;
 
@@ -1740,6 +1821,7 @@ nulltestsel(PlannerInfo *root, NullTestType nulltesttype, Node *arg,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return (Selectivity) selec;
 }
 
@@ -1754,6 +1836,8 @@ nulltestsel(PlannerInfo *root, NullTestType nulltesttype, Node *arg,
 static Node *
 strip_array_coercion(Node *node)
 {
+  DBUG_TRACE;
+
   for (;;) {
     if (node && IsA(node, ArrayCoerceExpr)) {
       ArrayCoerceExpr *acoerce = (ArrayCoerceExpr *) node;
@@ -1788,6 +1872,7 @@ scalararraysel(PlannerInfo *root,
                JoinType jointype,
                SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   Oid     operator = clause->opno;
   bool    useOr = clause->useOr;
   bool    isEquality = false;
@@ -2090,6 +2175,7 @@ scalararraysel(PlannerInfo *root,
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(s1);
 
+  DBUG_PRINT("info", "return selectivity:%g", s1);
   return s1;
 }
 
@@ -2105,6 +2191,7 @@ scalararraysel(PlannerInfo *root,
 double
 estimate_array_length(PlannerInfo *root, Node *arrayexpr)
 {
+  DBUG_TRACE;
   /* look through any binary-compatible relabeling of arrayexpr */
   arrayexpr = strip_array_coercion(arrayexpr);
 
@@ -2182,6 +2269,7 @@ rowcomparesel(PlannerInfo *root,
               RowCompareExpr *clause,
               int varRelid, JoinType jointype, SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   Selectivity s1;
   Oid     opno = linitial_oid(clause->opnos);
   Oid     inputcollid = linitial_oid(clause->inputcollids);
@@ -2217,12 +2305,14 @@ rowcomparesel(PlannerInfo *root,
 
   if (is_join_clause) {
     /* Estimate selectivity for a join clause. */
+    DBUG_PRINT("info", "estimate selectivity for a join clause");
     s1 = join_selectivity(root, opno,
                           opargs,
                           inputcollid,
                           jointype,
                           sjinfo);
   } else {
+    DBUG_PRINT("info", "estimate selectivity for a restriction clause");
     /* Estimate selectivity for a restriction clause. */
     s1 = restriction_selectivity(root, opno,
                                  opargs,
@@ -2230,6 +2320,7 @@ rowcomparesel(PlannerInfo *root,
                                  varRelid);
   }
 
+  DBUG_PRINT("info", "return selectivity of RowCompareExpr Node:%g", s1);
   return s1;
 }
 
@@ -2239,6 +2330,7 @@ rowcomparesel(PlannerInfo *root,
 Datum
 eqjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -2322,11 +2414,14 @@ eqjoinsel(PG_FUNCTION_ARGS)
                                 stats1, stats2,
                                 have_mcvs1, have_mcvs2);
 
+  DBUG_PRINT("info", "selec_inner:%g", selec_inner);
+
   switch (sjinfo->jointype) {
     case JOIN_INNER:
     case JOIN_LEFT:
     case JOIN_FULL:
       selec = selec_inner;
+      DBUG_PRINT("info", "set selec to %g", selec_inner);
       break;
 
     case JOIN_SEMI:
@@ -2340,7 +2435,7 @@ eqjoinsel(PG_FUNCTION_ARGS)
        */
       inner_rel = find_join_input_rel(root, sjinfo->min_righthand);
 
-      if (!join_is_reversed)
+      if (!join_is_reversed) {
         selec = eqjoinsel_semi(opfuncoid, collation,
                                &vardata1, &vardata2,
                                nd1, nd2,
@@ -2349,7 +2444,8 @@ eqjoinsel(PG_FUNCTION_ARGS)
                                stats1, stats2,
                                have_mcvs1, have_mcvs2,
                                inner_rel);
-      else {
+        DBUG_PRINT("info", "set selec to %g", selec_inner);
+      } else {
         Oid     commop = get_commutator(operator);
         Oid     commopfuncoid = OidIsValid(commop) ? get_opcode(commop) : InvalidOid;
 
@@ -2392,6 +2488,7 @@ eqjoinsel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return join selectivity(%g) of '='", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -2410,7 +2507,10 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
                 Form_pg_statistic stats1, Form_pg_statistic stats2,
                 bool have_mcvs1, bool have_mcvs2)
 {
+  DBUG_TRACE;
   double    selec;
+
+  DBUG_PRINT("info", "eqjoinsel for normal inner join");
 
   if (have_mcvs1 && have_mcvs2) {
     /*
@@ -2443,6 +2543,7 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
     int     i,
             nmatches;
 
+    DBUG_PRINT("info", "we have most-common-value lists for both relations");
     fmgr_info(opfuncoid, &eqproc);
 
     /*
@@ -2494,6 +2595,7 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
 
     CLAMP_PROBABILITY(matchprodfreq);
     /* Sum up frequencies of matched and unmatched MCVs */
+    DBUG_PRINT("info", "sum up frequencies of matched and unmatched MCVs");
     matchfreq1 = unmatchfreq1 = 0.0;
 
     for (i = 0; i < sslot1->nvalues; i++) {
@@ -2523,6 +2625,7 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
      * Compute total frequency of non-null values that are not in the MCV
      * lists.
      */
+    DBUG_PRINT("info", "compute total frequency of non-null values that are not in the MCV lists");
     otherfreq1 = 1.0 - nullfrac1 - matchfreq1 - unmatchfreq1;
     otherfreq2 = 1.0 - nullfrac2 - matchfreq2 - unmatchfreq2;
     CLAMP_PROBABILITY(otherfreq1);
@@ -2561,6 +2664,8 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
      * a first approximation, we are estimating from the point of view of
      * the relation with smaller nd.
      */
+    DBUG_PRINT("info", "use the smaller of the two estimates");
+    DBUG_PRINT("info", "totalsel1:%g, totalsel2:%g", totalsel1, totalsel2);
     selec = (totalsel1 < totalsel2) ? totalsel1 : totalsel2;
   } else {
     /*
@@ -2586,14 +2691,21 @@ eqjoinsel_inner(Oid opfuncoid, Oid collation,
     double    nullfrac1 = stats1 ? stats1->stanullfrac : 0.0;
     double    nullfrac2 = stats2 ? stats2->stanullfrac : 0.0;
 
+    DBUG_PRINT("info", "we do not have MCV lists for both sides");
     selec = (1.0 - nullfrac1) * (1.0 - nullfrac2);
+    DBUG_PRINT("info", "selec:%g = (1.0 - nullfrac1:%g) *( 1.0 - nullfrac2:%g)", selec, nullfrac1, nullfrac2);
+    DBUG_PRINT("info", "nd1:%g, nd2:%g", nd1, nd2);
 
-    if (nd1 > nd2)
+    if (nd1 > nd2) {
       selec /= nd1;
-    else
+      DBUG_PRINT("info", "selec:%g /= nd1:%g", selec, nd1);
+    } else {
       selec /= nd2;
+      DBUG_PRINT("info", "selec:%g /= nd1:%g", selec, nd2);
+    }
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -2614,7 +2726,10 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
                bool have_mcvs1, bool have_mcvs2,
                RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
   double    selec;
+
+  DBUG_PRINT("info", "nd1:%g, nd2:%g", nd1, nd2);
 
   /*
    * We clamp nd2 to be not more than what we estimate the inner relation's
@@ -2639,11 +2754,13 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
     if (nd2 >= vardata2->rel->rows) {
       nd2 = vardata2->rel->rows;
       isdefault2 = false;
+      DBUG_PRINT("info", "adjust nd2 to %g", nd2);
     }
   }
 
   if (nd2 >= inner_rel->rows) {
     nd2 = inner_rel->rows;
+    DBUG_PRINT("info", "adjust nd2 to %g", nd2);
     isdefault2 = false;
   }
 
@@ -2668,6 +2785,7 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
             nmatches,
             clamped_nvalues2;
 
+    DBUG_PRINT("info", "we have most-common-value lists for both relations");
     /*
      * The clamping above could have resulted in nd2 being less than
      * sslot2->nvalues; in which case, we assume that precisely the nd2
@@ -2732,7 +2850,9 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
         matchfreq1 += sslot1->numbers[i];
     }
 
+    DBUG_PRINT("info", "sum up frequencies of matched MCVs:%g", matchfreq1);
     CLAMP_PROBABILITY(matchfreq1);
+    DBUG_PRINT("info", "adjust matchfreq1 to :%g", matchfreq1);
     pfree(hasmatch1);
     pfree(hasmatch2);
 
@@ -2754,17 +2874,27 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
     if (!isdefault1 && !isdefault2) {
       nd1 -= nmatches;
       nd2 -= nmatches;
+      DBUG_PRINT("info", "adjust nd1 to %g", nd1);
+      DBUG_PRINT("info", "adjust nd2 to %g", nd2);
 
-      if (nd1 <= nd2 || nd2 < 0)
+      if (nd1 <= nd2 || nd2 < 0) {
         uncertainfrac = 1.0;
-      else
+        DBUG_PRINT("info", "set uncertainfrac to %g", uncertainfrac);
+      } else {
         uncertainfrac = nd2 / nd1;
-    } else
+        DBUG_PRINT("info", "uncertainfrac(%g) = nd2(%g) / nd1(%g)", uncertainfrac, nd2, nd1);
+      }
+    } else {
       uncertainfrac = 0.5;
+      DBUG_PRINT("info", "set uncertainfrac to %g", uncertainfrac);
+    }
 
     uncertain = 1.0 - matchfreq1 - nullfrac1;
+    DBUG_PRINT("info", "uncertain(%g) = 1.0 - matchfreq1(%g) - nullfrac1(%g)", uncertain, matchfreq1, nullfrac1);
     CLAMP_PROBABILITY(uncertain);
+    DBUG_PRINT("info", "adjust uncertain to %g", uncertain);
     selec = matchfreq1 + uncertainfrac * uncertain;
+    DBUG_PRINT("info", "selec(%g) = matchfreq1(%g) + uncertainfrac(%g) * uncertain(%g)", selec, matchfreq1, uncertainfrac, uncertain);
   } else {
     /*
      * Without MCV lists for both sides, we can only use the heuristic
@@ -2772,15 +2902,24 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
      */
     double    nullfrac1 = stats1 ? stats1->stanullfrac : 0.0;
 
+    DBUG_PRINT("info", "without MCV lists for both sides, we can only use the heuristic about nd1(%g) vs nd2(%g)",
+               nd1, nd2);
+
     if (!isdefault1 && !isdefault2) {
-      if (nd1 <= nd2 || nd2 < 0)
+      if (nd1 <= nd2 || nd2 < 0) {
         selec = 1.0 - nullfrac1;
-      else
+        DBUG_PRINT("info", "selec(%g) = 1.0 - nullfrac1(%g)", selec, nullfrac1);
+      } else {
         selec = (nd2 / nd1) * (1.0 - nullfrac1);
-    } else
+        DBUG_PRINT("info", "selec(%g) = (nd2(%g) / nd1(%g) * (1.0 - nullfrac1(%g))", selec, nd2, nd1, nullfrac1);
+      }
+    } else {
       selec = 0.5 * (1.0 - nullfrac1);
+      DBUG_PRINT("info", "selec(%g) = 0.5 * (1.0 - nullfrac1(%g))", selec, nullfrac1);
+    }
   }
 
+  DBUG_PRINT("info", "eqjoinsel for semi join:%g", selec);
   return selec;
 }
 
@@ -2790,6 +2929,7 @@ eqjoinsel_semi(Oid opfuncoid, Oid collation,
 Datum
 neqjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -2856,6 +2996,7 @@ neqjoinsel(PG_FUNCTION_ARGS)
     result = 1.0 - result;
   }
 
+  DBUG_PRINT("info", "return join selectivity of '!=':%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2865,6 +3006,8 @@ neqjoinsel(PG_FUNCTION_ARGS)
 Datum
 scalarltjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return join selectivity of '<' for scalars:%g", DEFAULT_INEQ_SEL);
   PG_RETURN_FLOAT8(DEFAULT_INEQ_SEL);
 }
 
@@ -2874,6 +3017,8 @@ scalarltjoinsel(PG_FUNCTION_ARGS)
 Datum
 scalarlejoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return join selectivity of '<=' for scalars:%g", DEFAULT_INEQ_SEL);
   PG_RETURN_FLOAT8(DEFAULT_INEQ_SEL);
 }
 
@@ -2883,6 +3028,8 @@ scalarlejoinsel(PG_FUNCTION_ARGS)
 Datum
 scalargtjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return join selectivity of '>' for scalars:%g", DEFAULT_INEQ_SEL);
   PG_RETURN_FLOAT8(DEFAULT_INEQ_SEL);
 }
 
@@ -2892,6 +3039,8 @@ scalargtjoinsel(PG_FUNCTION_ARGS)
 Datum
 scalargejoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return join selectivity of '>=' for scalars:%g", DEFAULT_INEQ_SEL);
   PG_RETURN_FLOAT8(DEFAULT_INEQ_SEL);
 }
 
@@ -2923,6 +3072,7 @@ mergejoinscansel(PlannerInfo *root, Node *clause,
                  Selectivity *leftstart, Selectivity *leftend,
                  Selectivity *rightstart, Selectivity *rightend)
 {
+  DBUG_TRACE;
   Node     *left,
            *right;
   VariableStatData leftvar,
@@ -2952,6 +3102,7 @@ mergejoinscansel(PlannerInfo *root, Node *clause,
           rightmax;
   double    selec;
 
+  DBUG_PRINT("info", "scan selectivity of merge join");
   /* Set default results if we can't figure anything out. */
   /* XXX should default "start" fraction be a bit more than 0? */
   *leftstart = *rightstart = 0.0;
@@ -3220,6 +3371,8 @@ mergejoinscansel(PlannerInfo *root, Node *clause,
     *rightend = 1.0;
   }
 
+  DBUG_PRINT("info", "leftstart:%g, leftend:%g, rightstart:%g, rightend:%g", *leftstart, *leftend, *rightstart, *rightend);
+
 fail:
   ReleaseVariableStats(leftvar);
   ReleaseVariableStats(rightvar);
@@ -3238,6 +3391,7 @@ fail:
 Datum
 matchingsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -3246,9 +3400,12 @@ matchingsel(PG_FUNCTION_ARGS)
   double    selec;
 
   /* Use generic restriction selectivity logic. */
+  DBUG_PRINT("info", "use generic restriction selectivity logic");
   selec = generic_restriction_selectivity(root, operator, collation,
                                           args, varRelid,
                                           DEFAULT_MATCHING_SEL);
+
+  DBUG_PRINT("info", "selectivity:%g for operator oid:%d", selec, operator);
 
   PG_RETURN_FLOAT8((float8) selec);
 }
@@ -3256,7 +3413,9 @@ matchingsel(PG_FUNCTION_ARGS)
 Datum
 matchingjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Just punt, for the moment. */
+  DBUG_PRINT("info", "just punt, for the moment and return default matching sel:%g", DEFAULT_MATCHING_SEL);
   PG_RETURN_FLOAT8(DEFAULT_MATCHING_SEL);
 }
 
@@ -3402,6 +3561,7 @@ double
 estimate_num_groups(PlannerInfo *root, List *groupExprs, double input_rows,
                     List **pgset, EstimationInfo *estinfo)
 {
+  DBUG_TRACE;
   List     *varinfos = NIL;
   double    srf_multiplier = 1.0;
   double    numdistinct;
@@ -3732,6 +3892,7 @@ estimate_num_groups(PlannerInfo *root, List *groupExprs, double input_rows,
   if (numdistinct < 1.0)
     numdistinct = 1.0;
 
+  DBUG_PRINT("info", "estimate number of groups in a grouped query:%g", numdistinct);
   return numdistinct;
 }
 
@@ -4001,6 +4162,7 @@ estimate_hash_bucket_stats(PlannerInfo *root, Node *hashkey, double nbuckets,
                            Selectivity *mcv_freq,
                            Selectivity *bucketsize_frac)
 {
+  DBUG_TRACE;
   VariableStatData vardata;
   double    estfract,
             ndistinct,
@@ -4021,8 +4183,10 @@ estimate_hash_bucket_stats(PlannerInfo *root, Node *hashkey, double nbuckets,
       /*
        * The first MCV stat is for the most common value.
        */
-      if (sslot.nnumbers > 0)
+      if (sslot.nnumbers > 0) {
         *mcv_freq = sslot.numbers[0];
+        DBUG_PRINT("info", "the first MCV stat is for the most common value:%g, sslot nnumbers:%d", *mcv_freq, sslot.nnumbers);
+      }
 
       free_attstatsslot(&sslot);
     }
@@ -4030,6 +4194,7 @@ estimate_hash_bucket_stats(PlannerInfo *root, Node *hashkey, double nbuckets,
 
   /* Get number of distinct values */
   ndistinct = get_variable_numdistinct(&vardata, &isdefault);
+  DBUG_PRINT("info", "get number of distinct values:%g", ndistinct);
 
   /*
    * If ndistinct isn't real, punt.  We normally return 0.1, but if the
@@ -4037,6 +4202,7 @@ estimate_hash_bucket_stats(PlannerInfo *root, Node *hashkey, double nbuckets,
    */
   if (isdefault) {
     *bucketsize_frac = (Selectivity) Max(0.1, *mcv_freq);
+    DBUG_PRINT("info", "bucketsize_frac:%g, mcv_freq:%g", *bucketsize_frac, *mcv_freq);
     ReleaseVariableStats(vardata);
     return;
   }
@@ -4092,6 +4258,7 @@ estimate_hash_bucket_stats(PlannerInfo *root, Node *hashkey, double nbuckets,
   else if (estfract > 1.0)
     estfract = 1.0;
 
+  DBUG_PRINT("info", "estfract:%g", estfract);
   *bucketsize_frac = (Selectivity) estfract;
 
   ReleaseVariableStats(vardata);
@@ -4114,7 +4281,9 @@ double
 estimate_hashagg_tablesize(PlannerInfo *root, Path *path,
                            const AggClauseCosts *agg_costs, double dNumGroups)
 {
+  DBUG_TRACE;
   Size    hashentrysize;
+  double result;
 
   hashentrysize = hash_agg_entry_size(list_length(root->aggtransinfos),
                                       path->pathtarget->width,
@@ -4126,7 +4295,11 @@ estimate_hashagg_tablesize(PlannerInfo *root, Path *path,
    * fill-factor is relatively high.  It'd be hard to meaningfully factor in
    * "double-in-size" growth policies here.
    */
-  return hashentrysize * dNumGroups;
+  result = hashentrysize * dNumGroups;
+  DBUG_PRINT("info", "estimate the number of bytes that a hash aggregate hashtable will require");
+  DBUG_PRINT("info", "based on the agg_costs, path width and number of groups");
+  DBUG_PRINT("info", "result(%g) = hashentrysize(%lu) * dNumGroups(%g)", result, hashentrysize, dNumGroups);
+  return result;
 }
 
 
@@ -4155,6 +4328,7 @@ static bool
 estimate_multivariate_ndistinct(PlannerInfo *root, RelOptInfo *rel,
                                 List **varinfos, double *ndistinct)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   int     nmatches_vars;
   int     nmatches_exprs;
@@ -4497,6 +4671,7 @@ convert_to_scalar(Datum value, Oid valuetypid, Oid collid, double *scaledvalue,
                   Datum lobound, Datum hibound, Oid boundstypid,
                   double *scaledlobound, double *scaledhibound)
 {
+  DBUG_TRACE;
   bool    failure = false;
 
   /*
@@ -4641,6 +4816,8 @@ convert_to_scalar(Datum value, Oid valuetypid, Oid collid, double *scaledvalue,
 static double
 convert_numeric_to_scalar(Datum value, Oid typid, bool *failure)
 {
+  DBUG_TRACE;
+
   switch (typid) {
     case BOOLOID:
       return (double) DatumGetBool(value);
@@ -5297,7 +5474,7 @@ examine_variable(PlannerInfo *root, Node *node, int varRelid,
       /* varnos has multiple relids */
       if (varRelid == 0) {
         /* treat it as a variable of a join relation */
-        vardata->rel = find_join_rel(root, varnos);
+        vardata->rel = find_join_rel(root, varnos, NULL);
         node = basenode;  /* strip any phvs or relabeling */
       } else if (bms_is_member(varRelid, varnos)) {
         /* ignore the vars belonging to other relations */
@@ -6159,9 +6336,11 @@ statistic_proc_security_check(VariableStatData *vardata, Oid func_oid)
 double
 get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
 {
+  DBUG_TRACE;
   double    stadistinct;
   double    stanullfrac = 0.0;
   double    ntuples;
+  double      result = 0.0;
 
   *isdefault = false;
 
@@ -6175,6 +6354,7 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
     /* Use the pg_statistic entry */
     Form_pg_statistic stats;
 
+    DBUG_PRINT("info", "use the pg_statistic entry");
     stats = (Form_pg_statistic) GETSTRUCT(vardata->statsTuple);
     stadistinct = stats->stadistinct;
     stanullfrac = stats->stanullfrac;
@@ -6185,6 +6365,7 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
      * Are there any other datatypes we should wire in special estimates
      * for?
      */
+    DBUG_PRINT("info", "special-case boolean columns: presumably, two distinct values");
     stadistinct = 2.0;
   } else if (vardata->rel && vardata->rel->rtekind == RTE_VALUES) {
     /*
@@ -6194,8 +6375,11 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
      * contents to get some real statistics; but that only works if the
      * entries are all constants, and it would be pretty expensive anyway.
      */
+    DBUG_PRINT("info", "when the Var represents a column of a VALUES RTE, assume it's unique");
     stadistinct = -1.0;   /* unique (and all non null) */
   } else {
+    DBUG_PRINT("info", "we don't keep statistics for system columns, but in some cases we can infer distinctness anyway");
+
     /*
      * We don't keep statistics for system columns, but in some cases we
      * can infer distinctness anyway.
@@ -6203,19 +6387,24 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
     if (vardata->var && IsA(vardata->var, Var)) {
       switch (((Var *) vardata->var)->varattno) {
         case SelfItemPointerAttributeNumber:
+          DBUG_PRINT("info", "unique (and all non null)");
           stadistinct = -1.0; /* unique (and all non null) */
           break;
 
         case TableOidAttributeNumber:
+          DBUG_PRINT("info", "only 1 value)");
           stadistinct = 1.0;  /* only 1 value */
           break;
 
         default:
+          DBUG_PRINT("info", "means 'unknown'");
           stadistinct = 0.0;  /* means "unknown" */
           break;
       }
-    } else
+    } else {
+      DBUG_PRINT("info", "means 'unknown'");
       stadistinct = 0.0;  /* means "unknown" */
+    }
 
     /*
      * XXX consider using estimate_num_groups on expressions?
@@ -6229,19 +6418,24 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
    * unique index that proves the var is unique for this query.  However,
    * we'd better still believe the null-fraction statistic.
    */
-  if (vardata->isunique)
+  if (vardata->isunique) {
     stadistinct = -1.0 * (1.0 - stanullfrac);
+  }
 
   /*
    * If we had an absolute estimate, use that.
    */
-  if (stadistinct > 0.0)
-    return clamp_row_est(stadistinct);
+  if (stadistinct > 0.0) {
+    result = clamp_row_est(stadistinct);
+    DBUG_PRINT("info", "when we had an absolute estimate, use that:%g", result);
+    return result;
+  }
 
   /*
    * Otherwise we need to get the relation size; punt if not available.
    */
   if (vardata->rel == NULL) {
+    DBUG_PRINT("info", "rel is nullptr and return default distinct number:%d", DEFAULT_NUM_DISTINCT);
     *isdefault = true;
     return DEFAULT_NUM_DISTINCT;
   }
@@ -6250,24 +6444,32 @@ get_variable_numdistinct(VariableStatData *vardata, bool *isdefault)
 
   if (ntuples <= 0.0) {
     *isdefault = true;
+    DBUG_PRINT("info", "ntuples:%g <= 0.0 and return default distinct number:%d", ntuples, DEFAULT_NUM_DISTINCT);
     return DEFAULT_NUM_DISTINCT;
   }
 
   /*
    * If we had a relative estimate, use that.
    */
-  if (stadistinct < 0.0)
-    return clamp_row_est(-stadistinct * ntuples);
+  if (stadistinct < 0.0) {
+    result = clamp_row_est(-stadistinct * ntuples);
+    DBUG_PRINT("info", "when we had a relative estimate, use that:%g", result);
+    return result;
+  }
 
   /*
    * With no data, estimate ndistinct = ntuples if the table is small, else
    * use default.  We use DEFAULT_NUM_DISTINCT as the cutoff for "small" so
    * that the behavior isn't discontinuous.
    */
-  if (ntuples < DEFAULT_NUM_DISTINCT)
-    return clamp_row_est(ntuples);
+  if (ntuples < DEFAULT_NUM_DISTINCT) {
+    result = clamp_row_est(ntuples);
+    DBUG_PRINT("info", "the table is small(ntuples:%g) and we estimate ndistinct = ntuples:%g", ntuples, result);
+    return result;
+  }
 
   *isdefault = true;
+  DBUG_PRINT("info", "use default distinct num:%d", DEFAULT_NUM_DISTINCT);
   return DEFAULT_NUM_DISTINCT;
 }
 
@@ -6286,6 +6488,7 @@ get_variable_range(PlannerInfo *root, VariableStatData *vardata,
                    Oid sortop, Oid collation,
                    Datum *min, Datum *max)
 {
+  DBUG_TRACE;
   Datum   tmin = 0;
   Datum   tmax = 0;
   bool    have_data = false;
@@ -6413,6 +6616,7 @@ get_stats_slot_range(AttStatsSlot *sslot, Oid opfuncoid, FmgrInfo *opproc,
                      Oid collation, int16 typLen, bool typByVal,
                      Datum *min, Datum *max, bool *p_have_data)
 {
+  DBUG_TRACE;
   Datum   tmin = *min;
   Datum   tmax = *max;
   bool    have_data = *p_have_data;
@@ -6827,7 +7031,10 @@ get_actual_variable_endpoint(Relation heapRel,
 static RelOptInfo *
 find_join_input_rel(PlannerInfo *root, Relids relids)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = NULL;
+
+  DBUG_PRINT("info", "look up the input relation for a join");
 
   if (!bms_is_empty(relids)) {
     int     relid;
@@ -6835,7 +7042,7 @@ find_join_input_rel(PlannerInfo *root, Relids relids)
     if (bms_get_singleton_member(relids, &relid))
       rel = find_base_rel(root, relid);
     else
-      rel = find_join_rel(root, relids);
+      rel = find_join_rel(root, relids, NULL);
   }
 
   if (rel == NULL)
@@ -6858,6 +7065,7 @@ find_join_input_rel(PlannerInfo *root, Relids relids)
 List *
 get_quals_from_indexclauses(List *indexclauses)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -6887,6 +7095,7 @@ get_quals_from_indexclauses(List *indexclauses)
 Cost
 index_other_operands_eval_cost(PlannerInfo *root, List *indexquals)
 {
+  DBUG_TRACE;
   Cost    qual_arg_cost = 0;
   ListCell   *lc;
 
@@ -6926,6 +7135,7 @@ index_other_operands_eval_cost(PlannerInfo *root, List *indexquals)
     qual_arg_cost += index_qual_cost.startup + index_qual_cost.per_tuple;
   }
 
+  DBUG_PRINT("info", "compute the total evaluation cost of the comparison operands:%g", qual_arg_cost);
   return qual_arg_cost;
 }
 
@@ -6935,6 +7145,7 @@ genericcostestimate(PlannerInfo *root,
                     double loop_count,
                     GenericCosts *costs)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   List     *indexQuals = get_quals_from_indexclauses(path->indexclauses);
   List     *indexOrderBys = path->indexorderbys;
@@ -6988,6 +7199,7 @@ genericcostestimate(PlannerInfo *root,
                      index->rel->relid,
                      JOIN_INNER,
                      NULL);
+  DBUG_PRINT("info", "estimate the fraction of main-table tuples that will be visited:%g", indexSelectivity);
 
   /*
    * If caller didn't give us an estimate, estimate the number of index
@@ -7006,7 +7218,11 @@ genericcostestimate(PlannerInfo *root,
      * round to integer, too.  (If caller supplied tuple estimate, it's
      * responsible for handling these considerations.)
      */
+    DBUG_PRINT("info", "if caller didn't give us an estimate, estimate the number of index tuples that will be visited");
     numIndexTuples = rint(numIndexTuples / num_sa_scans);
+    DBUG_PRINT("info", "numIndexTuples:%g", numIndexTuples);
+  } else {
+    DBUG_PRINT("info", "numIndexTuples:%g", numIndexTuples);
   }
 
   /*
@@ -7014,8 +7230,10 @@ genericcostestimate(PlannerInfo *root,
    * always estimate at least one tuple is touched, even when
    * indexSelectivity estimate is tiny.
    */
-  if (numIndexTuples > index->tuples)
+  if (numIndexTuples > index->tuples) {
     numIndexTuples = index->tuples;
+    DBUG_PRINT("info", "bound the number of tuples by the index size:%g", numIndexTuples);
+  }
 
   if (numIndexTuples < 1.0)
     numIndexTuples = 1.0;
@@ -7037,11 +7255,13 @@ genericcostestimate(PlannerInfo *root,
   else
     numIndexPages = 1.0;
 
+  DBUG_PRINT("info", "estimate the number of index pages that will be retrieve:%g", numIndexPages);
   /* fetch estimated page cost for tablespace containing index */
   get_tablespace_page_costs(index->reltablespace,
                             &spc_random_page_cost,
                             NULL);
 
+  DBUG_PRINT("info", "fetch estimated page cost for tablespace containing index:%g", spc_random_page_cost);
   /*
    * Now compute the disk access costs.
    *
@@ -7061,18 +7281,21 @@ genericcostestimate(PlannerInfo *root,
    */
   num_outer_scans = loop_count;
   num_scans = num_sa_scans * num_outer_scans;
+  DBUG_PRINT("info", "now compute the disk access costs");
 
   if (num_scans > 1) {
     double    pages_fetched;
 
     /* total page fetches ignoring cache effects */
     pages_fetched = numIndexPages * num_scans;
+    DBUG_PRINT("info", "total page fetches ignoring cache effects:%g", pages_fetched);
 
     /* use Mackert and Lohman formula to adjust for cache effects */
     pages_fetched = index_pages_fetched(pages_fetched,
                                         index->pages,
                                         (double) index->pages,
                                         root);
+    DBUG_PRINT("info", "use Mackert and Lohman formula to adjust for cache effects:%g", pages_fetched);
 
     /*
      * Now compute the total disk access cost, and then report a pro-rated
@@ -7081,12 +7304,16 @@ genericcostestimate(PlannerInfo *root,
      */
     indexTotalCost = (pages_fetched * spc_random_page_cost)
                      / num_outer_scans;
+    DBUG_PRINT("info", "indexTotalCost(%g) = (pages_fetched(%g) * spc_random_page_cost(%g)) / num_outer_scans(%g)",
+               indexTotalCost, pages_fetched, spc_random_page_cost, num_outer_scans);
   } else {
     /*
      * For a single index scan, we just charge spc_random_page_cost per
      * page touched.
      */
     indexTotalCost = numIndexPages * spc_random_page_cost;
+    DBUG_PRINT("info", "for a single index scan, we just charge spc_random_page_cost per page touched");
+    DBUG_PRINT("info", "indexTotalCost(%g) = numIndexPages(%g) * spc_random_page_cost(%g)", indexTotalCost, numIndexPages, spc_random_page_cost);
   }
 
   /*
@@ -7108,14 +7335,20 @@ genericcostestimate(PlannerInfo *root,
   qual_op_cost = cpu_operator_cost *
                  (list_length(indexQuals) + list_length(indexOrderBys));
 
+  DBUG_PRINT("info", "qual_arg_cost:%g, qual_op_cost:%g", qual_arg_cost, qual_op_cost);
   indexStartupCost = qual_arg_cost;
   indexTotalCost += qual_arg_cost;
+  DBUG_PRINT("info", "indexStartupCost:%g, indexTotalCost:%g", indexStartupCost, indexTotalCost);
   indexTotalCost += numIndexTuples * num_sa_scans * (cpu_index_tuple_cost + qual_op_cost);
+
+  DBUG_PRINT("info", "indexTotalCost(%g) + = numIndexTuples(%g) * num_sa_scans(%g) * (cpu_index_tuple_cost(%g) + qual_op_cost(%g))",
+             indexTotalCost, numIndexTuples, num_sa_scans, cpu_index_tuple_cost, qual_op_cost);
 
   /*
    * Generic assumption about index correlation: there isn't any.
    */
   indexCorrelation = 0.0;
+  DBUG_PRINT("info", "generic assumption about index correlation: there isn't any");
 
   /*
    * Return everything to caller.
@@ -7152,6 +7385,7 @@ genericcostestimate(PlannerInfo *root,
 List *
 add_predicate_to_index_quals(IndexOptInfo *index, List *indexQuals)
 {
+  DBUG_TRACE;
   List     *predExtraQuals = NIL;
   ListCell   *lc;
 
@@ -7183,6 +7417,7 @@ add_predicate_to_index_quals(IndexOptInfo *index, List *indexQuals)
 static double
 btcost_correlation(IndexOptInfo *index, VariableStatData *vardata)
 {
+  DBUG_TRACE;
   Oid     sortop;
   AttStatsSlot sslot;
   double    indexCorrelation = 0;
@@ -7203,8 +7438,10 @@ btcost_correlation(IndexOptInfo *index, VariableStatData *vardata)
     Assert(sslot.nnumbers == 1);
     varCorrelation = sslot.numbers[0];
 
-    if (index->reverse_sort[0])
+    if (index->reverse_sort[0]) {
       varCorrelation = -varCorrelation;
+      DBUG_PRINT("info", "sort order descending and var correlation:%g", varCorrelation);
+    }
 
     if (index->nkeycolumns > 1)
       indexCorrelation = varCorrelation * 0.75;
@@ -7214,6 +7451,8 @@ btcost_correlation(IndexOptInfo *index, VariableStatData *vardata)
     free_attstatsslot(&sslot);
   }
 
+
+  DBUG_PRINT("info", "return indexCorrelation:%g", indexCorrelation);
   return indexCorrelation;
 }
 
@@ -7223,6 +7462,7 @@ btcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                Selectivity *indexSelectivity, double *indexCorrelation,
                double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   GenericCosts costs = {0};
   VariableStatData vardata = {0};
@@ -7554,6 +7794,7 @@ btcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                        JOIN_INNER,
                        NULL);
     numIndexTuples = btreeSelectivity * index->rel->tuples;
+    DBUG_PRINT("info", "numIndexTuples:%g, btreeSelectivity:%g", numIndexTuples, btreeSelectivity);
 
     /*
      * btree automatically combines individual array element primitive
@@ -7606,6 +7847,7 @@ btcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   /*
    * Now do generic index cost estimation.
    */
+  DBUG_PRINT("info", "now do generic index cost estimation(numIndexTuples:%g, num_sa_scans:%g)", numIndexTuples, num_sa_scans);
   costs.numIndexTuples = numIndexTuples;
   costs.num_sa_scans = num_sa_scans;
 
@@ -7626,6 +7868,9 @@ btcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
     descentCost = ceil(log(index->tuples) / log(2.0)) * cpu_operator_cost;
     costs.indexStartupCost += descentCost;
     costs.indexTotalCost += costs.num_sa_scans * descentCost;
+    DBUG_PRINT("info", "index tuples:%g and add cost to indexTotalCost(descentCost:%g, num_sa_scans:%g)",
+               index->tuples, descentCost, costs.num_sa_scans);
+    DBUG_PRINT("info", "indexTotalCost:%g", costs.indexTotalCost);
   }
 
   /*
@@ -7642,6 +7887,7 @@ btcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   descentCost = (index->tree_height + 1) * DEFAULT_PAGE_CPU_MULTIPLIER * cpu_operator_cost;
   costs.indexStartupCost += descentCost;
   costs.indexTotalCost += costs.num_sa_scans * descentCost;
+  DBUG_PRINT("info", "add cost to indexTotalCost(descentCost:%g, num_sa_scans:%g), now:%g", descentCost, costs.num_sa_scans, costs.indexTotalCost);
 
   if (!have_correlation) {
     examine_indexcol_variable(root, index, 0, &vardata);
@@ -7668,6 +7914,7 @@ hashcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                  Selectivity *indexSelectivity, double *indexCorrelation,
                  double *indexPages)
 {
+  DBUG_TRACE;
   GenericCosts costs = {0};
 
   genericcostestimate(root, path, loop_count, &costs);
@@ -7710,11 +7957,13 @@ gistcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                  Selectivity *indexSelectivity, double *indexCorrelation,
                  double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   GenericCosts costs = {0};
   Cost    descentCost;
 
   genericcostestimate(root, path, loop_count, &costs);
+  DBUG_PRINT("info", "tree height:%d, index tuples:%g", index->tree_height, index->tuples);
 
   /*
    * We model index descent costs similarly to those for btree, but to do
@@ -7730,6 +7979,8 @@ gistcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
       index->tree_height = (int) (log(index->pages) / log(100.0));
     else
       index->tree_height = 0;
+
+    DBUG_PRINT("info", "tree height:%d, index pages:%u", index->tree_height, index->pages);
   }
 
   /*
@@ -7738,14 +7989,17 @@ gistcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
    * necessarily two anyway.  As for btree, charge once per SA scan.
    */
   if (index->tuples > 1) {  /* avoid computing log(0) */
+    DBUG_PRINT("info", "add a CPU-cost component to represent the costs of initial descent");
     descentCost = ceil(log(index->tuples)) * cpu_operator_cost;
     costs.indexStartupCost += descentCost;
     costs.indexTotalCost += costs.num_sa_scans * descentCost;
+    DBUG_PRINT("info", "descentCost:%g, indexStartupCost:%g, indexTotalCost:%g", descentCost, costs.indexStartupCost, costs.indexTotalCost);
   }
 
   /*
    * Likewise add a per-page charge, calculated the same as for btrees.
    */
+  DBUG_PRINT("info", "likewise add a per-page charge, calculated the same as for btrees");
   descentCost = (index->tree_height + 1) * DEFAULT_PAGE_CPU_MULTIPLIER * cpu_operator_cost;
   costs.indexStartupCost += descentCost;
   costs.indexTotalCost += costs.num_sa_scans * descentCost;
@@ -7755,6 +8009,8 @@ gistcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   *indexSelectivity = costs.indexSelectivity;
   *indexCorrelation = costs.indexCorrelation;
   *indexPages = costs.numIndexPages;
+  DBUG_PRINT("info", "indexStartupCost:%g, indexTotalCost:%g, indexSelectivity:%g, indexCorrelation:%g, indexPages:%g",
+             *indexStartupCost, *indexTotalCost, *indexSelectivity, *indexCorrelation, *indexPages);
 }
 
 void
@@ -7763,11 +8019,13 @@ spgcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                 Selectivity *indexSelectivity, double *indexCorrelation,
                 double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   GenericCosts costs = {0};
   Cost    descentCost;
 
   genericcostestimate(root, path, loop_count, &costs);
+  DBUG_PRINT("info", "tree height:%d, index tuples:%g", index->tree_height, index->tuples);
 
   /*
    * We model index descent costs similarly to those for btree, but to do
@@ -7779,10 +8037,14 @@ spgcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
    * caching, we might as well use index->tree_height to cache it.
    */
   if (index->tree_height < 0) { /* unknown? */
-    if (index->pages > 1) /* avoid computing log(0) */
+    if (index->pages > 1) {/* avoid computing log(0) */
       index->tree_height = (int) (log(index->pages) / log(100.0));
-    else
+      DBUG_PRINT("info", "we somewhat arbitrarily assume that the fanout is 100 and now tree height:%d", index->tree_height);
+    } else {
       index->tree_height = 0;
+    }
+  } else {
+    DBUG_PRINT("info", "index tree height:%d, tuples:%g", index->tree_height, index->tuples);
   }
 
   /*
@@ -7799,6 +8061,7 @@ spgcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   /*
    * Likewise add a per-page charge, calculated the same as for btrees.
    */
+
   descentCost = (index->tree_height + 1) * DEFAULT_PAGE_CPU_MULTIPLIER * cpu_operator_cost;
   costs.indexStartupCost += descentCost;
   costs.indexTotalCost += costs.num_sa_scans * descentCost;
@@ -7808,6 +8071,9 @@ spgcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   *indexSelectivity = costs.indexSelectivity;
   *indexCorrelation = costs.indexCorrelation;
   *indexPages = costs.numIndexPages;
+  DBUG_PRINT("info", "indexStartupCost:%g, indexTotalCost:%g, indexSelectivity:%g, indexCorrelation:%g, indexPages:%g",
+             *indexStartupCost, *indexTotalCost, *indexSelectivity, *indexCorrelation, *indexPages);
+
 }
 
 
@@ -7834,6 +8100,7 @@ gincost_pattern(IndexOptInfo *index, int indexcol,
                 Oid clause_op, Datum query,
                 GinQualCounts *counts)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
   Oid     extractProcOid;
   Oid     collation;
@@ -7942,9 +8209,12 @@ gincost_opexpr(PlannerInfo *root,
                OpExpr *clause,
                GinQualCounts *counts)
 {
+  DBUG_TRACE;
   Oid     clause_op = clause->opno;
   Node     *operand = (Node *) lsecond(clause->args);
 
+  DBUG_PRINT("info", "estimate the number of index terms that need to be searched for");
+  DBUG_PRINT("info", "while testing the given GIN index clause");
   /* aggressively reduce to a constant, and look through relabeling */
   operand = estimate_expression_value(root, operand);
 
@@ -7967,6 +8237,7 @@ gincost_opexpr(PlannerInfo *root,
     return false;
 
   /* Otherwise, apply extractQuery and get the actual term counts */
+  DBUG_PRINT("info", "apply extractQuery and get the actual term counts");
   return gincost_pattern(index, indexcol, clause_op,
                          ((Const *) operand)->constvalue,
                          counts);
@@ -7992,6 +8263,7 @@ gincost_scalararrayopexpr(PlannerInfo *root,
                           double numIndexEntries,
                           GinQualCounts *counts)
 {
+  DBUG_TRACE;
   Oid     clause_op = clause->opno;
   Node     *rightop = (Node *) lsecond(clause->args);
   ArrayType  *arrayval;
@@ -8102,6 +8374,7 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                 Selectivity *indexSelectivity, double *indexCorrelation,
                 double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   List     *indexQuals = get_quals_from_indexclauses(path->indexclauses);
   List     *selectivityQuals;
@@ -8127,6 +8400,9 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   GinStatsData ginStats;
   ListCell   *lc;
   int     i;
+
+  DBUG_PRINT("info", "GIN has search behavior completely different from other index types");
+  DBUG_PRINT("info", "index numPages:%g, index tuples:%g", numPages, numTuples);
 
   /*
    * Obtain statistical information from the meta page, if possible.  Else
@@ -8211,6 +8487,7 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                       JOIN_INNER,
                       NULL);
 
+  DBUG_PRINT("info", "estimate the fraction of main-table tuples that will be visited:%g", *indexSelectivity);
   /* fetch estimated page cost for tablespace containing index */
   get_tablespace_page_costs(index->reltablespace,
                             &spc_random_page_cost,
@@ -8220,6 +8497,7 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
    * Generic assumption about index correlation: there isn't any.
    */
   *indexCorrelation = 0.0;
+  DBUG_PRINT("info", "generic assumption about index correlation: there isn't any");
 
   /*
    * Examine quals to estimate number of search entries & partial matches
@@ -8465,6 +8743,8 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   /* Now add a cpu cost per tuple in the posting lists / trees */
   *indexTotalCost += (numTuples * *indexSelectivity) * (cpu_index_tuple_cost);
   *indexPages = dataPagesFetched;
+
+  DBUG_PRINT("info", "indexStartupCost:%g, indexTotalCost:%g, indexPages:%g", *indexStartupCost, *indexTotalCost, *indexPages);
 }
 
 /*
@@ -8476,6 +8756,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                  Selectivity *indexSelectivity, double *indexCorrelation,
                  double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   List     *indexQuals = get_quals_from_indexclauses(path->indexclauses);
   double    numPages = index->pages;
@@ -8494,6 +8775,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   ListCell   *l;
   VariableStatData vardata;
 
+  DBUG_PRINT("info", "BRIN has search behavior completely different from other index types");
   Assert(rte->rtekind == RTE_RELATION);
 
   /* fetch estimated page cost for the tablespace containing the index */
@@ -8568,6 +8850,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
        * see if there's any stats for it.
        */
 
+      DBUG_PRINT("info", "looks like we've found an expression column in the index");
       /* get the attnum from the 0-based index. */
       attnum = iclause->indexcol + 1;
 
@@ -8610,10 +8893,12 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
     ReleaseVariableStats(vardata);
   }
 
+  DBUG_PRINT("info", "compute index correlation:%g", *indexCorrelation);
   qualSelectivity = clauselist_selectivity(root, indexQuals,
                     baserel->relid,
                     JOIN_INNER, NULL);
 
+  DBUG_PRINT("info", "qualSelectivity:%g", qualSelectivity);
   /*
    * Now calculate the minimum possible ranges we could match with if all of
    * the rows were in the perfect order in the table's heap.
@@ -8636,6 +8921,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   CLAMP_PROBABILITY(selec);
 
   *indexSelectivity = selec;
+  DBUG_PRINT("info", "indexSelectivity:%g", selec);
 
   /*
    * Compute the index qual costs, much as in genericcostestimate, to add to
@@ -8671,4 +8957,6 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                      statsData.pagesPerRange;
 
   *indexPages = index->pages;
+
+  DBUG_PRINT("info", "indexStartupCost:%g, indexTotalCost:%g, indexPages:%g", *indexStartupCost, *indexTotalCost, *indexPages);
 }

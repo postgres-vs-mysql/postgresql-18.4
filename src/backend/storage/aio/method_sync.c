@@ -17,6 +17,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "storage/aio.h"
 #include "storage/aio_internal.h"
@@ -41,6 +42,8 @@ pgaio_sync_needs_synchronous_execution(PgAioHandle *ioh)
 static int
 pgaio_sync_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 {
+  DBUG_TRACE;
+  DBUG_INSTANT_PRINT("info", "IO should have been executed synchronously");
   elog(ERROR, "IO should have been executed synchronously");
 
   return 0;

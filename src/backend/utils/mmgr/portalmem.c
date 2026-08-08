@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xact.h"
 #include "commands/portalcmds.h"
@@ -1108,6 +1109,7 @@ AtSubCleanup_Portals(SubTransactionId mySubid)
 Datum
 pg_cursor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   HASH_SEQ_STATUS hash_seq;
   PortalHashEnt *hentry;

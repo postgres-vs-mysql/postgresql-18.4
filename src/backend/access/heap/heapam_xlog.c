@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/heapam.h"
@@ -29,6 +30,7 @@
 static void
 heap_xlog_prune_freeze(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *maindataptr = XLogRecGetData(record);
   xl_heap_prune xlrec;
@@ -175,6 +177,7 @@ heap_xlog_prune_freeze(XLogReaderState *record)
 static void
 heap_xlog_visible(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_visible *xlrec = (xl_heap_visible *) XLogRecGetData(record);
   Buffer    vmbuffer = InvalidBuffer;
@@ -305,6 +308,7 @@ heap_xlog_visible(XLogReaderState *record)
 static void
 fix_infomask_from_infobits(uint8 infobits, uint16 *infomask, uint16 *infomask2)
 {
+  DBUG_TRACE;
   *infomask &= ~(HEAP_XMAX_IS_MULTI | HEAP_XMAX_LOCK_ONLY |
                  HEAP_XMAX_KEYSHR_LOCK | HEAP_XMAX_EXCL_LOCK);
   *infomask2 &= ~HEAP_KEYS_UPDATED;
@@ -332,6 +336,7 @@ fix_infomask_from_infobits(uint8 infobits, uint16 *infomask, uint16 *infomask2)
 static void
 heap_xlog_delete(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_delete *xlrec = (xl_heap_delete *) XLogRecGetData(record);
   Buffer    buffer;
@@ -366,8 +371,10 @@ heap_xlog_delete(XLogReaderState *record)
     if (PageGetMaxOffsetNumber(page) >= xlrec->offnum)
       lp = PageGetItemId(page, xlrec->offnum);
 
-    if (PageGetMaxOffsetNumber(page) < xlrec->offnum || !ItemIdIsNormal(lp))
+    if (PageGetMaxOffsetNumber(page) < xlrec->offnum || !ItemIdIsNormal(lp)) {
+      DBUG_INSTANT_PRINT("info", "invalid lp");
       elog(PANIC, "invalid lp");
+    }
 
     htup = (HeapTupleHeader) PageGetItem(page, lp);
 
@@ -377,9 +384,10 @@ heap_xlog_delete(XLogReaderState *record)
     fix_infomask_from_infobits(xlrec->infobits_set,
                                &htup->t_infomask, &htup->t_infomask2);
 
-    if (!(xlrec->flags & XLH_DELETE_IS_SUPER))
+    if (!(xlrec->flags & XLH_DELETE_IS_SUPER)) {
+      DBUG_PRINT("info", "set xmax:%u", xlrec->xmax);
       HeapTupleHeaderSetXmax(htup, xlrec->xmax);
-    else
+    } else
       HeapTupleHeaderSetXmin(htup, InvalidTransactionId);
 
     HeapTupleHeaderSetCmax(htup, FirstCommandId, false);
@@ -410,6 +418,7 @@ heap_xlog_delete(XLogReaderState *record)
 static void
 heap_xlog_insert(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_insert *xlrec = (xl_heap_insert *) XLogRecGetData(record);
   Buffer    buffer;
@@ -491,8 +500,10 @@ heap_xlog_insert(XLogReaderState *record)
     htup->t_ctid = target_tid;
 
     if (PageAddItem(page, (Item) htup, newlen, xlrec->offnum,
-                    true, true) == InvalidOffsetNumber)
+                    true, true) == InvalidOffsetNumber) {
+      DBUG_INSTANT_PRINT("info", "failed to add tuple");
       elog(PANIC, "failed to add tuple");
+    }
 
     freespace = PageGetHeapFreeSpace(page); /* needed to update FSM below */
 
@@ -526,6 +537,7 @@ heap_xlog_insert(XLogReaderState *record)
 static void
 heap_xlog_multi_insert(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_multi_insert *xlrec;
   RelFileLocator rlocator;
@@ -672,6 +684,7 @@ heap_xlog_multi_insert(XLogReaderState *record)
 static void
 heap_xlog_update(XLogReaderState *record, bool hot_update)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_update *xlrec = (xl_heap_update *) XLogRecGetData(record);
   RelFileLocator rlocator;
@@ -765,6 +778,7 @@ heap_xlog_update(XLogReaderState *record, bool hot_update)
 
     fix_infomask_from_infobits(xlrec->old_infobits_set, &htup->t_infomask,
                                &htup->t_infomask2);
+    DBUG_PRINT("info", "set xmax:%u", xlrec->old_xmax);
     HeapTupleHeaderSetXmax(htup, xlrec->old_xmax);
     HeapTupleHeaderSetCmax(htup, FirstCommandId, false);
     /* Set forward chain link in t_ctid */
@@ -893,6 +907,8 @@ heap_xlog_update(XLogReaderState *record, bool hot_update)
 
     HeapTupleHeaderSetXmin(htup, XLogRecGetXid(record));
     HeapTupleHeaderSetCmin(htup, FirstCommandId);
+
+    DBUG_PRINT("info", "set xmax:%u", xlrec->new_xmax);
     HeapTupleHeaderSetXmax(htup, xlrec->new_xmax);
     /* Make sure there is no forward chain link in t_ctid */
     htup->t_ctid = newtid;
@@ -942,6 +958,7 @@ heap_xlog_update(XLogReaderState *record, bool hot_update)
 static void
 heap_xlog_confirm(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_confirm *xlrec = (xl_heap_confirm *) XLogRecGetData(record);
   Buffer    buffer;
@@ -982,6 +999,7 @@ heap_xlog_confirm(XLogReaderState *record)
 static void
 heap_xlog_lock(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_lock *xlrec = (xl_heap_lock *) XLogRecGetData(record);
   Buffer    buffer;
@@ -1040,6 +1058,7 @@ heap_xlog_lock(XLogReaderState *record)
                      offnum);
     }
 
+    DBUG_PRINT("info", "set xmax:%u", xlrec->xmax);
     HeapTupleHeaderSetXmax(htup, xlrec->xmax);
     HeapTupleHeaderSetCmax(htup, FirstCommandId, false);
     PageSetLSN(page, lsn);
@@ -1056,6 +1075,7 @@ heap_xlog_lock(XLogReaderState *record)
 static void
 heap_xlog_lock_updated(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_lock_updated *xlrec;
   Buffer    buffer;
@@ -1103,6 +1123,7 @@ heap_xlog_lock_updated(XLogReaderState *record)
     htup->t_infomask2 &= ~HEAP_KEYS_UPDATED;
     fix_infomask_from_infobits(xlrec->infobits_set, &htup->t_infomask,
                                &htup->t_infomask2);
+    DBUG_PRINT("info", "set xmax:%u", xlrec->xmax);
     HeapTupleHeaderSetXmax(htup, xlrec->xmax);
 
     PageSetLSN(page, lsn);
@@ -1119,6 +1140,7 @@ heap_xlog_lock_updated(XLogReaderState *record)
 static void
 heap_xlog_inplace(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_heap_inplace *xlrec = (xl_heap_inplace *) XLogRecGetData(record);
   Buffer    buffer;
@@ -1168,6 +1190,7 @@ heap_xlog_inplace(XLogReaderState *record)
 void
 heap_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /*
@@ -1177,19 +1200,23 @@ heap_redo(XLogReaderState *record)
 
   switch (info & XLOG_HEAP_OPMASK) {
     case XLOG_HEAP_INSERT:
+      DBUG_PRINT("info", "XLOG_HEAP_INSERT");
       heap_xlog_insert(record);
       break;
 
     case XLOG_HEAP_DELETE:
+      DBUG_PRINT("info", "XLOG_HEAP_DELETE");
       heap_xlog_delete(record);
       break;
 
     case XLOG_HEAP_UPDATE:
+      DBUG_PRINT("info", "XLOG_HEAP_UPDATE");
       heap_xlog_update(record, false);
       break;
 
     case XLOG_HEAP_TRUNCATE:
 
+      DBUG_PRINT("info", "XLOG_HEAP_TRUNCATE");
       /*
        * TRUNCATE is a no-op because the actions are already logged as
        * SMGR WAL records.  TRUNCATE WAL record only exists for logical
@@ -1198,18 +1225,22 @@ heap_redo(XLogReaderState *record)
       break;
 
     case XLOG_HEAP_HOT_UPDATE:
+      DBUG_PRINT("info", "XLOG_HEAP_HOT_UPDATE");
       heap_xlog_update(record, true);
       break;
 
     case XLOG_HEAP_CONFIRM:
+      DBUG_PRINT("info", "XLOG_HEAP_CONFIRM");
       heap_xlog_confirm(record);
       break;
 
     case XLOG_HEAP_LOCK:
+      DBUG_PRINT("info", "XLOG_HEAP_LOCK");
       heap_xlog_lock(record);
       break;
 
     case XLOG_HEAP_INPLACE:
+      DBUG_PRINT("info", "XLOG_HEAP_INPLACE");
       heap_xlog_inplace(record);
       break;
 
@@ -1221,28 +1252,42 @@ heap_redo(XLogReaderState *record)
 void
 heap2_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   switch (info & XLOG_HEAP_OPMASK) {
     case XLOG_HEAP2_PRUNE_ON_ACCESS:
+      DBUG_PRINT("info", "XLOG_HEAP2_PRUNE_ON_ACCESS");
+      heap_xlog_prune_freeze(record);
+      break;
+
     case XLOG_HEAP2_PRUNE_VACUUM_SCAN:
+      DBUG_PRINT("info", "XLOG_HEAP2_PRUNE_VACUUM_SCAN");
+      heap_xlog_prune_freeze(record);
+      break;
+
     case XLOG_HEAP2_PRUNE_VACUUM_CLEANUP:
+      DBUG_PRINT("info", "XLOG_HEAP2_PRUNE_VACUUM_CLEANUP");
       heap_xlog_prune_freeze(record);
       break;
 
     case XLOG_HEAP2_VISIBLE:
+      DBUG_PRINT("info", "XLOG_HEAP2_VISIBLE");
       heap_xlog_visible(record);
       break;
 
     case XLOG_HEAP2_MULTI_INSERT:
+      DBUG_PRINT("info", "XLOG_HEAP2_MULTI_INSERT");
       heap_xlog_multi_insert(record);
       break;
 
     case XLOG_HEAP2_LOCK_UPDATED:
+      DBUG_PRINT("info", "XLOG_HEAP2_LOCK_UPDATED");
       heap_xlog_lock_updated(record);
       break;
 
     case XLOG_HEAP2_NEW_CID:
+      DBUG_PRINT("info", "XLOG_HEAP2_NEW_CID");
 
       /*
        * Nothing to do on a real replay, only used during logical
@@ -1251,6 +1296,7 @@ heap2_redo(XLogReaderState *record)
       break;
 
     case XLOG_HEAP2_REWRITE:
+      DBUG_PRINT("info", "XLOG_HEAP2_REWRITE");
       heap_xlog_logical_rewrite(record);
       break;
 
@@ -1265,6 +1311,7 @@ heap2_redo(XLogReaderState *record)
 void
 heap_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
   OffsetNumber off;
 

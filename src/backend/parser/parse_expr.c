@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_aggregate.h"
 #include "catalog/pg_type.h"
@@ -118,9 +119,11 @@ static Node *make_nulltest_from_distinct(ParseState *pstate,
 Node *
 transformExpr(ParseState *pstate, Node *expr, ParseExprKind exprKind)
 {
+  DBUG_TRACE;
   Node     *result;
   ParseExprKind sv_expr_kind;
 
+  DBUG_PRINT("info", "analyze and transform expressions");
   /* Save and restore identity of expression type we're parsing */
   Assert(exprKind != EXPR_KIND_NONE);
   sv_expr_kind = pstate->p_expr_kind;
@@ -136,6 +139,7 @@ transformExpr(ParseState *pstate, Node *expr, ParseExprKind exprKind)
 static Node *
 transformExprRecurse(ParseState *pstate, Node *expr)
 {
+  DBUG_TRACE;
   Node     *result;
 
   if (expr == NULL)
@@ -311,6 +315,7 @@ transformExprRecurse(ParseState *pstate, Node *expr)
      * processed it rather than passing it to transformExpr().
      */
     case T_SetToDefault:
+      DBUG_INSTANT_PRINT("info", "DEFAULT is not allowed in this context");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("DEFAULT is not allowed in this context"),
@@ -394,6 +399,7 @@ static void
 unknown_attribute(ParseState *pstate, Node *relref, const char *attname,
                   int location)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte;
 
   if (IsA(relref, Var) &&
@@ -402,6 +408,7 @@ unknown_attribute(ParseState *pstate, Node *relref, const char *attname,
     rte = GetRTEByRangeTablePosn(pstate,
                                  ((Var *) relref)->varno,
                                  ((Var *) relref)->varlevelsup);
+    DBUG_INSTANT_PRINT("info", "column %s.%s does not exist", rte->eref->aliasname, attname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_COLUMN),
              errmsg("column %s.%s does not exist",
@@ -411,31 +418,38 @@ unknown_attribute(ParseState *pstate, Node *relref, const char *attname,
     /* Have to do it by reference to the type of the expression */
     Oid     relTypeId = exprType(relref);
 
-    if (ISCOMPLEX(relTypeId))
+    if (ISCOMPLEX(relTypeId)) {
+      char *format1 = format_type_be(relTypeId);
+      DBUG_INSTANT_PRINT("info", "column \"%s\" not found in data type %s", attname, format1);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column \"%s\" not found in data type %s",
-                      attname, format_type_be(relTypeId)),
+                      attname, format1),
                parser_errposition(pstate, location)));
-    else if (relTypeId == RECORDOID)
+    } else if (relTypeId == RECORDOID) {
+      DBUG_INSTANT_PRINT("info", "could not identify column \"%s\" in record data type", attname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("could not identify column \"%s\" in record data type",
                       attname),
                parser_errposition(pstate, location)));
-    else
+    } else {
+      char *format1 = format_type_be(relTypeId);
+      DBUG_INSTANT_PRINT("info", "column notation .%s applied to type %s, which is not a composite type", attname, format1);
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("column notation .%s applied to type %s, "
                       "which is not a composite type",
-                      attname, format_type_be(relTypeId)),
+                      attname, format1),
                parser_errposition(pstate, location)));
+    }
   }
 }
 
 static Node *
 transformIndirection(ParseState *pstate, A_Indirection *ind)
 {
+  DBUG_TRACE;
   Node     *last_srf = pstate->p_last_srf;
   Node     *result = transformExprRecurse(pstate, ind->arg);
   List     *subscripts = NIL;
@@ -453,6 +467,7 @@ transformIndirection(ParseState *pstate, A_Indirection *ind)
     if (IsA(n, A_Indices))
       subscripts = lappend(subscripts, n);
     else if (IsA(n, A_Star)) {
+      DBUG_INSTANT_PRINT("info", "row expansion via \"*\" is not supported here");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("row expansion via \"*\" is not supported here"),
@@ -508,6 +523,7 @@ transformIndirection(ParseState *pstate, A_Indirection *ind)
 static Node *
 transformColumnRef(ParseState *pstate, ColumnRef *cref)
 {
+  DBUG_TRACE;
   Node     *node = NULL;
   char     *nspname = NULL;
   char     *relname = NULL;
@@ -522,6 +538,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
   }     crerr = CRERR_NO_COLUMN;
   const char *err;
 
+  DBUG_PRINT("info", "transform a ColumnRef");
   /*
    * Check to see if the column reference is in an invalid place within the
    * query.  We allow column references in most places, except in default
@@ -596,11 +613,13 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
        */
   }
 
-  if (err)
+  if (err) {
+    DBUG_INSTANT_PRINT("info", "%s", err);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg_internal("%s", err),
              parser_errposition(pstate, cref->location)));
+  }
 
   /*
    * Give the PreParseColumnRefHook, if any, first shot.  If it returns
@@ -646,6 +665,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
       node = colNameToVar(pstate, colname, false, cref->location);
 
       if (node == NULL) {
+        DBUG_PRINT("info", "not known as a column of any range-table entry");
         /*
          * Not known as a column of any range-table entry.
          *
@@ -687,6 +707,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 
       /* Whole-row reference? */
       if (IsA(field2, A_Star)) {
+        DBUG_PRINT("info", "whole-row reference");
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
         break;
@@ -700,6 +721,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 
       if (node == NULL) {
         /* Try it as a function call on the whole row */
+        DBUG_PRINT("info", "try it as a function call on the whole row");
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
         node = ParseFuncOrColumn(pstate,
@@ -734,6 +756,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 
       /* Whole-row reference? */
       if (IsA(field3, A_Star)) {
+        DBUG_PRINT("info", "whole-row reference");
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
         break;
@@ -746,6 +769,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
                                  cref->location);
 
       if (node == NULL) {
+        DBUG_PRINT("info", "try it as a function call on the whole row");
         /* Try it as a function call on the whole row */
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
@@ -792,6 +816,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 
       /* Whole-row reference? */
       if (IsA(field4, A_Star)) {
+        DBUG_PRINT("info", "whole-row reference");
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
         break;
@@ -804,6 +829,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
                                  cref->location);
 
       if (node == NULL) {
+        DBUG_PRINT("info", "try it as a function call on the whole row");
         /* Try it as a function call on the whole row */
         node = transformWholeRowRef(pstate, nsitem, levels_up,
                                     cref->location);
@@ -840,12 +866,14 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 
     if (node == NULL)
       node = hookresult;
-    else if (hookresult != NULL)
+    else if (hookresult != NULL) {
+      DBUG_INSTANT_PRINT("info", "column reference \"%s\" is ambiguous", NameListToString(cref->fields));
       ereport(ERROR,
               (errcode(ERRCODE_AMBIGUOUS_COLUMN),
                errmsg("column reference \"%s\" is ambiguous",
                       NameListToString(cref->fields)),
                parser_errposition(pstate, cref->location)));
+    }
   }
 
   /*
@@ -863,6 +891,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
         break;
 
       case CRERR_WRONG_DB:
+        DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: %s", NameListToString(cref->fields));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cross-database references are not implemented: %s",
@@ -871,6 +900,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
         break;
 
       case CRERR_TOO_MANY:
+        DBUG_INSTANT_PRINT("info", "improper qualified name (too many dotted names): %s", NameListToString(cref->fields));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("improper qualified name (too many dotted names): %s",
@@ -886,6 +916,7 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 static Node *
 transformParamRef(ParseState *pstate, ParamRef *pref)
 {
+  DBUG_TRACE;
   Node     *result;
 
   /*
@@ -897,11 +928,13 @@ transformParamRef(ParseState *pstate, ParamRef *pref)
   else
     result = NULL;
 
-  if (result == NULL)
+  if (result == NULL) {
+    DBUG_INSTANT_PRINT("info", "there is no parameter $%d", pref->number);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_PARAMETER),
              errmsg("there is no parameter $%d", pref->number),
              parser_errposition(pstate, pref->location)));
+  }
 
   return result;
 }
@@ -923,6 +956,7 @@ exprIsNullConstant(Node *arg)
 static Node *
 transformAExprOp(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *lexpr = a->lexpr;
   Node     *rexpr = a->rexpr;
   Node     *result;
@@ -960,6 +994,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
      */
     SubLink    *s = (SubLink *) rexpr;
 
+    DBUG_PRINT("info", "convert 'row op subselect' into a ROWCOMPARE sublink");
     s->subLinkType = ROWCOMPARE_SUBLINK;
     s->testexpr = lexpr;
     s->operName = a->name;
@@ -968,6 +1003,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
   } else if (lexpr && IsA(lexpr, RowExpr) &&
              rexpr && IsA(rexpr, RowExpr)) {
     /* ROW() op ROW() is handled specially */
+    DBUG_PRINT("info", "ROW() op ROW() is handled specially");
     lexpr = transformExprRecurse(pstate, lexpr);
     rexpr = transformExprRecurse(pstate, rexpr);
 
@@ -980,6 +1016,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
     /* Ordinary scalar operator */
     Node     *last_srf = pstate->p_last_srf;
 
+    DBUG_PRINT("info", "ordinary scalar operator");
     lexpr = transformExprRecurse(pstate, lexpr);
     rexpr = transformExprRecurse(pstate, rexpr);
 
@@ -997,6 +1034,7 @@ transformAExprOp(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprOpAny(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *lexpr = transformExprRecurse(pstate, a->lexpr);
   Node     *rexpr = transformExprRecurse(pstate, a->rexpr);
 
@@ -1011,6 +1049,7 @@ transformAExprOpAny(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprOpAll(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *lexpr = transformExprRecurse(pstate, a->lexpr);
   Node     *rexpr = transformExprRecurse(pstate, a->rexpr);
 
@@ -1025,6 +1064,7 @@ transformAExprOpAll(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprDistinct(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *lexpr = a->lexpr;
   Node     *rexpr = a->rexpr;
   Node     *result;
@@ -1046,12 +1086,14 @@ transformAExprDistinct(ParseState *pstate, A_Expr *a)
   if (lexpr && IsA(lexpr, RowExpr) &&
       rexpr && IsA(rexpr, RowExpr)) {
     /* ROW() op ROW() is handled specially */
+    DBUG_PRINT("info", "ROW() op ROW() is handled specially");
     result = make_row_distinct_op(pstate, a->name,
                                   (RowExpr *) lexpr,
                                   (RowExpr *) rexpr,
                                   a->location);
   } else {
     /* Ordinary scalar operator */
+    DBUG_PRINT("info", "ordinary scalar operator");
     result = (Node *) make_distinct_op(pstate,
                                        a->name,
                                        lexpr,
@@ -1063,10 +1105,12 @@ transformAExprDistinct(ParseState *pstate, A_Expr *a)
    * If it's NOT DISTINCT, we first build a DistinctExpr and then stick a
    * NOT on top.
    */
-  if (a->kind == AEXPR_NOT_DISTINCT)
+  if (a->kind == AEXPR_NOT_DISTINCT) {
+    DBUG_PRINT("info", "if it's NOT DISTINCT, we first build a DistinctExpr and then stick a NOT on top");
     result = (Node *) makeBoolExpr(NOT_EXPR,
                                    list_make1(result),
                                    a->location);
+  }
 
   return result;
 }
@@ -1074,6 +1118,7 @@ transformAExprDistinct(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprNullIf(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *lexpr = transformExprRecurse(pstate, a->lexpr);
   Node     *rexpr = transformExprRecurse(pstate, a->rexpr);
   OpExpr     *result;
@@ -1088,19 +1133,23 @@ transformAExprNullIf(ParseState *pstate, A_Expr *a)
   /*
    * The comparison operator itself should yield boolean ...
    */
-  if (result->opresulttype != BOOLOID)
+  if (result->opresulttype != BOOLOID) {
+    DBUG_INSTANT_PRINT("info", "%s requires = operator to yield boolean", "NULLIF");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg NULLIF */
              errmsg("%s requires = operator to yield boolean", "NULLIF"),
              parser_errposition(pstate, a->location)));
+  }
 
-  if (result->opretset)
+  if (result->opretset) {
+    DBUG_INSTANT_PRINT("info", "%s must not return a set", "NULLIF");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg NULLIF */
              errmsg("%s must not return a set", "NULLIF"),
              parser_errposition(pstate, a->location)));
+  }
 
   /*
    * ... but the NullIfExpr will yield the first operand's type.
@@ -1118,6 +1167,7 @@ transformAExprNullIf(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprIn(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *result = NULL;
   Node     *lexpr;
   List     *rexprs;
@@ -1283,6 +1333,7 @@ transformAExprIn(ParseState *pstate, A_Expr *a)
 static Node *
 transformAExprBetween(ParseState *pstate, A_Expr *a)
 {
+  DBUG_TRACE;
   Node     *aexpr;
   Node     *bexpr;
   Node     *cexpr;
@@ -1380,6 +1431,8 @@ transformAExprBetween(ParseState *pstate, A_Expr *a)
 static Node *
 transformMergeSupportFunc(ParseState *pstate, MergeSupportFunc *f)
 {
+  DBUG_TRACE;
+
   /*
    * All we need to do is check that we're in the RETURNING list of a MERGE
    * command.  If so, we just return the node as-is.
@@ -1391,11 +1444,13 @@ transformMergeSupportFunc(ParseState *pstate, MergeSupportFunc *f)
            parent_pstate->p_expr_kind != EXPR_KIND_MERGE_RETURNING)
       parent_pstate = parent_pstate->parentParseState;
 
-    if (!parent_pstate)
+    if (!parent_pstate) {
+      DBUG_INSTANT_PRINT("info", "MERGE_ACTION() can only be used in the RETURNING list of a MERGE command");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("MERGE_ACTION() can only be used in the RETURNING list of a MERGE command"),
               parser_errposition(pstate, f->location));
+    }
   }
 
   return (Node *) f;
@@ -1404,6 +1459,7 @@ transformMergeSupportFunc(ParseState *pstate, MergeSupportFunc *f)
 static Node *
 transformBoolExpr(ParseState *pstate, BoolExpr *a)
 {
+  DBUG_TRACE;
   List     *args = NIL;
   const char *opname;
   ListCell   *lc;
@@ -1441,6 +1497,7 @@ transformBoolExpr(ParseState *pstate, BoolExpr *a)
 static Node *
 transformFuncCall(ParseState *pstate, FuncCall *fn)
 {
+  DBUG_TRACE;
   Node     *last_srf = pstate->p_last_srf;
   List     *targs;
   ListCell   *args;
@@ -1485,6 +1542,7 @@ transformFuncCall(ParseState *pstate, FuncCall *fn)
 static Node *
 transformMultiAssignRef(ParseState *pstate, MultiAssignRef *maref)
 {
+  DBUG_TRACE;
   SubLink    *sublink;
   RowExpr    *rexpr;
   Query    *qtree;
@@ -1513,11 +1571,13 @@ transformMultiAssignRef(ParseState *pstate, MultiAssignRef *maref)
       qtree = castNode(Query, sublink->subselect);
 
       /* Check subquery returns required number of columns */
-      if (count_nonjunk_tlist_entries(qtree->targetList) != maref->ncolumns)
+      if (count_nonjunk_tlist_entries(qtree->targetList) != maref->ncolumns) {
+        DBUG_INSTANT_PRINT("info", "number of columns does not match number of values");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("number of columns does not match number of values"),
                  parser_errposition(pstate, sublink->location)));
+      }
 
       /*
        * Build a resjunk tlist item containing the MULTIEXPR SubLink,
@@ -1543,11 +1603,13 @@ transformMultiAssignRef(ParseState *pstate, MultiAssignRef *maref)
                                            true);
 
       /* Check it returns required number of columns */
-      if (list_length(rexpr->args) != maref->ncolumns)
+      if (list_length(rexpr->args) != maref->ncolumns) {
+        DBUG_INSTANT_PRINT("info", "number of columns does not match number of values");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("number of columns does not match number of values"),
                  parser_errposition(pstate, rexpr->location)));
+      }
 
       /*
        * Temporarily append it to p_multiassign_exprs, so we can get it
@@ -1556,11 +1618,13 @@ transformMultiAssignRef(ParseState *pstate, MultiAssignRef *maref)
       tle = makeTargetEntry((Expr *) rexpr, 0, NULL, true);
       pstate->p_multiassign_exprs = lappend(pstate->p_multiassign_exprs,
                                             tle);
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression"),
                parser_errposition(pstate, exprLocation(maref->source))));
+    }
   } else {
     /*
      * Second or later column in a multiassignment.  Re-fetch the
@@ -1624,6 +1688,7 @@ transformMultiAssignRef(ParseState *pstate, MultiAssignRef *maref)
 static Node *
 transformCaseExpr(ParseState *pstate, CaseExpr *c)
 {
+  DBUG_TRACE;
   CaseExpr   *newc = makeNode(CaseExpr);
   Node     *last_srf = pstate->p_last_srf;
   Node     *arg;
@@ -1745,7 +1810,8 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
   }
 
   /* if any subexpression contained a SRF, complain */
-  if (pstate->p_last_srf != last_srf)
+  if (pstate->p_last_srf != last_srf) {
+    DBUG_INSTANT_PRINT("info", "set-returning functions are not allowed in %s", "CASE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /* translator: %s is name of a SQL construct, eg GROUP BY */
@@ -1754,6 +1820,7 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
              errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
              parser_errposition(pstate,
                                 exprLocation(pstate->p_last_srf))));
+  }
 
   newc->location = c->location;
 
@@ -1763,6 +1830,7 @@ transformCaseExpr(ParseState *pstate, CaseExpr *c)
 static Node *
 transformSubLink(ParseState *pstate, SubLink *sublink)
 {
+  DBUG_TRACE;
   Node     *result = (Node *) sublink;
   Query    *qtree;
   const char *err;
@@ -1773,13 +1841,16 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
    * generally not in utility statements.
    */
   err = NULL;
+  DBUG_PRINT("info", "check to see if the sublink is in an invalid place within the query");
 
   switch (pstate->p_expr_kind) {
     case EXPR_KIND_NONE:
       Assert(false);    /* can't happen */
+      DBUG_PRINT("info", "can't happen");
       break;
 
     case EXPR_KIND_OTHER:
+      DBUG_PRINT("info", "accept sublink here; caller must throw error if wanted");
       /* Accept sublink here; caller must throw error if wanted */
       break;
 
@@ -1811,6 +1882,7 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
     case EXPR_KIND_VALUES:
     case EXPR_KIND_VALUES_SINGLE:
     case EXPR_KIND_CYCLE_MARK:
+      DBUG_PRINT("info", "okey");
       /* okay */
       break;
 
@@ -1877,17 +1949,20 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
        */
   }
 
-  if (err)
+  if (err) {
+    DBUG_INSTANT_PRINT("info", "%s", err);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg_internal("%s", err),
              parser_errposition(pstate, sublink->location)));
+  }
 
   pstate->p_hasSubLinks = true;
 
   /*
    * OK, let's transform the sub-SELECT.
    */
+  DBUG_PRINT("info", "OK, let's transform the sub-SELECT");
   qtree = parse_sub_analyze(sublink->subselect, pstate, NULL, false, true);
 
   /*
@@ -1895,8 +1970,10 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
    * restrictions of the grammar, but check anyway.
    */
   if (!IsA(qtree, Query) ||
-      qtree->commandType != CMD_SELECT)
+      qtree->commandType != CMD_SELECT) {
+    DBUG_INSTANT_PRINT("info", "unexpected non-SELECT command in SubLink");
     elog(ERROR, "unexpected non-SELECT command in SubLink");
+  }
 
   sublink->subselect = (Node *) qtree;
 
@@ -1913,11 +1990,13 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
      * Make sure the subselect delivers a single column (ignoring resjunk
      * targets).
      */
-    if (count_nonjunk_tlist_entries(qtree->targetList) != 1)
+    if (count_nonjunk_tlist_entries(qtree->targetList) != 1) {
+      DBUG_INSTANT_PRINT("info", "subquery must return only one column");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("subquery must return only one column"),
                parser_errposition(pstate, sublink->location)));
+    }
 
     /*
      * EXPR and ARRAY need no test expression or combining operator. These
@@ -1981,17 +2060,21 @@ transformSubLink(ParseState *pstate, SubLink *sublink)
      * lengths differ, but we prefer to generate a more specific error
      * message.
      */
-    if (list_length(left_list) < list_length(right_list))
+    if (list_length(left_list) < list_length(right_list)) {
+      DBUG_INSTANT_PRINT("info", "subquery has too many columns");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("subquery has too many columns"),
                parser_errposition(pstate, sublink->location)));
+    }
 
-    if (list_length(left_list) > list_length(right_list))
+    if (list_length(left_list) > list_length(right_list)) {
+      DBUG_INSTANT_PRINT("info", "subquery has too few columns");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("subquery has too few columns"),
                parser_errposition(pstate, sublink->location)));
+    }
 
     /*
      * Identify the combining operator(s) and generate a suitable
@@ -2018,6 +2101,7 @@ static Node *
 transformArrayExpr(ParseState *pstate, A_ArrayExpr *a,
                    Oid array_type, Oid element_type, int32 typmod)
 {
+  DBUG_TRACE;
   ArrayExpr  *newa = makeNode(ArrayExpr);
   List     *newelems = NIL;
   List     *newcoercedelems = NIL;
@@ -2084,13 +2168,15 @@ transformArrayExpr(ParseState *pstate, A_ArrayExpr *a,
     coerce_hard = true;
   } else {
     /* Can't handle an empty array without a target type */
-    if (newelems == NIL)
+    if (newelems == NIL) {
+      DBUG_INSTANT_PRINT("info", "cannot determine type of empty array");
       ereport(ERROR,
               (errcode(ERRCODE_INDETERMINATE_DATATYPE),
                errmsg("cannot determine type of empty array"),
                errhint("Explicitly cast to the desired type, "
                        "for example ARRAY[]::integer[]."),
                parser_errposition(pstate, a->location)));
+    }
 
     /* Select a common type for the elements */
     coerce_type = select_common_type(pstate, newelems, "ARRAY", NULL);
@@ -2099,22 +2185,28 @@ transformArrayExpr(ParseState *pstate, A_ArrayExpr *a,
       array_type = coerce_type;
       element_type = get_element_type(array_type);
 
-      if (!OidIsValid(element_type))
+      if (!OidIsValid(element_type)) {
+        char *format1 = format_type_be(array_type);
+        DBUG_INSTANT_PRINT("info", "could not find element type for data type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("could not find element type for data type %s",
-                        format_type_be(array_type)),
+                        format1),
                  parser_errposition(pstate, a->location)));
+      }
     } else {
       element_type = coerce_type;
       array_type = get_array_type(element_type);
 
-      if (!OidIsValid(array_type))
+      if (!OidIsValid(array_type)) {
+        char *format1 = format_type_be(element_type);
+        DBUG_INSTANT_PRINT("info", "could not find array type for data type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("could not find array type for data type %s",
-                        format_type_be(element_type)),
+                        format1),
                  parser_errposition(pstate, a->location)));
+      }
     }
 
     coerce_hard = false;
@@ -2143,13 +2235,17 @@ transformArrayExpr(ParseState *pstate, A_ArrayExpr *a,
                                    COERCE_EXPLICIT_CAST,
                                    -1);
 
-      if (newe == NULL)
+      if (newe == NULL) {
+        char *format1 = format_type_be(exprType(e));
+        char *format2 = format_type_be(coerce_type);
+        DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
         ereport(ERROR,
                 (errcode(ERRCODE_CANNOT_COERCE),
                  errmsg("cannot cast type %s to %s",
-                        format_type_be(exprType(e)),
-                        format_type_be(coerce_type)),
+                        format1,
+                        format2),
                  parser_errposition(pstate, exprLocation(e))));
+      }
     } else
       newe = coerce_to_common_type(pstate, e,
                                    coerce_type,
@@ -2172,6 +2268,7 @@ transformArrayExpr(ParseState *pstate, A_ArrayExpr *a,
 static Node *
 transformRowExpr(ParseState *pstate, RowExpr *r, bool allowDefault)
 {
+  DBUG_TRACE;
   RowExpr    *newr;
   char    fname[16];
   int     fnum;
@@ -2183,12 +2280,14 @@ transformRowExpr(ParseState *pstate, RowExpr *r, bool allowDefault)
                                        pstate->p_expr_kind, allowDefault);
 
   /* Disallow more columns than will fit in a tuple */
-  if (list_length(newr->args) > MaxTupleAttributeNumber)
+  if (list_length(newr->args) > MaxTupleAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "ROW expressions can have at most %d entries", MaxTupleAttributeNumber);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("ROW expressions can have at most %d entries",
                     MaxTupleAttributeNumber),
              parser_errposition(pstate, r->location)));
+  }
 
   /* Barring later casting, we consider the type RECORD */
   newr->row_typeid = RECORDOID;
@@ -2210,6 +2309,7 @@ transformRowExpr(ParseState *pstate, RowExpr *r, bool allowDefault)
 static Node *
 transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 {
+  DBUG_TRACE;
   CoalesceExpr *newc = makeNode(CoalesceExpr);
   Node     *last_srf = pstate->p_last_srf;
   List     *newargs = NIL;
@@ -2239,7 +2339,8 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
   }
 
   /* if any subexpression contained a SRF, complain */
-  if (pstate->p_last_srf != last_srf)
+  if (pstate->p_last_srf != last_srf) {
+    DBUG_INSTANT_PRINT("info", "set-returning functions are not allowed in %s", "COALESCE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /* translator: %s is name of a SQL construct, eg GROUP BY */
@@ -2248,6 +2349,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
              errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
              parser_errposition(pstate,
                                 exprLocation(pstate->p_last_srf))));
+  }
 
   newc->args = newcoercedargs;
   newc->location = c->location;
@@ -2257,6 +2359,7 @@ transformCoalesceExpr(ParseState *pstate, CoalesceExpr *c)
 static Node *
 transformMinMaxExpr(ParseState *pstate, MinMaxExpr *m)
 {
+  DBUG_TRACE;
   MinMaxExpr *newm = makeNode(MinMaxExpr);
   List     *newargs = NIL;
   List     *newcoercedargs = NIL;
@@ -2295,6 +2398,8 @@ transformMinMaxExpr(ParseState *pstate, MinMaxExpr *m)
 static Node *
 transformSQLValueFunction(ParseState *pstate, SQLValueFunction *svf)
 {
+  DBUG_TRACE;
+
   /*
    * All we need to do is insert the correct result type and (where needed)
    * validate the typmod, so we just modify the node in-place.
@@ -2356,6 +2461,7 @@ transformSQLValueFunction(ParseState *pstate, SQLValueFunction *svf)
 static Node *
 transformXmlExpr(ParseState *pstate, XmlExpr *x)
 {
+  DBUG_TRACE;
   XmlExpr    *newx;
   ListCell   *lc;
   int     i;
@@ -2393,6 +2499,7 @@ transformXmlExpr(ParseState *pstate, XmlExpr *x)
       argname = map_sql_identifier_to_xml_name(FigureColname(r->val),
                 true, false);
     else {
+      DBUG_INSTANT_PRINT("info", "unnamed XML attribute value must be a column reference");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                x->op == IS_XMLELEMENT
@@ -2407,12 +2514,14 @@ transformXmlExpr(ParseState *pstate, XmlExpr *x)
       ListCell   *lc2;
 
       foreach(lc2, newx->arg_names) {
-        if (strcmp(argname, strVal(lfirst(lc2))) == 0)
+        if (strcmp(argname, strVal(lfirst(lc2))) == 0) {
+          DBUG_INSTANT_PRINT("info", "XML attribute name \"%s\" appears more than once", argname);
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("XML attribute name \"%s\" appears more than once",
                           argname),
                    parser_errposition(pstate, r->location)));
+        }
       }
     }
 
@@ -2493,6 +2602,7 @@ transformXmlExpr(ParseState *pstate, XmlExpr *x)
 static Node *
 transformXmlSerialize(ParseState *pstate, XmlSerialize *xs)
 {
+  DBUG_TRACE;
   Node     *result;
   XmlExpr    *xexpr;
   Oid     targetType;
@@ -2526,12 +2636,15 @@ transformXmlSerialize(ParseState *pstate, XmlSerialize *xs)
                                  COERCE_IMPLICIT_CAST,
                                  -1);
 
-  if (result == NULL)
+  if (result == NULL) {
+    char *format1 = format_type_be(targetType);
+    DBUG_INSTANT_PRINT("info", "cannot cast XMLSERIALIZE result to %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_CANNOT_COERCE),
              errmsg("cannot cast XMLSERIALIZE result to %s",
-                    format_type_be(targetType)),
+                    format1),
              parser_errposition(pstate, xexpr->location)));
+  }
 
   return result;
 }
@@ -2539,6 +2652,7 @@ transformXmlSerialize(ParseState *pstate, XmlSerialize *xs)
 static Node *
 transformBooleanTest(ParseState *pstate, BooleanTest *b)
 {
+  DBUG_TRACE;
   const char *clausename;
 
   switch (b->booltesttype) {
@@ -2584,6 +2698,7 @@ transformBooleanTest(ParseState *pstate, BooleanTest *b)
 static Node *
 transformCurrentOfExpr(ParseState *pstate, CurrentOfExpr *cexpr)
 {
+  DBUG_TRACE;
   /* CURRENT OF can only appear at top level of UPDATE/DELETE */
   Assert(pstate->p_target_nsitem != NULL);
   cexpr->cvarno = pstate->p_target_nsitem->p_rtindex;
@@ -2635,6 +2750,8 @@ static Node *
 transformWholeRowRef(ParseState *pstate, ParseNamespaceItem *nsitem,
                      int sublevels_up, int location)
 {
+  DBUG_TRACE;
+
   /*
    * Build the appropriate referencing node.  Normally this can be a
    * whole-row Var, but if the nsitem is a JOIN USING alias then it contains
@@ -2713,6 +2830,7 @@ transformWholeRowRef(ParseState *pstate, ParseNamespaceItem *nsitem,
 static Node *
 transformTypeCast(ParseState *pstate, TypeCast *tc)
 {
+  DBUG_TRACE;
   Node     *result;
   Node     *arg = tc->arg;
   Node     *expr;
@@ -2778,13 +2896,17 @@ transformTypeCast(ParseState *pstate, TypeCast *tc)
                                  COERCE_EXPLICIT_CAST,
                                  location);
 
-  if (result == NULL)
+  if (result == NULL) {
+    char *format1 = format_type_be(inputType);
+    char *format2 = format_type_be(targetType);
+    DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_CANNOT_COERCE),
              errmsg("cannot cast type %s to %s",
-                    format_type_be(inputType),
-                    format_type_be(targetType)),
+                    format1,
+                    format2),
              parser_coercion_errposition(pstate, location, expr)));
+  }
 
   return result;
 }
@@ -2797,6 +2919,7 @@ transformTypeCast(ParseState *pstate, TypeCast *tc)
 static Node *
 transformCollateClause(ParseState *pstate, CollateClause *c)
 {
+  DBUG_TRACE;
   CollateExpr *newc;
   Oid     argtype;
 
@@ -2809,12 +2932,15 @@ transformCollateClause(ParseState *pstate, CollateClause *c)
    * The unknown type is not collatable, but coerce_type() takes care of it
    * separately, so we'll let it go here.
    */
-  if (!type_is_collatable(argtype) && argtype != UNKNOWNOID)
+  if (!type_is_collatable(argtype) && argtype != UNKNOWNOID) {
+    char *format1 = format_type_be(argtype);
+    DBUG_INSTANT_PRINT("info", "collations are not supported by type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("collations are not supported by type %s",
-                    format_type_be(argtype)),
+                    format1),
              parser_errposition(pstate, c->location)));
+  }
 
   newc->collOid = LookupCollation(pstate, c->collname, c->location);
   newc->location = c->location;
@@ -2838,6 +2964,7 @@ static Node *
 make_row_comparison_op(ParseState *pstate, List *opname,
                        List *largs, List *rargs, int location)
 {
+  DBUG_TRACE;
   RowCompareExpr *rcexpr;
   CompareType cmptype;
   List     *opexprs;
@@ -2852,21 +2979,25 @@ make_row_comparison_op(ParseState *pstate, List *opname,
 
   nopers = list_length(largs);
 
-  if (nopers != list_length(rargs))
+  if (nopers != list_length(rargs)) {
+    DBUG_INSTANT_PRINT("info", "unequal number of entries in row expressions");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("unequal number of entries in row expressions"),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * We can't compare zero-length rows because there is no principled basis
    * for figuring out what the operator is.
    */
-  if (nopers == 0)
+  if (nopers == 0) {
+    DBUG_INSTANT_PRINT("info", "cannot compare rows of zero length");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot compare rows of zero length"),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * Identify all the pairwise operators, using make_op so that behavior is
@@ -2886,19 +3017,24 @@ make_row_comparison_op(ParseState *pstate, List *opname,
      * operator yielding boolean directly, not via coercion.  If it
      * doesn't yield bool it won't be in any index opfamilies...
      */
-    if (cmp->opresulttype != BOOLOID)
+    if (cmp->opresulttype != BOOLOID) {
+      char *format1 = format_type_be(cmp->opresulttype);
+      DBUG_INSTANT_PRINT("info", "row comparison operator must yield type boolean, not type %s", format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("row comparison operator must yield type boolean, "
                       "not type %s",
-                      format_type_be(cmp->opresulttype)),
+                      format1),
                parser_errposition(pstate, location)));
+    }
 
-    if (expression_returns_set((Node *) cmp))
+    if (expression_returns_set((Node *) cmp)) {
+      DBUG_INSTANT_PRINT("info", "row comparison operator must not return a set");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("row comparison operator must not return a set"),
                parser_errposition(pstate, location)));
+    }
 
     opexprs = lappend(opexprs, cmp);
   }
@@ -2957,6 +3093,7 @@ make_row_comparison_op(ParseState *pstate, List *opname,
 
   if (i < 0) {
     /* No common interpretation, so fail */
+    DBUG_INSTANT_PRINT("info", "could not determine interpretation of row comparison operator %s", strVal(llast(opname)));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not determine interpretation of row comparison operator %s",
@@ -2998,13 +3135,15 @@ make_row_comparison_op(ParseState *pstate, List *opname,
 
     if (OidIsValid(opfamily))
       opfamilies = lappend_oid(opfamilies, opfamily);
-    else          /* should not happen */
+    else {          /* should not happen */
+      DBUG_INSTANT_PRINT("info", "could not determine interpretation of row comparison operator %s", strVal(llast(opname)));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("could not determine interpretation of row comparison operator %s",
                       strVal(llast(opname))),
                errdetail("There are multiple equally-plausible candidates."),
                parser_errposition(pstate, location)));
+    }
   }
 
   /*
@@ -3046,17 +3185,20 @@ make_row_distinct_op(ParseState *pstate, List *opname,
                      RowExpr *lrow, RowExpr *rrow,
                      int location)
 {
+  DBUG_TRACE;
   Node     *result = NULL;
   List     *largs = lrow->args;
   List     *rargs = rrow->args;
   ListCell   *l,
              *r;
 
-  if (list_length(largs) != list_length(rargs))
+  if (list_length(largs) != list_length(rargs)) {
+    DBUG_INSTANT_PRINT("info", "unequal number of entries in row expressions");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("unequal number of entries in row expressions"),
              parser_errposition(pstate, location)));
+  }
 
   forboth(l, largs, r, rargs) {
     Node     *larg = (Node *) lfirst(l);
@@ -3088,25 +3230,30 @@ static Expr *
 make_distinct_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
                  int location)
 {
+  DBUG_TRACE;
   Expr     *result;
 
   result = make_op(pstate, opname, ltree, rtree,
                    pstate->p_last_srf, location);
 
-  if (((OpExpr *) result)->opresulttype != BOOLOID)
+  if (((OpExpr *) result)->opresulttype != BOOLOID) {
+    DBUG_INSTANT_PRINT("info", "IS DISTINCT FROM requires = operator to yield boolean");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg NULLIF */
              errmsg("%s requires = operator to yield boolean",
                     "IS DISTINCT FROM"),
              parser_errposition(pstate, location)));
+  }
 
-  if (((OpExpr *) result)->opretset)
+  if (((OpExpr *) result)->opretset) {
+    DBUG_INSTANT_PRINT("info", "%s must not return a set", "IS DISTINCT FROM");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              /* translator: %s is name of a SQL construct, eg NULLIF */
              errmsg("%s must not return a set", "IS DISTINCT FROM"),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * We rely on DistinctExpr and OpExpr being same struct
@@ -3124,6 +3271,7 @@ make_distinct_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
 static Node *
 make_nulltest_from_distinct(ParseState *pstate, A_Expr *distincta, Node *arg)
 {
+  DBUG_TRACE;
   NullTest   *nt = makeNode(NullTest);
 
   nt->arg = (Expr *) transformExprRecurse(pstate, arg);
@@ -3360,6 +3508,7 @@ transformJsonValueExpr(ParseState *pstate, const char *constructName,
                        JsonValueExpr *ve, JsonFormatType default_format,
                        Oid targettype, bool isarg)
 {
+  DBUG_TRACE;
   Node     *expr = transformExprRecurse(pstate, (Node *) ve->raw_expr);
   Node     *rawexpr;
   JsonFormatType format;
@@ -3378,11 +3527,13 @@ transformJsonValueExpr(ParseState *pstate, const char *constructName,
   get_type_category_preferred(exprtype, &typcategory, &typispreferred);
 
   if (ve->format->format_type != JS_FORMAT_DEFAULT) {
-    if (ve->format->encoding != JS_ENC_DEFAULT && exprtype != BYTEAOID)
+    if (ve->format->encoding != JS_ENC_DEFAULT && exprtype != BYTEAOID) {
+      DBUG_INSTANT_PRINT("info", "JSON ENCODING clause is only allowed for bytea input type");
       ereport(ERROR,
               errcode(ERRCODE_DATATYPE_MISMATCH),
               errmsg("JSON ENCODING clause is only allowed for bytea input type"),
               parser_errposition(pstate, ve->format->location));
+    }
 
     if (exprtype == JSONOID || exprtype == JSONBOID)
       format = JS_FORMAT_DEFAULT; /* do not format json[b] types */
@@ -3437,7 +3588,8 @@ transformJsonValueExpr(ParseState *pstate, const char *constructName,
      */
     if (!isarg &&
         !only_allow_cast &&
-        exprtype != BYTEAOID && typcategory != TYPCATEGORY_STRING)
+        exprtype != BYTEAOID && typcategory != TYPCATEGORY_STRING) {
+      DBUG_INSTANT_PRINT("info", "cannot use non-string types with implicit FORMAT JSON clause");
       ereport(ERROR,
               errcode(ERRCODE_DATATYPE_MISMATCH),
               ve->format->format_type == JS_FORMAT_DEFAULT ?
@@ -3445,6 +3597,7 @@ transformJsonValueExpr(ParseState *pstate, const char *constructName,
               errmsg("cannot use non-string types with explicit FORMAT JSON clause"),
               parser_errposition(pstate, ve->format->location >= 0 ?
                                  ve->format->location : location));
+    }
 
     /* Convert encoded JSON text from bytea. */
     if (format == JS_FORMAT_JSON && exprtype == BYTEAOID) {
@@ -3471,13 +3624,15 @@ transformJsonValueExpr(ParseState *pstate, const char *constructName,
        * Though only allow a cast when the target type is specified by
        * the caller.
        */
-      if (only_allow_cast)
+      if (only_allow_cast) {
+        DBUG_INSTANT_PRINT("info", "though only allow a cast when the target type is specified by the caller");
         ereport(ERROR,
                 (errcode(ERRCODE_CANNOT_COERCE),
                  errmsg("cannot cast type %s to %s",
                         format_type_be(exprtype),
                         format_type_be(targettype)),
                  parser_errposition(pstate, location)));
+      }
 
       fnoid = targettype == JSONOID ? F_TO_JSON : F_TO_JSONB;
       fexpr = makeFuncExpr(fnoid, targettype, list_make1(expr),
@@ -3523,11 +3678,13 @@ checkJsonOutputFormat(ParseState *pstate, const JsonFormat *format,
 
     get_type_category_preferred(targettype, &typcategory, &typispreferred);
 
-    if (typcategory != TYPCATEGORY_STRING)
+    if (typcategory != TYPCATEGORY_STRING) {
+      DBUG_INSTANT_PRINT("info", "cannot use JSON format with non-string output types");
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               parser_errposition(pstate, format->location),
               errmsg("cannot use JSON format with non-string output types"));
+    }
   }
 
   if (format->format_type == JS_FORMAT_JSON) {
@@ -3535,18 +3692,22 @@ checkJsonOutputFormat(ParseState *pstate, const JsonFormat *format,
                        format->encoding : JS_ENC_UTF8;
 
     if (targettype != BYTEAOID &&
-        format->encoding != JS_ENC_DEFAULT)
+        format->encoding != JS_ENC_DEFAULT) {
+      DBUG_INSTANT_PRINT("info", "cannot set JSON encoding for non-bytea output types");
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               parser_errposition(pstate, format->location),
               errmsg("cannot set JSON encoding for non-bytea output types"));
+    }
 
-    if (enc != JS_ENC_UTF8)
+    if (enc != JS_ENC_UTF8) {
+      DBUG_INSTANT_PRINT("info", "unsupported JSON encoding");
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               errmsg("unsupported JSON encoding"),
               errhint("Only UTF8 JSON encoding is supported."),
               parser_errposition(pstate, format->location));
+    }
   }
 }
 
@@ -3561,6 +3722,7 @@ static JsonReturning *
 transformJsonOutput(ParseState *pstate, const JsonOutput *output,
                     bool allow_format)
 {
+  DBUG_TRACE;
   JsonReturning *ret;
 
   /* if output clause is not specified, make default clause value */
@@ -3578,15 +3740,19 @@ transformJsonOutput(ParseState *pstate, const JsonOutput *output,
 
   typenameTypeIdAndMod(pstate, output->typeName, &ret->typid, &ret->typmod);
 
-  if (output->typeName->setof)
+  if (output->typeName->setof) {
+    DBUG_INSTANT_PRINT("info", "returning SETOF types is not supported in SQL/JSON functions");
     ereport(ERROR,
             errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
             errmsg("returning SETOF types is not supported in SQL/JSON functions"));
+  }
 
-  if (get_typtype(ret->typid) == TYPTYPE_PSEUDO)
+  if (get_typtype(ret->typid) == TYPTYPE_PSEUDO) {
+    DBUG_INSTANT_PRINT("info", "returning pseudo-types is not supported in SQL/JSON functions");
     ereport(ERROR,
             errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
             errmsg("returning pseudo-types is not supported in SQL/JSON functions"));
+  }
 
   if (ret->format->format_type == JS_FORMAT_DEFAULT)
     /* assign JSONB format when returning jsonb, or JSON format otherwise */
@@ -3607,6 +3773,7 @@ static JsonReturning *
 transformJsonConstructorOutput(ParseState *pstate, JsonOutput *output,
                                List *args)
 {
+  DBUG_TRACE;
   JsonReturning *returning = transformJsonOutput(pstate, output, true);
 
   if (!OidIsValid(returning->typid)) {
@@ -3645,6 +3812,7 @@ static Node *
 coerceJsonFuncExpr(ParseState *pstate, Node *expr,
                    const JsonReturning *returning, bool report_error)
 {
+  DBUG_TRACE;
   Node     *res;
   int     location;
   Oid     exprtype = exprType(expr);
@@ -3690,13 +3858,17 @@ coerceJsonFuncExpr(ParseState *pstate, Node *expr,
                               COERCE_IMPLICIT_CAST,
                               location);
 
-  if (!res && report_error)
+  if (!res && report_error) {
+    char *format1 = format_type_be(exprtype);
+    char *format2 = format_type_be(returning->typid);
+    DBUG_INSTANT_PRINT("info", "cannot cast type %s to %s", format1, format2);
     ereport(ERROR,
             errcode(ERRCODE_CANNOT_COERCE),
             errmsg("cannot cast type %s to %s",
-                   format_type_be(exprtype),
-                   format_type_be(returning->typid)),
+                   format1,
+                   format2),
             parser_coercion_errposition(pstate, location, expr));
+  }
 
   return res;
 }
@@ -3709,6 +3881,7 @@ makeJsonConstructorExpr(ParseState *pstate, JsonConstructorType type,
                         List *args, Expr *fexpr, JsonReturning *returning,
                         bool unique, bool absent_on_null, int location)
 {
+  DBUG_TRACE;
   JsonConstructorExpr *jsctor = makeNode(JsonConstructorExpr);
   Node     *placeholder;
   Node     *coercion;
@@ -3764,6 +3937,7 @@ makeJsonConstructorExpr(ParseState *pstate, JsonConstructorType type,
 static Node *
 transformJsonObjectConstructor(ParseState *pstate, JsonObjectConstructor *ctor)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
   List     *args = NIL;
 
@@ -3800,6 +3974,7 @@ static Node *
 transformJsonArrayQueryConstructor(ParseState *pstate,
                                    JsonArrayQueryConstructor *ctor)
 {
+  DBUG_TRACE;
   SubLink    *sublink = makeNode(SubLink);
   SelectStmt *select = makeNode(SelectStmt);
   RangeSubselect *range = makeNode(RangeSubselect);
@@ -3815,11 +3990,13 @@ transformJsonArrayQueryConstructor(ParseState *pstate,
 
   query = transformStmt(qpstate, copyObject(ctor->query));
 
-  if (count_nonjunk_tlist_entries(query->targetList) != 1)
+  if (count_nonjunk_tlist_entries(query->targetList) != 1) {
+    DBUG_INSTANT_PRINT("info", "subquery must return only one column");
     ereport(ERROR,
             errcode(ERRCODE_SYNTAX_ERROR),
             errmsg("subquery must return only one column"),
             parser_errposition(pstate, ctor->location));
+  }
 
   free_parsestate(qpstate);
 
@@ -3874,6 +4051,7 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
                             JsonConstructorType ctor_type,
                             bool unique, bool absent_on_null)
 {
+  DBUG_TRACE;
   Node     *node;
   Expr     *aggfilter;
 
@@ -3885,6 +4063,7 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
     /* window function */
     WindowFunc *wfunc = makeNode(WindowFunc);
 
+    DBUG_PRINT("info", "set window function:%d", aggfnoid);
     wfunc->winfnoid = aggfnoid;
     wfunc->wintype = aggtype;
     /* wincollid and inputcollid will be set by parse_collate.c */
@@ -3899,11 +4078,13 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
     /*
      * ordered aggs not allowed in windows yet
      */
-    if (agg_ctor->agg_order != NIL)
+    if (agg_ctor->agg_order != NIL) {
+      DBUG_INSTANT_PRINT("info", "aggregate ORDER BY is not implemented for window functions");
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               errmsg("aggregate ORDER BY is not implemented for window functions"),
               parser_errposition(pstate, agg_ctor->location));
+    }
 
     /* parse_agg.c does additional window-func-specific processing */
     transformWindowFuncCall(pstate, wfunc, agg_ctor->over);
@@ -3912,6 +4093,7 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
   } else {
     Aggref     *aggref = makeNode(Aggref);
 
+    DBUG_PRINT("info", "set aggfnoid:%d", aggfnoid);
     aggref->aggfnoid = aggfnoid;
     aggref->aggtype = aggtype;
 
@@ -3953,6 +4135,7 @@ transformJsonAggConstructor(ParseState *pstate, JsonAggConstructor *agg_ctor,
 static Node *
 transformJsonObjectAgg(ParseState *pstate, JsonObjectAgg *agg)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
   Node     *key;
   Node     *val;
@@ -4014,6 +4197,7 @@ transformJsonObjectAgg(ParseState *pstate, JsonObjectAgg *agg)
 static Node *
 transformJsonArrayAgg(ParseState *pstate, JsonArrayAgg *agg)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
   Node     *arg;
   Oid     aggfnoid;
@@ -4049,6 +4233,7 @@ transformJsonArrayAgg(ParseState *pstate, JsonArrayAgg *agg)
 static Node *
 transformJsonArrayConstructor(ParseState *pstate, JsonArrayConstructor *ctor)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
   List     *args = NIL;
 
@@ -4078,6 +4263,7 @@ static Node *
 transformJsonParseArg(ParseState *pstate, Node *jsexpr, JsonFormat *format,
                       Oid *exprtype)
 {
+  DBUG_TRACE;
   Node     *raw_expr = transformExprRecurse(pstate, jsexpr);
   Node     *expr = raw_expr;
 
@@ -4107,11 +4293,13 @@ transformJsonParseArg(ParseState *pstate, Node *jsexpr, JsonFormat *format,
       *exprtype = TEXTOID;
     }
 
-    if (format->encoding != JS_ENC_DEFAULT)
+    if (format->encoding != JS_ENC_DEFAULT) {
+      DBUG_INSTANT_PRINT("info", "cannot use JSON FORMAT ENCODING clause for non-bytea input types");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                parser_errposition(pstate, format->location),
                errmsg("cannot use JSON FORMAT ENCODING clause for non-bytea input types")));
+    }
   }
 
   return expr;
@@ -4123,16 +4311,20 @@ transformJsonParseArg(ParseState *pstate, Node *jsexpr, JsonFormat *format,
 static Node *
 transformJsonIsPredicate(ParseState *pstate, JsonIsPredicate *pred)
 {
+  DBUG_TRACE;
   Oid     exprtype;
   Node     *expr = transformJsonParseArg(pstate, pred->expr, pred->format,
                                          &exprtype);
 
   /* make resulting expression */
-  if (exprtype != TEXTOID && exprtype != JSONOID && exprtype != JSONBOID)
+  if (exprtype != TEXTOID && exprtype != JSONOID && exprtype != JSONBOID) {
+    char *format1 = format_type_be(exprtype);
+    DBUG_INSTANT_PRINT("info", "cannot use type %s in IS JSON predicate", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("cannot use type %s in IS JSON predicate",
-                    format_type_be(exprtype))));
+                    format1)));
+  }
 
   /* This intentionally(?) drops the format clause. */
   return makeJsonIsPredicate(expr, NULL, pred->item_type,
@@ -4146,6 +4338,7 @@ transformJsonIsPredicate(ParseState *pstate, JsonIsPredicate *pred)
 static JsonReturning *
 transformJsonReturning(ParseState *pstate, JsonOutput *output, const char *fname)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
 
   if (output) {
@@ -4153,13 +4346,16 @@ transformJsonReturning(ParseState *pstate, JsonOutput *output, const char *fname
 
     Assert(OidIsValid(returning->typid));
 
-    if (returning->typid != JSONOID && returning->typid != JSONBOID)
+    if (returning->typid != JSONOID && returning->typid != JSONBOID) {
+      char *format1 = format_type_be(returning->typid);
+      DBUG_INSTANT_PRINT("info", "cannot use RETURNING type %s in %s", format1, fname);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("cannot use type %s in RETURNING clause of %s",
-                      format_type_be(returning->typid), fname),
+                      format1, fname),
                errhint("Try returning json or jsonb."),
                parser_errposition(pstate, output->typeName->location)));
+    }
   } else {
     /* Output type is JSON by default. */
     Oid     targettype = JSONOID;
@@ -4183,10 +4379,12 @@ transformJsonReturning(ParseState *pstate, JsonOutput *output, const char *fname
 static Node *
 transformJsonParseExpr(ParseState *pstate, JsonParseExpr *jsexpr)
 {
+  DBUG_TRACE;
   JsonOutput *output = jsexpr->output;
   JsonReturning *returning;
   Node     *arg;
 
+  DBUG_PRINT("info", "transform a JSON() expression");
   returning = transformJsonReturning(pstate, output, "JSON()");
 
   if (jsexpr->unique_keys) {
@@ -4200,11 +4398,13 @@ transformJsonParseExpr(ParseState *pstate, JsonParseExpr *jsexpr)
     arg = transformJsonParseArg(pstate, (Node *) jve->raw_expr, jve->format,
                                 &arg_type);
 
-    if (arg_type != TEXTOID)
+    if (arg_type != TEXTOID) {
+      DBUG_INSTANT_PRINT("info", "cannot use non-string types with WITH UNIQUE KEYS clause");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("cannot use non-string types with WITH UNIQUE KEYS clause"),
                parser_errposition(pstate, jsexpr->location)));
+    }
   } else {
     /*
      * Coerce argument to target type using CAST for compatibility with PG
@@ -4229,10 +4429,12 @@ transformJsonParseExpr(ParseState *pstate, JsonParseExpr *jsexpr)
 static Node *
 transformJsonScalarExpr(ParseState *pstate, JsonScalarExpr *jsexpr)
 {
+  DBUG_TRACE;
   Node     *arg = transformExprRecurse(pstate, (Node *) jsexpr->expr);
   JsonOutput *output = jsexpr->output;
   JsonReturning *returning;
 
+  DBUG_PRINT("info", "transform a JSON_SCALAR() expression");
   returning = transformJsonReturning(pstate, output, "JSON_SCALAR()");
 
   if (exprType(arg) == UNKNOWNOID)
@@ -4252,11 +4454,14 @@ transformJsonScalarExpr(ParseState *pstate, JsonScalarExpr *jsexpr)
 static Node *
 transformJsonSerializeExpr(ParseState *pstate, JsonSerializeExpr *expr)
 {
+  DBUG_TRACE;
   JsonReturning *returning;
   Node     *arg = transformJsonValueExpr(pstate, "JSON_SERIALIZE()",
                                          expr->expr,
                                          JS_FORMAT_JSON,
                                          InvalidOid, false);
+
+  DBUG_PRINT("info", "transform a JSON_SERIALIZE() expression");
 
   if (expr->output) {
     returning = transformJsonOutput(pstate, expr->output, true);
@@ -4268,13 +4473,16 @@ transformJsonSerializeExpr(ParseState *pstate, JsonSerializeExpr *expr)
       get_type_category_preferred(returning->typid, &typcategory,
                                   &typispreferred);
 
-      if (typcategory != TYPCATEGORY_STRING)
+      if (typcategory != TYPCATEGORY_STRING) {
+        char *format1 = format_type_be(returning->typid);
+        DBUG_INSTANT_PRINT("info", "cannot use type %s in RETURNING clause of %s", format1, "JSON_SERIALIZE()");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("cannot use type %s in RETURNING clause of %s",
-                        format_type_be(returning->typid),
+                        format1,
                         "JSON_SERIALIZE()"),
                  errhint("Try returning a string type or bytea.")));
+      }
     }
   } else {
     /* RETURNING TEXT FORMAT JSON is by default */
@@ -4295,6 +4503,7 @@ transformJsonSerializeExpr(ParseState *pstate, JsonSerializeExpr *expr)
 static Node *
 transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
 {
+  DBUG_TRACE;
   JsonExpr   *jsexpr;
   Node     *path_spec;
   Oid     pathspec_type;
@@ -4330,6 +4539,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
       break;
   }
 
+  DBUG_PRINT("info", "func name:%s", func_name);
+
   /*
    * Even though the syntax allows it, FORMAT JSON specification in
    * RETURNING is meaningless except for JSON_QUERY().  Flag if not
@@ -4339,23 +4550,27 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
     JsonFormat *format = func->output->returning->format;
 
     if (format->format_type != JS_FORMAT_DEFAULT ||
-        format->encoding != JS_ENC_DEFAULT)
+        format->encoding != JS_ENC_DEFAULT) {
+      DBUG_INSTANT_PRINT("info", "cannot specify FORMAT JSON in RETURNING clause of %s()", func_name);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("cannot specify FORMAT JSON in RETURNING clause of %s()",
                      func_name),
               parser_errposition(pstate, format->location));
+    }
   }
 
   /* OMIT QUOTES is meaningless when strings are wrapped. */
   if (func->op == JSON_QUERY_OP) {
     if (func->quotes == JS_QUOTES_OMIT &&
         (func->wrapper == JSW_CONDITIONAL ||
-         func->wrapper == JSW_UNCONDITIONAL))
+         func->wrapper == JSW_UNCONDITIONAL)) {
+      DBUG_INSTANT_PRINT("info", "SQL/JSON QUOTES behavior must not be specified when WITH WRAPPER is used");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("SQL/JSON QUOTES behavior must not be specified when WITH WRAPPER is used"),
               parser_errposition(pstate, func->location));
+    }
 
     if (func->on_empty != NULL &&
         func->on_empty->btype != JSON_BEHAVIOR_ERROR &&
@@ -4364,7 +4579,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
         func->on_empty->btype != JSON_BEHAVIOR_EMPTY_ARRAY &&
         func->on_empty->btype != JSON_BEHAVIOR_EMPTY_OBJECT &&
         func->on_empty->btype != JSON_BEHAVIOR_DEFAULT) {
-      if (func->column_name == NULL)
+      if (func->column_name == NULL) {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON EMPTY");
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4374,7 +4590,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for %s.",
                           "ON EMPTY", "JSON_QUERY()"),
                 parser_errposition(pstate, func->on_empty->location));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior for column \"%s\"", "ON EMPTY", func->column_name);
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4384,6 +4601,7 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for formatted columns.",
                           "ON EMPTY"),
                 parser_errposition(pstate, func->on_empty->location));
+      }
     }
 
     if (func->on_error != NULL &&
@@ -4393,7 +4611,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
         func->on_error->btype != JSON_BEHAVIOR_EMPTY_ARRAY &&
         func->on_error->btype != JSON_BEHAVIOR_EMPTY_OBJECT &&
         func->on_error->btype != JSON_BEHAVIOR_DEFAULT) {
-      if (func->column_name == NULL)
+      if (func->column_name == NULL) {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON ERROR");
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4403,7 +4622,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for %s.",
                           "ON ERROR", "JSON_QUERY()"),
                 parser_errposition(pstate, func->on_error->location));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior for column \"%s\"", "ON ERROR", func->column_name);
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4413,6 +4633,7 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, EMPTY ARRAY, EMPTY OBJECT, or DEFAULT expression is allowed in %s for formatted columns.",
                           "ON ERROR"),
                 parser_errposition(pstate, func->on_error->location));
+      }
     }
   }
 
@@ -4423,7 +4644,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
       func->on_error->btype != JSON_BEHAVIOR_TRUE &&
       func->on_error->btype != JSON_BEHAVIOR_FALSE &&
       func->on_error->btype != JSON_BEHAVIOR_UNKNOWN) {
-    if (func->column_name == NULL)
+    if (func->column_name == NULL) {
+      DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON ERROR");
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               /*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4431,7 +4653,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
               errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in %s for %s.",
                         "ON ERROR", "JSON_EXISTS()"),
               parser_errposition(pstate, func->on_error->location));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "invalid %s behavior for column \"%s\"", "ON ERROR", func->column_name);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               /*- translator: first %s is name a SQL/JSON clause (eg. ON EMPTY) */
@@ -4441,6 +4664,7 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
               errdetail("Only ERROR, TRUE, FALSE, or UNKNOWN is allowed in %s for EXISTS columns.",
                         "ON ERROR"),
               parser_errposition(pstate, func->on_error->location));
+    }
   }
 
   if (func->op == JSON_VALUE_OP) {
@@ -4448,7 +4672,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
         func->on_empty->btype != JSON_BEHAVIOR_ERROR &&
         func->on_empty->btype != JSON_BEHAVIOR_NULL &&
         func->on_empty->btype != JSON_BEHAVIOR_DEFAULT) {
-      if (func->column_name == NULL)
+      if (func->column_name == NULL) {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON EMPTY");
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4458,7 +4683,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for %s.",
                           "ON EMPTY", "JSON_VALUE()"),
                 parser_errposition(pstate, func->on_empty->location));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior for column \"%s\"", "ON EMPTY", func->column_name);
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4468,13 +4694,15 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for scalar columns.",
                           "ON EMPTY"),
                 parser_errposition(pstate, func->on_empty->location));
+      }
     }
 
     if (func->on_error != NULL &&
         func->on_error->btype != JSON_BEHAVIOR_ERROR &&
         func->on_error->btype != JSON_BEHAVIOR_NULL &&
         func->on_error->btype != JSON_BEHAVIOR_DEFAULT) {
-      if (func->column_name == NULL)
+      if (func->column_name == NULL) {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON ERROR");
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4484,7 +4712,8 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for %s.",
                           "ON ERROR", "JSON_VALUE()"),
                 parser_errposition(pstate, func->on_error->location));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "invalid %s behavior for column \"%s\"", "ON ERROR", func->column_name);
         ereport(ERROR,
                 errcode(ERRCODE_SYNTAX_ERROR),
                 /*- translator: first %s is name of a SQL/JSON clause (eg. ON EMPTY) */
@@ -4494,6 +4723,7 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                 errdetail("Only ERROR, NULL, or DEFAULT expression is allowed in %s for scalar columns.",
                           "ON ERROR"),
                 parser_errposition(pstate, func->on_error->location));
+      }
     }
   }
 
@@ -4523,12 +4753,15 @@ transformJsonFuncExpr(ParseState *pstate, JsonFuncExpr *func)
                       COERCE_IMPLICIT_CAST,
                       pathspec_loc);
 
-  if (coerced_path_spec == NULL)
+  if (coerced_path_spec == NULL) {
+    char *format1 = format_type_be(pathspec_type);
+    DBUG_INSTANT_PRINT("info", "JSON path expression must be of type %s, not of type %s", "jsonpath", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("JSON path expression must be of type %s, not of type %s",
-                    "jsonpath", format_type_be(pathspec_type)),
+                    "jsonpath", format1),
              parser_errposition(pstate, pathspec_loc)));
+  }
 
   jsexpr->path_spec = coerced_path_spec;
 
@@ -4746,10 +4979,13 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
                       JsonBehaviorType default_behavior,
                       JsonReturning *returning)
 {
+  DBUG_TRACE;
   JsonBehaviorType btype = default_behavior;
   Node     *expr = NULL;
   bool    coerce_at_runtime = false;
   int     location = -1;
+
+  DBUG_PRINT("info", "transform a JSON BEHAVIOR clause");
 
   if (behavior) {
     btype = behavior->btype;
@@ -4761,23 +4997,29 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
 
       expr = transformExprRecurse(pstate, behavior->expr);
 
-      if (!ValidJsonBehaviorDefaultExpr(expr, NULL))
+      if (!ValidJsonBehaviorDefaultExpr(expr, NULL)) {
+        DBUG_INSTANT_PRINT("info", "can only specify a constant, non-aggregate function, or operator expression for DEFAULT");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("can only specify a constant, non-aggregate function, or operator expression for DEFAULT"),
                  parser_errposition(pstate, exprLocation(expr))));
+      }
 
-      if (contain_var_clause(expr))
+      if (contain_var_clause(expr)) {
+        DBUG_INSTANT_PRINT("info", "DEFAULT expression must not contain column references");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("DEFAULT expression must not contain column references"),
                  parser_errposition(pstate, exprLocation(expr))));
+      }
 
-      if (expression_returns_set(expr))
+      if (expression_returns_set(expr)) {
+        DBUG_INSTANT_PRINT("info", "DEFAULT expression must not return a set");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("DEFAULT expression must not return a set"),
                  parser_errposition(pstate, exprLocation(expr))));
+      }
 
       /*
        * Reject a DEFAULT expression whose collation differs from the
@@ -4790,7 +5032,8 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
         exprcoll = get_typcollation(exprType(expr));
 
       if (OidIsValid(targetcoll) && OidIsValid(exprcoll) &&
-          targetcoll != exprcoll)
+          targetcoll != exprcoll) {
+        DBUG_INSTANT_PRINT("info", "collation of DEFAULT expression conflicts with RETURNING clause");
         ereport(ERROR,
                 errcode(ERRCODE_COLLATION_MISMATCH),
                 errmsg("collation of DEFAULT expression conflicts with RETURNING clause"),
@@ -4798,6 +5041,7 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
                           get_collation_name(exprcoll),
                           get_collation_name(targetcoll)),
                 parser_errposition(pstate, exprLocation(expr)));
+      }
     }
   }
 
@@ -4863,22 +5107,30 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
          * Provide a HINT if the expression comes from a DEFAULT
          * clause.
          */
-        if (btype == JSON_BEHAVIOR_DEFAULT)
+        if (btype == JSON_BEHAVIOR_DEFAULT) {
+          char *format1 = format_type_be(exprType(expr));
+          char *format2 = format_type_be(returning->typid);
+          DBUG_INSTANT_PRINT("info", "cannot cast behavior expression of type %s to %s", format1, format2);
           ereport(ERROR,
                   errcode(ERRCODE_CANNOT_COERCE),
                   errmsg("cannot cast behavior expression of type %s to %s",
-                         format_type_be(exprType(expr)),
-                         format_type_be(returning->typid)),
+                         format1,
+                         format2),
                   errhint("You will need to explicitly cast the expression to type %s.",
-                          format_type_be(returning->typid)),
+                          format2),
                   parser_errposition(pstate, exprLocation(expr)));
-        else
+        } else {
+          char *format1 = format_type_be(exprType(expr));
+          char *format2 = format_type_be(returning->typid);
+
+          DBUG_INSTANT_PRINT("info", "cannot cast behavior expression of type %s to %s", format1, format2);
           ereport(ERROR,
                   errcode(ERRCODE_CANNOT_COERCE),
                   errmsg("cannot cast behavior expression of type %s to %s",
-                         format_type_be(exprType(expr)),
-                         format_type_be(returning->typid)),
+                         format1,
+                         format2),
                   parser_errposition(pstate, exprLocation(expr)));
+        }
       }
 
       expr = coerced_expr;
@@ -4902,6 +5154,7 @@ transformJsonBehavior(ParseState *pstate, JsonExpr *jsexpr,
 static Node *
 GetJsonBehaviorConst(JsonBehaviorType btype, int location)
 {
+  DBUG_TRACE;
   Datum   val = (Datum) 0;
   Oid     typid = JSONBOID;
   int     len = -1;

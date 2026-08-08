@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_numeric.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <float.h>
@@ -95,6 +96,7 @@ static const gbtree_vinfo tinfo = {
 Datum
 gbt_numeric_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_var_compress(entry, &tinfo));
@@ -103,6 +105,7 @@ gbt_numeric_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_numeric_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   void     *query = DatumGetNumeric(PG_GETARG_DATUM(1));
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -118,12 +121,20 @@ gbt_numeric_consistent(PG_FUNCTION_ARGS)
 
   retval = gbt_var_consistent(&r, query, strategy, PG_GET_COLLATION(),
                               GIST_LEAF(entry), &tinfo, fcinfo->flinfo);
+
+  if (retval) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_BOOL(retval);
 }
 
 Datum
 gbt_numeric_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int32    *size = (int *) PG_GETARG_POINTER(1);
 
@@ -134,17 +145,26 @@ gbt_numeric_union(PG_FUNCTION_ARGS)
 Datum
 gbt_numeric_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   d1 = PG_GETARG_DATUM(0);
   Datum   d2 = PG_GETARG_DATUM(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_var_same(d1, d2, PG_GET_COLLATION(), &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 
 Datum
 gbt_numeric_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *o = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *n = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -206,6 +226,7 @@ gbt_numeric_penalty(PG_FUNCTION_ARGS)
 Datum
 gbt_numeric_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
 

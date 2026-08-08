@@ -24,6 +24,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/stat.h>
@@ -64,6 +65,7 @@ static const ArchiveModuleCallbacks basic_archive_callbacks = {
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   DefineCustomStringVariable("basic_archive.archive_directory",
                              gettext_noop("Archive file destination directory."),
                              NULL,
@@ -84,6 +86,7 @@ _PG_init(void)
 const ArchiveModuleCallbacks *
 _PG_archive_module_init(void)
 {
+  DBUG_TRACE;
   return &basic_archive_callbacks;
 }
 
@@ -95,6 +98,7 @@ _PG_archive_module_init(void)
 static bool
 check_archive_directory(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   /*
    * The default value is an empty string, so we have to accept that value.
    * Our check_configured callback also checks for this and prevents
@@ -123,6 +127,8 @@ check_archive_directory(char **newval, void **extra, GucSource source)
 static bool
 basic_archive_configured(ArchiveModuleState *state)
 {
+  DBUG_TRACE;
+
   if (archive_directory != NULL && archive_directory[0] != '\0')
     return true;
 
@@ -139,6 +145,7 @@ basic_archive_configured(ArchiveModuleState *state)
 static bool
 basic_archive_file(ArchiveModuleState *state, const char *file, const char *path)
 {
+  DBUG_TRACE;
   char    destination[MAXPGPATH];
   char    temp[MAXPGPATH + 256];
   struct stat st;
@@ -221,6 +228,7 @@ basic_archive_file(ArchiveModuleState *state, const char *file, const char *path
 static bool
 compare_files(const char *file1, const char *file2)
 {
+  DBUG_TRACE;
 #define CMP_BUF_SIZE (4096)
   char    buf1[CMP_BUF_SIZE];
   char    buf2[CMP_BUF_SIZE];

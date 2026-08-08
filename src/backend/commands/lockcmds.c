@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "access/xact.h"
@@ -40,11 +41,14 @@ static void LockViewRecurse(Oid reloid, LOCKMODE lockmode, bool nowait,
 void
 LockTableCommand(LockStmt *lockstmt)
 {
+  DBUG_TRACE;
   ListCell   *p;
 
   /*
    * Iterate over the list and process the named relations one at a time
    */
+  DBUG_PRINT("info", "iterate over the list and process the named relations one at a time");
+
   foreach(p, lockstmt->relations) {
     RangeVar   *rv = (RangeVar *) lfirst(p);
     bool    recurse = rv->inh;
@@ -70,6 +74,7 @@ static void
 RangeVarCallbackForLockTable(const RangeVar *rv, Oid relid, Oid oldrelid,
                              void *arg)
 {
+  DBUG_TRACE;
   LOCKMODE  lockmode = *(LOCKMODE *) arg;
   char    relkind;
   char    relpersistence;
@@ -86,13 +91,17 @@ RangeVarCallbackForLockTable(const RangeVar *rv, Oid relid, Oid oldrelid,
                  * check */
 
   /* Currently, we only allow plain tables or views to be locked */
+  DBUG_PRINT("info", "currently, we only allow plain tables or views to be locked");
+
   if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE &&
-      relkind != RELKIND_VIEW)
+      relkind != RELKIND_VIEW) {
+    DBUG_INSTANT_PRINT("info", "cannot lock relation \"%s\"", rv->relname);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cannot lock relation \"%s\"",
                     rv->relname),
              errdetail_relkind_not_supported(relkind)));
+  }
 
   /*
    * Make note if a temporary relation has been accessed in this
@@ -103,6 +112,7 @@ RangeVarCallbackForLockTable(const RangeVar *rv, Oid relid, Oid oldrelid,
   if (relpersistence == RELPERSISTENCE_TEMP)
     MyXactFlags |= XACT_FLAGS_ACCESSEDTEMPNAMESPACE;
 
+  DBUG_PRINT("info", "check permissions");
   /* Check permissions. */
   aclresult = LockTableAclCheck(relid, lockmode, GetUserId());
 
@@ -120,17 +130,21 @@ RangeVarCallbackForLockTable(const RangeVar *rv, Oid relid, Oid oldrelid,
 static void
 LockTableRecurse(Oid reloid, LOCKMODE lockmode, bool nowait)
 {
+  DBUG_TRACE;
   List     *children;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "apply LOCK TABLE recursively over an inheritance tree");
   children = find_all_inheritors(reloid, NoLock, NULL);
 
   foreach(lc, children) {
     Oid     childreloid = lfirst_oid(lc);
 
     /* Parent already locked. */
-    if (childreloid == reloid)
+    if (childreloid == reloid) {
+      DBUG_PRINT("info", "parent already locked");
       continue;
+    }
 
     if (!nowait)
       LockRelationOid(childreloid, lockmode);
@@ -141,6 +155,7 @@ LockTableRecurse(Oid reloid, LOCKMODE lockmode, bool nowait)
       if (!relname)
         continue;   /* child concurrently dropped, just skip it */
 
+      DBUG_INSTANT_PRINT("info", "could not obtain lock on relation \"%s\"", relname);
       ereport(ERROR,
               (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                errmsg("could not obtain lock on relation \"%s\"",
@@ -152,6 +167,7 @@ LockTableRecurse(Oid reloid, LOCKMODE lockmode, bool nowait)
      * dropped. If so, we can skip it.
      */
     if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(childreloid))) {
+      DBUG_PRINT("info", "release useless lock");
       /* Release useless lock */
       UnlockRelationOid(childreloid, lockmode);
       continue;
@@ -177,6 +193,8 @@ typedef struct {
 static bool
 LockViewRecurse_walker(Node *node, LockViewRecurse_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -194,34 +212,44 @@ LockViewRecurse_walker(Node *node, LockViewRecurse_context *context)
 
       /* Currently, we only allow plain tables or views to be locked. */
       if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE &&
-          relkind != RELKIND_VIEW)
+          relkind != RELKIND_VIEW) {
+        DBUG_PRINT("info", "currently, we only allow plain tables or views to be locked");
         continue;
+      }
 
       /*
        * We might be dealing with a self-referential view.  If so, we
        * can just stop recursing, since we already locked it.
        */
-      if (list_member_oid(context->ancestor_views, relid))
+      if (list_member_oid(context->ancestor_views, relid)) {
+        DBUG_PRINT("info", "we might be dealing with a self-referential view.");
+        DBUG_PRINT("info", "we can just stop recursing, since we already locked it");
         continue;
+      }
 
       /*
        * Check permissions as the specified user.  This will either be
        * the view owner or the current user.
        */
+      DBUG_PRINT("info", "check permissions as the specified user");
       aclresult = LockTableAclCheck(relid, context->lockmode,
                                     context->check_as_user);
 
       if (aclresult != ACLCHECK_OK)
         aclcheck_error(aclresult, get_relkind_objtype(relkind), relname);
 
+      DBUG_PRINT("info", "we have enough rights to lock the relation; do so");
+
       /* We have enough rights to lock the relation; do so. */
       if (!context->nowait)
         LockRelationOid(relid, context->lockmode);
-      else if (!ConditionalLockRelationOid(relid, context->lockmode))
+      else if (!ConditionalLockRelationOid(relid, context->lockmode)) {
+        DBUG_INSTANT_PRINT("info", "could not obtain lock on relation \"%s\"", relname);
         ereport(ERROR,
                 (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                  errmsg("could not obtain lock on relation \"%s\"",
                         relname)));
+      }
 
       if (relkind == RELKIND_VIEW)
         LockViewRecurse(relid, context->lockmode, context->nowait,
@@ -245,6 +273,7 @@ static void
 LockViewRecurse(Oid reloid, LOCKMODE lockmode, bool nowait,
                 List *ancestor_views)
 {
+  DBUG_TRACE;
   LockViewRecurse_context context;
   Relation  view;
   Query    *viewquery;
@@ -281,9 +310,11 @@ LockViewRecurse(Oid reloid, LOCKMODE lockmode, bool nowait,
 static AclResult
 LockTableAclCheck(Oid reloid, LOCKMODE lockmode, Oid userid)
 {
+  DBUG_TRACE;
   AclResult aclresult;
   AclMode   aclmask;
 
+  DBUG_PRINT("info", "check whether the current user is permitted to lock this relation");
   /* any of these privileges permit any lock mode */
   aclmask = ACL_MAINTAIN | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE;
 

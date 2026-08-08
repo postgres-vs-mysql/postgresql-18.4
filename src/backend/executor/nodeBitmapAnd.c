@@ -27,6 +27,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeBitmapAnd.h"
@@ -54,6 +55,7 @@ ExecBitmapAnd(PlanState *pstate)
 BitmapAndState *
 ExecInitBitmapAnd(BitmapAnd *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   BitmapAndState *bitmapandstate = makeNode(BitmapAndState);
   PlanState **bitmapplanstates;
   int     nplans;
@@ -109,6 +111,7 @@ ExecInitBitmapAnd(BitmapAnd *node, EState *estate, int eflags)
 Node *
 MultiExecBitmapAnd(BitmapAndState *node)
 {
+  DBUG_TRACE;
   PlanState **bitmapplans;
   int     nplans;
   int     i;
@@ -123,6 +126,8 @@ MultiExecBitmapAnd(BitmapAndState *node)
    */
   bitmapplans = node->bitmapplans;
   nplans = node->nplans;
+
+  DBUG_PRINT("info", "get information from the node and nplans:%d", nplans);
 
   /*
    * Scan all the subplans and AND their result bitmaps
@@ -175,6 +180,7 @@ MultiExecBitmapAnd(BitmapAndState *node)
 void
 ExecEndBitmapAnd(BitmapAndState *node)
 {
+  DBUG_TRACE;
   PlanState **bitmapplans;
   int     nplans;
   int     i;
@@ -197,6 +203,7 @@ ExecEndBitmapAnd(BitmapAndState *node)
 void
 ExecReScanBitmapAnd(BitmapAndState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < node->nplans; i++) {

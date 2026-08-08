@@ -27,6 +27,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/tsmapi.h"
 #include "catalog/pg_type.h"
@@ -79,6 +80,7 @@ static uint32 random_relative_prime(uint32 n, pg_prng_state *randstate);
 Datum
 tsm_system_rows_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TsmRoutine *tsm = makeNode(TsmRoutine);
 
   tsm->parameterTypes = list_make1_oid(INT8OID);
@@ -107,10 +109,12 @@ system_rows_samplescangetsamplesize(PlannerInfo *root,
                                     BlockNumber *pages,
                                     double *tuples)
 {
+  DBUG_TRACE;
   Node     *limitnode;
   int64   ntuples;
   double    npages;
 
+  DBUG_PRINT("tsm_system_rows", "sample size estimation");
   /* Try to extract an estimate for the limit rowcount */
   limitnode = (Node *) linitial(paramexprs);
   limitnode = estimate_expression_value(root, limitnode);
@@ -149,6 +153,7 @@ system_rows_samplescangetsamplesize(PlannerInfo *root,
 
   *pages = npages;
   *tuples = ntuples;
+  DBUG_PRINT("tsm_system_rows", "npages:%g, ntuples:%ld", npages, ntuples);
 }
 
 /*
@@ -157,6 +162,7 @@ system_rows_samplescangetsamplesize(PlannerInfo *root,
 static void
 system_rows_initsamplescan(SampleScanState *node, int eflags)
 {
+  DBUG_TRACE;
   node->tsm_state = palloc0(sizeof(SystemRowsSamplerData));
   /* Note the above leaves tsm_state->step equal to zero */
 }
@@ -170,6 +176,7 @@ system_rows_beginsamplescan(SampleScanState *node,
                             int nparams,
                             uint32 seed)
 {
+  DBUG_TRACE;
   SystemRowsSamplerData *sampler = (SystemRowsSamplerData *) node->tsm_state;
   int64   ntuples = DatumGetInt64(params[0]);
 
@@ -265,6 +272,7 @@ system_rows_nextsampletuple(SampleScanState *node,
                             BlockNumber blockno,
                             OffsetNumber maxoffset)
 {
+  DBUG_TRACE;
   SystemRowsSamplerData *sampler = (SystemRowsSamplerData *) node->tsm_state;
   OffsetNumber tupoffset = sampler->lt;
 
@@ -311,11 +319,14 @@ gcd(uint32 a, uint32 b)
 static uint32
 random_relative_prime(uint32 n, pg_prng_state *randstate)
 {
+  DBUG_TRACE;
   uint32    r;
 
   /* Safety check to avoid infinite loop or zero result for small n. */
-  if (n <= 1)
+  if (n <= 1) {
+    DBUG_PRINT("tsm_system_rows", "return 1");
     return 1;
+  }
 
   /*
    * This should only take 2 or 3 iterations as the probability of 2 numbers
@@ -327,5 +338,6 @@ random_relative_prime(uint32 n, pg_prng_state *randstate)
     r = (uint32) (sampler_random_fract(randstate) * n);
   } while (r == 0 || gcd(r, n) > 1);
 
+  DBUG_PRINT("tsm_system_rows", "pick a random value less than and relatively prime to n:%u", r);
   return r;
 }

@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -79,6 +80,7 @@ static uint32 random_relative_prime(uint32 n, pg_prng_state *randstate);
 Datum
 tsm_system_time_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TsmRoutine *tsm = makeNode(TsmRoutine);
 
   tsm->parameterTypes = list_make1_oid(FLOAT8OID);
@@ -107,6 +109,7 @@ system_time_samplescangetsamplesize(PlannerInfo *root,
                                     BlockNumber *pages,
                                     double *tuples)
 {
+  DBUG_TRACE;
   Node     *limitnode;
   double    millis;
   double    spc_random_page_cost;
@@ -164,6 +167,7 @@ system_time_samplescangetsamplesize(PlannerInfo *root,
 
   *pages = npages;
   *tuples = ntuples;
+  DBUG_PRINT("tsm_system_time", "pages:%g, tuples:%g", npages, ntuples);
 }
 
 /*
@@ -185,6 +189,7 @@ system_time_beginsamplescan(SampleScanState *node,
                             int nparams,
                             uint32 seed)
 {
+  DBUG_TRACE;
   SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
   double    millis = DatumGetFloat8(params[0]);
 
@@ -209,6 +214,7 @@ system_time_beginsamplescan(SampleScanState *node,
 static BlockNumber
 system_time_nextsampleblock(SampleScanState *node, BlockNumber nblocks)
 {
+  DBUG_TRACE;
   SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
   instr_time  cur_time;
 
@@ -282,6 +288,7 @@ system_time_nextsampletuple(SampleScanState *node,
                             BlockNumber blockno,
                             OffsetNumber maxoffset)
 {
+  DBUG_TRACE;
   SystemTimeSamplerData *sampler = (SystemTimeSamplerData *) node->tsm_state;
   OffsetNumber tupoffset = sampler->lt;
 
@@ -324,11 +331,14 @@ gcd(uint32 a, uint32 b)
 static uint32
 random_relative_prime(uint32 n, pg_prng_state *randstate)
 {
+  DBUG_TRACE;
   uint32    r;
 
   /* Safety check to avoid infinite loop or zero result for small n. */
-  if (n <= 1)
+  if (n <= 1) {
+    DBUG_PRINT("tsm_system_time", "return 1");
     return 1;
+  }
 
   /*
    * This should only take 2 or 3 iterations as the probability of 2 numbers
@@ -340,5 +350,6 @@ random_relative_prime(uint32 n, pg_prng_state *randstate)
     r = (uint32) (sampler_random_fract(randstate) * n);
   } while (r == 0 || gcd(r, n) > 1);
 
+  DBUG_PRINT("tsm_system_time", "pick a random value less than and relatively prime to n:%u", r);
   return r;
 }

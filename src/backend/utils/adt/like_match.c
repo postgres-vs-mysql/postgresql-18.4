@@ -79,9 +79,13 @@
 static int
 MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 {
+  DBUG_TRACE;
+
   /* Fast path for match-everything pattern */
-  if (plen == 1 && *p == '%')
+  if (plen == 1 && *p == '%') {
+    DBUG_PRINT("info", "return LIKE_TRUE");
     return LIKE_TRUE;
+  }
 
   /* Since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
@@ -105,8 +109,10 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
                 (errcode(ERRCODE_INVALID_ESCAPE_SEQUENCE),
                  errmsg("LIKE pattern must not end with escape character")));
 
-      if (GETCHAR(*p, locale) != GETCHAR(*t, locale))
+      if (GETCHAR(*p, locale) != GETCHAR(*t, locale)) {
+        DBUG_PRINT("info", "return LIKE_FALSE");
         return LIKE_FALSE;
+      }
     } else if (*p == '%') {
       char    firstpat;
 
@@ -130,8 +136,10 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
           NextByte(p, plen);
         else if (*p == '_') {
           /* If not enough text left to match the pattern, ABORT */
-          if (tlen <= 0)
+          if (tlen <= 0) {
+            DBUG_PRINT("info", "return LIKE_ABORT");
             return LIKE_ABORT;
+          }
 
           NextChar(t, tlen);
           NextByte(p, plen);
@@ -143,8 +151,10 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
        * If we're at end of pattern, match: we have a trailing % which
        * matches any remaining text string.
        */
-      if (plen <= 0)
+      if (plen <= 0) {
+        DBUG_PRINT("info", "return LIKE_TRUE");
         return LIKE_TRUE;
+      }
 
       /*
        * Otherwise, scan for a text position at which we can match the
@@ -171,8 +181,15 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
         if (GETCHAR(*t, locale) == firstpat || (locale && !locale->deterministic)) {
           int     matched = MatchText(t, tlen, p, plen, locale);
 
-          if (matched != LIKE_FALSE)
+          if (matched != LIKE_FALSE) {
+            if (matched == LIKE_ABORT) {
+              DBUG_PRINT("info", "return LIKE_ABORT");
+            } else if (matched == LIKE_TRUE) {
+              DBUG_PRINT("info", "return LIKE_TRUE");
+            }
+
             return matched; /* TRUE or ABORT */
+          }
         }
 
         NextChar(t, tlen);
@@ -182,6 +199,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
        * End of text with no match, so no point in trying later places
        * to start matching this pattern.
        */
+      DBUG_PRINT("info", "return LIKE_ABORT");
       return LIKE_ABORT;
     } else if (*p == '_') {
       /* _ matches any single character, and we know there is one */
@@ -327,6 +345,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
       }
     } else if (GETCHAR(*p, locale) != GETCHAR(*t, locale)) {
       /* non-wildcard pattern char fails to match text char */
+      DBUG_PRINT("info", "return LIKE_FALSE");
       return LIKE_FALSE;
     }
 
@@ -346,8 +365,10 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
     NextByte(p, plen);
   }
 
-  if (tlen > 0)
+  if (tlen > 0) {
+    DBUG_PRINT("info", "return LIKE_FALSE");
     return LIKE_FALSE;    /* end of pattern, but not of text */
+  }
 
   /*
    * End of text, but perhaps not of pattern.  Match iff the remaining
@@ -356,13 +377,16 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
   while (plen > 0 && *p == '%')
     NextByte(p, plen);
 
-  if (plen <= 0)
+  if (plen <= 0) {
+    DBUG_PRINT("info", "return LIKE_TRUE");
     return LIKE_TRUE;
+  }
 
   /*
    * End of text with no match, so no point in trying later places to start
    * matching this pattern.
    */
+  DBUG_PRINT("info", "return LIKE_ABORT");
   return LIKE_ABORT;
 }               /* MatchText() */
 
@@ -375,6 +399,7 @@ MatchText(const char *t, int tlen, const char *p, int plen, pg_locale_t locale)
 static text *
 do_like_escape(text *pat, text *esc)
 {
+  DBUG_TRACE;
   text     *result;
   char     *p,
            *e,

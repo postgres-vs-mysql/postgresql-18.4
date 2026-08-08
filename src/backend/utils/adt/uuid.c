@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <time.h>       /* for clock_gettime() */
@@ -76,17 +77,21 @@ static pg_uuid_t *generate_uuidv7(uint64 unix_ts_ms, uint32 sub_ms);
 Datum
 uuid_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *uuid_str = PG_GETARG_CSTRING(0);
   pg_uuid_t  *uuid;
 
   uuid = (pg_uuid_t *) palloc(sizeof(*uuid));
   string_to_uuid(uuid_str, uuid, fcinfo->context);
+
+  DBUG_PRINT("info", "orig uuid string:%s", uuid_str);
   PG_RETURN_UUID_P(uuid);
 }
 
 Datum
 uuid_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
   static const char hex_chars[] = "0123456789abcdef";
   char     *buf,
@@ -118,6 +123,7 @@ uuid_out(PG_FUNCTION_ARGS)
 
   *p = '\0';
 
+  DBUG_PRINT("info", "out:%s", buf);
   PG_RETURN_CSTRING(buf);
 }
 
@@ -181,6 +187,7 @@ syntax_error:
 Datum
 uuid_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buffer = (StringInfo) PG_GETARG_POINTER(0);
   pg_uuid_t  *uuid;
 
@@ -192,6 +199,7 @@ uuid_recv(PG_FUNCTION_ARGS)
 Datum
 uuid_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
   StringInfoData buffer;
 
@@ -210,6 +218,7 @@ uuid_internal_cmp(const pg_uuid_t *arg1, const pg_uuid_t *arg2)
 Datum
 uuid_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -219,6 +228,7 @@ uuid_lt(PG_FUNCTION_ARGS)
 Datum
 uuid_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -228,6 +238,7 @@ uuid_le(PG_FUNCTION_ARGS)
 Datum
 uuid_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -237,6 +248,7 @@ uuid_eq(PG_FUNCTION_ARGS)
 Datum
 uuid_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -246,6 +258,7 @@ uuid_ge(PG_FUNCTION_ARGS)
 Datum
 uuid_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -255,6 +268,7 @@ uuid_gt(PG_FUNCTION_ARGS)
 Datum
 uuid_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
 
@@ -265,10 +279,12 @@ uuid_ne(PG_FUNCTION_ARGS)
 Datum
 uuid_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *arg1 = PG_GETARG_UUID_P(0);
   pg_uuid_t  *arg2 = PG_GETARG_UUID_P(1);
-
-  PG_RETURN_INT32(uuid_internal_cmp(arg1, arg2));
+  int32 result = uuid_internal_cmp(arg1, arg2);
+  DBUG_PRINT("info", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -277,6 +293,7 @@ uuid_cmp(PG_FUNCTION_ARGS)
 Datum
 uuid_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = uuid_fast_cmp;
@@ -491,6 +508,7 @@ uuid_skipsupport(PG_FUNCTION_ARGS)
 Datum
 uuid_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *key = PG_GETARG_UUID_P(0);
 
   return hash_any(key->data, UUID_LEN);
@@ -499,6 +517,7 @@ uuid_hash(PG_FUNCTION_ARGS)
 Datum
 uuid_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *key = PG_GETARG_UUID_P(0);
 
   return hash_any_extended(key->data, UUID_LEN, PG_GETARG_INT64(1));
@@ -526,6 +545,7 @@ uuid_set_version(pg_uuid_t *uuid, unsigned char version)
 Datum
 gen_random_uuid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *uuid = palloc(UUID_LEN);
 
   if (!pg_strong_random(uuid, UUID_LEN))
@@ -714,6 +734,7 @@ uuidv7_interval(PG_FUNCTION_ARGS)
 Datum
 uuid_extract_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
   int     version;
   uint64    tms;
@@ -768,6 +789,7 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 Datum
 uuid_extract_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
   uint16    version;
 

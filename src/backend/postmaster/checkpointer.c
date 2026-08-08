@@ -35,6 +35,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/time.h>
 #include <time.h>
@@ -179,11 +180,13 @@ static void ReqShutdownXLOG(SIGNAL_ARGS);
 void
 CheckpointerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   MemoryContext checkpointer_context;
 
   Assert(startup_data_len == 0);
 
+  DBUG_PRINT("info", "main entry point for checkpointer process");
   MyBackendType = B_CHECKPOINTER;
   AuxiliaryProcessMainCommon();
 
@@ -448,13 +451,15 @@ CheckpointerMain(const void *startup_data, size_t startup_data_len)
        */
       if (!do_restartpoint &&
           (flags & CHECKPOINT_CAUSE_XLOG) &&
-          elapsed_secs < CheckPointWarning)
+          elapsed_secs < CheckPointWarning) {
+        DBUG_PRINT("info", "checkpoints are occurring too frequently (%d second apart)", elapsed_secs);
         ereport(LOG,
                 (errmsg_plural("checkpoints are occurring too frequently (%d second apart)",
                                "checkpoints are occurring too frequently (%d seconds apart)",
                                elapsed_secs,
                                elapsed_secs),
                  errhint("Consider increasing the configuration parameter \"%s\".", "max_wal_size")));
+      }
 
       /*
        * Initialize checkpointer-private variables used during
@@ -473,6 +478,8 @@ CheckpointerMain(const void *startup_data, size_t startup_data_len)
       /*
        * Do the checkpoint.
        */
+      DBUG_PRINT("info", "do the checkpoint");
+
       if (!do_restartpoint)
         ckpt_performed = CreateCheckPoint(flags);
       else
@@ -489,6 +496,7 @@ CheckpointerMain(const void *startup_data, size_t startup_data_len)
       /*
        * Indicate checkpoint completion to any waiting backends.
        */
+      DBUG_PRINT("info", "indicate checkpoint completion to any waiting backends");
       SpinLockAcquire(&CheckpointerShmem->ckpt_lck);
       CheckpointerShmem->ckpt_done = CheckpointerShmem->ckpt_started;
       SpinLockRelease(&CheckpointerShmem->ckpt_lck);
@@ -556,19 +564,24 @@ CheckpointerMain(const void *startup_data, size_t startup_data_len)
      * Sleep until we are signaled or it's time for another checkpoint or
      * xlog file switch.
      */
+    DBUG_PRINT("info", "sleep until we are signaled or it's time for another checkpoint or xlog file switch");
     now = (pg_time_t) time(NULL);
     elapsed_secs = now - last_checkpoint_time;
 
-    if (elapsed_secs >= CheckPointTimeout)
+    if (elapsed_secs >= CheckPointTimeout) {
+      DBUG_PRINT("info", "no sleep for us");
       continue;     /* no sleep for us ... */
+    }
 
     cur_timeout = CheckPointTimeout - elapsed_secs;
 
     if (XLogArchiveTimeout > 0 && !RecoveryInProgress()) {
       elapsed_secs = now - last_xlog_switch_time;
 
-      if (elapsed_secs >= XLogArchiveTimeout)
+      if (elapsed_secs >= XLogArchiveTimeout) {
+        DBUG_PRINT("info", "no sleep for us");
         continue;   /* no sleep for us ... */
+      }
 
       cur_timeout = Min(cur_timeout, XLogArchiveTimeout - elapsed_secs);
     }
@@ -577,6 +590,7 @@ CheckpointerMain(const void *startup_data, size_t startup_data_len)
                      WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
                      cur_timeout * 1000L /* convert to ms */,
                      WAIT_EVENT_CHECKPOINTER_MAIN);
+    DBUG_PRINT("info", "after WaitLatch");
   }
 
   /*
@@ -676,6 +690,7 @@ ProcessCheckpointerInterrupts(void)
 static void
 CheckArchiveTimeout(void)
 {
+  DBUG_TRACE;
   pg_time_t now;
   pg_time_t last_time;
   XLogRecPtr  last_switch_lsn;
@@ -714,9 +729,11 @@ CheckArchiveTimeout(void)
        * If the returned pointer points exactly to a segment boundary,
        * assume nothing happened.
        */
-      if (XLogSegmentOffset(switchpoint, wal_segment_size) != 0)
+      if (XLogSegmentOffset(switchpoint, wal_segment_size) != 0) {
+        DBUG_PRINT("info", "write-ahead log switch forced (archive_timeout=%d)", XLogArchiveTimeout);
         elog(DEBUG1, "write-ahead log switch forced (\"archive_timeout\"=%d)",
              XLogArchiveTimeout);
+      }
     }
 
     /*
@@ -763,6 +780,7 @@ ImmediateCheckpointRequested(void)
 void
 CheckpointWriteDelay(int flags, double progress)
 {
+  DBUG_TRACE;
   static int  absorb_counter = WRITES_PER_ABSORB;
 
   /* Do nothing if checkpoint is being executed by non-checkpointer process */
@@ -829,6 +847,7 @@ CheckpointWriteDelay(int flags, double progress)
 static bool
 IsCheckpointOnSchedule(double progress)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
   struct timeval now;
   double    elapsed_xlogs,
@@ -946,6 +965,7 @@ CheckpointerShmemSize(void)
 void
 CheckpointerShmemInit(void)
 {
+  DBUG_TRACE;
   Size    size = CheckpointerShmemSize();
   bool    found;
 
@@ -988,14 +1008,18 @@ CheckpointerShmemInit(void)
 void
 RequestCheckpoint(int flags)
 {
+  DBUG_TRACE;
   int     ntries;
   int     old_failed,
           old_started;
+
+  DBUG_PRINT("info", "called in backend processes to request a checkpoint");
 
   /*
    * If in a standalone backend, just do it ourselves.
    */
   if (!IsPostmasterEnvironment) {
+    DBUG_PRINT("info", "there's no point in doing slow checkpoints in a standalone backend");
     /*
      * There's no point in doing slow checkpoints in a standalone backend,
      * because there's no other backends the checkpoint could disrupt.
@@ -1036,6 +1060,7 @@ RequestCheckpoint(int flags)
    * when it does start, with or without the SetLatch().
    */
 #define MAX_SIGNAL_TRIES 600  /* max wait 60.0 sec */
+  DBUG_PRINT("info", "send signal to request checkpoint");
 
   for (ntries = 0;; ntries++) {
     volatile PROC_HDR *procglobal = ProcGlobal;
@@ -1043,6 +1068,7 @@ RequestCheckpoint(int flags)
 
     if (checkpointerProc == INVALID_PROC_NUMBER) {
       if (ntries >= MAX_SIGNAL_TRIES || !(flags & CHECKPOINT_WAIT)) {
+        DBUG_INSTANT_PRINT("info", "could not signal for checkpoint: checkpointer is not running");
         elog((flags & CHECKPOINT_WAIT) ? ERROR : LOG,
              "could not notify checkpoint: checkpointer is not running");
         break;
@@ -1054,6 +1080,7 @@ RequestCheckpoint(int flags)
     }
 
     CHECK_FOR_INTERRUPTS();
+    DBUG_PRINT("info", "wait 0.1 sec, then retry");
     pg_usleep(100000L);   /* wait 0.1 sec, then retry */
   }
 
@@ -1065,6 +1092,7 @@ RequestCheckpoint(int flags)
     int     new_started,
             new_failed;
 
+    DBUG_PRINT("info", "wait for a new checkpoint to start");
     /* Wait for a new checkpoint to start. */
     ConditionVariablePrepareToSleep(&CheckpointerShmem->start_cv);
 
@@ -1085,6 +1113,7 @@ RequestCheckpoint(int flags)
     /*
      * We are waiting for ckpt_done >= new_started, in a modulo sense.
      */
+    DBUG_PRINT("info", "we are waiting for ckpt_done >= new_started, in a modulo sense");
     ConditionVariablePrepareToSleep(&CheckpointerShmem->done_cv);
 
     for (;;) {
@@ -1104,10 +1133,12 @@ RequestCheckpoint(int flags)
 
     ConditionVariableCancelSleep();
 
-    if (new_failed != old_failed)
+    if (new_failed != old_failed) {
+      DBUG_INSTANT_PRINT("info", "checkpoint request failed");
       ereport(ERROR,
               (errmsg("checkpoint request failed"),
                errhint("Consult recent messages in the server log for details.")));
+    }
   }
 }
 
@@ -1134,14 +1165,17 @@ RequestCheckpoint(int flags)
 bool
 ForwardSyncRequest(const FileTag *ftag, SyncRequestType type)
 {
+  DBUG_TRACE;
   CheckpointerRequest *request;
   bool    too_full;
 
   if (!IsUnderPostmaster)
     return false;     /* probably shouldn't even get here */
 
-  if (AmCheckpointerProcess())
+  if (AmCheckpointerProcess()) {
+    DBUG_INSTANT_PRINT("info", "ForwardSyncRequest must not be called in checkpointer");
     elog(ERROR, "ForwardSyncRequest must not be called in checkpointer");
+  }
 
   LWLockAcquire(CheckpointerCommLock, LW_EXCLUSIVE);
 
@@ -1199,6 +1233,7 @@ ForwardSyncRequest(const FileTag *ftag, SyncRequestType type)
 static bool
 CompactCheckpointerRequestQueue(void)
 {
+  DBUG_TRACE;
   struct CheckpointerSlotMapping {
     CheckpointerRequest request;
     int     slot;
@@ -1287,6 +1322,7 @@ CompactCheckpointerRequestQueue(void)
     CheckpointerShmem->requests[preserve_count++] = CheckpointerShmem->requests[n];
   }
 
+  DBUG_PRINT("info", "compacted fsync request queue from %d entries to %d entries", CheckpointerShmem->num_requests, preserve_count);
   ereport(DEBUG1,
           (errmsg_internal("compacted fsync request queue from %d entries to %d entries",
                            CheckpointerShmem->num_requests, preserve_count)));
@@ -1309,6 +1345,7 @@ CompactCheckpointerRequestQueue(void)
 void
 AbsorbSyncRequests(void)
 {
+  DBUG_TRACE;
   CheckpointerRequest *requests = NULL;
   CheckpointerRequest *request;
   int     n;
@@ -1365,6 +1402,7 @@ UpdateSharedMemoryConfig(void)
    */
   UpdateFullPageWrites();
 
+  DBUG_PRINT("info", "checkpointer updated shared memory configuration values");
   elog(DEBUG2, "checkpointer updated shared memory configuration values");
 }
 
@@ -1375,6 +1413,7 @@ UpdateSharedMemoryConfig(void)
 bool
 FirstCallSinceLastCheckpoint(void)
 {
+  DBUG_TRACE;
   static int  ckpt_done = 0;
   int     new_done;
   bool    FirstCall = false;

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -82,39 +83,56 @@ static Datum tsvector_update_trigger(PG_FUNCTION_ARGS, bool config_column);
 static int
 silly_cmp_tsvector(const TSVector a, const TSVector b)
 {
-  if (VARSIZE(a) < VARSIZE(b))
+  DBUG_TRACE;
+
+  if (VARSIZE(a) < VARSIZE(b)) {
+    DBUG_PRINT("info", "return -1");
     return -1;
-  else if (VARSIZE(a) > VARSIZE(b))
+  } else if (VARSIZE(a) > VARSIZE(b)) {
+    DBUG_PRINT("info", "return 1");
     return 1;
-  else if (a->size < b->size)
+  } else if (a->size < b->size) {
+    DBUG_PRINT("info", "return -1");
     return -1;
-  else if (a->size > b->size)
+  } else if (a->size > b->size) {
+    DBUG_PRINT("info", "return 1");
     return 1;
-  else {
+  } else {
     WordEntry  *aptr = ARRPTR(a);
     WordEntry  *bptr = ARRPTR(b);
     int     i = 0;
     int     res;
+    int result;
 
 
     for (i = 0; i < a->size; i++) {
       if (aptr->haspos != bptr->haspos) {
-        return (aptr->haspos > bptr->haspos) ? -1 : 1;
+        result = (aptr->haspos > bptr->haspos) ? -1 : 1;
+        DBUG_PRINT("info", "result:%d", result);
+        return result;
       } else if ((res = tsCompareString(STRPTR(a) + aptr->pos, aptr->len, STRPTR(b) + bptr->pos, bptr->len, false)) != 0) {
+        DBUG_PRINT("info", "result:%d", res);
         return res;
       } else if (aptr->haspos) {
         WordEntryPos *ap = POSDATAPTR(a, aptr);
         WordEntryPos *bp = POSDATAPTR(b, bptr);
         int     j;
 
-        if (POSDATALEN(a, aptr) != POSDATALEN(b, bptr))
-          return (POSDATALEN(a, aptr) > POSDATALEN(b, bptr)) ? -1 : 1;
+        if (POSDATALEN(a, aptr) != POSDATALEN(b, bptr)) {
+          result = (POSDATALEN(a, aptr) > POSDATALEN(b, bptr)) ? -1 : 1;
+          DBUG_PRINT("info", "result:%d", result);
+          return result;
+        }
 
         for (j = 0; j < POSDATALEN(a, aptr); j++) {
           if (WEP_GETPOS(*ap) != WEP_GETPOS(*bp)) {
-            return (WEP_GETPOS(*ap) > WEP_GETPOS(*bp)) ? -1 : 1;
+            result = (WEP_GETPOS(*ap) > WEP_GETPOS(*bp)) ? -1 : 1;
+            DBUG_PRINT("info", "result:%d", result);
+            return result;
           } else if (WEP_GETWEIGHT(*ap) != WEP_GETWEIGHT(*bp)) {
-            return (WEP_GETWEIGHT(*ap) > WEP_GETWEIGHT(*bp)) ? -1 : 1;
+            result = (WEP_GETWEIGHT(*ap) > WEP_GETWEIGHT(*bp)) ? -1 : 1;
+            DBUG_PRINT("info", "result:%d", result);
+            return result;
           }
 
           ap++, bp++;
@@ -126,6 +144,7 @@ silly_cmp_tsvector(const TSVector a, const TSVector b)
     }
   }
 
+  DBUG_PRINT("info", "return 0");
   return 0;
 }
 
@@ -154,6 +173,7 @@ TSVECTORCMPFUNC(cmp, +, INT32);
 Datum
 tsvector_strip(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  in = PG_GETARG_TSVECTOR(0);
   TSVector  out;
   int     i,
@@ -187,16 +207,19 @@ tsvector_strip(PG_FUNCTION_ARGS)
 Datum
 tsvector_length(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  in = PG_GETARG_TSVECTOR(0);
   int32   ret = in->size;
 
   PG_FREE_IF_COPY(in, 0);
+  DBUG_PRINT("info", "length: %d", ret);
   PG_RETURN_INT32(ret);
 }
 
 Datum
 tsvector_setweight(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  in = PG_GETARG_TSVECTOR(0);
   char    cw = PG_GETARG_CHAR(1);
   TSVector  out;
@@ -262,6 +285,7 @@ tsvector_setweight(PG_FUNCTION_ARGS)
 Datum
 tsvector_setweight_by_filter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  tsin = PG_GETARG_TSVECTOR(0);
   char    char_weight = PG_GETARG_CHAR(1);
   ArrayType  *lexemes = PG_GETARG_ARRAYTYPE_P(2);
@@ -355,6 +379,7 @@ add_pos(TSVector src, WordEntry *srcptr,
         TSVector dest, WordEntry *destptr,
         int32 maxpos)
 {
+  DBUG_TRACE;
   uint16     *clen = &_POSVECPTR(dest, destptr)->npos;
   int     i;
   uint16    slen = POSDATALEN(src, srcptr),
@@ -390,11 +415,14 @@ add_pos(TSVector src, WordEntry *srcptr,
 static int
 tsvector_bsearch(const TSVector tsv, char *lexeme, int lexeme_len)
 {
+  DBUG_TRACE;
   WordEntry  *arrin = ARRPTR(tsv);
   int     StopLow = 0,
           StopHigh = tsv->size,
           StopMiddle,
           cmp;
+
+  DBUG_PRINT("info", "perform binary search of given lexeme('%s') in TSVector", lexeme);
 
   while (StopLow < StopHigh) {
     StopMiddle = (StopLow + StopHigh) / 2;
@@ -408,10 +436,13 @@ tsvector_bsearch(const TSVector tsv, char *lexeme, int lexeme_len)
       StopHigh = StopMiddle;
     else if (cmp > 0)
       StopLow = StopMiddle + 1;
-    else          /* found it */
+    else {      /* found it */
+      DBUG_PRINT("info", "result:%d", StopMiddle);
       return StopMiddle;
+    }
   }
 
+  DBUG_PRINT("info", "return -1");
   return -1;
 }
 
@@ -454,6 +485,7 @@ static TSVector
 tsvector_delete_by_indices(TSVector tsv, int *indices_to_delete,
                            int indices_count)
 {
+  DBUG_TRACE;
   TSVector  tsout;
   WordEntry  *arrin = ARRPTR(tsv),
               *arrout;
@@ -541,12 +573,15 @@ tsvector_delete_by_indices(TSVector tsv, int *indices_to_delete,
 Datum
 tsvector_delete_str(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  tsin = PG_GETARG_TSVECTOR(0),
             tsout;
   text     *tlexeme = PG_GETARG_TEXT_PP(1);
   char     *lexeme = VARDATA_ANY(tlexeme);
   int     lexeme_len = VARSIZE_ANY_EXHDR(tlexeme),
           skip_index;
+
+  DBUG_PRINT("info", "lexeme:'%s', lexeme_len:%d", lexeme, lexeme_len);
 
   if ((skip_index = tsvector_bsearch(tsin, lexeme, lexeme_len)) == -1)
     PG_RETURN_POINTER(tsin);
@@ -565,6 +600,7 @@ tsvector_delete_str(PG_FUNCTION_ARGS)
 Datum
 tsvector_delete_arr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  tsin = PG_GETARG_TSVECTOR(0),
             tsout;
   ArrayType  *lexemes = PG_GETARG_ARRAYTYPE_P(1);
@@ -583,6 +619,8 @@ tsvector_delete_arr(PG_FUNCTION_ARGS)
    * performing binary search of each lexeme from lexarr in tsvector.
    */
   skip_indices = palloc0(nlex * sizeof(int));
+
+  DBUG_PRINT("info", "nlex:%d", nlex);
 
   for (i = skip_count = 0; i < nlex; i++) {
     char     *lex;
@@ -619,6 +657,7 @@ tsvector_delete_arr(PG_FUNCTION_ARGS)
 Datum
 tsvector_unnest(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   TSVector  tsin;
 
@@ -702,6 +741,7 @@ tsvector_unnest(PG_FUNCTION_ARGS)
 Datum
 tsvector_to_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  tsin = PG_GETARG_TSVECTOR(0);
   WordEntry  *arrin = ARRPTR(tsin);
   Datum    *elements;
@@ -709,6 +749,8 @@ tsvector_to_array(PG_FUNCTION_ARGS)
   ArrayType  *array;
 
   elements = palloc(tsin->size * sizeof(Datum));
+
+  DBUG_PRINT("info", "tsin->size:%d", tsin->size);
 
   for (i = 0; i < tsin->size; i++) {
     elements[i] = PointerGetDatum(cstring_to_text_with_len(STRPTR(tsin) + arrin[i].pos,
@@ -728,6 +770,7 @@ tsvector_to_array(PG_FUNCTION_ARGS)
 Datum
 array_to_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *v = PG_GETARG_ARRAYTYPE_P(0);
   TSVector  tsout;
   Datum    *dlexemes;
@@ -745,6 +788,8 @@ array_to_tsvector(PG_FUNCTION_ARGS)
    * Reject nulls and zero length strings (maybe we should just ignore them,
    * instead?)
    */
+  DBUG_PRINT("info", "nitems:%d", nitems);
+
   for (i = 0; i < nitems; i++) {
     if (nulls[i])
       ereport(ERROR,
@@ -759,6 +804,7 @@ array_to_tsvector(PG_FUNCTION_ARGS)
 
   /* Sort and de-dup, because this is required for a valid tsvector. */
   if (nitems > 1) {
+    DBUG_PRINT("info", "sort and de-dup, because this is required for a valid tsvector");
     qsort(dlexemes, nitems, sizeof(Datum), compare_text_lexemes);
     nitems = qunique(dlexemes, nitems, sizeof(Datum),
                      compare_text_lexemes);
@@ -768,6 +814,7 @@ array_to_tsvector(PG_FUNCTION_ARGS)
   for (i = 0; i < nitems; i++)
     datalen += VARSIZE(dlexemes[i]) - VARHDRSZ;
 
+  DBUG_PRINT("info", "calculate space needed for surviving lexemes:%d", datalen);
   tslen = CALCDATASIZE(nitems, datalen);
 
   /* Allocate and fill tsvector. */
@@ -799,6 +846,7 @@ array_to_tsvector(PG_FUNCTION_ARGS)
 Datum
 tsvector_filter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  tsin = PG_GETARG_TSVECTOR(0),
             tsout;
   ArrayType  *weights = PG_GETARG_ARRAYTYPE_P(1);
@@ -907,6 +955,7 @@ tsvector_filter(PG_FUNCTION_ARGS)
 Datum
 tsvector_concat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  in1 = PG_GETARG_TSVECTOR(0);
   TSVector  in2 = PG_GETARG_TSVECTOR(1);
   TSVector  out;
@@ -1157,6 +1206,7 @@ static TSTernaryValue
 checkclass_str(CHKVAL *chkval, WordEntry *entry, QueryOperand *val,
                ExecPhraseData *data)
 {
+  DBUG_TRACE;
   TSTernaryValue result = TS_NO;
 
   Assert(data == NULL || data->npos == 0);
@@ -1238,6 +1288,14 @@ checkclass_str(CHKVAL *chkval, WordEntry *entry, QueryOperand *val,
       result = TS_YES;
   }
 
+  if (result == TS_YES) {
+    DBUG_PRINT("info", "definitely does match");
+  } else if (result == TS_MAYBE) {
+    DBUG_PRINT("info", "can't verify match for lack of pos data");
+  } else {
+    DBUG_PRINT("info", "definitely no match");
+  }
+
   return result;
 }
 
@@ -1247,6 +1305,7 @@ checkclass_str(CHKVAL *chkval, WordEntry *entry, QueryOperand *val,
 static TSTernaryValue
 checkcondition_str(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
+  DBUG_TRACE;
   CHKVAL     *chkval = (CHKVAL *) checkval;
   WordEntry  *StopLow = chkval->arrb;
   WordEntry  *StopHigh = chkval->arre;
@@ -1324,6 +1383,7 @@ checkcondition_str(void *checkval, QueryOperand *val, ExecPhraseData *data)
              * MAYBE overall.
              */
             res = TS_MAYBE;
+            DBUG_PRINT("info", "no position info for this match, so we must report MAYBE overall");
             /* forget any previous positions */
             npos = 0;
 
@@ -1357,8 +1417,10 @@ checkcondition_str(void *checkval, QueryOperand *val, ExecPhraseData *data)
           data->npos = 0;
         } else {
           /* Don't need positions, just handle YES/MAYBE */
-          if (subres == TS_YES || res == TS_NO)
+          if (subres == TS_YES || res == TS_NO) {
+            DBUG_PRINT("info", "don't need positions, just handle YES/MAYBE");
             res = subres;
+          }
         }
       }
 
@@ -1367,6 +1429,7 @@ checkcondition_str(void *checkval, QueryOperand *val, ExecPhraseData *data)
 
     if (data && npos > 0) {
       /* Sort and make unique array of found positions */
+      DBUG_PRINT("info", "sort and make unique array of found positions");
       data->pos = allpos;
       qsort(data->pos, npos, sizeof(WordEntryPos), compareWordEntryPos);
       data->npos = qunique(data->pos, npos, sizeof(WordEntryPos),
@@ -1374,6 +1437,14 @@ checkcondition_str(void *checkval, QueryOperand *val, ExecPhraseData *data)
       data->allocated = true;
       res = TS_YES;
     }
+  }
+
+  if (res == TS_YES) {
+    DBUG_PRINT("info", "return TS_YES");
+  } else if (res == TS_NO) {
+    DBUG_PRINT("info", "return TS_NO");
+  } else {
+    DBUG_PRINT("info", "return TS_MAYBE");
   }
 
   return res;
@@ -1415,6 +1486,7 @@ TS_phrase_output(ExecPhraseData *data,
                  int Roffset,
                  int max_npos)
 {
+  DBUG_TRACE;
   int     Lindex,
           Rindex;
 
@@ -1547,6 +1619,7 @@ TS_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
                   TSExecuteCallback chkcond,
                   ExecPhraseData *data)
 {
+  DBUG_TRACE;
   ExecPhraseData Ldata,
                  Rdata;
   TSTernaryValue lmatch,
@@ -1780,12 +1853,28 @@ bool
 TS_execute(QueryItem *curitem, void *arg, uint32 flags,
            TSExecuteCallback chkcond)
 {
+  DBUG_TRACE;
   /*
    * If we get TS_MAYBE from the recursion, return true.  We could only see
    * that result if the caller passed TS_EXEC_PHRASE_NO_POS, so there's no
    * need to check again.
    */
-  return TS_execute_recurse(curitem, arg, flags, chkcond) != TS_NO;
+  int value = TS_execute_recurse(curitem, arg, flags, chkcond);
+  int result;
+
+  if (value == TS_MAYBE) {
+    DBUG_PRINT("info", "if we get TS_MAYBE from the recursion, return true");
+  }
+
+  result =  value != TS_NO;
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -1797,6 +1886,7 @@ TSTernaryValue
 TS_execute_ternary(QueryItem *curitem, void *arg, uint32 flags,
                    TSExecuteCallback chkcond)
 {
+  DBUG_TRACE;
   return TS_execute_recurse(curitem, arg, flags, chkcond);
 }
 
@@ -1809,7 +1899,9 @@ static TSTernaryValue
 TS_execute_recurse(QueryItem *curitem, void *arg, uint32 flags,
                    TSExecuteCallback chkcond)
 {
+  DBUG_TRACE;
   TSTernaryValue lmatch;
+  int result;
 
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
@@ -1823,57 +1915,106 @@ TS_execute_recurse(QueryItem *curitem, void *arg, uint32 flags,
 
   switch (curitem->qoperator.oper) {
     case OP_NOT:
-      if (flags & TS_EXEC_SKIP_NOT)
+      DBUG_PRINT("info", "operator:OP_NOT");
+
+      if (flags & TS_EXEC_SKIP_NOT) {
+        DBUG_PRINT("info", "definitely does match");
         return TS_YES;
+      }
 
       switch (TS_execute_recurse(curitem + 1, arg, flags, chkcond)) {
         case TS_NO:
+          DBUG_PRINT("info", "return TS_YES: definitely does match");
           return TS_YES;
 
         case TS_YES:
+          DBUG_PRINT("info", "return TS_NO: definitely no match");
           return TS_NO;
 
         case TS_MAYBE:
+          DBUG_PRINT("info", "can't verify match for lack of pos data");
           return TS_MAYBE;
       }
 
       break;
 
     case OP_AND:
+      DBUG_PRINT("info", "operator:OP_AND");
       lmatch = TS_execute_recurse(curitem + curitem->qoperator.left, arg,
                                   flags, chkcond);
 
-      if (lmatch == TS_NO)
+      if (lmatch == TS_NO) {
+        DBUG_PRINT("info", "return TS_NO: definitely no match");
         return TS_NO;
+      } else {
+        if (lmatch == TS_YES) {
+          DBUG_PRINT("info", "lmatch:TS_YES");
+        } else {
+          DBUG_PRINT("info", "lmatch:TS_MAYBE");
+        }
+      }
 
       switch (TS_execute_recurse(curitem + 1, arg, flags, chkcond)) {
         case TS_NO:
+          DBUG_PRINT("info", "TS_execute_recurse returns TS_NO");
+          DBUG_PRINT("info", "definitely no match");
           return TS_NO;
 
         case TS_YES:
+          DBUG_PRINT("info", "TS_execute_recurse returns TS_YES");
+
+          if (lmatch == TS_YES) {
+            DBUG_PRINT("info", "lmatch:TS_YES");
+            DBUG_PRINT("info", "definitely does match");
+          } else if (lmatch == TS_NO) {
+            DBUG_PRINT("info", "lmatch:TS_NO");
+            DBUG_PRINT("info", "definitely no match");
+          } else {
+            DBUG_PRINT("info", "lmatch:TS_MAYBE");
+            DBUG_PRINT("info", "can't verify match for lack of pos data");
+          }
+
           return lmatch;
 
         case TS_MAYBE:
+          DBUG_PRINT("info", "TS_execute_recurse returns TS_MAYBE");
+          DBUG_PRINT("info", "can't verify match for lack of pos data");
           return TS_MAYBE;
       }
 
       break;
 
     case OP_OR:
+      DBUG_PRINT("info", "operator:OP_OR");
       lmatch = TS_execute_recurse(curitem + curitem->qoperator.left, arg,
                                   flags, chkcond);
 
-      if (lmatch == TS_YES)
+      if (lmatch == TS_YES) {
+        DBUG_PRINT("info", "definitely does match");
         return TS_YES;
+      }
 
       switch (TS_execute_recurse(curitem + 1, arg, flags, chkcond)) {
         case TS_NO:
+          if (lmatch == TS_YES) {
+            DBUG_PRINT("info", "lmatch:TS_YES");
+            DBUG_PRINT("info", "definitely does match");
+          } else if (lmatch == TS_NO) {
+            DBUG_PRINT("info", "lmatch:TS_NO");
+            DBUG_PRINT("info", "definitely no match");
+          } else {
+            DBUG_PRINT("info", "lmatch:TS_MAYBE");
+            DBUG_PRINT("info", "can't verify match for lack of pos data");
+          }
+
           return lmatch;
 
         case TS_YES:
+          DBUG_PRINT("info", "definitely does match");
           return TS_YES;
 
         case TS_MAYBE:
+          DBUG_PRINT("info", "can't verify match for lack of pos data");
           return TS_MAYBE;
       }
 
@@ -1890,15 +2031,29 @@ TS_execute_recurse(QueryItem *curitem, void *arg, uint32 flags,
        * are bug-compatible with the old implementation, so do it like
        * this for now.
        */
+      DBUG_PRINT("info", "operator:OP_PHRASE");
+
       switch (TS_phrase_execute(curitem, arg, flags, chkcond, NULL)) {
         case TS_NO:
+          DBUG_PRINT("info", "definitely no match");
           return TS_NO;
 
         case TS_YES:
+          DBUG_PRINT("info", "definitely does match");
           return TS_YES;
 
         case TS_MAYBE:
-          return (flags & TS_EXEC_PHRASE_NO_POS) ? TS_MAYBE : TS_NO;
+          result = (flags & TS_EXEC_PHRASE_NO_POS) ? TS_MAYBE : TS_NO;
+
+          if (result == TS_YES) {
+            DBUG_PRINT("info", "definitely does match");
+          } else if (result == TS_NO) {
+            DBUG_PRINT("info", "definitely no match");
+          } else {
+            DBUG_PRINT("info", "can't verify match for lack of pos data");
+          }
+
+          return  result;
       }
 
       break;
@@ -1908,6 +2063,7 @@ TS_execute_recurse(QueryItem *curitem, void *arg, uint32 flags,
   }
 
   /* not reachable, but keep compiler quiet */
+  DBUG_PRINT("info", "definitely no match");
   return TS_NO;
 }
 
@@ -1946,6 +2102,7 @@ TS_execute_locations(QueryItem *curitem, void *arg,
                      uint32 flags,
                      TSExecuteCallback chkcond)
 {
+  DBUG_TRACE;
   List     *result;
 
   /* No flags supported, as yet */
@@ -1966,6 +2123,7 @@ TS_execute_locations_recurse(QueryItem *curitem, void *arg,
                              TSExecuteCallback chkcond,
                              List **locations)
 {
+  DBUG_TRACE;
   bool    lmatch,
           rmatch;
   List     *llocations,
@@ -2097,11 +2255,14 @@ TS_execute_locations_recurse(QueryItem *curitem, void *arg,
 bool
 tsquery_requires_match(QueryItem *curitem)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
 
-  if (curitem->type == QI_VAL)
+  if (curitem->type == QI_VAL) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   switch (curitem->qoperator.oper) {
     case OP_NOT:
@@ -2111,6 +2272,8 @@ tsquery_requires_match(QueryItem *curitem)
        * some cases with nested NOTs, we could prove there's a required
        * match, but it seems unlikely to be worth the trouble.
        */
+      DBUG_PRINT("info", "assume there are no required matches underneath a NOT");
+      DBUG_PRINT("info", "return false");
       return false;
 
     case OP_PHRASE:
@@ -2120,25 +2283,51 @@ tsquery_requires_match(QueryItem *curitem)
      */
     case OP_AND:
 
+      DBUG_PRINT("info", "treat OP_PHRASE as OP_AND here");
+
       /* If either side requires a match, we're good */
-      if (tsquery_requires_match(curitem + curitem->qoperator.left))
+      if (tsquery_requires_match(curitem + curitem->qoperator.left)) {
+        DBUG_PRINT("info", "if either side requires a match, we're good");
+        DBUG_PRINT("info", "return true");
         return true;
-      else
-        return tsquery_requires_match(curitem + 1);
+      } else {
+        bool result = tsquery_requires_match(curitem + 1);
+
+        if (result) {
+          DBUG_PRINT("info", "return true");
+        } else {
+          DBUG_PRINT("info", "return false");
+        }
+
+        return result;
+      }
 
     case OP_OR:
 
       /* Both sides must require a match */
-      if (tsquery_requires_match(curitem + curitem->qoperator.left))
-        return tsquery_requires_match(curitem + 1);
-      else
+      if (tsquery_requires_match(curitem + curitem->qoperator.left)) {
+        bool result = tsquery_requires_match(curitem + 1);
+        DBUG_PRINT("info", "both sides must require a match");
+
+        if (result) {
+          DBUG_PRINT("info", "return true");
+        } else {
+          DBUG_PRINT("info", "return false");
+        }
+
+        return result;
+      } else {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
     default:
       elog(ERROR, "unrecognized operator: %d", curitem->qoperator.oper);
   }
 
   /* not reachable, but keep compiler quiet */
+
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -2148,6 +2337,7 @@ tsquery_requires_match(QueryItem *curitem)
 Datum
 ts_match_qv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(ts_match_vq,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)));
@@ -2156,6 +2346,7 @@ ts_match_qv(PG_FUNCTION_ARGS)
 Datum
 ts_match_vq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  val = PG_GETARG_TSVECTOR(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   CHKVAL    chkval;
@@ -2165,6 +2356,8 @@ ts_match_vq(PG_FUNCTION_ARGS)
   if (!query->size) {
     PG_FREE_IF_COPY(val, 0);
     PG_FREE_IF_COPY(query, 1);
+    DBUG_PRINT("info", "empty query matches nothing");
+    DBUG_PRINT("info", "return false");
     PG_RETURN_BOOL(false);
   }
 
@@ -2179,12 +2372,20 @@ ts_match_vq(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(val, 0);
   PG_FREE_IF_COPY(query, 1);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 ts_match_tt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  vector;
   TSQuery   query;
   bool    res;
@@ -2201,12 +2402,19 @@ ts_match_tt(PG_FUNCTION_ARGS)
   pfree(vector);
   pfree(query);
 
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 ts_match_tq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  vector;
   TSQuery   query = PG_GETARG_TSQUERY(1);
   bool    res;
@@ -2220,6 +2428,12 @@ ts_match_tq(PG_FUNCTION_ARGS)
 
   pfree(vector);
   PG_FREE_IF_COPY(query, 1);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(res);
 }
@@ -2236,6 +2450,7 @@ ts_match_tq(PG_FUNCTION_ARGS)
 static int
 check_weight(TSVector txt, WordEntry *wptr, int8 weight)
 {
+  DBUG_TRACE;
   int     len = POSDATALEN(txt, wptr);
   int     num = 0;
   WordEntryPos *ptr = POSDATAPTR(txt, wptr);
@@ -2247,6 +2462,7 @@ check_weight(TSVector txt, WordEntry *wptr, int8 weight)
     ptr++;
   }
 
+  DBUG_PRINT("info", "return the number of positions in value 'wptr' within tsvector 'txt':%d", num);
   return num;
 }
 
@@ -2258,6 +2474,7 @@ check_weight(TSVector txt, WordEntry *wptr, int8 weight)
 static void
 insertStatEntry(MemoryContext persistentContext, TSVectorStat *stat, TSVector txt, uint32 off)
 {
+  DBUG_TRACE;
   WordEntry  *we = ARRPTR(txt) + off;
   StatEntry  *node = stat->root,
               *pnode = NULL;
@@ -2315,9 +2532,11 @@ static void
 chooseNextStatEntry(MemoryContext persistentContext, TSVectorStat *stat, TSVector txt,
                     uint32 low, uint32 high, uint32 offset)
 {
+  DBUG_TRACE;
   uint32    pos;
   uint32    middle = (low + high) >> 1;
 
+  DBUG_PRINT("info", "low:%u, high:%u, offset:%u", low, high, offset);
   pos = (low + middle) >> 1;
 
   if (low != middle && pos >= offset && pos - offset < txt->size)
@@ -2350,6 +2569,7 @@ chooseNextStatEntry(MemoryContext persistentContext, TSVectorStat *stat, TSVecto
 static TSVectorStat *
 ts_accum(MemoryContext persistentContext, TSVectorStat *stat, Datum data)
 {
+  DBUG_TRACE;
   TSVector  txt = DatumGetTSVector(data);
   uint32    i,
             nbit = 0,
@@ -2387,6 +2607,7 @@ static void
 ts_setup_firstcall(FunctionCallInfo fcinfo, FuncCallContext *funcctx,
                    TSVectorStat *stat)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   MemoryContext oldcontext;
   StatEntry  *node;
@@ -2428,6 +2649,7 @@ ts_setup_firstcall(FunctionCallInfo fcinfo, FuncCallContext *funcctx,
 static StatEntry *
 walkStatEntryTree(TSVectorStat *stat)
 {
+  DBUG_TRACE;
   StatEntry  *node = stat->stack[stat->stackpos];
 
   if (node == NULL)
@@ -2468,6 +2690,7 @@ walkStatEntryTree(TSVectorStat *stat)
 static Datum
 ts_process_call(FuncCallContext *funcctx)
 {
+  DBUG_TRACE;
   TSVectorStat *st;
   StatEntry  *entry;
 
@@ -2507,6 +2730,7 @@ ts_process_call(FuncCallContext *funcctx)
 static TSVectorStat *
 ts_stat_sql(MemoryContext persistentContext, text *txt, text *ws)
 {
+  DBUG_TRACE;
   char     *query = text_to_cstring(txt);
   TSVectorStat *stat;
   bool    isnull;
@@ -2600,6 +2824,7 @@ ts_stat_sql(MemoryContext persistentContext, text *txt, text *ws)
 Datum
 ts_stat1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -2626,6 +2851,7 @@ ts_stat1(PG_FUNCTION_ARGS)
 Datum
 ts_stat2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   Datum   result;
 
@@ -2665,18 +2891,21 @@ ts_stat2(PG_FUNCTION_ARGS)
 Datum
 tsvector_update_trigger_byid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return tsvector_update_trigger(fcinfo, false);
 }
 
 Datum
 tsvector_update_trigger_bycolumn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return tsvector_update_trigger(fcinfo, true);
 }
 
 static Datum
 tsvector_update_trigger(PG_FUNCTION_ARGS, bool config_column)
 {
+  DBUG_TRACE;
   TriggerData *trigdata;
   Trigger    *trigger;
   Relation  rel;
@@ -2819,6 +3048,7 @@ tsvector_update_trigger(PG_FUNCTION_ARGS, bool config_column)
 
   if (update_needed) {
     /* make tsvector value */
+    DBUG_PRINT("info", "update needed");
     datum = TSVectorGetDatum(make_tsvector(&prs));
     isnull = false;
 

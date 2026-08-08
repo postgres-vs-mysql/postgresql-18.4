@@ -27,8 +27,7 @@
  *    typedef struct FormData_pg_auth_members
  * ----------------
  */
-CATALOG(pg_auth_members, 1261, AuthMemRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2843, AuthMemRelation_Rowtype_Id) BKI_SCHEMA_MACRO
-{
+CATALOG(pg_auth_members, 1261, AuthMemRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2843, AuthMemRelation_Rowtype_Id) BKI_SCHEMA_MACRO {
   Oid     oid;      /* oid */
   Oid     roleid BKI_LOOKUP(pg_authid); /* ID of a role */
   Oid     member BKI_LOOKUP(pg_authid); /* ID of a member of that role */

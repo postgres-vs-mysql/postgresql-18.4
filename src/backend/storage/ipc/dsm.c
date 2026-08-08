@@ -24,6 +24,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <fcntl.h>
@@ -171,6 +172,7 @@ ResourceOwnerForgetDSM(ResourceOwner owner, dsm_segment *seg)
 void
 dsm_postmaster_startup(PGShmemHeader *shim)
 {
+  DBUG_TRACE;
   void     *dsm_control_address = NULL;
   uint32    maxitems;
   Size    segsize;
@@ -234,6 +236,7 @@ dsm_postmaster_startup(PGShmemHeader *shim)
 void
 dsm_cleanup_using_control_segment(dsm_handle old_control_handle)
 {
+  DBUG_TRACE;
   void     *mapped_address = NULL;
   void     *junk_mapped_address = NULL;
   void     *impl_private = NULL;
@@ -318,6 +321,7 @@ dsm_cleanup_using_control_segment(dsm_handle old_control_handle)
 static void
 dsm_cleanup_for_mmap(void)
 {
+  DBUG_TRACE;
   DIR      *dir;
   struct dirent *dent;
 
@@ -354,6 +358,7 @@ dsm_cleanup_for_mmap(void)
 static void
 dsm_postmaster_shutdown(int code, Datum arg)
 {
+  DBUG_TRACE;
   uint32    nitems;
   uint32    i;
   void     *dsm_control_address;
@@ -419,6 +424,7 @@ dsm_postmaster_shutdown(int code, Datum arg)
 static void
 dsm_backend_startup(void)
 {
+  DBUG_TRACE;
 #ifdef EXEC_BACKEND
 
   if (IsUnderPostmaster) {
@@ -456,6 +462,7 @@ dsm_backend_startup(void)
 void
 dsm_set_control_handle(dsm_handle h)
 {
+  DBUG_TRACE;
   Assert(dsm_control_handle == 0 && h != 0);
   dsm_control_handle = h;
 }
@@ -476,6 +483,7 @@ dsm_estimate_size(void)
 void
 dsm_shmem_init(void)
 {
+  DBUG_TRACE;
   size_t    size = dsm_estimate_size();
   bool    found;
 
@@ -513,6 +521,7 @@ dsm_shmem_init(void)
 dsm_segment *
 dsm_create(Size size, int flags)
 {
+  DBUG_TRACE;
   dsm_segment *seg;
   uint32    i;
   uint32    nitems;
@@ -666,6 +675,7 @@ dsm_create(Size size, int flags)
 dsm_segment *
 dsm_attach(dsm_handle h)
 {
+  DBUG_TRACE;
   dsm_segment *seg;
   dlist_iter  iter;
   uint32    i;
@@ -759,6 +769,8 @@ dsm_attach(dsm_handle h)
 void
 dsm_backend_shutdown(void)
 {
+  DBUG_TRACE;
+
   while (!dlist_is_empty(&dsm_segment_list)) {
     dsm_segment *seg;
 
@@ -776,6 +788,7 @@ dsm_backend_shutdown(void)
 void
 dsm_detach_all(void)
 {
+  DBUG_TRACE;
   void     *control_address = dsm_control;
 
   while (!dlist_is_empty(&dsm_segment_list)) {
@@ -803,6 +816,7 @@ dsm_detach_all(void)
 void
 dsm_detach(dsm_segment *seg)
 {
+  DBUG_TRACE;
   /*
    * Invoke registered callbacks.  Just in case one of those callbacks
    * throws a further error that brings us back here, pop the callback
@@ -916,6 +930,8 @@ dsm_detach(dsm_segment *seg)
 void
 dsm_pin_mapping(dsm_segment *seg)
 {
+  DBUG_TRACE;
+
   if (seg->resowner != NULL) {
     ResourceOwnerForgetDSM(seg->resowner, seg);
     seg->resowner = NULL;
@@ -934,6 +950,7 @@ dsm_pin_mapping(dsm_segment *seg)
 void
 dsm_unpin_mapping(dsm_segment *seg)
 {
+  DBUG_TRACE;
   Assert(seg->resowner == NULL);
   ResourceOwnerEnlarge(CurrentResourceOwner);
   seg->resowner = CurrentResourceOwner;
@@ -955,6 +972,7 @@ dsm_unpin_mapping(dsm_segment *seg)
 void
 dsm_pin_segment(dsm_segment *seg)
 {
+  DBUG_TRACE;
   void     *handle = NULL;
 
   /*
@@ -991,6 +1009,7 @@ dsm_pin_segment(dsm_segment *seg)
 void
 dsm_unpin_segment(dsm_handle handle)
 {
+  DBUG_TRACE;
   uint32    control_slot = INVALID_CONTROL_SLOT;
   bool    destroy = false;
   uint32    i;
@@ -1081,6 +1100,7 @@ dsm_unpin_segment(dsm_handle handle)
 dsm_segment *
 dsm_find_mapping(dsm_handle handle)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   dsm_segment *seg;
 
@@ -1137,6 +1157,7 @@ dsm_segment_handle(dsm_segment *seg)
 void
 on_dsm_detach(dsm_segment *seg, on_dsm_detach_callback function, Datum arg)
 {
+  DBUG_TRACE;
   dsm_segment_detach_callback *cb;
 
   cb = MemoryContextAlloc(TopMemoryContext,
@@ -1153,6 +1174,7 @@ void
 cancel_on_dsm_detach(dsm_segment *seg, on_dsm_detach_callback function,
                      Datum arg)
 {
+  DBUG_TRACE;
   slist_mutable_iter iter;
 
   slist_foreach_modify(iter, &seg->on_detach) {
@@ -1174,6 +1196,7 @@ cancel_on_dsm_detach(dsm_segment *seg, on_dsm_detach_callback function,
 void
 reset_on_dsm_detach(void)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   dlist_foreach(iter, &dsm_segment_list) {
@@ -1203,6 +1226,7 @@ reset_on_dsm_detach(void)
 static dsm_segment *
 dsm_create_descriptor(void)
 {
+  DBUG_TRACE;
   dsm_segment *seg;
 
   if (CurrentResourceOwner)
@@ -1240,6 +1264,8 @@ dsm_create_descriptor(void)
 static bool
 dsm_control_segment_sane(dsm_control_header *control, Size mapped_size)
 {
+  DBUG_TRACE;
+
   if (mapped_size < offsetof(dsm_control_header, item))
     return false;     /* Mapped size too short to read header. */
 
@@ -1269,6 +1295,7 @@ dsm_control_bytes_needed(uint32 nitems)
 static inline dsm_handle
 make_main_region_dsm_handle(int slot)
 {
+  DBUG_TRACE;
   dsm_handle  handle;
 
   /*
@@ -1296,6 +1323,7 @@ is_main_region_dsm_handle(dsm_handle handle)
 static void
 ResOwnerReleaseDSM(Datum res)
 {
+  DBUG_TRACE;
   dsm_segment *seg = (dsm_segment *) DatumGetPointer(res);
 
   seg->resowner = NULL;
@@ -1304,6 +1332,7 @@ ResOwnerReleaseDSM(Datum res)
 static char *
 ResOwnerPrintDSM(Datum res)
 {
+  DBUG_TRACE;
   dsm_segment *seg = (dsm_segment *) DatumGetPointer(res);
 
   return psprintf("dynamic shared memory segment %u",

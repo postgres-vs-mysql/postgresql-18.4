@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -56,6 +57,7 @@ static BlockNumber find_tids_one_page(ItemPointer tids, int ntids,
 Datum
 heap_force_kill(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_KILL));
 }
 
@@ -71,6 +73,7 @@ heap_force_kill(PG_FUNCTION_ARGS)
 Datum
 heap_force_freeze(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_FREEZE));
 }
 
@@ -83,6 +86,7 @@ heap_force_freeze(PG_FUNCTION_ARGS)
 static Datum
 heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P_COPY(1);
   ItemPointer tids;
@@ -141,6 +145,8 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
   /*
    * Loop, performing the necessary actions for each block.
    */
+  DBUG_PRINT("surgery", "loop, performing the necessary actions for each block");
+
   while (next_start_ptr != ntids) {
     Buffer    buf;
     Buffer    vmbuf = InvalidBuffer;
@@ -246,6 +252,7 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
       did_modify_page = true;
 
       if (heap_force_opt == HEAP_FORCE_KILL) {
+        DBUG_PRINT("surgery", "ItemIdSetDead is call here");
         ItemIdSetDead(itemid);
 
         /*
@@ -357,6 +364,8 @@ tidcmp(const void *a, const void *b)
 static void
 sanity_check_tid_array(ArrayType *ta, int *ntids)
 {
+  DBUG_TRACE;
+
   if (ARR_HASNULL(ta) && array_contains_nulls(ta))
     ereport(ERROR,
             (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
@@ -382,6 +391,7 @@ sanity_check_tid_array(ArrayType *ta, int *ntids)
 static BlockNumber
 find_tids_one_page(ItemPointer tids, int ntids, OffsetNumber *next_start_ptr)
 {
+  DBUG_TRACE;
   int     i;
   BlockNumber prev_blkno,
               blkno;
@@ -400,6 +410,7 @@ find_tids_one_page(ItemPointer tids, int ntids, OffsetNumber *next_start_ptr)
       break;
   }
 
+  DBUG_PRINT("surgery", "blkno:%u, prev_blkno:%u", blkno, prev_blkno);
   *next_start_ptr = i;
   return prev_blkno;
 }

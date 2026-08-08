@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "nodes/nodeFuncs.h"
@@ -774,6 +775,7 @@ pull_var_clause_walker(Node *node, pull_var_clause_context *context)
 Node *
 flatten_join_alias_vars(PlannerInfo *root, Query *query, Node *node)
 {
+  DBUG_TRACE;
   flatten_join_alias_vars_context context;
 
   /*
@@ -798,6 +800,8 @@ static Node *
 flatten_join_alias_vars_mutator(Node *node,
                                 flatten_join_alias_vars_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1163,6 +1167,8 @@ mark_nullable_by_grouping(PlannerInfo *root, Node *newnode, Var *oldvar)
 static Node *
 add_nullingrels_if_needed(PlannerInfo *root, Node *newnode, Var *oldvar)
 {
+  DBUG_TRACE;
+
   if (oldvar->varnullingrels == NULL)
     return newnode;     /* nothing to do */
 
@@ -1215,6 +1221,8 @@ add_nullingrels_if_needed(PlannerInfo *root, Node *newnode, Var *oldvar)
 static bool
 is_standard_join_alias_expression(Node *newnode, Var *oldvar)
 {
+  DBUG_TRACE;
+
   if (newnode == NULL)
     return false;
 
@@ -1281,6 +1289,8 @@ is_standard_join_alias_expression(Node *newnode, Var *oldvar)
 static void
 adjust_standard_join_alias_expression(Node *newnode, Var *oldvar)
 {
+  DBUG_TRACE;
+
   if (IsA(newnode, Var) &&
       ((Var *) newnode)->varlevelsup == oldvar->varlevelsup) {
     Var      *newvar = (Var *) newnode;
@@ -1329,6 +1339,7 @@ adjust_standard_join_alias_expression(Node *newnode, Var *oldvar)
 static Relids
 alias_relid_set(Query *query, Relids relids)
 {
+  DBUG_TRACE;
   Relids    result = NULL;
   int     rtindex;
 

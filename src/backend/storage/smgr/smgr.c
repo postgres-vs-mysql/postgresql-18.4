@@ -62,6 +62,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xlogutils.h"
 #include "lib/ilist.h"
@@ -389,6 +390,7 @@ smgrdestroyall(void)
   /* seems unsafe to accept interrupts while in a dlist_foreach_modify() */
   HOLD_INTERRUPTS();
 
+
   /*
    * Zap all unpinned SMgrRelations.  We rely on smgrdestroy() to remove
    * each one from the list.
@@ -495,6 +497,7 @@ smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
 void
 smgrdosyncall(SMgrRelation *rels, int nrels)
 {
+  DBUG_TRACE;
   int     i = 0;
   ForkNumber  forknum;
 
@@ -533,6 +536,7 @@ smgrdosyncall(SMgrRelation *rels, int nrels)
 void
 smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 {
+  DBUG_TRACE;
   int     i = 0;
   RelFileLocatorBackend *rlocators;
   ForkNumber  forknum;

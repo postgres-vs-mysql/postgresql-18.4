@@ -35,6 +35,7 @@
 /*************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -54,6 +55,7 @@ void
 geqo_selection(PlannerInfo *root, Chromosome *momma, Chromosome *daddy,
                Pool *pool, double bias)
 {
+  DBUG_TRACE;
   int     first,
           second;
 

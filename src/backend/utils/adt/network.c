@@ -7,6 +7,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -119,14 +120,17 @@ network_in(char *src, bool is_cidr, Node *escontext)
 Datum
 inet_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *src = PG_GETARG_CSTRING(0);
 
+  DBUG_PRINT("info", "orig string:'%s'", src);
   PG_RETURN_INET_P(network_in(src, false, fcinfo->context));
 }
 
 Datum
 cidr_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *src = PG_GETARG_CSTRING(0);
 
   PG_RETURN_INET_P(network_in(src, true, fcinfo->context));
@@ -163,6 +167,7 @@ network_out(inet *src, bool is_cidr)
 Datum
 inet_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *src = PG_GETARG_INET_PP(0);
 
   PG_RETURN_CSTRING(network_out(src, false));
@@ -171,6 +176,7 @@ inet_out(PG_FUNCTION_ARGS)
 Datum
 cidr_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *src = PG_GETARG_INET_PP(0);
 
   PG_RETURN_CSTRING(network_out(src, true));
@@ -253,6 +259,7 @@ network_recv(StringInfo buf, bool is_cidr)
 Datum
 inet_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_INET_P(network_recv(buf, false));
@@ -261,6 +268,7 @@ inet_recv(PG_FUNCTION_ARGS)
 Datum
 cidr_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_INET_P(network_recv(buf, true));
@@ -295,6 +303,7 @@ network_send(inet *addr, bool is_cidr)
 Datum
 inet_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *addr = PG_GETARG_INET_PP(0);
 
   PG_RETURN_BYTEA_P(network_send(addr, false));
@@ -303,6 +312,7 @@ inet_send(PG_FUNCTION_ARGS)
 Datum
 cidr_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *addr = PG_GETARG_INET_PP(0);
 
   PG_RETURN_BYTEA_P(network_send(addr, true));
@@ -312,6 +322,7 @@ cidr_send(PG_FUNCTION_ARGS)
 Datum
 inet_to_cidr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *src = PG_GETARG_INET_PP(0);
   int     bits;
 
@@ -327,6 +338,7 @@ inet_to_cidr(PG_FUNCTION_ARGS)
 Datum
 inet_set_masklen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *src = PG_GETARG_INET_PP(0);
   int     bits = PG_GETARG_INT32(1);
   inet     *dst;
@@ -351,6 +363,7 @@ inet_set_masklen(PG_FUNCTION_ARGS)
 Datum
 cidr_set_masklen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *src = PG_GETARG_INET_PP(0);
   int     bits = PG_GETARG_INT32(1);
 
@@ -430,6 +443,7 @@ network_cmp_internal(inet *a1, inet *a2)
 Datum
 network_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -442,6 +456,7 @@ network_cmp(PG_FUNCTION_ARGS)
 Datum
 network_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = network_fast_cmp;
@@ -785,6 +800,7 @@ network_abbrev_convert(Datum original, SortSupport ssup)
 Datum
 network_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -794,6 +810,7 @@ network_lt(PG_FUNCTION_ARGS)
 Datum
 network_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -803,6 +820,7 @@ network_le(PG_FUNCTION_ARGS)
 Datum
 network_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -812,6 +830,7 @@ network_eq(PG_FUNCTION_ARGS)
 Datum
 network_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -821,6 +840,7 @@ network_ge(PG_FUNCTION_ARGS)
 Datum
 network_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -830,6 +850,7 @@ network_gt(PG_FUNCTION_ARGS)
 Datum
 network_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -842,6 +863,7 @@ network_ne(PG_FUNCTION_ARGS)
 Datum
 network_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -854,6 +876,7 @@ network_smaller(PG_FUNCTION_ARGS)
 Datum
 network_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -869,6 +892,7 @@ network_larger(PG_FUNCTION_ARGS)
 Datum
 hashinet(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *addr = PG_GETARG_INET_PP(0);
   int     addrsize = ip_addrsize(addr);
 
@@ -879,6 +903,7 @@ hashinet(PG_FUNCTION_ARGS)
 Datum
 hashinetextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *addr = PG_GETARG_INET_PP(0);
   int     addrsize = ip_addrsize(addr);
 
@@ -892,6 +917,7 @@ hashinetextended(PG_FUNCTION_ARGS)
 Datum
 network_sub(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -906,6 +932,7 @@ network_sub(PG_FUNCTION_ARGS)
 Datum
 network_subeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -920,6 +947,7 @@ network_subeq(PG_FUNCTION_ARGS)
 Datum
 network_sup(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -934,6 +962,7 @@ network_sup(PG_FUNCTION_ARGS)
 Datum
 network_supeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -948,6 +977,7 @@ network_supeq(PG_FUNCTION_ARGS)
 Datum
 network_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -965,6 +995,7 @@ network_overlap(PG_FUNCTION_ARGS)
 Datum
 network_subset_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 
@@ -1136,6 +1167,7 @@ match_network_subset(Node *leftop,
 Datum
 network_host(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   char     *ptr;
   char    tmp[sizeof("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:255.255.255.255/128")];
@@ -1162,6 +1194,7 @@ network_host(PG_FUNCTION_ARGS)
 Datum
 network_show(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   int     len;
   char    tmp[sizeof("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:255.255.255.255/128")];
@@ -1184,6 +1217,7 @@ network_show(PG_FUNCTION_ARGS)
 Datum
 inet_abbrev(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   char     *dst;
   char    tmp[sizeof("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:255.255.255.255/128")];
@@ -1202,6 +1236,7 @@ inet_abbrev(PG_FUNCTION_ARGS)
 Datum
 cidr_abbrev(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   char     *dst;
   char    tmp[sizeof("xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:255.255.255.255/128")];
@@ -1220,6 +1255,7 @@ cidr_abbrev(PG_FUNCTION_ARGS)
 Datum
 network_masklen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
 
   PG_RETURN_INT32(ip_bits(ip));
@@ -1228,6 +1264,7 @@ network_masklen(PG_FUNCTION_ARGS)
 Datum
 network_family(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
 
   switch (ip_family(ip)) {
@@ -1248,6 +1285,7 @@ network_family(PG_FUNCTION_ARGS)
 Datum
 network_broadcast(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *dst;
   int     byte;
@@ -1289,6 +1327,7 @@ network_broadcast(PG_FUNCTION_ARGS)
 Datum
 network_network(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *dst;
   int     byte;
@@ -1329,6 +1368,7 @@ network_network(PG_FUNCTION_ARGS)
 Datum
 network_netmask(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *dst;
   int     byte;
@@ -1367,6 +1407,7 @@ network_netmask(PG_FUNCTION_ARGS)
 Datum
 network_hostmask(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *dst;
   int     byte;
@@ -1411,6 +1452,7 @@ network_hostmask(PG_FUNCTION_ARGS)
 Datum
 inet_same_family(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0);
   inet     *a2 = PG_GETARG_INET_PP(1);
 
@@ -1423,6 +1465,7 @@ inet_same_family(PG_FUNCTION_ARGS)
 Datum
 inet_merge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *a1 = PG_GETARG_INET_PP(0),
             *a2 = PG_GETARG_INET_PP(1);
   int     commonbits;
@@ -1635,6 +1678,7 @@ addressOK(unsigned char *a, int bits, int family)
 Datum
 network_scan_first(Datum in)
 {
+  DBUG_TRACE;
   return DirectFunctionCall1(network_network, in);
 }
 
@@ -1649,6 +1693,7 @@ network_scan_first(Datum in)
 Datum
 network_scan_last(Datum in)
 {
+  DBUG_TRACE;
   return DirectFunctionCall2(inet_set_masklen,
                              DirectFunctionCall1(network_broadcast, in),
                              Int32GetDatum(-1));
@@ -1661,6 +1706,7 @@ network_scan_last(Datum in)
 Datum
 inet_client_addr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Port     *port = MyProcPort;
   char    remote_host[NI_MAXHOST];
   int     ret;
@@ -1699,6 +1745,7 @@ inet_client_addr(PG_FUNCTION_ARGS)
 Datum
 inet_client_port(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Port     *port = MyProcPort;
   char    remote_port[NI_MAXSERV];
   int     ret;
@@ -1735,6 +1782,7 @@ inet_client_port(PG_FUNCTION_ARGS)
 Datum
 inet_server_addr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Port     *port = MyProcPort;
   char    local_host[NI_MAXHOST];
   int     ret;
@@ -1773,6 +1821,7 @@ inet_server_addr(PG_FUNCTION_ARGS)
 Datum
 inet_server_port(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Port     *port = MyProcPort;
   char    local_port[NI_MAXSERV];
   int     ret;
@@ -1806,6 +1855,7 @@ inet_server_port(PG_FUNCTION_ARGS)
 Datum
 inetnot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *dst;
 
@@ -1831,6 +1881,7 @@ inetnot(PG_FUNCTION_ARGS)
 Datum
 inetand(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *ip2 = PG_GETARG_INET_PP(1);
   inet     *dst;
@@ -1863,6 +1914,7 @@ inetand(PG_FUNCTION_ARGS)
 Datum
 inetor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *ip2 = PG_GETARG_INET_PP(1);
   inet     *dst;
@@ -1946,6 +1998,7 @@ internal_inetpl(inet *ip, int64 addend)
 Datum
 inetpl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   int64   addend = PG_GETARG_INT64(1);
 
@@ -1956,6 +2009,7 @@ inetpl(PG_FUNCTION_ARGS)
 Datum
 inetmi_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   int64   addend = PG_GETARG_INT64(1);
 
@@ -1966,6 +2020,7 @@ inetmi_int8(PG_FUNCTION_ARGS)
 Datum
 inetmi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   inet     *ip = PG_GETARG_INET_PP(0);
   inet     *ip2 = PG_GETARG_INET_PP(1);
   int64   res = 0;

@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "ltree/ltree.h"
@@ -37,6 +38,7 @@ PG_FUNCTION_INFO_V1(ltree_to_plpython);
 Datum
 ltree_to_plpython(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *in = PG_GETARG_LTREE_P(0);
   int     i;
   PyObject   *list;

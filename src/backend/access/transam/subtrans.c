@@ -27,6 +27,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/slru.h"
 #include "access/subtrans.h"
@@ -84,6 +85,7 @@ static bool SubTransPagePrecedes(int64 page1, int64 page2);
 void
 SubTransSetParent(TransactionId xid, TransactionId parent)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToPage(xid);
   int     entryno = TransactionIdToEntry(xid);
   int     slotno;
@@ -120,6 +122,7 @@ SubTransSetParent(TransactionId xid, TransactionId parent)
 TransactionId
 SubTransGetParent(TransactionId xid)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToPage(xid);
   int     entryno = TransactionIdToEntry(xid);
   int     slotno;
@@ -161,6 +164,7 @@ SubTransGetParent(TransactionId xid)
 TransactionId
 SubTransGetTopmostTransaction(TransactionId xid)
 {
+  DBUG_TRACE;
   TransactionId parentXid = xid,
                 previousXid = xid;
 
@@ -219,6 +223,7 @@ SUBTRANSShmemSize(void)
 void
 SUBTRANSShmemInit(void)
 {
+  DBUG_TRACE;
   /* If auto-tuning is requested, now is the time to do it */
   if (subtransaction_buffers == 0) {
     char    buf[32];
@@ -269,6 +274,7 @@ check_subtrans_buffers(int *newval, void **extra, GucSource source)
 void
 BootStrapSUBTRANS(void)
 {
+  DBUG_TRACE;
   int     slotno;
   LWLock     *lock = SimpleLruGetBankLock(SubTransCtl, 0);
 
@@ -308,6 +314,7 @@ ZeroSUBTRANSPage(int64 pageno)
 void
 StartupSUBTRANS(TransactionId oldestActiveXID)
 {
+  DBUG_TRACE;
   FullTransactionId nextXid;
   int64   startPage;
   int64   endPage;
@@ -380,6 +387,7 @@ CheckPointSUBTRANS(void)
 void
 ExtendSUBTRANS(TransactionId newestXact)
 {
+  DBUG_TRACE;
   int64   pageno;
   LWLock     *lock;
 
@@ -412,6 +420,7 @@ ExtendSUBTRANS(TransactionId newestXact)
 void
 TruncateSUBTRANS(TransactionId oldestXact)
 {
+  DBUG_TRACE;
   int64   cutoffPage;
 
   /*
@@ -436,6 +445,7 @@ TruncateSUBTRANS(TransactionId oldestXact)
 static bool
 SubTransPagePrecedes(int64 page1, int64 page2)
 {
+  DBUG_TRACE;
   TransactionId xid1;
   TransactionId xid2;
 

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "catalog/catalog.h"
@@ -36,6 +37,7 @@
 ObjectAddress
 CreateProceduralLanguage(CreatePLangStmt *stmt)
 {
+  DBUG_TRACE;
   const char *languageName = stmt->plname;
   Oid     languageOwner = GetUserId();
   Oid     handlerOid,
@@ -57,13 +59,17 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
                 referenced;
   ObjectAddresses *addrs;
 
+  DBUG_PRINT("info", "create language");
   /*
    * Check permission
    */
-  if (!superuser())
+  DBUG_PRINT("info", "check permission");
+
+  if (!superuser()) {
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to create custom procedural language")));
+  }
 
   /*
    * Lookup the PL handler function and check that it is of the expected
@@ -73,11 +79,12 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
   handlerOid = LookupFuncName(stmt->plhandler, 0, NULL, false);
   funcrettype = get_func_rettype(handlerOid);
 
-  if (funcrettype != LANGUAGE_HANDLEROID)
+  if (funcrettype != LANGUAGE_HANDLEROID) {
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("function %s must return type %s",
                     NameListToString(stmt->plhandler), "language_handler")));
+  }
 
   /* validate the inline function */
   if (stmt->plinline) {
@@ -87,6 +94,8 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
   } else
     inlineOid = InvalidOid;
 
+  DBUG_PRINT("info", "validate the validator function");
+
   /* validate the validator function */
   if (stmt->plvalidator) {
     funcargtypes[0] = OIDOID;
@@ -95,6 +104,7 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
   } else
     valOid = InvalidOid;
 
+  DBUG_PRINT("info", "ok to create it");
   /* ok to create it */
   rel = table_open(LanguageRelationId, RowExclusiveLock);
   tupDesc = RelationGetDescr(rel);
@@ -121,10 +131,12 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
     Form_pg_language oldform = (Form_pg_language) GETSTRUCT(oldtup);
 
     /* There is one; okay to replace it? */
-    if (!stmt->replace)
+    if (!stmt->replace) {
+      DBUG_PRINT("info", "language \"%s\" already exists", languageName);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("language \"%s\" already exists", languageName)));
+    }
 
     /* This is currently pointless, since we already checked superuser */
 #ifdef NOT_USED
@@ -219,15 +231,19 @@ CreateProceduralLanguage(CreatePLangStmt *stmt)
 Oid
 get_language_oid(const char *langname, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     oid;
 
   oid = GetSysCacheOid1(LANGNAME, Anum_pg_language_oid,
                         CStringGetDatum(langname));
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_PRINT("info", "language \"%s\" does not exist", langname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("language \"%s\" does not exist", langname)));
+  }
 
+  DBUG_PRINT("info", "given a language name:%s, look up the OID:%d", langname, oid);
   return oid;
 }

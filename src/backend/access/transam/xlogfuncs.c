@@ -15,6 +15,9 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
+#include "utils/timestamp.h"
+#include "utils/datetime.h"
 
 #include <unistd.h>
 
@@ -56,18 +59,22 @@ static MemoryContext backupcontext = NULL;
 Datum
 pg_backup_start(PG_FUNCTION_ARGS)
 {
-  text     *backupid = PG_GETARG_TEXT_PP(0);
-  bool    fast = PG_GETARG_BOOL(1);
-  char     *backupidstr;
+  DBUG_TRACE;
+  text       *backupid = PG_GETARG_TEXT_PP(0);
+  bool        fast = PG_GETARG_BOOL(1);
+  char       *backupidstr;
   SessionBackupState status = get_backup_status();
   MemoryContext oldcontext;
 
+  DBUG_PRINT("info", "set up for taking an on-line backup dump");
   backupidstr = text_to_cstring(backupid);
 
-  if (status == SESSION_BACKUP_RUNNING)
+  if (status == SESSION_BACKUP_RUNNING) {
+    DBUG_INSTANT_PRINT("info", "a backup is already in progress in this session");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("a backup is already in progress in this session")));
+  }
 
   /*
    * backup_state and tablespace_map need to be long-lived as they are used
@@ -120,23 +127,31 @@ pg_backup_start(PG_FUNCTION_ARGS)
 Datum
 pg_backup_stop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_BACKUP_STOP_V2_COLS 3
-  TupleDesc tupdesc;
-  Datum   values[PG_BACKUP_STOP_V2_COLS] = {0};
-  bool    nulls[PG_BACKUP_STOP_V2_COLS] = {0};
-  bool    waitforarchive = PG_GETARG_BOOL(0);
-  char     *backup_label;
+  TupleDesc   tupdesc;
+  Datum       values[PG_BACKUP_STOP_V2_COLS] = {0};
+  bool        nulls[PG_BACKUP_STOP_V2_COLS] = {0};
+  bool        waitforarchive = PG_GETARG_BOOL(0);
+  char       *backup_label;
   SessionBackupState status = get_backup_status();
 
-  /* Initialize attributes information in the tuple descriptor */
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-    elog(ERROR, "return type must be a row type");
+  DBUG_PRINT("info", "finish taking an on-line backup");
 
-  if (status != SESSION_BACKUP_RUNNING)
+  /* Initialize attributes information in the tuple descriptor */
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("info", "return type must be a row type");
+    elog(ERROR, "return type must be a row type");
+  }
+
+  if (status != SESSION_BACKUP_RUNNING) {
+    DBUG_PRINT("info", "backup is not in progress");
+    DBUG_INSTANT_PRINT("info", "Did you call pg_backup_start()?");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("backup is not in progress"),
              errhint("Did you call pg_backup_start()?")));
+  }
 
   Assert(backup_state != NULL);
   Assert(tablespace_map != NULL);
@@ -173,13 +188,19 @@ pg_backup_stop(PG_FUNCTION_ARGS)
 Datum
 pg_switch_wal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  switchpoint;
 
-  if (RecoveryInProgress())
+  DBUG_PRINT("info", "switch to next xlog file");
+
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "WAL control functions cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("WAL control functions cannot be executed during recovery.")));
+  }
 
   switchpoint = RequestXLogSwitch(false);
 
@@ -198,19 +219,25 @@ pg_switch_wal(PG_FUNCTION_ARGS)
 Datum
 pg_log_standby_snapshot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "pg_log_standby_snapshot() cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("%s cannot be executed during recovery.",
                      "pg_log_standby_snapshot()")));
+  }
 
-  if (!XLogStandbyInfoActive())
+  if (!XLogStandbyInfoActive()) {
+    DBUG_INSTANT_PRINT("info", "pg_log_standby_snapshot() can only be used if \"wal_level\" >= \"replica\"");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("pg_log_standby_snapshot() can only be used if \"wal_level\" >= \"replica\"")));
+  }
 
   recptr = LogStandbySnapshot();
 
@@ -229,28 +256,38 @@ pg_log_standby_snapshot(PG_FUNCTION_ARGS)
 Datum
 pg_create_restore_point(PG_FUNCTION_ARGS)
 {
-  text     *restore_name = PG_GETARG_TEXT_PP(0);
-  char     *restore_name_str;
+  DBUG_TRACE;
+  text       *restore_name = PG_GETARG_TEXT_PP(0);
+  char       *restore_name_str;
   XLogRecPtr  restorepoint;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "WAL control functions cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("WAL control functions cannot be executed during recovery.")));
+  }
 
-  if (!XLogIsNeeded())
+  if (!XLogIsNeeded()) {
+    DBUG_PRINT("info", "WAL level not sufficient for creating a restore point");
+    DBUG_INSTANT_PRINT("info", "\"wal_level\" must be set to \"replica\" or \"logical\" at server start");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("WAL level not sufficient for creating a restore point"),
              errhint("\"wal_level\" must be set to \"replica\" or \"logical\" at server start.")));
+  }
 
   restore_name_str = text_to_cstring(restore_name);
 
-  if (strlen(restore_name_str) >= MAXFNAMELEN)
+  if (strlen(restore_name_str) >= MAXFNAMELEN) {
+    DBUG_INSTANT_PRINT("info", "value too long for restore point (maximum %d characters)", MAXFNAMELEN - 1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("value too long for restore point (maximum %d characters)", MAXFNAMELEN - 1)));
+  }
 
   restorepoint = XLogRestorePoint(restore_name_str);
 
@@ -270,16 +307,21 @@ pg_create_restore_point(PG_FUNCTION_ARGS)
 Datum
 pg_current_wal_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  current_recptr;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "WAL control functions cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("WAL control functions cannot be executed during recovery.")));
+  }
 
   current_recptr = GetXLogWriteRecPtr();
 
+  DBUG_PRINT("info", "report the current WAL write location:%lu", current_recptr);
   PG_RETURN_LSN(current_recptr);
 }
 
@@ -291,16 +333,21 @@ pg_current_wal_lsn(PG_FUNCTION_ARGS)
 Datum
 pg_current_wal_insert_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  current_recptr;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "WAL control functions cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("WAL control functions cannot be executed during recovery.")));
+  }
 
   current_recptr = GetXLogInsertRecPtr();
 
+  DBUG_PRINT("info", "report the current WAL insert location:%lu", current_recptr);
   PG_RETURN_LSN(current_recptr);
 }
 
@@ -312,13 +359,17 @@ pg_current_wal_insert_lsn(PG_FUNCTION_ARGS)
 Datum
 pg_current_wal_flush_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  current_recptr;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "WAL control functions cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("WAL control functions cannot be executed during recovery.")));
+  }
 
   current_recptr = GetFlushRecPtr(NULL);
 
@@ -334,6 +385,7 @@ pg_current_wal_flush_lsn(PG_FUNCTION_ARGS)
 Datum
 pg_last_wal_receive_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
 
   recptr = GetWalRcvFlushRecPtr(NULL, NULL);
@@ -341,6 +393,7 @@ pg_last_wal_receive_lsn(PG_FUNCTION_ARGS)
   if (recptr == 0)
     PG_RETURN_NULL();
 
+  DBUG_PRINT("info", "report the last WAL receive location:%lu", recptr);
   PG_RETURN_LSN(recptr);
 }
 
@@ -353,6 +406,7 @@ pg_last_wal_receive_lsn(PG_FUNCTION_ARGS)
 Datum
 pg_last_wal_replay_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
 
   recptr = GetXLogReplayRecPtr(NULL);
@@ -360,6 +414,7 @@ pg_last_wal_replay_lsn(PG_FUNCTION_ARGS)
   if (recptr == 0)
     PG_RETURN_NULL();
 
+  DBUG_PRINT("info", "report the last WAL replay location:%lu", recptr);
   PG_RETURN_LSN(recptr);
 }
 
@@ -370,22 +425,26 @@ pg_last_wal_replay_lsn(PG_FUNCTION_ARGS)
 Datum
 pg_walfile_name_offset(PG_FUNCTION_ARGS)
 {
-  XLogSegNo xlogsegno;
-  uint32    xrecoff;
+  DBUG_TRACE;
+  XLogSegNo   xlogsegno;
+  uint32      xrecoff;
   XLogRecPtr  locationpoint = PG_GETARG_LSN(0);
-  char    xlogfilename[MAXFNAMELEN];
-  Datum   values[2];
-  bool    isnull[2];
-  TupleDesc resultTupleDesc;
-  HeapTuple resultHeapTuple;
-  Datum   result;
+  char        xlogfilename[MAXFNAMELEN];
+  Datum       values[2];
+  bool        isnull[2];
+  TupleDesc   resultTupleDesc;
+  HeapTuple   resultHeapTuple;
+  Datum       result;
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "pg_walfile_name_offset() cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("%s cannot be executed during recovery.",
                      "pg_walfile_name_offset()")));
+  }
 
   /*
    * Construct a tuple descriptor for the result row.  This must match this
@@ -434,21 +493,26 @@ pg_walfile_name_offset(PG_FUNCTION_ARGS)
 Datum
 pg_walfile_name(PG_FUNCTION_ARGS)
 {
-  XLogSegNo xlogsegno;
+  DBUG_TRACE;
+  XLogSegNo   xlogsegno;
   XLogRecPtr  locationpoint = PG_GETARG_LSN(0);
-  char    xlogfilename[MAXFNAMELEN];
+  char        xlogfilename[MAXFNAMELEN];
 
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_INSTANT_PRINT("info", "recovery is in progress");
+    DBUG_INSTANT_PRINT("info", "pg_walfile_name() cannot be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is in progress"),
              errhint("%s cannot be executed during recovery.",
                      "pg_walfile_name()")));
+  }
 
   XLByteToSeg(locationpoint, xlogsegno, wal_segment_size);
   XLogFileName(xlogfilename, GetWALInsertionTimeLine(), xlogsegno,
                wal_segment_size);
 
+  DBUG_PRINT("info", "xlogfilename:%s", xlogfilename);
   PG_RETURN_TEXT_P(cstring_to_text(xlogfilename));
 }
 
@@ -459,18 +523,19 @@ pg_walfile_name(PG_FUNCTION_ARGS)
 Datum
 pg_split_walfile_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_SPLIT_WALFILE_NAME_COLS 2
-  char     *fname = text_to_cstring(PG_GETARG_TEXT_PP(0));
-  char     *fname_upper;
-  char     *p;
+  char       *fname = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  char       *fname_upper;
+  char       *p;
   TimeLineID  tli;
-  XLogSegNo segno;
-  Datum   values[PG_SPLIT_WALFILE_NAME_COLS] = {0};
-  bool    isnull[PG_SPLIT_WALFILE_NAME_COLS] = {0};
-  TupleDesc tupdesc;
-  HeapTuple tuple;
-  char    buf[256];
-  Datum   result;
+  XLogSegNo   segno;
+  Datum       values[PG_SPLIT_WALFILE_NAME_COLS] = {0};
+  bool        isnull[PG_SPLIT_WALFILE_NAME_COLS] = {0};
+  TupleDesc   tupdesc;
+  HeapTuple   tuple;
+  char        buf[256];
+  Datum       result;
 
   fname_upper = pstrdup(fname);
 
@@ -478,15 +543,19 @@ pg_split_walfile_name(PG_FUNCTION_ARGS)
   for (p = fname_upper; *p; p++)
     *p = pg_toupper((unsigned char) * p);
 
-  if (!IsXLogFileName(fname_upper))
+  if (!IsXLogFileName(fname_upper)) {
+    DBUG_INSTANT_PRINT("info", "invalid WAL file name \"%s\"", fname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid WAL file name \"%s\"", fname)));
+  }
 
   XLogFromFileName(fname_upper, &tli, &segno, wal_segment_size);
 
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("info", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   /* Convert to numeric. */
   snprintf(buf, sizeof buf, UINT64_FORMAT, segno);
@@ -514,18 +583,28 @@ pg_split_walfile_name(PG_FUNCTION_ARGS)
 Datum
 pg_wal_replay_pause(PG_FUNCTION_ARGS)
 {
-  if (!RecoveryInProgress())
+  DBUG_TRACE;
+  DBUG_PRINT("info", "request to pause recovery");
+
+  if (!RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is not in progress");
+    DBUG_INSTANT_PRINT("info", "Recovery control functions can only be executed during recovery.");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is not in progress"),
              errhint("Recovery control functions can only be executed during recovery.")));
+  }
 
-  if (PromoteIsTriggered())
+  if (PromoteIsTriggered()) {
+    DBUG_PRINT("info", "standby promotion is ongoing");
+    DBUG_INSTANT_PRINT("info", "pg_wal_replay_pause() cannot be executed after promotion is triggered");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("standby promotion is ongoing"),
              errhint("%s cannot be executed after promotion is triggered.",
                      "pg_wal_replay_pause()")));
+  }
 
   SetRecoveryPause(true);
 
@@ -544,18 +623,28 @@ pg_wal_replay_pause(PG_FUNCTION_ARGS)
 Datum
 pg_wal_replay_resume(PG_FUNCTION_ARGS)
 {
-  if (!RecoveryInProgress())
+  DBUG_TRACE;
+
+  if (!RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is not in progress");
+    DBUG_INSTANT_PRINT("info", "Recovery control functions can only be executed during recovery");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is not in progress"),
              errhint("Recovery control functions can only be executed during recovery.")));
+  }
 
-  if (PromoteIsTriggered())
+  if (PromoteIsTriggered()) {
+    DBUG_PRINT("info", "standby promotion is ongoing");
+    DBUG_INSTANT_PRINT("info", "pg_wal_replay_resume() cannot be executed after promotion is triggered");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("standby promotion is ongoing"),
              errhint("%s cannot be executed after promotion is triggered.",
                      "pg_wal_replay_resume()")));
+  }
 
   SetRecoveryPause(false);
 
@@ -568,13 +657,28 @@ pg_wal_replay_resume(PG_FUNCTION_ARGS)
 Datum
 pg_is_wal_replay_paused(PG_FUNCTION_ARGS)
 {
-  if (!RecoveryInProgress())
+  DBUG_TRACE;
+  bool result;
+
+  if (!RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is not in progress");
+    DBUG_INSTANT_PRINT("info", "Recovery control functions can only be executed during recovery");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is not in progress"),
              errhint("Recovery control functions can only be executed during recovery.")));
+  }
 
-  PG_RETURN_BOOL(GetRecoveryPauseState() != RECOVERY_NOT_PAUSED);
+  result = (GetRecoveryPauseState() != RECOVERY_NOT_PAUSED);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -589,13 +693,17 @@ pg_is_wal_replay_paused(PG_FUNCTION_ARGS)
 Datum
 pg_get_wal_replay_pause_state(PG_FUNCTION_ARGS)
 {
-  char     *statestr = NULL;
+  DBUG_TRACE;
+  char       *statestr = NULL;
 
-  if (!RecoveryInProgress())
+  if (!RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is not in progress");
+    DBUG_INSTANT_PRINT("info", "Recovery control functions can only be executed during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is not in progress"),
              errhint("Recovery control functions can only be executed during recovery.")));
+  }
 
   /* get the recovery pause state */
   switch (GetRecoveryPauseState()) {
@@ -612,6 +720,7 @@ pg_get_wal_replay_pause_state(PG_FUNCTION_ARGS)
       break;
   }
 
+  DBUG_PRINT("info", "return the recovery pause state:%s", statestr);
   Assert(statestr != NULL);
   PG_RETURN_TEXT_P(cstring_to_text(statestr));
 }
@@ -625,12 +734,19 @@ pg_get_wal_replay_pause_state(PG_FUNCTION_ARGS)
 Datum
 pg_last_xact_replay_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz xtime;
+  char buf[MAXDATELEN + 1];
+  char *dt_str;
 
   xtime = GetLatestXTime();
 
   if (xtime == 0)
     PG_RETURN_NULL();
+
+  dt_str = get_timestamp_string(xtime, buf);
+
+  DBUG_PRINT("info", "return '%s'", dt_str);
 
   PG_RETURN_TIMESTAMPTZ(xtime);
 }
@@ -641,7 +757,16 @@ pg_last_xact_replay_timestamp(PG_FUNCTION_ARGS)
 Datum
 pg_is_in_recovery(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(RecoveryInProgress());
+  DBUG_TRACE;
+  bool result = (RecoveryInProgress());
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -650,7 +775,8 @@ pg_is_in_recovery(PG_FUNCTION_ARGS)
 Datum
 pg_wal_lsn_diff(PG_FUNCTION_ARGS)
 {
-  Datum   result;
+  DBUG_TRACE;
+  Datum       result;
 
   result = DirectFunctionCall2(pg_lsn_mi,
                                PG_GETARG_DATUM(0),
@@ -668,40 +794,52 @@ pg_wal_lsn_diff(PG_FUNCTION_ARGS)
 Datum
 pg_promote(PG_FUNCTION_ARGS)
 {
-  bool    wait = PG_GETARG_BOOL(0);
-  int     wait_seconds = PG_GETARG_INT32(1);
-  FILE     *promote_file;
-  int     i;
+  DBUG_TRACE;
+  bool        wait = PG_GETARG_BOOL(0);
+  int         wait_seconds = PG_GETARG_INT32(1);
+  FILE       *promote_file;
+  int         i;
 
-  if (!RecoveryInProgress())
+  if (!RecoveryInProgress()) {
+    DBUG_PRINT("info", "recovery is not in progress");
+    DBUG_INSTANT_PRINT("info", "Recovery control functions can only be executed during recovery");
+
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("recovery is not in progress"),
              errhint("Recovery control functions can only be executed during recovery.")));
+  }
 
-  if (wait_seconds <= 0)
+  if (wait_seconds <= 0) {
+    DBUG_INSTANT_PRINT("info", "\"wait_seconds\" must not be negative or zero");
     ereport(ERROR,
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("\"wait_seconds\" must not be negative or zero")));
+  }
 
   /* create the promote signal file */
   promote_file = AllocateFile(PROMOTE_SIGNAL_FILE, "w");
 
-  if (!promote_file)
+  if (!promote_file) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", PROMOTE_SIGNAL_FILE);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m",
                     PROMOTE_SIGNAL_FILE)));
+  }
 
-  if (FreeFile(promote_file))
+  if (FreeFile(promote_file)) {
+    DBUG_INSTANT_PRINT("info", "could not write file \"%s\"",PROMOTE_SIGNAL_FILE);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write file \"%s\": %m",
                     PROMOTE_SIGNAL_FILE)));
+  }
 
   /* signal the postmaster */
   if (kill(PostmasterPid, SIGUSR1) != 0) {
     (void) unlink(PROMOTE_SIGNAL_FILE);
+    DBUG_INSTANT_PRINT("info", "failed to send signal to postmaster");
     ereport(ERROR,
             (errcode(ERRCODE_SYSTEM_ERROR),
              errmsg("failed to send signal to postmaster: %m")));
@@ -715,7 +853,7 @@ pg_promote(PG_FUNCTION_ARGS)
 #define WAITS_PER_SECOND 10
 
   for (i = 0; i < WAITS_PER_SECOND * wait_seconds; i++) {
-    int     rc;
+    int         rc;
 
     ResetLatch(MyLatch);
 
@@ -733,13 +871,16 @@ pg_promote(PG_FUNCTION_ARGS)
      * Emergency bailout if postmaster has died.  This is to avoid the
      * necessity for manual cleanup of all postmaster children.
      */
-    if (rc & WL_POSTMASTER_DEATH)
+    if (rc & WL_POSTMASTER_DEATH) {
+      DBUG_INSTANT_PRINT("info", "terminating connection due to unexpected postmaster exit while waiting on promotion");
       ereport(FATAL,
               (errcode(ERRCODE_ADMIN_SHUTDOWN),
                errmsg("terminating connection due to unexpected postmaster exit"),
                errcontext("while waiting on promotion")));
+    }
   }
 
+  DBUG_INSTANT_PRINT("info", "server did not promote within %d seconds", wait_seconds);
   ereport(WARNING,
           (errmsg_plural("server did not promote within %d second",
                          "server did not promote within %d seconds",

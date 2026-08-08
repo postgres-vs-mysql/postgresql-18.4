@@ -51,6 +51,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/tableam.h"
@@ -191,6 +192,7 @@ static TupleTableSlot *ExecMergeNotMatched(ModifyTableContext *context,
 static void
 ExecCheckPlanOutput(Relation resultRel, List *targetList)
 {
+  DBUG_TRACE;
   TupleDesc resultDesc = RelationGetDescr(resultRel);
   int     attno = 0;
   ListCell   *lc;
@@ -201,11 +203,13 @@ ExecCheckPlanOutput(Relation resultRel, List *targetList)
 
     Assert(!tle->resjunk);  /* caller removed junk items already */
 
-    if (attno >= resultDesc->natts)
+    if (attno >= resultDesc->natts) {
+      DBUG_INSTANT_PRINT("info", "table row type and query-specified row type do not match");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("table row type and query-specified row type do not match"),
                errdetail("Query has too many columns.")));
+    }
 
     attr = TupleDescAttr(resultDesc, attno);
     attno++;
@@ -220,12 +224,14 @@ ExecCheckPlanOutput(Relation resultRel, List *targetList)
        * What we insist on is just *some* NULL constant.
        */
       if (!IsA(tle->expr, Const) ||
-          !((Const *) tle->expr)->constisnull)
+          !((Const *) tle->expr)->constisnull) {
+        DBUG_INSTANT_PRINT("info", "table row type and query-specified row type do not match");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("table row type and query-specified row type do not match"),
                  errdetail("Query provides a value for a dropped column at ordinal position %d.",
                            attno)));
+      }
     } else if (attr->attgenerated) {
       /*
        * For a generated column, the planner will have inserted a null
@@ -235,15 +241,18 @@ ExecCheckPlanOutput(Relation resultRel, List *targetList)
        * above, just insist on *some* NULL constant.
        */
       if (!IsA(tle->expr, Const) ||
-          !((Const *) tle->expr)->constisnull)
+          !((Const *) tle->expr)->constisnull) {
+        DBUG_INSTANT_PRINT("info", "table row type and query-specified row type do not match");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("table row type and query-specified row type do not match"),
                  errdetail("Query provides a value for a generated column at ordinal position %d.",
                            attno)));
+      }
     } else {
       /* Normal case: demand type match */
-      if (exprType((Node *) tle->expr) != attr->atttypid)
+      if (exprType((Node *) tle->expr) != attr->atttypid) {
+        DBUG_INSTANT_PRINT("info", "table row type and query-specified row type do not match");
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("table row type and query-specified row type do not match"),
@@ -251,14 +260,17 @@ ExecCheckPlanOutput(Relation resultRel, List *targetList)
                            format_type_be(attr->atttypid),
                            attno,
                            format_type_be(exprType((Node *) tle->expr)))));
+      }
     }
   }
 
-  if (attno != resultDesc->natts)
+  if (attno != resultDesc->natts) {
+    DBUG_INSTANT_PRINT("info", "table row type and query-specified row type do not match");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("table row type and query-specified row type do not match"),
              errdetail("Query has too few columns.")));
+  }
 }
 
 /*
@@ -361,6 +373,8 @@ ExecCheckTupleVisible(EState *estate,
                       Relation rel,
                       TupleTableSlot *slot)
 {
+  DBUG_TRACE;
+
   if (!IsolationUsesXactSnapshot())
     return;
 
@@ -379,10 +393,12 @@ ExecCheckTupleVisible(EState *estate,
      * visible to our snapshot.  (This would happen, for example, if
      * conflicting keys are proposed for insertion in a single command.)
      */
-    if (!TransactionIdIsCurrentTransactionId(xmin))
+    if (!TransactionIdIsCurrentTransactionId(xmin)) {
+      DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
       ereport(ERROR,
               (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                errmsg("could not serialize access due to concurrent update")));
+    }
   }
 }
 
@@ -395,14 +411,17 @@ ExecCheckTIDVisible(EState *estate,
                     ItemPointer tid,
                     TupleTableSlot *tempSlot)
 {
+  DBUG_TRACE;
   Relation  rel = relinfo->ri_RelationDesc;
 
   /* Redundantly check isolation level */
   if (!IsolationUsesXactSnapshot())
     return;
 
-  if (!table_tuple_fetch_row_version(rel, tid, SnapshotAny, tempSlot))
+  if (!table_tuple_fetch_row_version(rel, tid, SnapshotAny, tempSlot)) {
+    DBUG_INSTANT_PRINT("info", "failed to fetch conflicting tuple for ON CONFLICT");
     elog(ERROR, "failed to fetch conflicting tuple for ON CONFLICT");
+  }
 
   ExecCheckTupleVisible(estate, rel, tempSlot);
   ExecClearTuple(tempSlot);
@@ -428,6 +447,7 @@ ExecInitGenerated(ResultRelInfo *resultRelInfo,
                   EState *estate,
                   CmdType cmdtype)
 {
+  DBUG_TRACE;
   Relation  rel = resultRelInfo->ri_RelationDesc;
   TupleDesc tupdesc = RelationGetDescr(rel);
   int     natts = tupdesc->natts;
@@ -535,6 +555,7 @@ ExecComputeStoredGenerated(ResultRelInfo *resultRelInfo,
                            EState *estate, TupleTableSlot *slot,
                            CmdType cmdtype)
 {
+  DBUG_TRACE;
   Relation  rel = resultRelInfo->ri_RelationDesc;
   TupleDesc tupdesc = RelationGetDescr(rel);
   int     natts = tupdesc->natts;
@@ -626,6 +647,7 @@ static void
 ExecInitInsertProjection(ModifyTableState *mtstate,
                          ResultRelInfo *resultRelInfo)
 {
+  DBUG_TRACE;
   ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
   Plan     *subplan = outerPlan(node);
   EState     *estate = mtstate->ps.state;
@@ -694,6 +716,7 @@ static void
 ExecInitUpdateProjection(ModifyTableState *mtstate,
                          ResultRelInfo *resultRelInfo)
 {
+  DBUG_TRACE;
   ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
   Plan     *subplan = outerPlan(node);
   EState     *estate = mtstate->ps.state;
@@ -752,6 +775,7 @@ static TupleTableSlot *
 ExecGetInsertNewTuple(ResultRelInfo *relinfo,
                       TupleTableSlot *planSlot)
 {
+  DBUG_TRACE;
   ProjectionInfo *newProj = relinfo->ri_projectNew;
   ExprContext *econtext;
 
@@ -794,6 +818,7 @@ ExecGetUpdateNewTuple(ResultRelInfo *relinfo,
                       TupleTableSlot *planSlot,
                       TupleTableSlot *oldSlot)
 {
+  DBUG_TRACE;
   ProjectionInfo *newProj = relinfo->ri_projectNew;
   ExprContext *econtext;
 
@@ -835,6 +860,7 @@ ExecInsert(ModifyTableContext *context,
            TupleTableSlot **inserted_tuple,
            ResultRelInfo **insert_destrel)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   EState     *estate = context->estate;
   Relation  resultRelationDesc;
@@ -1333,6 +1359,7 @@ ExecBatchInsert(ModifyTableState *mtstate,
                 EState *estate,
                 bool canSetTag)
 {
+  DBUG_TRACE;
   int     i;
   int     numInserted = numSlots;
   TupleTableSlot *slot = NULL;
@@ -1386,6 +1413,7 @@ ExecBatchInsert(ModifyTableState *mtstate,
 static void
 ExecPendingInserts(EState *estate)
 {
+  DBUG_TRACE;
   ListCell   *l1,
              *l2;
 
@@ -1420,6 +1448,8 @@ ExecDeletePrologue(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
                    ItemPointer tupleid, HeapTuple oldtuple,
                    TupleTableSlot **epqreturnslot, TM_Result *result)
 {
+  DBUG_TRACE;
+
   if (result)
     *result = TM_Ok;
 
@@ -1450,6 +1480,7 @@ static TM_Result
 ExecDeleteAct(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
               ItemPointer tupleid, bool changingPart)
 {
+  DBUG_TRACE;
   EState     *estate = context->estate;
 
   return table_tuple_delete(resultRelInfo->ri_RelationDesc, tupleid,
@@ -1472,6 +1503,7 @@ static void
 ExecDeleteEpilogue(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
                    ItemPointer tupleid, HeapTuple oldtuple, bool changingPart)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   EState     *estate = context->estate;
   TransitionCaptureState *ar_delete_trig_tcs;
@@ -1538,6 +1570,7 @@ ExecDelete(ModifyTableContext *context,
            bool *tupleDeleted,
            TupleTableSlot **epqreturnslot)
 {
+  DBUG_TRACE;
   EState     *estate = context->estate;
   Relation  resultRelationDesc = resultRelInfo->ri_RelationDesc;
   TupleTableSlot *slot = NULL;
@@ -1632,11 +1665,13 @@ ldelete:
          * can re-execute the DELETE and then return NULL to cancel
          * the outer delete.
          */
-        if (context->tmfd.cmax != estate->es_output_cid)
+        if (context->tmfd.cmax != estate->es_output_cid) {
+          DBUG_INSTANT_PRINT("info", "tuple to be deleted was already modified by an operation triggered by the current command");
           ereport(ERROR,
                   (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                    errmsg("tuple to be deleted was already modified by an operation triggered by the current command"),
                    errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+        }
 
         /* Else, already deleted by self; nothing to do */
         return NULL;
@@ -1648,10 +1683,12 @@ ldelete:
         TupleTableSlot *inputslot;
         TupleTableSlot *epqslot;
 
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
         /*
          * Already know that we're going to need to do EPQ, so
@@ -1703,11 +1740,13 @@ ldelete:
              * See also TM_SelfModified response to
              * table_tuple_delete() above.
              */
-            if (context->tmfd.cmax != estate->es_output_cid)
+            if (context->tmfd.cmax != estate->es_output_cid) {
+              DBUG_INSTANT_PRINT("info", "tuple to be deleted was already modified by an operation triggered by the current command");
               ereport(ERROR,
                       (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                        errmsg("tuple to be deleted was already modified by an operation triggered by the current command"),
                        errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+            }
 
             return NULL;
 
@@ -1727,6 +1766,7 @@ ldelete:
              * locking the latest version via
              * TUPLE_LOCK_FLAG_FIND_LAST_VERSION.
              */
+            DBUG_INSTANT_PRINT("info", "unexpected table_tuple_lock status: %u", result);
             elog(ERROR, "unexpected table_tuple_lock status: %u",
                  result);
             return NULL;
@@ -1737,15 +1777,18 @@ ldelete:
       }
 
       case TM_Deleted:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent delete");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent delete")));
+        }
 
         /* tuple already deleted; nothing to do */
         return NULL;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unrecognized table_tuple_delete status: %u", result);
         elog(ERROR, "unrecognized table_tuple_delete status: %u",
              result);
         return NULL;
@@ -1797,8 +1840,10 @@ ldelete:
         ExecForceStoreHeapTuple(oldtuple, slot, false);
       } else {
         if (!table_tuple_fetch_row_version(resultRelationDesc, tupleid,
-                                           SnapshotAny, slot))
+                                           SnapshotAny, slot)) {
+          DBUG_INSTANT_PRINT("info", "failed to fetch deleted tuple for DELETE RETURNING");
           elog(ERROR, "failed to fetch deleted tuple for DELETE RETURNING");
+        }
       }
     }
 
@@ -1882,6 +1927,7 @@ ExecCrossPartitionUpdate(ModifyTableContext *context,
                          TupleTableSlot **inserted_tuple,
                          ResultRelInfo **insert_destrel)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   EState     *estate = mtstate->ps.state;
   TupleConversionMap *tupconv_map;
@@ -1897,11 +1943,13 @@ ExecCrossPartitionUpdate(ModifyTableContext *context,
    * to migrate to a different partition.  Maybe this can be implemented
    * some day, but it seems a fringe feature with little redeeming value.
    */
-  if (((ModifyTable *) mtstate->ps.plan)->onConflictAction == ONCONFLICT_UPDATE)
+  if (((ModifyTable *) mtstate->ps.plan)->onConflictAction == ONCONFLICT_UPDATE) {
+    DBUG_INSTANT_PRINT("info", "invalid ON UPDATE specification");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("invalid ON UPDATE specification"),
              errdetail("The result tuple would appear in a different partition than the original tuple.")));
+  }
 
   /*
    * When an UPDATE is run directly on a leaf partition, simply fail with a
@@ -1938,9 +1986,9 @@ ExecCrossPartitionUpdate(ModifyTableContext *context,
    */
   ExecDelete(context, resultRelInfo,
              tupleid, oldtuple,
-             false,     /* processReturning */
-             true,      /* changingPart */
-             false,     /* canSetTag */
+             false,      /* processReturning */
+             true,     /* changingPart */
+             false,      /* canSetTag */
              tmresult, &tuple_deleted, &epqslot);
 
   /*
@@ -1988,8 +2036,10 @@ ExecCrossPartitionUpdate(ModifyTableContext *context,
       if (!table_tuple_fetch_row_version(resultRelInfo->ri_RelationDesc,
                                          tupleid,
                                          SnapshotAny,
-                                         oldSlot))
+                                         oldSlot)) {
+        DBUG_INSTANT_PRINT("info", "failed to fetch tuple being updated");
         elog(ERROR, "failed to fetch tuple being updated");
+      }
 
       /* and project the new tuple to retry the UPDATE with */
       *retry_slot = ExecGetUpdateNewTuple(resultRelInfo, epqslot,
@@ -2038,6 +2088,7 @@ ExecUpdatePrologue(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
                    ItemPointer tupleid, HeapTuple oldtuple, TupleTableSlot *slot,
                    TM_Result *result)
 {
+  DBUG_TRACE;
   Relation  resultRelationDesc = resultRelInfo->ri_RelationDesc;
 
   if (result)
@@ -2080,6 +2131,7 @@ ExecUpdatePrepareSlot(ResultRelInfo *resultRelInfo,
                       TupleTableSlot *slot,
                       EState *estate)
 {
+  DBUG_TRACE;
   Relation  resultRelationDesc = resultRelInfo->ri_RelationDesc;
 
   /*
@@ -2115,11 +2167,14 @@ ExecUpdateAct(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
               ItemPointer tupleid, HeapTuple oldtuple, TupleTableSlot *slot,
               bool canSetTag, UpdateContext *updateCxt)
 {
+  DBUG_TRACE;
   EState     *estate = context->estate;
   Relation  resultRelationDesc = resultRelInfo->ri_RelationDesc;
   bool    partition_constraint_failed;
   TM_Result result;
 
+
+  DBUG_PRINT("info", "actually update the tuple, when operating on a plain table");
   updateCxt->crossPartUpdate = false;
 
   /*
@@ -2263,6 +2318,7 @@ ExecUpdateEpilogue(ModifyTableContext *context, UpdateContext *updateCxt,
                    ResultRelInfo *resultRelInfo, ItemPointer tupleid,
                    HeapTuple oldtuple, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   List     *recheckIndexes = NIL;
 
@@ -2313,6 +2369,7 @@ ExecCrossPartitionUpdateForeignKey(ModifyTableContext *context,
                                    TupleTableSlot *oldslot,
                                    TupleTableSlot *newslot)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   ResultRelInfo *rootRelInfo;
   List     *ancestorRels;
@@ -2348,7 +2405,8 @@ ExecCrossPartitionUpdateForeignKey(ModifyTableContext *context,
       }
     }
 
-    if (has_noncloned_fkey)
+    if (has_noncloned_fkey) {
+      DBUG_INSTANT_PRINT("info", "cannot move tuple across partitions when a non-root ancestor of the source partition is directly referenced in a foreign key");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot move tuple across partitions when a non-root ancestor of the source partition is directly referenced in a foreign key"),
@@ -2357,6 +2415,7 @@ ExecCrossPartitionUpdateForeignKey(ModifyTableContext *context,
                          RelationGetRelationName(rootRelInfo->ri_RelationDesc)),
                errhint("Consider defining the foreign key on table \"%s\".",
                        RelationGetRelationName(rootRelInfo->ri_RelationDesc))));
+    }
   }
 
   /* Perform the root table's triggers. */
@@ -2399,6 +2458,7 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
            ItemPointer tupleid, HeapTuple oldtuple, TupleTableSlot *oldSlot,
            TupleTableSlot *slot, bool canSetTag)
 {
+  DBUG_TRACE;
   EState     *estate = context->estate;
   Relation  resultRelationDesc = resultRelInfo->ri_RelationDesc;
   UpdateContext updateCxt = {0};
@@ -2407,22 +2467,28 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
   /*
    * abort the operation if not running transactions
    */
-  if (IsBootstrapProcessingMode())
+  if (IsBootstrapProcessingMode()) {
+    DBUG_INSTANT_PRINT("info", "cannot UPDATE during bootstrap");
     elog(ERROR, "cannot UPDATE during bootstrap");
+  }
 
   /*
    * Prepare for the update.  This includes BEFORE ROW triggers, so we're
    * done if it says we are.
    */
-  if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL))
+  if (!ExecUpdatePrologue(context, resultRelInfo, tupleid, oldtuple, slot, NULL)) {
+    DBUG_PRINT("info", "this includes BEFORE ROW triggers, so we're  done if it says we are");
     return NULL;
+  }
 
   /* INSTEAD OF ROW UPDATE Triggers */
   if (resultRelInfo->ri_TrigDesc &&
       resultRelInfo->ri_TrigDesc->trig_update_instead_row) {
     if (!ExecIRUpdateTriggers(estate, resultRelInfo,
-                              oldtuple, slot))
+                              oldtuple, slot)) {
+      DBUG_PRINT("info", "do nothing");
       return NULL;    /* "do nothing" */
+    }
   } else if (resultRelInfo->ri_FdwRoutine) {
     /* Fill in GENERATEd columns */
     ExecUpdatePrepareSlot(resultRelInfo, slot, estate);
@@ -2430,13 +2496,16 @@ ExecUpdate(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
     /*
      * update in foreign table: let the FDW do it
      */
+    DBUG_PRINT("info", "update in foreign table: let the FDW do it");
     slot = resultRelInfo->ri_FdwRoutine->ExecForeignUpdate(estate,
            resultRelInfo,
            slot,
            context->planSlot);
 
-    if (slot == NULL)   /* "do nothing" */
+    if (slot == NULL) {   /* "do nothing" */
+      DBUG_PRINT("info", "do nothing");
       return NULL;
+    }
 
     /*
      * AFTER ROW Triggers or RETURNING expressions might reference the
@@ -2464,8 +2533,10 @@ redo_act:
      * then the RETURNING tuple (if any) has been projected and there's
      * nothing else for us to do.
      */
-    if (updateCxt.crossPartUpdate)
+    if (updateCxt.crossPartUpdate) {
+      DBUG_PRINT("info", "the RETURNING tuple (if any) has been projected and there's nothing else for us to do");
       return context->cpUpdateReturningSlot;
+    }
 
     switch (result) {
       case TM_SelfModified:
@@ -2493,26 +2564,35 @@ redo_act:
          * can re-execute the UPDATE (assuming it can figure out how)
          * and then return NULL to cancel the outer update.
          */
-        if (context->tmfd.cmax != estate->es_output_cid)
+        DBUG_PRINT("info", "TM_SelfModified");
+
+        if (context->tmfd.cmax != estate->es_output_cid) {
+          DBUG_PRINT("info", "tuple to be updated was already modified by an operation triggered by the current command");
           ereport(ERROR,
                   (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                    errmsg("tuple to be updated was already modified by an operation triggered by the current command"),
                    errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+        }
 
         /* Else, already updated by self; nothing to do */
         return NULL;
 
       case TM_Ok:
+        DBUG_PRINT("info", "TM_OK");
         break;
 
       case TM_Updated: {
         TupleTableSlot *inputslot;
         TupleTableSlot *epqslot;
 
-        if (IsolationUsesXactSnapshot())
+        DBUG_PRINT("info", "TM_Updated");
+
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
         /*
          * Already know that we're going to need to do EPQ, so
@@ -2559,8 +2639,10 @@ redo_act:
             if (!table_tuple_fetch_row_version(resultRelationDesc,
                                                tupleid,
                                                SnapshotAny,
-                                               oldSlot))
+                                               oldSlot)) {
+              DBUG_INSTANT_PRINT("info", "failed to fetch tuple being updated");
               elog(ERROR, "failed to fetch tuple being updated");
+            }
 
             slot = ExecGetUpdateNewTuple(resultRelInfo,
                                          epqslot, oldSlot);
@@ -2583,15 +2665,18 @@ redo_act:
              * See also TM_SelfModified response to
              * table_tuple_update() above.
              */
-            if (context->tmfd.cmax != estate->es_output_cid)
+            if (context->tmfd.cmax != estate->es_output_cid) {
+              DBUG_INSTANT_PRINT("info", "tuple to be updated was already modified by an operation triggered by the current command");
               ereport(ERROR,
                       (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                        errmsg("tuple to be updated was already modified by an operation triggered by the current command"),
                        errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+            }
 
             return NULL;
 
           default:
+            DBUG_INSTANT_PRINT("info", "unexpected table_tuple_lock status: %u", result);
             /* see table_tuple_lock call in ExecDelete() */
             elog(ERROR, "unexpected table_tuple_lock status: %u",
                  result);
@@ -2602,15 +2687,20 @@ redo_act:
       break;
 
       case TM_Deleted:
-        if (IsolationUsesXactSnapshot())
+        DBUG_PRINT("info", "TM_Deleted");
+
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent delete");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent delete")));
+        }
 
         /* tuple already deleted; nothing to do */
         return NULL;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unrecognized table_tuple_update status: %u", result);
         elog(ERROR, "unrecognized table_tuple_update status: %u",
              result);
         return NULL;
@@ -2650,6 +2740,7 @@ ExecOnConflictUpdate(ModifyTableContext *context,
                      bool canSetTag,
                      TupleTableSlot **returning)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   ExprContext *econtext = mtstate->ps.ps_ExprContext;
   Relation  relation = resultRelInfo->ri_RelationDesc;
@@ -2714,13 +2805,15 @@ ExecOnConflictUpdate(ModifyTableContext *context,
       Assert(!isnull);
       xmin = DatumGetTransactionId(xminDatum);
 
-      if (TransactionIdIsCurrentTransactionId(xmin))
+      if (TransactionIdIsCurrentTransactionId(xmin)) {
+        DBUG_INSTANT_PRINT("info", "ON CONFLICT DO UPDATE command cannot affect row a second time");
         ereport(ERROR,
                 (errcode(ERRCODE_CARDINALITY_VIOLATION),
                  /* translator: %s is a SQL command name */
                  errmsg("%s command cannot affect row a second time",
                         "ON CONFLICT DO UPDATE"),
                  errhint("Ensure that no rows proposed for insertion within the same command have duplicate constrained values.")));
+      }
 
       /* This shouldn't happen */
       elog(ERROR, "attempted to lock invisible tuple");
@@ -2737,10 +2830,12 @@ ExecOnConflictUpdate(ModifyTableContext *context,
       break;
 
     case TM_Updated:
-      if (IsolationUsesXactSnapshot())
+      if (IsolationUsesXactSnapshot()) {
+        DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
         ereport(ERROR,
                 (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                  errmsg("could not serialize access due to concurrent update")));
+      }
 
       /*
        * Tell caller to try again from the very start.
@@ -2753,16 +2848,19 @@ ExecOnConflictUpdate(ModifyTableContext *context,
       return false;
 
     case TM_Deleted:
-      if (IsolationUsesXactSnapshot())
+      if (IsolationUsesXactSnapshot()) {
+        DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent delete");
         ereport(ERROR,
                 (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                  errmsg("could not serialize access due to concurrent delete")));
+      }
 
       /* see TM_Updated case */
       ExecClearTuple(existing);
       return false;
 
     default:
+      DBUG_INSTANT_PRINT("info", "unrecognized table_tuple_lock status: %u", test);
       elog(ERROR, "unrecognized table_tuple_lock status: %u", test);
   }
 
@@ -2862,6 +2960,7 @@ static TupleTableSlot *
 ExecMerge(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
           ItemPointer tupleid, HeapTuple oldtuple, bool canSetTag)
 {
+  DBUG_TRACE;
   TupleTableSlot *rslot = NULL;
   bool    matched;
 
@@ -2989,6 +3088,7 @@ ExecMergeMatched(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
                  ItemPointer tupleid, HeapTuple oldtuple, bool canSetTag,
                  bool *matched)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   List    **mergeActions = resultRelInfo->ri_MergeActions;
   ItemPointerData lockedtid;
@@ -3234,29 +3334,36 @@ lmerge_matched:
          * action while discarding the updates that it triggered.  So
          * throwing an error is the only safe course.
          */
-        if (context->tmfd.cmax != estate->es_output_cid)
+        if (context->tmfd.cmax != estate->es_output_cid) {
+          DBUG_INSTANT_PRINT("info", "tuple to be updated or deleted was already modified by an operation triggered by the current command");
           ereport(ERROR,
                   (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                    errmsg("tuple to be updated or deleted was already modified by an operation triggered by the current command"),
                    errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+        }
 
-        if (TransactionIdIsCurrentTransactionId(context->tmfd.xmax))
+        if (TransactionIdIsCurrentTransactionId(context->tmfd.xmax)) {
+          DBUG_INSTANT_PRINT("info", "MERGE command cannot affect row a second time");
           ereport(ERROR,
                   (errcode(ERRCODE_CARDINALITY_VIOLATION),
                    /* translator: %s is a SQL command name */
                    errmsg("%s command cannot affect row a second time",
                           "MERGE"),
                    errhint("Ensure that not more than one source row matches any one target row.")));
+        }
 
+        DBUG_INSTANT_PRINT("info", "attempted to update or delete invisible tuple");
         /* This shouldn't happen */
         elog(ERROR, "attempted to update or delete invisible tuple");
         break;
 
       case TM_Deleted:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent delete");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent delete")));
+        }
 
         /*
          * If the tuple was already deleted, set matched to false to
@@ -3272,10 +3379,12 @@ lmerge_matched:
                        *inputslot;
         LockTupleMode lockmode;
 
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
         /*
          * The target tuple was concurrently updated by some other
@@ -3316,10 +3425,12 @@ lmerge_matched:
              * the tuple moved, and setting our current
              * resultRelInfo to that.
              */
-            if (ItemPointerIndicatesMovedPartitions(tupleid))
+            if (ItemPointerIndicatesMovedPartitions(tupleid)) {
+              DBUG_INSTANT_PRINT("info", "tuple to be merged was already moved to another partition due to concurrent update");
               ereport(ERROR,
                       (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                        errmsg("tuple to be merged was already moved to another partition due to concurrent update")));
+            }
 
             /*
              * If this was a MATCHED case, use EvalPlanQual()
@@ -3372,8 +3483,10 @@ lmerge_matched:
               if (!table_tuple_fetch_row_version(resultRelationDesc,
                                                  tupleid,
                                                  SnapshotAny,
-                                                 resultRelInfo->ri_oldTupleSlot))
+                                                 resultRelInfo->ri_oldTupleSlot)) {
+                DBUG_INSTANT_PRINT("info", "failed to fetch the target tuple");
                 elog(ERROR, "failed to fetch the target tuple");
+              }
 
               if (*matched)
                 *matched = ExecQual(resultRelInfo->ri_MergeJoinCondition,
@@ -3429,26 +3542,32 @@ lmerge_matched:
              * command in the current transaction. As above,
              * this should always be treated as an error.
              */
-            if (context->tmfd.cmax != estate->es_output_cid)
+            if (context->tmfd.cmax != estate->es_output_cid) {
+              DBUG_INSTANT_PRINT("info", "tuple to be updated or deleted was already modified by an operation triggered by the current command");
               ereport(ERROR,
                       (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                        errmsg("tuple to be updated or deleted was already modified by an operation triggered by the current command"),
                        errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+            }
 
-            if (TransactionIdIsCurrentTransactionId(context->tmfd.xmax))
+            if (TransactionIdIsCurrentTransactionId(context->tmfd.xmax)) {
+              DBUG_INSTANT_PRINT("info", "MERGE command cannot affect row a second time");
               ereport(ERROR,
                       (errcode(ERRCODE_CARDINALITY_VIOLATION),
                        /* translator: %s is a SQL command name */
                        errmsg("%s command cannot affect row a second time",
                               "MERGE"),
                        errhint("Ensure that not more than one source row matches any one target row.")));
+            }
 
             /* This shouldn't happen */
+            DBUG_INSTANT_PRINT("info", "attempted to update or delete invisible tuple");
             elog(ERROR, "attempted to update or delete invisible tuple");
             goto out;
 
           default:
             /* see table_tuple_lock call in ExecDelete() */
+            DBUG_INSTANT_PRINT("info", "unexpected table_tuple_lock status: %u", result);
             elog(ERROR, "unexpected table_tuple_lock status: %u",
                  result);
             goto out;
@@ -3459,6 +3578,7 @@ lmerge_matched:
       case TM_WouldBlock:
       case TM_BeingModified:
         /* these should not occur */
+        DBUG_INSTANT_PRINT("info", "unexpected tuple operation result: %d", result);
         elog(ERROR, "unexpected tuple operation result: %d", result);
         break;
     }
@@ -3519,6 +3639,7 @@ static TupleTableSlot *
 ExecMergeNotMatched(ModifyTableContext *context, ResultRelInfo *resultRelInfo,
                     bool canSetTag)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = context->mtstate;
   ExprContext *econtext = mtstate->ps.ps_ExprContext;
   List     *actionStates;
@@ -3879,6 +4000,7 @@ void
 ExecInitMergeTupleSlots(ModifyTableState *mtstate,
                         ResultRelInfo *resultRelInfo)
 {
+  DBUG_TRACE;
   EState     *estate = mtstate->ps.state;
 
   Assert(!resultRelInfo->ri_projectNewInfoValid);
@@ -3898,6 +4020,7 @@ ExecInitMergeTupleSlots(ModifyTableState *mtstate,
 static void
 fireBSTriggers(ModifyTableState *node)
 {
+  DBUG_TRACE;
   ModifyTable *plan = (ModifyTable *) node->ps.plan;
   ResultRelInfo *resultRelInfo = node->rootResultRelInfo;
 
@@ -3943,6 +4066,7 @@ fireBSTriggers(ModifyTableState *node)
 static void
 fireASTriggers(ModifyTableState *node)
 {
+  DBUG_TRACE;
   ModifyTable *plan = (ModifyTable *) node->ps.plan;
   ResultRelInfo *resultRelInfo = node->rootResultRelInfo;
 
@@ -3995,6 +4119,7 @@ fireASTriggers(ModifyTableState *node)
 static void
 ExecSetupTransitionCaptureState(ModifyTableState *mtstate, EState *estate)
 {
+  DBUG_TRACE;
   ModifyTable *plan = (ModifyTable *) mtstate->ps.plan;
   ResultRelInfo *targetRelInfo = mtstate->rootResultRelInfo;
 
@@ -4030,6 +4155,7 @@ ExecPrepareTupleRouting(ModifyTableState *mtstate,
                         TupleTableSlot *slot,
                         ResultRelInfo **partRelInfo)
 {
+  DBUG_TRACE;
   ResultRelInfo *partrel;
   TupleConversionMap *map;
 
@@ -4084,6 +4210,7 @@ ExecPrepareTupleRouting(ModifyTableState *mtstate,
 static TupleTableSlot *
 ExecModifyTable(PlanState *pstate)
 {
+  DBUG_TRACE;
   ModifyTableState *node = castNode(ModifyTableState, pstate);
   ModifyTableContext context;
   EState     *estate = node->ps.state;
@@ -4097,6 +4224,8 @@ ExecModifyTable(PlanState *pstate)
   HeapTuple oldtuple;
   ItemPointer tupleid;
   bool    tuplock;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
   CHECK_FOR_INTERRUPTS();
 
@@ -4143,6 +4272,16 @@ ExecModifyTable(PlanState *pstate)
    * for each row.
    */
   for (;;) {
+
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /*
      * Reset the per-output-tuple exprcontext.  This is needed because
      * triggers expect to use that context as workspace.  It's a bit ugly
@@ -4177,8 +4316,17 @@ ExecModifyTable(PlanState *pstate)
        * If we got a RETURNING result, return it to the caller.  We'll
        * continue the work on next call.
        */
-      if (slot)
+      if (slot) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         return slot;
+      }
 
       continue;     /* continue with the next tuple */
     }
@@ -4190,6 +4338,8 @@ ExecModifyTable(PlanState *pstate)
     /* No more tuples to process? */
     if (TupIsNull(context.planSlot))
       break;
+
+    count++;
 
     /*
      * When there are multiple result relations, each tuple contains a
@@ -4223,11 +4373,30 @@ ExecModifyTable(PlanState *pstate)
            * If we got a RETURNING result, return it to the caller.
            * We'll continue the work on next call.
            */
-          if (slot)
+          if (slot) {
+            if (tmp_trace_disabled) {
+              set_trace_enabled();
+              tmp_trace_disabled = false;
+              DBUG_PRINT("info", "...");
+              DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+              DBUG_PRINT("info", "total processed:%lu", count);
+            }
+
+
             return slot;
+          }
 
           continue; /* continue with the next tuple */
         }
+
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
 
         elog(ERROR, "tableoid is NULL");
       }
@@ -4260,6 +4429,15 @@ ExecModifyTable(PlanState *pstate)
 
       slot = ExecProcessReturning(&context, resultRelInfo, operation,
                                   NULL, NULL, context.planSlot);
+
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
 
       return slot;
     }
@@ -4317,11 +4495,30 @@ ExecModifyTable(PlanState *pstate)
              * If we got a RETURNING result, return it to the
              * caller.  We'll continue the work on next call.
              */
-            if (slot)
+            if (slot) {
+              if (tmp_trace_disabled) {
+                set_trace_enabled();
+                tmp_trace_disabled = false;
+                DBUG_PRINT("info", "...");
+                DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+                DBUG_PRINT("info", "total processed:%lu", count);
+              }
+
+
               return slot;
+            }
 
             continue; /* continue with the next tuple */
           }
+
+          if (tmp_trace_disabled) {
+            set_trace_enabled();
+            tmp_trace_disabled = false;
+            DBUG_PRINT("info", "...");
+            DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+            DBUG_PRINT("info", "total processed:%lu", count);
+          }
+
 
           elog(ERROR, "ctid is NULL");
         }
@@ -4371,11 +4568,30 @@ ExecModifyTable(PlanState *pstate)
              * If we got a RETURNING result, return it to the
              * caller.  We'll continue the work on next call.
              */
-            if (slot)
+            if (slot) {
+              if (tmp_trace_disabled) {
+                set_trace_enabled();
+                tmp_trace_disabled = false;
+                DBUG_PRINT("info", "...");
+                DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+                DBUG_PRINT("info", "total processed:%lu", count);
+              }
+
+
               return slot;
+            }
 
             continue; /* continue with the next tuple */
           }
+
+          if (tmp_trace_disabled) {
+            set_trace_enabled();
+            tmp_trace_disabled = false;
+            DBUG_PRINT("info", "...");
+            DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+            DBUG_PRINT("info", "total processed:%lu", count);
+          }
+
 
           elog(ERROR, "wholerow is NULL");
         }
@@ -4436,8 +4652,18 @@ ExecModifyTable(PlanState *pstate)
 
           if (!table_tuple_fetch_row_version(relation, tupleid,
                                              SnapshotAny,
-                                             oldSlot))
+                                             oldSlot)) {
+            if (tmp_trace_disabled) {
+              set_trace_enabled();
+              tmp_trace_disabled = false;
+              DBUG_PRINT("info", "...");
+              DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+              DBUG_PRINT("info", "total processed:%lu", count);
+            }
+
+
             elog(ERROR, "failed to fetch tuple being updated");
+          }
         }
 
         slot = ExecGetUpdateNewTuple(resultRelInfo, context.planSlot,
@@ -4464,6 +4690,15 @@ ExecModifyTable(PlanState *pstate)
         break;
 
       default:
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
+
         elog(ERROR, "unknown operation");
         break;
     }
@@ -4472,15 +4707,36 @@ ExecModifyTable(PlanState *pstate)
      * If we got a RETURNING result, return it to caller.  We'll continue
      * the work on next call.
      */
-    if (slot)
+    if (slot) {
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
+
       return slot;
+    }
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
 
   /*
    * Insert remaining tuples for batch insert.
    */
-  if (estate->es_insert_pending_result_relations != NIL)
+  if (estate->es_insert_pending_result_relations != NIL) {
+    DBUG_PRINT("info", "insert remaining tuples for batch insert");
     ExecPendingInserts(estate);
+  }
 
   /*
    * We're done, but fire AFTER STATEMENT triggers before exiting.
@@ -4506,6 +4762,8 @@ ResultRelInfo *
 ExecLookupResultRelByOid(ModifyTableState *node, Oid resultoid,
                          bool missing_ok, bool update_cache)
 {
+  DBUG_TRACE;
+
   if (node->mt_resultOidHash) {
     /* Use the pre-built hash table to locate the rel */
     MTTargetRelLookup *mtlookup;
@@ -4550,6 +4808,7 @@ ExecLookupResultRelByOid(ModifyTableState *node, Oid resultoid,
 ModifyTableState *
 ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate;
   Plan     *subplan = outerPlan(node);
   CmdType   operation = node->operation;
@@ -5123,6 +5382,7 @@ ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags)
 void
 ExecEndModifyTable(ModifyTableState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -5174,6 +5434,7 @@ ExecEndModifyTable(ModifyTableState *node)
 void
 ExecReScanModifyTable(ModifyTableState *node)
 {
+  DBUG_TRACE;
   /*
    * Currently, we don't need to support rescan on ModifyTable nodes. The
    * semantics of that would be a bit debatable anyway.

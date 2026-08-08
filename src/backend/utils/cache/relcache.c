@@ -25,6 +25,7 @@
  *    careful....
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/file.h>
 #include <fcntl.h>
@@ -336,6 +337,7 @@ static void unlink_initfile(const char *initfilename, int elevel);
 static HeapTuple
 ScanPgRelation(Oid targetRelId, bool indexOK, bool force_non_historic)
 {
+  DBUG_TRACE;
   HeapTuple pg_class_tuple;
   Relation  pg_class_desc;
   SysScanDesc pg_class_scan;
@@ -348,8 +350,10 @@ ScanPgRelation(Oid targetRelId, bool indexOK, bool force_non_historic)
    * gonna work, so bail out with a useful error message.  If this happens,
    * it probably means a relcache entry that needs to be nailed isn't.
    */
-  if (!OidIsValid(MyDatabaseId))
+  if (!OidIsValid(MyDatabaseId)) {
+    DBUG_INSTANT_PRINT("info", "cannot read pg_class without having selected a database");
     elog(FATAL, "cannot read pg_class without having selected a database");
+  }
 
   /*
    * form a scan key
@@ -464,6 +468,7 @@ AllocateRelationDesc(Form_pg_class relp)
 static void
 RelationParseRelOptions(Relation relation, HeapTuple tuple)
 {
+  DBUG_TRACE;
   bytea    *options;
   amoptions_function amoptsfn;
 
@@ -521,6 +526,7 @@ RelationParseRelOptions(Relation relation, HeapTuple tuple)
 static void
 RelationBuildTupleDesc(Relation relation)
 {
+  DBUG_TRACE;
   HeapTuple pg_attribute_tuple;
   Relation  pg_attribute_desc;
   SysScanDesc pg_attribute_scan;
@@ -529,6 +535,8 @@ RelationBuildTupleDesc(Relation relation)
   TupleConstr *constr;
   AttrMissing *attrmiss = NULL;
   int     ndef = 0;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   /* fill rd_att's type ID fields (compare heap.c's AddNewRelationTuple) */
   relation->rd_att->tdtypeid =
@@ -573,6 +581,16 @@ RelationBuildTupleDesc(Relation relation)
     Form_pg_attribute attp;
     int     attnum;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
     attp = (Form_pg_attribute) GETSTRUCT(pg_attribute_tuple);
 
     attnum = attp->attnum;
@@ -655,6 +673,15 @@ RelationBuildTupleDesc(Relation relation)
     if (need == 0)
       break;
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
 
   /*
    * end the scan and close the attribute relation
@@ -746,6 +773,7 @@ RelationBuildTupleDesc(Relation relation)
 static void
 RelationBuildRuleLock(Relation relation)
 {
+  DBUG_TRACE;
   MemoryContext rulescxt;
   MemoryContext oldcxt;
   HeapTuple rewrite_tuple;
@@ -919,6 +947,7 @@ RelationBuildRuleLock(Relation relation)
 static bool
 equalRuleLocks(RuleLock *rlock1, RuleLock *rlock2)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -969,6 +998,7 @@ equalRuleLocks(RuleLock *rlock1, RuleLock *rlock2)
 static bool
 equalPolicy(RowSecurityPolicy *policy1, RowSecurityPolicy *policy2)
 {
+  DBUG_TRACE;
   int     i;
   Oid      *r1,
            *r2;
@@ -1016,6 +1046,7 @@ equalPolicy(RowSecurityPolicy *policy1, RowSecurityPolicy *policy2)
 static bool
 equalRSDesc(RowSecurityDesc *rsdesc1, RowSecurityDesc *rsdesc2)
 {
+  DBUG_TRACE;
   ListCell   *lc,
              *rc;
 
@@ -1056,6 +1087,7 @@ equalRSDesc(RowSecurityDesc *rsdesc1, RowSecurityDesc *rsdesc2)
 static Relation
 RelationBuildDesc(Oid targetRelId, bool insertIt)
 {
+  DBUG_TRACE;
   int     in_progress_offset;
   Relation  relation;
   Oid     relid;
@@ -1415,6 +1447,7 @@ RelationInitPhysicalAddr(Relation relation)
 static void
 InitIndexAmRoutine(Relation relation)
 {
+  DBUG_TRACE;
   IndexAmRoutine *cached,
                  *tmp;
 
@@ -1439,6 +1472,7 @@ InitIndexAmRoutine(Relation relation)
 void
 RelationInitIndexAccessInfo(Relation relation)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_am  aform;
   Datum   indcollDatum;
@@ -1619,6 +1653,7 @@ IndexSupportInitialize(oidvector *indclass,
                        StrategyNumber maxSupportNumber,
                        AttrNumber maxAttributeNumber)
 {
+  DBUG_TRACE;
   int     attIndex;
 
   for (attIndex = 0; attIndex < maxAttributeNumber; attIndex++) {
@@ -1666,6 +1701,7 @@ static OpClassCacheEnt *
 LookupOpclassInfo(Oid operatorClassOid,
                   StrategyNumber numSupport)
 {
+  DBUG_TRACE;
   OpClassCacheEnt *opcentry;
   bool    found;
   Relation  rel;
@@ -1812,6 +1848,7 @@ LookupOpclassInfo(Oid operatorClassOid,
 static void
 InitTableAmRoutine(Relation relation)
 {
+  DBUG_TRACE;
   relation->rd_tableam = GetTableAmRoutine(relation->rd_amhandler);
 }
 
@@ -1821,6 +1858,7 @@ InitTableAmRoutine(Relation relation)
 void
 RelationInitTableAccessMethod(Relation relation)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_am  aform;
 
@@ -1859,6 +1897,7 @@ RelationInitTableAccessMethod(Relation relation)
   /*
    * Now we can fetch the table AM's API struct
    */
+  DBUG_PRINT("info", "now we can fetch the table AM's API struct");
   InitTableAmRoutine(relation);
 }
 
@@ -1885,6 +1924,7 @@ formrdesc(const char *relationName, Oid relationReltype,
           bool isshared,
           int natts, const FormData_pg_attribute *attrs)
 {
+  DBUG_TRACE;
   Relation  relation;
   int     i;
   bool    has_not_null;
@@ -2086,6 +2126,7 @@ AssertCouldGetRelation(void)
 Relation
 RelationIdGetRelation(Oid relationId)
 {
+  DBUG_TRACE;
   Relation  rd;
 
   AssertCouldGetRelation();
@@ -2174,8 +2215,11 @@ ResourceOwnerForgetRelationRef(ResourceOwner owner, Relation rel)
 void
 RelationIncrementReferenceCount(Relation rel)
 {
+  DBUG_TRACE;
   ResourceOwnerEnlarge(CurrentResourceOwner);
   rel->rd_refcnt += 1;
+
+  DBUG_PRINT("info", "increment relation reference count(rd_refcnt:%d)", rel->rd_refcnt);
 
   if (!IsBootstrapProcessingMode())
     ResourceOwnerRememberRelationRef(CurrentResourceOwner, rel);
@@ -2188,8 +2232,11 @@ RelationIncrementReferenceCount(Relation rel)
 void
 RelationDecrementReferenceCount(Relation rel)
 {
+  DBUG_TRACE;
   Assert(rel->rd_refcnt > 0);
   rel->rd_refcnt -= 1;
+
+  DBUG_PRINT("info", "decrement relation reference count(rd_refcnt:%d)", rel->rd_refcnt);
 
   if (!IsBootstrapProcessingMode())
     ResourceOwnerForgetRelationRef(CurrentResourceOwner, rel);
@@ -2209,6 +2256,7 @@ RelationDecrementReferenceCount(Relation rel)
 void
 RelationClose(Relation relation)
 {
+  DBUG_TRACE;
   /* Note: no locking manipulations needed */
   RelationDecrementReferenceCount(relation);
 
@@ -2218,6 +2266,7 @@ RelationClose(Relation relation)
 static void
 RelationCloseCleanup(Relation relation)
 {
+
   /*
    * If the relation is no longer open in this session, we can clean up any
    * stale partition descriptors it has.  This is unlikely, so check to see
@@ -2266,6 +2315,7 @@ RelationCloseCleanup(Relation relation)
 static void
 RelationReloadIndexInfo(Relation relation)
 {
+  DBUG_TRACE;
   bool    indexOK;
   HeapTuple pg_class_tuple;
   Form_pg_class relp;
@@ -2379,6 +2429,7 @@ RelationReloadIndexInfo(Relation relation)
 static void
 RelationReloadNailed(Relation relation)
 {
+  DBUG_TRACE;
   /* Should be called only for invalidated, nailed relations */
   Assert(!relation->rd_isvalid);
   Assert(relation->rd_isnailed);
@@ -2526,6 +2577,7 @@ RelationDestroyRelation(Relation relation, bool remember_tupdesc)
 static void
 RelationInvalidateRelation(Relation relation)
 {
+  DBUG_TRACE;
   /*
    * Make sure smgr and lower levels close the relation's files, if they
    * weren't closed already.  If the relation is not getting deleted, the
@@ -2837,6 +2889,8 @@ RelationRebuildRelation(Relation relation)
 static void
 RelationFlushRelation(Relation relation)
 {
+  DBUG_TRACE;
+
   if (relation->rd_createSubid != InvalidSubTransactionId ||
       relation->rd_firstRelfilelocatorSubid != InvalidSubTransactionId) {
     /*
@@ -2896,6 +2950,7 @@ RelationFlushRelation(Relation relation)
 void
 RelationForgetRelation(Oid rid)
 {
+  DBUG_TRACE;
   Relation  relation;
 
   RelationIdCacheLookup(rid, relation);
@@ -2940,6 +2995,7 @@ RelationForgetRelation(Oid rid)
 void
 RelationCacheInvalidateEntry(Oid relationId)
 {
+  DBUG_TRACE;
   Relation  relation;
 
   RelationIdCacheLookup(relationId, relation);
@@ -3150,6 +3206,7 @@ AssertPendingSyncConsistency(Relation relation)
 void
 AssertPendingSyncs_RelationCache(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   LOCALLOCK  *locallock;
   Relation   *rels;
@@ -3227,6 +3284,7 @@ AssertPendingSyncs_RelationCache(void)
 void
 AtEOXact_RelationCache(bool isCommit)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RelIdCacheEnt *idhentry;
   int     i;
@@ -3295,6 +3353,7 @@ AtEOXact_RelationCache(bool isCommit)
 static void
 AtEOXact_cleanup(Relation relation, bool isCommit)
 {
+  DBUG_TRACE;
   bool    clear_relcache = false;
 
   /*
@@ -3375,6 +3434,7 @@ void
 AtEOSubXact_RelationCache(bool isCommit, SubTransactionId mySubid,
                           SubTransactionId parentSubid)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RelIdCacheEnt *idhentry;
   int     i;
@@ -3427,6 +3487,8 @@ static void
 AtEOSubXact_cleanup(Relation relation, bool isCommit,
                     SubTransactionId mySubid, SubTransactionId parentSubid)
 {
+  DBUG_TRACE;
+
   /*
    * Is it a relation created in the current subtransaction?
    *
@@ -3512,6 +3574,7 @@ RelationBuildLocalRelation(const char *relname,
                            char relpersistence,
                            char relkind)
 {
+  DBUG_TRACE;
   Relation  rel;
   MemoryContext oldcxt;
   int     natts = tupDesc->natts;
@@ -3758,6 +3821,7 @@ RelationBuildLocalRelation(const char *relname,
 void
 RelationSetNewRelfilenumber(Relation relation, char persistence)
 {
+  DBUG_TRACE;
   RelFileNumber newrelfilenumber;
   Relation  pg_class;
   ItemPointerData otid;
@@ -3946,6 +4010,7 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 void
 RelationAssumeNewRelfilelocator(Relation relation)
 {
+  DBUG_TRACE;
   relation->rd_newRelfilelocatorSubid = GetCurrentSubTransactionId();
 
   if (relation->rd_firstRelfilelocatorSubid == InvalidSubTransactionId)
@@ -3973,6 +4038,7 @@ RelationAssumeNewRelfilelocator(Relation relation)
 void
 RelationCacheInitialize(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
   int     allocsize;
 
@@ -4019,6 +4085,7 @@ RelationCacheInitialize(void)
 void
 RelationCacheInitializePhase2(void)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
 
   /*
@@ -4077,10 +4144,13 @@ RelationCacheInitializePhase2(void)
 void
 RelationCacheInitializePhase3(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RelIdCacheEnt *idhentry;
   MemoryContext oldcxt;
   bool    needNewCacheFile = !criticalSharedRelcachesBuilt;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   /*
    * relation mapper needs initialized too
@@ -4218,10 +4288,20 @@ RelationCacheInitializePhase3(void)
     Relation  relation = idhentry->reldesc;
     bool    restart = false;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /*
      * Make sure *this* entry doesn't get flushed while we work with it.
      */
     RelationIncrementReferenceCount(relation);
+    count++;
 
     /*
      * If it's a faked-up entry, read the real pg_class tuple.
@@ -4265,9 +4345,18 @@ RelationCacheInitializePhase3(void)
       ReleaseSysCache(htup);
 
       /* relowner had better be OK now, else we'll loop forever */
-      if (relation->rd_rel->relowner == InvalidOid)
+      if (relation->rd_rel->relowner == InvalidOid) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         elog(ERROR, "invalid relowner in pg_class entry for \"%s\"",
              RelationGetRelationName(relation));
+      }
 
       restart = true;
     }
@@ -4315,6 +4404,7 @@ RelationCacheInitializePhase3(void)
     /* Reload tableam data if needed */
     if (relation->rd_tableam == NULL &&
         (RELKIND_HAS_TABLE_AM(relation->rd_rel->relkind) || relation->rd_rel->relkind == RELKIND_SEQUENCE)) {
+      DBUG_PRINT("info", "reload tableam data if needed");
       RelationInitTableAccessMethod(relation);
       Assert(relation->rd_tableam != NULL);
 
@@ -4326,9 +4416,18 @@ RelationCacheInitializePhase3(void)
 
     /* Now, restart the hashtable scan if needed */
     if (restart) {
+      DBUG_PRINT("info", "now, restart the hashtable scan if needed");
       hash_seq_term(&status);
       hash_seq_init(&status, RelationIdCache);
     }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /*
@@ -4336,6 +4435,7 @@ RelationCacheInitializePhase3(void)
    * to distinguish cases where only one of the two needs an update.
    */
   if (needNewCacheFile) {
+    DBUG_PRINT("info", "lastly, write out new relcache cache files if needed");
     /*
      * Force all the catcaches to finish initializing and thereby open the
      * catalogs and indexes they use.  This will preload the relcache with
@@ -4359,6 +4459,7 @@ RelationCacheInitializePhase3(void)
 static void
 load_critical_index(Oid indexoid, Oid heapoid)
 {
+  DBUG_TRACE;
   Relation  ird;
 
   /*
@@ -4399,6 +4500,7 @@ load_critical_index(Oid indexoid, Oid heapoid)
 static TupleDesc
 BuildHardcodedDescriptor(int natts, const FormData_pg_attribute *attrs)
 {
+  DBUG_TRACE;
   TupleDesc result;
   MemoryContext oldcxt;
   int     i;
@@ -4463,6 +4565,7 @@ GetPgIndexDescriptor(void)
 static void
 AttrDefaultFetch(Relation relation, int ndef)
 {
+  DBUG_TRACE;
   AttrDefault *attrdef;
   Relation  adrel;
   SysScanDesc adscan;
@@ -4557,6 +4660,7 @@ AttrDefaultCmp(const void *a, const void *b)
 static void
 CheckNNConstraintFetch(Relation relation)
 {
+  DBUG_TRACE;
   ConstrCheck *check;
   int     ncheck = relation->rd_rel->relchecks;
   Relation  conrel;
@@ -4693,6 +4797,7 @@ CheckConstraintCmp(const void *a, const void *b)
 List *
 RelationGetFKeyList(Relation relation)
 {
+  DBUG_TRACE;
   List     *result;
   Relation  conrel;
   SysScanDesc conscan;
@@ -4797,6 +4902,7 @@ RelationGetFKeyList(Relation relation)
 List *
 RelationGetIndexList(Relation relation)
 {
+  DBUG_TRACE;
   Relation  indrel;
   SysScanDesc indscan;
   ScanKeyData skey;
@@ -4938,6 +5044,7 @@ RelationGetIndexList(Relation relation)
 List *
 RelationGetStatExtList(Relation relation)
 {
+  DBUG_TRACE;
   Relation  indrel;
   SysScanDesc indscan;
   ScanKeyData skey;
@@ -5007,6 +5114,7 @@ RelationGetStatExtList(Relation relation)
 Oid
 RelationGetPrimaryKeyIndex(Relation relation, bool deferrable_ok)
 {
+  DBUG_TRACE;
   List     *ilist;
 
   if (!relation->rd_indexvalid) {
@@ -5032,6 +5140,7 @@ RelationGetPrimaryKeyIndex(Relation relation, bool deferrable_ok)
 Oid
 RelationGetReplicaIndex(Relation relation)
 {
+  DBUG_TRACE;
   List     *ilist;
 
   if (!relation->rd_indexvalid) {
@@ -5056,6 +5165,7 @@ RelationGetReplicaIndex(Relation relation)
 List *
 RelationGetIndexExpressions(Relation relation)
 {
+  DBUG_TRACE;
   List     *result;
   Datum   exprsDatum;
   bool    isnull;
@@ -5083,6 +5193,7 @@ RelationGetIndexExpressions(Relation relation)
   Assert(!isnull);
   exprsString = TextDatumGetCString(exprsDatum);
   result = (List *) stringToNode(exprsString);
+  DBUG_PRINT("info", "exprs:'%s'", exprsString);
   pfree(exprsString);
 
   /*
@@ -5115,6 +5226,7 @@ RelationGetIndexExpressions(Relation relation)
 List *
 RelationGetDummyIndexExpressions(Relation relation)
 {
+  DBUG_TRACE;
   List     *result;
   Datum   exprsDatum;
   bool    isnull;
@@ -5124,8 +5236,10 @@ RelationGetDummyIndexExpressions(Relation relation)
 
   /* Quick exit if there is nothing to do. */
   if (relation->rd_indextuple == NULL ||
-      heap_attisnull(relation->rd_indextuple, Anum_pg_index_indexprs, NULL))
+      heap_attisnull(relation->rd_indextuple, Anum_pg_index_indexprs, NULL)) {
+    DBUG_PRINT("info", "quick exit if there is nothing to do");
     return NIL;
+  }
 
   /* Extract raw node tree(s) from index tuple. */
   exprsDatum = heap_getattr(relation->rd_indextuple,
@@ -5135,6 +5249,7 @@ RelationGetDummyIndexExpressions(Relation relation)
   Assert(!isnull);
   exprsString = TextDatumGetCString(exprsDatum);
   rawExprs = (List *) stringToNode(exprsString);
+  DBUG_PRINT("info", "exprs:'%s'", exprsString);
   pfree(exprsString);
 
   /* Construct null Consts; the typlen and typbyval are arbitrary. */
@@ -5169,6 +5284,7 @@ RelationGetDummyIndexExpressions(Relation relation)
 List *
 RelationGetIndexPredicate(Relation relation)
 {
+  DBUG_TRACE;
   List     *result;
   Datum   predDatum;
   bool    isnull;
@@ -5176,13 +5292,17 @@ RelationGetIndexPredicate(Relation relation)
   MemoryContext oldcxt;
 
   /* Quick exit if we already computed the result. */
-  if (relation->rd_indpred)
+  if (relation->rd_indpred) {
+    DBUG_PRINT("info", "quick exit if we already computed the result");
     return copyObject(relation->rd_indpred);
+  }
 
   /* Quick exit if there is nothing to do. */
   if (relation->rd_indextuple == NULL ||
-      heap_attisnull(relation->rd_indextuple, Anum_pg_index_indpred, NULL))
+      heap_attisnull(relation->rd_indextuple, Anum_pg_index_indpred, NULL)) {
+    DBUG_PRINT("info", "quick exit if there is nothing to do");
     return NIL;
+  }
 
   /*
    * We build the tree we intend to return in the caller's context. After
@@ -5262,6 +5382,7 @@ RelationGetIndexPredicate(Relation relation)
 Bitmapset *
 RelationGetIndexAttrBitmap(Relation relation, IndexAttrBitmapKind attrKind)
 {
+  DBUG_TRACE;
   Bitmapset  *uindexattrs;  /* columns in unique indexes */
   Bitmapset  *pkindexattrs; /* columns in the primary index */
   Bitmapset  *idindexattrs; /* columns in the replica identity */
@@ -5298,8 +5419,10 @@ RelationGetIndexAttrBitmap(Relation relation, IndexAttrBitmapKind attrKind)
   }
 
   /* Fast path if definitely no indexes */
-  if (!RelationGetForm(relation)->relhasindex)
+  if (!RelationGetForm(relation)->relhasindex) {
+    DBUG_PRINT("info", "fast path if definitely no indexes");
     return NULL;
+  }
 
   /*
    * Get cached list of index OIDs. If we have to start over, we do so here.
@@ -5308,8 +5431,10 @@ restart:
   indexoidlist = RelationGetIndexList(relation);
 
   /* Fall out if no indexes (but relhasindex was set) */
-  if (indexoidlist == NIL)
+  if (indexoidlist == NIL) {
+    DBUG_PRINT("info", "fall out if no indexes");
     return NULL;
+  }
 
   /*
    * Copy the rd_pkindex and rd_replidindex values computed by
@@ -5336,6 +5461,8 @@ restart:
   idindexattrs = NULL;
   hotblockingattrs = NULL;
   summarizedattrs = NULL;
+
+  DBUG_PRINT("info", "for each index, add referenced attributes to indexattrs");
 
   foreach(l, indexoidlist) {
     Oid     indexOid = lfirst_oid(l);
@@ -5540,6 +5667,7 @@ restart:
 Bitmapset *
 RelationGetIdentityKeyBitmap(Relation relation)
 {
+  DBUG_TRACE;
   Bitmapset  *idindexattrs = NULL;  /* columns in the replica identity */
   Relation  indexDesc;
   int     i;
@@ -5547,12 +5675,16 @@ RelationGetIdentityKeyBitmap(Relation relation)
   MemoryContext oldcxt;
 
   /* Quick exit if we already computed the result */
-  if (relation->rd_idattr != NULL)
+  if (relation->rd_idattr != NULL) {
+    DBUG_PRINT("info", "quick exit if we already computed the result");
     return bms_copy(relation->rd_idattr);
+  }
 
   /* Fast path if definitely no indexes */
-  if (!RelationGetForm(relation)->relhasindex)
+  if (!RelationGetForm(relation)->relhasindex) {
+    DBUG_PRINT("info", "fast path if definitely no indexes");
     return NULL;
+  }
 
   /* Historic snapshot must be set. */
   Assert(HistoricSnapshotActive());
@@ -5560,15 +5692,22 @@ RelationGetIdentityKeyBitmap(Relation relation)
   replidindex = RelationGetReplicaIndex(relation);
 
   /* Fall out if there is no replica identity index */
-  if (!OidIsValid(replidindex))
+  if (!OidIsValid(replidindex)) {
+    DBUG_PRINT("info", "fall out if there is no replica identity index");
     return NULL;
+  }
 
   /* Look up the description for the replica identity index */
   indexDesc = RelationIdGetRelation(replidindex);
 
-  if (!RelationIsValid(indexDesc))
+  if (!RelationIsValid(indexDesc)) {
+
     elog(ERROR, "could not open relation with OID %u",
          relation->rd_replidindex);
+  }
+
+  DBUG_PRINT("info", "add referenced attributes(indexDesc->rd_index->indnatts:%d) to idindexattrs",
+             indexDesc->rd_index->indnatts);
 
   /* Add referenced attributes to idindexattrs */
   for (i = 0; i < indexDesc->rd_index->indnatts; i++) {
@@ -5618,6 +5757,7 @@ RelationGetExclusionInfo(Relation indexRelation,
                          Oid **procs,
                          uint16 **strategies)
 {
+  DBUG_TRACE;
   int     indnkeyatts;
   Oid      *ops;
   Oid      *funcs;
@@ -5639,6 +5779,7 @@ RelationGetExclusionInfo(Relation indexRelation,
 
   /* Quick exit if we have the data cached already */
   if (indexRelation->rd_exclstrats != NULL) {
+    DBUG_PRINT("info", "quick exit if we have the data cached already");
     memcpy(ops, indexRelation->rd_exclops, sizeof(Oid) * indnkeyatts);
     memcpy(funcs, indexRelation->rd_exclprocs, sizeof(Oid) * indnkeyatts);
     memcpy(strats, indexRelation->rd_exclstrats, sizeof(uint16) * indnkeyatts);
@@ -5757,6 +5898,7 @@ RelationGetExclusionInfo(Relation indexRelation,
 void
 RelationBuildPublicationDesc(Relation relation, PublicationDesc *pubdesc)
 {
+  DBUG_TRACE;
   List     *puboids;
   ListCell   *lc;
   MemoryContext oldcxt;
@@ -5769,6 +5911,7 @@ RelationBuildPublicationDesc(Relation relation, PublicationDesc *pubdesc)
    * ignore it.)
    */
   if (!is_publishable_relation(relation)) {
+    DBUG_PRINT("info", "if not publishable, it publishes no actions");
     memset(pubdesc, 0, sizeof(PublicationDesc));
     pubdesc->rf_valid_for_update = true;
     pubdesc->rf_valid_for_delete = true;
@@ -5799,6 +5942,7 @@ RelationBuildPublicationDesc(Relation relation, PublicationDesc *pubdesc)
 
   if (relation->rd_rel->relispartition) {
     /* Add publications that the ancestors are in too. */
+    DBUG_PRINT("info", "add publications that the ancestors are in too");
     ancestors = get_partition_ancestors(relid);
 
     foreach(lc, ancestors) {
@@ -5942,6 +6086,7 @@ CopyIndexAttOptions(bytea **srcopts, int natts)
 bytea   **
 RelationGetIndexAttOptions(Relation relation, bool copy)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   bytea   **opts = relation->rd_opcoptions;
   Oid     relid = RelationGetRelid(relation);
@@ -5950,11 +6095,20 @@ RelationGetIndexAttOptions(Relation relation, bool copy)
   int     i;
 
   /* Try to copy cached options. */
-  if (opts)
+  if (opts) {
+    if (copy) {
+      DBUG_PRINT("info", "try to copy cached options");
+    } else {
+      DBUG_PRINT("info", "RelationGetIndexAttOptions directly returns opts");
+    }
+
     return copy ? CopyIndexAttOptions(opts, natts) : opts;
+  }
 
   /* Get and parse opclass options. */
   opts = palloc0(sizeof(*opts) * natts);
+
+  DBUG_PRINT("info", "get and parse opclass options (relid:%u, natts:%d)", relid, natts);
 
   for (i = 0; i < natts; i++) {
     if (criticalRelcachesBuilt && relid != AttributeRelidNumIndexId) {
@@ -6118,6 +6272,7 @@ errtableconstraint(Relation rel, const char *conname)
 static bool
 load_relcache_init_file(bool shared)
 {
+  DBUG_TRACE;
   FILE     *fp;
   char    initfilename[MAXPGPATH];
   Relation   *rels;
@@ -6539,6 +6694,7 @@ read_failed:
 static void
 write_relcache_init_file(bool shared)
 {
+  DBUG_TRACE;
   FILE     *fp;
   char    tempfilename[MAXPGPATH];
   char    finalfilename[MAXPGPATH];
@@ -6603,6 +6759,8 @@ write_relcache_init_file(bool shared)
    * Write all the appropriate reldescs (in no particular order).
    */
   hash_seq_init(&status, RelationIdCache);
+
+  DBUG_PRINT("info", "write all the appropriate reldescs");
 
   while ((idhentry = (RelIdCacheEnt *) hash_seq_search(&status)) != NULL) {
     Relation  rel = idhentry->reldesc;
@@ -6805,6 +6963,7 @@ RelationIdIsInInitFile(Oid relationId)
 void
 RelationCacheInitFilePreInvalidate(void)
 {
+  DBUG_TRACE;
   char    localinitfname[MAXPGPATH];
   char    sharedinitfname[MAXPGPATH];
 
@@ -6832,6 +6991,7 @@ RelationCacheInitFilePreInvalidate(void)
 void
 RelationCacheInitFilePostInvalidate(void)
 {
+  DBUG_TRACE;
   LWLockRelease(RelCacheInitLock);
 }
 
@@ -6847,6 +7007,7 @@ RelationCacheInitFilePostInvalidate(void)
 void
 RelationCacheInitFileRemove(void)
 {
+  DBUG_TRACE;
   const char *tblspcdir = PG_TBLSPC_DIR;
   DIR      *dir;
   struct dirent *de;
@@ -6878,6 +7039,7 @@ RelationCacheInitFileRemove(void)
 static void
 RelationCacheInitFileRemoveInDir(const char *tblspcpath)
 {
+  DBUG_TRACE;
   DIR      *dir;
   struct dirent *de;
   char    initfilename[MAXPGPATH * 2];
@@ -6900,6 +7062,10 @@ RelationCacheInitFileRemoveInDir(const char *tblspcpath)
 static void
 unlink_initfile(const char *initfilename, int elevel)
 {
+  DBUG_TRACE;
+
+  DBUG_PRINT("info", "initfilename:'%s', elevel:%d", initfilename, elevel);
+
   if (unlink(initfilename) < 0) {
     /* It might not be there, but log any error other than ENOENT */
     if (errno != ENOENT)
@@ -6916,6 +7082,7 @@ unlink_initfile(const char *initfilename, int elevel)
 static char *
 ResOwnerPrintRelCache(Datum res)
 {
+  DBUG_TRACE;
   Relation  rel = (Relation) DatumGetPointer(res);
 
   return psprintf("relation \"%s\"", RelationGetRelationName(rel));
@@ -6924,6 +7091,7 @@ ResOwnerPrintRelCache(Datum res)
 static void
 ResOwnerReleaseRelation(Datum res)
 {
+  DBUG_TRACE;
   Relation  rel = (Relation) DatumGetPointer(res);
 
   /*

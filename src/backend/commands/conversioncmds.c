@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_conversion.h"
 #include "catalog/pg_namespace.h"
@@ -31,6 +32,7 @@
 ObjectAddress
 CreateConversionCommand(CreateConversionStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     namespaceId;
   char     *conversion_name;
   AclResult aclresult;
@@ -58,19 +60,23 @@ CreateConversionCommand(CreateConversionStmt *stmt)
   /* Check the encoding names */
   from_encoding = pg_char_to_encoding(from_encoding_name);
 
-  if (from_encoding < 0)
+  if (from_encoding < 0) {
+    DBUG_INSTANT_PRINT("info", "source encoding \"%s\" does not exist", from_encoding_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("source encoding \"%s\" does not exist",
                     from_encoding_name)));
+  }
 
   to_encoding = pg_char_to_encoding(to_encoding_name);
 
-  if (to_encoding < 0)
+  if (to_encoding < 0) {
+    DBUG_INSTANT_PRINT("info", "destination encoding \"%s\" does not exist", to_encoding_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("destination encoding \"%s\" does not exist",
                     to_encoding_name)));
+  }
 
   /*
    * We consider conversions to or from SQL_ASCII to be meaningless.  (If
@@ -79,10 +85,12 @@ CreateConversionCommand(CreateConversionStmt *stmt)
    * the source or target encoding is SQL_ASCII, so that an encoding
    * conversion function declared for such a case will never be used.)
    */
-  if (from_encoding == PG_SQL_ASCII || to_encoding == PG_SQL_ASCII)
+  if (from_encoding == PG_SQL_ASCII || to_encoding == PG_SQL_ASCII) {
+    DBUG_INSTANT_PRINT("info", "encoding conversion to or from \"SQL_ASCII\" is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("encoding conversion to or from \"SQL_ASCII\" is not supported")));
+  }
 
   /*
    * Check the existence of the conversion function. Function name could be
@@ -92,11 +100,14 @@ CreateConversionCommand(CreateConversionStmt *stmt)
                            funcargs, false);
 
   /* Check it returns int4, else it's probably the wrong function */
-  if (get_func_rettype(funcoid) != INT4OID)
+  if (get_func_rettype(funcoid) != INT4OID) {
+    DBUG_INSTANT_PRINT("info", "encoding conversion function %s must return type %s",
+                       NameListToString(func_name), "integer");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("encoding conversion function %s must return type %s",
                     NameListToString(func_name), "integer")));
+  }
 
   /* Check we have EXECUTE rights for the function */
   aclresult = object_aclcheck(ProcedureRelationId, funcoid, GetUserId(), ACL_EXECUTE);
@@ -123,11 +134,14 @@ CreateConversionCommand(CreateConversionStmt *stmt)
    * The function should return 0 for empty input. Might as well check that,
    * too.
    */
-  if (DatumGetInt32(funcresult) != 0)
+  if (DatumGetInt32(funcresult) != 0) {
+    DBUG_INSTANT_PRINT("info", "encoding conversion function %s returned incorrect result for empty input",
+                       NameListToString(func_name));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("encoding conversion function %s returned incorrect result for empty input",
                     NameListToString(func_name))));
+  }
 
   /*
    * All seem ok, go ahead (possible failure would be a duplicate conversion

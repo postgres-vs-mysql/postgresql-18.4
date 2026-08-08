@@ -15,6 +15,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/spgist_private.h"
@@ -40,6 +41,7 @@ static void
 spgistBuildCallback(Relation index, ItemPointer tid, Datum *values,
                     bool *isnull, bool tupleIsAlive, void *state)
 {
+  DBUG_TRACE;
   SpGistBuildState *buildstate = (SpGistBuildState *) state;
   MemoryContext oldCtx;
 
@@ -70,6 +72,7 @@ spgistBuildCallback(Relation index, ItemPointer tid, Datum *values,
 IndexBuildResult *
 spgbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   double    reltuples;
   SpGistBuildState buildstate;
@@ -150,6 +153,7 @@ spgbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 void
 spgbuildempty(Relation index)
 {
+  DBUG_TRACE;
   BulkWriteState *bulkstate;
   BulkWriteBuffer buf;
 
@@ -183,6 +187,7 @@ spginsert(Relation index, Datum *values, bool *isnull,
           bool indexUnchanged,
           IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   SpGistState spgstate;
   MemoryContext oldCtx;
   MemoryContext insertCtx;

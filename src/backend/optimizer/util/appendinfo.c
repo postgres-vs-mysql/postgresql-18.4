@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -50,6 +51,7 @@ AppendRelInfo *
 make_append_rel_info(Relation parentrel, Relation childrel,
                      Index parentRTindex, Index childRTindex)
 {
+  DBUG_TRACE;
   AppendRelInfo *appinfo = makeNode(AppendRelInfo);
 
   appinfo->parent_relid = parentRTindex;
@@ -80,6 +82,7 @@ make_inh_translation_list(Relation oldrelation, Relation newrelation,
                           Index newvarno,
                           AppendRelInfo *appinfo)
 {
+  DBUG_TRACE;
   List     *vars = NIL;
   AttrNumber *pcolnos;
   TupleDesc old_tupdesc = RelationGetDescr(oldrelation);
@@ -200,6 +203,7 @@ Node *
 adjust_appendrel_attrs(PlannerInfo *root, Node *node, int nappinfos,
                        AppendRelInfo **appinfos)
 {
+  DBUG_TRACE;
   adjust_appendrel_attrs_context context;
 
   context.root = root;
@@ -536,6 +540,7 @@ adjust_appendrel_attrs_multilevel(PlannerInfo *root, Node *node,
                                   RelOptInfo *childrel,
                                   RelOptInfo *parentrel)
 {
+  DBUG_TRACE;
   AppendRelInfo **appinfos;
   int     nappinfos;
 
@@ -566,6 +571,7 @@ adjust_appendrel_attrs_multilevel(PlannerInfo *root, Node *node,
 Relids
 adjust_child_relids(Relids relids, int nappinfos, AppendRelInfo **appinfos)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
   int     cnt;
 
@@ -600,6 +606,7 @@ adjust_child_relids_multilevel(PlannerInfo *root, Relids relids,
                                RelOptInfo *childrel,
                                RelOptInfo *parentrel)
 {
+  DBUG_TRACE;
   AppendRelInfo **appinfos;
   int     nappinfos;
 
@@ -637,6 +644,7 @@ adjust_child_relids_multilevel(PlannerInfo *root, Relids relids,
 List *
 adjust_inherited_attnums(List *attnums, AppendRelInfo *context)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -674,6 +682,7 @@ List *
 adjust_inherited_attnums_multilevel(PlannerInfo *root, List *attnums,
                                     Index child_relid, Index top_parent_relid)
 {
+  DBUG_TRACE;
   AppendRelInfo *appinfo = root->append_rel_array[child_relid];
 
   if (!appinfo)
@@ -702,6 +711,7 @@ void
 get_translated_update_targetlist(PlannerInfo *root, Index relid,
                                  List **processed_tlist, List **update_colnos)
 {
+  DBUG_TRACE;
   /* This is pretty meaningless for commands other than UPDATE. */
   Assert(root->parse->commandType == CMD_UPDATE);
 
@@ -744,6 +754,7 @@ get_translated_update_targetlist(PlannerInfo *root, Index relid,
 AppendRelInfo **
 find_appinfos_by_relids(PlannerInfo *root, Relids relids, int *nappinfos)
 {
+  DBUG_TRACE;
   AppendRelInfo **appinfos;
   int     cnt = 0;
   int     i;
@@ -802,6 +813,7 @@ void
 add_row_identity_var(PlannerInfo *root, Var *orig_var,
                      Index rtindex, const char *rowid_name)
 {
+  DBUG_TRACE;
   TargetEntry *tle;
   Var      *rowid_var;
   RowIdentityVarInfo *ridinfo;
@@ -895,6 +907,7 @@ add_row_identity_columns(PlannerInfo *root, Index rtindex,
                          RangeTblEntry *target_rte,
                          Relation target_relation)
 {
+  DBUG_TRACE;
   CmdType   commandType = root->parse->commandType;
   char    relkind = target_relation->rd_rel->relkind;
   Var      *var;

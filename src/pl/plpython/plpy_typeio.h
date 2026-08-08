@@ -63,8 +63,7 @@ struct PLyDatumToOb
   int16   typlen;
   char    typalign;
   MemoryContext mcxt;     /* context this info is stored in */
-  union           /* conversion-type-specific data */
-  {
+  union {         /* conversion-type-specific data */
     PLyScalarToOb scalar;
     PLyArrayToOb array;
     PLyTupleToOb tuple;
@@ -136,8 +135,7 @@ struct PLyObToDatum
   int16   typlen;
   char    typalign;
   MemoryContext mcxt;     /* context this info is stored in */
-  union           /* conversion-type-specific data */
-  {
+  union {         /* conversion-type-specific data */
     PLyObToScalar scalar;
     PLyObToArray array;
     PLyObToTuple tuple;

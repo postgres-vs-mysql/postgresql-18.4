@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin.h"
 #include "tsearch/ts_type.h"
@@ -23,6 +24,7 @@
 Datum
 gin_cmp_tslexeme(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *a = PG_GETARG_TEXT_PP(0);
   text     *b = PG_GETARG_TEXT_PP(1);
   int     cmp;
@@ -39,6 +41,7 @@ gin_cmp_tslexeme(PG_FUNCTION_ARGS)
 Datum
 gin_cmp_prefix(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *a = PG_GETARG_TEXT_PP(0);
   text     *b = PG_GETARG_TEXT_PP(1);
 
@@ -63,6 +66,7 @@ gin_cmp_prefix(PG_FUNCTION_ARGS)
 Datum
 gin_extract_tsvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  vector = PG_GETARG_TSVECTOR(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   Datum    *entries = NULL;
@@ -92,6 +96,7 @@ gin_extract_tsvector(PG_FUNCTION_ARGS)
 Datum
 gin_extract_tsquery(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
 
@@ -179,6 +184,7 @@ typedef struct {
 static TSTernaryValue
 checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
+  DBUG_TRACE;
   GinChkVal  *gcv = (GinChkVal *) checkval;
   int     j;
   GinTernaryValue result;
@@ -209,6 +215,7 @@ checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
 Datum
 gin_tsquery_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
 
   /* StrategyNumber strategy = PG_GETARG_UINT16(1); */
@@ -252,12 +259,19 @@ gin_tsquery_consistent(PG_FUNCTION_ARGS)
     }
   }
 
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 gin_tsquery_triconsistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
 
   /* StrategyNumber strategy = PG_GETARG_UINT16(1); */
@@ -298,6 +312,8 @@ gin_tsquery_triconsistent(PG_FUNCTION_ARGS)
 Datum
 gin_extract_tsvector_2args(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_NARGS() < 3)     /* should not happen */
     elog(ERROR, "gin_extract_tsvector requires three arguments");
 
@@ -311,6 +327,8 @@ gin_extract_tsvector_2args(PG_FUNCTION_ARGS)
 Datum
 gin_extract_tsquery_5args(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_NARGS() < 7)     /* should not happen */
     elog(ERROR, "gin_extract_tsquery requires seven arguments");
 
@@ -324,6 +342,8 @@ gin_extract_tsquery_5args(PG_FUNCTION_ARGS)
 Datum
 gin_tsquery_consistent_6args(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_NARGS() < 8)     /* should not happen */
     elog(ERROR, "gin_tsquery_consistent requires eight arguments");
 
@@ -337,6 +357,7 @@ gin_tsquery_consistent_6args(PG_FUNCTION_ARGS)
 Datum
 gin_extract_tsquery_oldsig(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return gin_extract_tsquery(fcinfo);
 }
 
@@ -347,5 +368,6 @@ gin_extract_tsquery_oldsig(PG_FUNCTION_ARGS)
 Datum
 gin_tsquery_consistent_oldsig(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return gin_tsquery_consistent(fcinfo);
 }

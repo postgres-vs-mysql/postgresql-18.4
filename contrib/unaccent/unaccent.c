@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_ts_dict.h"
 #include "commands/defrem.h"
@@ -91,6 +92,7 @@ placeChar(TrieChar *node, const unsigned char *str, int lenstr,
 static TrieChar *
 initTrie(const char *filename)
 {
+  DBUG_TRACE;
   TrieChar   *volatile rootTrie = NULL;
   MemoryContext ccxt = CurrentMemoryContext;
   tsearch_readline_state trst;
@@ -303,6 +305,7 @@ static TrieChar *
 findReplaceTo(TrieChar *node, const unsigned char *src, int srclen,
               int *p_matchlen)
 {
+  DBUG_TRACE;
   TrieChar   *result = NULL;
   int     matchlen = 0;
 
@@ -327,6 +330,7 @@ PG_FUNCTION_INFO_V1(unaccent_init);
 Datum
 unaccent_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   TrieChar   *rootTrie = NULL;
   bool    fileloaded = false;
@@ -364,6 +368,7 @@ PG_FUNCTION_INFO_V1(unaccent_lexize);
 Datum
 unaccent_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TrieChar   *rootTrie = (TrieChar *) PG_GETARG_POINTER(0);
   char     *srcchar = (char *) PG_GETARG_POINTER(1);
   int32   len = PG_GETARG_INT32(2);
@@ -422,6 +427,7 @@ PG_FUNCTION_INFO_V1(unaccent_dict);
 Datum
 unaccent_dict(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str;
   int     strArg;
   Oid     dictOid;

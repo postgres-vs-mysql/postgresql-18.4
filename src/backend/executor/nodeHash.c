@@ -22,6 +22,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <limits.h>
@@ -104,6 +105,8 @@ ExecHash(PlanState *pstate)
 Node *
 MultiExecHash(HashState *node)
 {
+  DBUG_TRACE;
+
   /* must provide our own instrumentation support */
   if (node->ps.instrument)
     InstrStartNode(node->ps.instrument);
@@ -137,11 +140,14 @@ MultiExecHash(HashState *node)
 static void
 MultiExecPrivateHash(HashState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerNode;
   HashJoinTable hashtable;
   TupleTableSlot *slot;
   ExprContext *econtext;
 
+  size_t count = 0;
+  bool   tmp_trace_disabled = false;
   /*
    * get state info from node
    */
@@ -161,11 +167,22 @@ MultiExecPrivateHash(HashState *node)
     bool    isnull;
     Datum   hashdatum;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+
     slot = ExecProcNode(outerNode);
 
     if (TupIsNull(slot))
       break;
 
+    count++;
     /* We have to compute the hash value */
     econtext->ecxt_outertuple = slot;
 
@@ -194,6 +211,16 @@ MultiExecPrivateHash(HashState *node)
     }
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+  }
+
+  DBUG_PRINT("info", "total processed:%lu", count);
+
+
   /* resize the hash table if needed (NTUP_PER_BUCKET exceeded) */
   if (hashtable->nbuckets != hashtable->nbuckets_optimal)
     ExecHashIncreaseNumBuckets(hashtable);
@@ -218,6 +245,7 @@ MultiExecPrivateHash(HashState *node)
 static void
 MultiExecParallelHash(HashState *node)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate;
   PlanState  *outerNode;
   HashJoinTable hashtable;
@@ -226,6 +254,8 @@ MultiExecParallelHash(HashState *node)
   uint32    hashvalue;
   Barrier    *build_barrier;
   int     i;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
   /*
    * get state info from node
@@ -287,11 +317,21 @@ MultiExecParallelHash(HashState *node)
       for (;;) {
         bool    isnull;
 
+        if (count >= max_trace_iterations) {
+          if (!trace_disabled) {
+            if (!tmp_trace_disabled) {
+              tmp_trace_disabled = true;
+              set_trace_disabled();
+            }
+          }
+        }
+
         slot = ExecProcNode(outerNode);
 
         if (TupIsNull(slot))
           break;
 
+        count++;
         econtext->ecxt_outertuple = slot;
 
         ResetExprContext(econtext);
@@ -306,10 +346,20 @@ MultiExecParallelHash(HashState *node)
         hashtable->partialTuples++;
       }
 
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
       /*
        * Make sure that any tuples we wrote to disk are visible to
        * others before anyone tries to load them.
        */
+      DBUG_PRINT("info", "make sure that any tuples we wrote to disk are visible to others before anyone tries to load them");
+
       for (i = 0; i < hashtable->nbatch; ++i)
         sts_end_write(hashtable->batches[i].inner_tuples);
 
@@ -326,6 +376,8 @@ MultiExecParallelHash(HashState *node)
        * Wait for everyone to finish building and flushing files and
        * counters.
        */
+      DBUG_PRINT("info", "wait for everyone to finish building and flushing files and counters");
+
       if (BarrierArriveAndWait(build_barrier,
                                WAIT_EVENT_HASH_BUILD_HASH_INNER)) {
         /*
@@ -374,6 +426,7 @@ MultiExecParallelHash(HashState *node)
 HashState *
 ExecInitHash(Hash *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   HashState  *hashstate;
 
   /* check for unsupported flags */
@@ -431,6 +484,7 @@ ExecInitHash(Hash *node, EState *estate, int eflags)
 void
 ExecEndHash(HashState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
 
   /*
@@ -450,6 +504,7 @@ ExecEndHash(HashState *node)
 HashJoinTable
 ExecHashTableCreate(HashState *state)
 {
+  DBUG_TRACE;
   Hash     *node;
   HashJoinTable hashtable;
   Plan     *outerNode;
@@ -663,6 +718,7 @@ ExecChooseHashTableSize(double ntuples, int tupwidth, bool useskew,
                         int *numbatches,
                         int *num_skew_mcvs)
 {
+  DBUG_TRACE;
   int     tupsize;
   double    inner_rel_bytes;
   size_t    hash_table_bytes;
@@ -952,6 +1008,7 @@ ExecChooseHashTableSize(double ntuples, int tupwidth, bool useskew,
 void
 ExecHashTableDestroy(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -1024,6 +1081,7 @@ ExecHashIncreaseBatchSize(HashJoinTable hashtable)
 static void
 ExecHashIncreaseNumBatches(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   int     oldnbatch = hashtable->nbatch;
   int     curbatch = hashtable->curbatch;
   int     nbatch;
@@ -1182,6 +1240,7 @@ ExecHashIncreaseNumBatches(HashJoinTable hashtable)
 static void
 ExecParallelHashIncreaseNumBatches(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
 
   Assert(BarrierPhase(&pstate->build_barrier) == PHJ_BUILD_HASH_INNER);
@@ -1410,6 +1469,7 @@ ExecParallelHashIncreaseNumBatches(HashJoinTable hashtable)
 static void
 ExecParallelHashRepartitionFirst(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   dsa_pointer chunk_shared;
   HashMemoryChunk chunk;
 
@@ -1473,6 +1533,7 @@ ExecParallelHashRepartitionFirst(HashJoinTable hashtable)
 static void
 ExecParallelHashRepartitionRest(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   int     old_nbatch = pstate->old_nbatch;
   SharedTuplestoreAccessor **old_inner_tuples;
@@ -1533,6 +1594,7 @@ ExecParallelHashRepartitionRest(HashJoinTable hashtable)
 static void
 ExecParallelHashMergeCounters(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   int     i;
 
@@ -1564,6 +1626,7 @@ ExecParallelHashMergeCounters(HashJoinTable hashtable)
 static void
 ExecHashIncreaseNumBuckets(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   HashMemoryChunk chunk;
 
   /* do nothing if not an increase (it's called increase for a reason) */
@@ -1625,6 +1688,7 @@ ExecHashIncreaseNumBuckets(HashJoinTable hashtable)
 static void
 ExecParallelHashIncreaseNumBuckets(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   int     i;
   HashMemoryChunk chunk;
@@ -1728,6 +1792,7 @@ ExecHashTableInsert(HashJoinTable hashtable,
                     TupleTableSlot *slot,
                     uint32 hashvalue)
 {
+  DBUG_TRACE;
   bool    shouldFree;
   MinimalTuple tuple = ExecFetchSlotMinimalTuple(slot, &shouldFree);
   int     bucketno;
@@ -1815,6 +1880,7 @@ ExecParallelHashTableInsert(HashJoinTable hashtable,
                             TupleTableSlot *slot,
                             uint32 hashvalue)
 {
+  DBUG_TRACE;
   bool    shouldFree;
   MinimalTuple tuple = ExecFetchSlotMinimalTuple(slot, &shouldFree);
   dsa_pointer shared;
@@ -1879,6 +1945,7 @@ ExecParallelHashTableInsertCurrentBatch(HashJoinTable hashtable,
                                         TupleTableSlot *slot,
                                         uint32 hashvalue)
 {
+  DBUG_TRACE;
   bool    shouldFree;
   MinimalTuple tuple = ExecFetchSlotMinimalTuple(slot, &shouldFree);
   HashJoinTuple hashTuple;
@@ -1962,10 +2029,13 @@ bool
 ExecScanHashBucket(HashJoinState *hjstate,
                    ExprContext *econtext)
 {
+  DBUG_TRACE;
   ExprState  *hjclauses = hjstate->hashclauses;
   HashJoinTable hashtable = hjstate->hj_HashTable;
   HashJoinTuple hashTuple = hjstate->hj_CurTuple;
   uint32    hashvalue = hjstate->hj_CurHashValue;
+
+  DBUG_PRINT("info", "scan a hash bucket for matches to the current outer tuple");
 
   /*
    * hj_CurTuple is the address of the tuple last returned from the current
@@ -1993,6 +2063,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
 
       if (ExecQualAndReset(hjclauses, econtext)) {
         hjstate->hj_CurTuple = hashTuple;
+        DBUG_PRINT("info", "match and return true");
         return true;
       }
     }
@@ -2000,6 +2071,7 @@ ExecScanHashBucket(HashJoinState *hjstate,
     hashTuple = hashTuple->next.unshared;
   }
 
+  DBUG_PRINT("info", "no match");
   /*
    * no match
    */
@@ -2020,6 +2092,7 @@ bool
 ExecParallelScanHashBucket(HashJoinState *hjstate,
                            ExprContext *econtext)
 {
+  DBUG_TRACE;
   ExprState  *hjclauses = hjstate->hashclauses;
   HashJoinTable hashtable = hjstate->hj_HashTable;
   HashJoinTuple hashTuple = hjstate->hj_CurTuple;
@@ -2088,6 +2161,7 @@ ExecPrepHashTableForUnmatched(HashJoinState *hjstate)
 bool
 ExecParallelPrepHashTableForUnmatched(HashJoinState *hjstate)
 {
+  DBUG_TRACE;
   HashJoinTable hashtable = hjstate->hj_HashTable;
   int     curbatch = hashtable->curbatch;
   ParallelHashJoinBatch *batch = hashtable->batches[curbatch].shared;
@@ -2151,6 +2225,7 @@ ExecParallelPrepHashTableForUnmatched(HashJoinState *hjstate)
 bool
 ExecScanHashTableForUnmatched(HashJoinState *hjstate, ExprContext *econtext)
 {
+  DBUG_TRACE;
   HashJoinTable hashtable = hjstate->hj_HashTable;
   HashJoinTuple hashTuple = hjstate->hj_CurTuple;
 
@@ -2219,6 +2294,7 @@ bool
 ExecParallelScanHashTableForUnmatched(HashJoinState *hjstate,
                                       ExprContext *econtext)
 {
+  DBUG_TRACE;
   HashJoinTable hashtable = hjstate->hj_HashTable;
   HashJoinTuple hashTuple = hjstate->hj_CurTuple;
 
@@ -2278,6 +2354,7 @@ ExecParallelScanHashTableForUnmatched(HashJoinState *hjstate,
 void
 ExecHashTableReset(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   int     nbuckets = hashtable->nbuckets;
 
@@ -2306,6 +2383,7 @@ ExecHashTableReset(HashJoinTable hashtable)
 void
 ExecHashTableResetMatchFlags(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   HashJoinTuple tuple;
   int     i;
 
@@ -2330,6 +2408,7 @@ ExecHashTableResetMatchFlags(HashJoinTable hashtable)
 void
 ExecReScanHash(HashState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*
@@ -2353,6 +2432,7 @@ static void
 ExecHashBuildSkewHash(HashState *hashstate, HashJoinTable hashtable,
                       Hash *node, int mcvsToUse)
 {
+  DBUG_TRACE;
   HeapTupleData *statsTuple;
   AttStatsSlot sslot;
 
@@ -2557,6 +2637,7 @@ ExecHashSkewTableInsert(HashJoinTable hashtable,
                         uint32 hashvalue,
                         int bucketNumber)
 {
+  DBUG_TRACE;
   bool    shouldFree;
   MinimalTuple tuple = ExecFetchSlotMinimalTuple(slot, &shouldFree);
   HashJoinTuple hashTuple;
@@ -2602,6 +2683,7 @@ ExecHashSkewTableInsert(HashJoinTable hashtable,
 static void
 ExecHashRemoveNextSkewBucket(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   int     bucketToRemove;
   HashSkewBucket *bucket;
   uint32    hashvalue;
@@ -2712,6 +2794,7 @@ ExecHashRemoveNextSkewBucket(HashJoinTable hashtable)
 void
 ExecHashEstimate(HashState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   size_t    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -2731,6 +2814,7 @@ ExecHashEstimate(HashState *node, ParallelContext *pcxt)
 void
 ExecHashInitializeDSM(HashState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   size_t    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -2756,6 +2840,7 @@ ExecHashInitializeDSM(HashState *node, ParallelContext *pcxt)
 void
 ExecHashInitializeWorker(HashState *node, ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   SharedHashInfo *shared_info;
 
   /* don't need this if not instrumenting */
@@ -2782,6 +2867,8 @@ ExecHashInitializeWorker(HashState *node, ParallelWorkerContext *pwcxt)
 void
 ExecShutdownHash(HashState *node)
 {
+  DBUG_TRACE;
+
   /* Allocate save space if EXPLAIN'ing and we didn't do so already */
   if (node->ps.instrument && !node->hinstrument)
     node->hinstrument = palloc0_object(HashInstrumentation);
@@ -3067,6 +3154,7 @@ ExecParallelHashTupleAlloc(HashJoinTable hashtable, size_t size,
 static void
 ExecParallelHashJoinSetUpBatches(HashJoinTable hashtable, int nbatch)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   ParallelHashJoinBatch *batches;
   MemoryContext oldcxt;
@@ -3148,6 +3236,7 @@ ExecParallelHashJoinSetUpBatches(HashJoinTable hashtable, int nbatch)
 static void
 ExecParallelHashCloseBatchAccessors(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < hashtable->nbatch; ++i) {
@@ -3169,6 +3258,7 @@ ExecParallelHashCloseBatchAccessors(HashJoinTable hashtable)
 static void
 ExecParallelHashEnsureBatchAccessors(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   ParallelHashJoinBatch *batches;
   MemoryContext oldcxt;
@@ -3232,6 +3322,7 @@ ExecParallelHashEnsureBatchAccessors(HashJoinTable hashtable)
 void
 ExecParallelHashTableAlloc(HashJoinTable hashtable, int batchno)
 {
+  DBUG_TRACE;
   ParallelHashJoinBatch *batch = hashtable->batches[batchno].shared;
   dsa_pointer_atomic *buckets;
   int     nbuckets = hashtable->parallel_state->nbuckets;
@@ -3253,6 +3344,8 @@ ExecParallelHashTableAlloc(HashJoinTable hashtable, int batchno)
 void
 ExecHashTableDetachBatch(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
+
   if (hashtable->parallel_state != NULL &&
       hashtable->curbatch >= 0) {
     int     curbatch = hashtable->curbatch;
@@ -3342,6 +3435,7 @@ ExecHashTableDetachBatch(HashJoinTable hashtable)
 void
 ExecHashTableDetach(HashJoinTable hashtable)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
 
   /*
@@ -3388,6 +3482,7 @@ ExecHashTableDetach(HashJoinTable hashtable)
 static inline HashJoinTuple
 ExecParallelHashFirstTuple(HashJoinTable hashtable, int bucketno)
 {
+  DBUG_TRACE;
   HashJoinTuple tuple;
   dsa_pointer p;
 
@@ -3404,6 +3499,7 @@ ExecParallelHashFirstTuple(HashJoinTable hashtable, int bucketno)
 static inline HashJoinTuple
 ExecParallelHashNextTuple(HashJoinTable hashtable, HashJoinTuple tuple)
 {
+  DBUG_TRACE;
   HashJoinTuple next;
 
   Assert(hashtable->parallel_state);
@@ -3420,6 +3516,8 @@ ExecParallelHashPushTuple(dsa_pointer_atomic *head,
                           HashJoinTuple tuple,
                           dsa_pointer tuple_shared)
 {
+  DBUG_TRACE;
+
   for (;;) {
     tuple->next.shared = dsa_pointer_atomic_read(head);
 
@@ -3436,6 +3534,7 @@ ExecParallelHashPushTuple(dsa_pointer_atomic *head,
 void
 ExecParallelHashTableSetCurrentBatch(HashJoinTable hashtable, int batchno)
 {
+  DBUG_TRACE;
   Assert(hashtable->batches[batchno].shared->buckets != InvalidDsaPointer);
 
   hashtable->curbatch = batchno;
@@ -3457,6 +3556,7 @@ ExecParallelHashTableSetCurrentBatch(HashJoinTable hashtable, int batchno)
 static HashMemoryChunk
 ExecParallelHashPopChunkQueue(HashJoinTable hashtable, dsa_pointer *shared)
 {
+  DBUG_TRACE;
   ParallelHashJoinState *pstate = hashtable->parallel_state;
   HashMemoryChunk chunk;
 

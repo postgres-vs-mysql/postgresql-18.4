@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/relscan.h"
@@ -24,6 +25,7 @@
 IndexScanDesc
 ginbeginscan(Relation rel, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   GinScanOpaque so;
 
@@ -59,6 +61,7 @@ ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
                  Datum queryKey, GinNullCategory queryCategory,
                  bool isPartialMatch, Pointer extra_data)
 {
+  DBUG_TRACE;
   GinState   *ginstate = &so->ginstate;
   GinScanEntry scanEntry;
   uint32    i;
@@ -140,6 +143,7 @@ static void
 ginScanKeyAddHiddenEntry(GinScanOpaque so, GinScanKey key,
                          GinNullCategory queryCategory)
 {
+  DBUG_TRACE;
   int     i = key->nentries++;
 
   /* strategy is of no interest because this is not a partial-match item */
@@ -159,6 +163,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
                Datum *queryValues, GinNullCategory *queryCategories,
                bool *partial_matches, Pointer *extra_data)
 {
+  DBUG_TRACE;
   GinScanKey  key = &(so->keys[so->nkeys++]);
   GinState   *ginstate = &so->ginstate;
   uint32    i;
@@ -266,6 +271,7 @@ ginFreeScanKeys(GinScanOpaque so)
 void
 ginNewScanKey(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   ScanKey   scankey = scan->keyData;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
   int     i;
@@ -481,6 +487,7 @@ void
 ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
           ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
 
   ginFreeScanKeys(so);
@@ -493,6 +500,7 @@ ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 ginendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   GinScanOpaque so = (GinScanOpaque) scan->opaque;
 
   ginFreeScanKeys(so);

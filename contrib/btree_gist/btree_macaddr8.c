@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_macaddr8.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "btree_gist.h"
 #include "btree_utils_num.h"
@@ -105,6 +106,7 @@ mac8_2_uint64(macaddr8 *m)
 Datum
 gbt_macad8_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
@@ -113,6 +115,7 @@ gbt_macad8_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_macad8_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
@@ -121,6 +124,7 @@ gbt_macad8_fetch(PG_FUNCTION_ARGS)
 Datum
 gbt_macad8_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   macaddr8   *query = (macaddr8 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -129,6 +133,7 @@ gbt_macad8_consistent(PG_FUNCTION_ARGS)
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
   mac8KEY    *kkk = (mac8KEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
+  bool result;
 
   /* All cases served by this function are exact */
   *recheck = false;
@@ -136,13 +141,20 @@ gbt_macad8_consistent(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, query, &strategy,
+  result = (gbt_num_consistent(&key, query, &strategy,
                                     GIST_LEAF(entry), &tinfo, fcinfo->flinfo));
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 gbt_macad8_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   void     *out = palloc0(sizeof(mac8KEY));
 
@@ -153,6 +165,7 @@ gbt_macad8_union(PG_FUNCTION_ARGS)
 Datum
 gbt_macad8_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   mac8KEY    *origentry = (mac8KEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   mac8KEY    *newentry = (mac8KEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -172,6 +185,7 @@ gbt_macad8_penalty(PG_FUNCTION_ARGS)
 Datum
 gbt_macad8_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(gbt_num_picksplit((GistEntryVector *) PG_GETARG_POINTER(0),
                                       (GIST_SPLITVEC *) PG_GETARG_POINTER(1),
                                       &tinfo, fcinfo->flinfo));
@@ -180,11 +194,19 @@ gbt_macad8_picksplit(PG_FUNCTION_ARGS)
 Datum
 gbt_macad8_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   mac8KEY    *b1 = (mac8KEY *) PG_GETARG_POINTER(0);
   mac8KEY    *b2 = (mac8KEY *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_num_same((void *) b1, (void *) b2, &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 

@@ -57,6 +57,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <unistd.h>
@@ -196,42 +197,54 @@ ReceiveCopyBinaryHeader(CopyFromState cstate)
 
   /* Signature */
   if (CopyReadBinaryData(cstate, readSig, 11) != 11 ||
-      memcmp(readSig, BinarySignature, 11) != 0)
+      memcmp(readSig, BinarySignature, 11) != 0) {
+    DBUG_INSTANT_PRINT("info", "COPY file signature not recognized");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("COPY file signature not recognized")));
+  }
 
   /* Flags field */
-  if (!CopyGetInt32(cstate, &tmp))
+  if (!CopyGetInt32(cstate, &tmp)) {
+    DBUG_INSTANT_PRINT("info", "invalid COPY file header (missing flags)");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("invalid COPY file header (missing flags)")));
+  }
 
-  if ((tmp & (1 << 16)) != 0)
+  if ((tmp & (1 << 16)) != 0) {
+    DBUG_INSTANT_PRINT("info", "invalid COPY file header (WITH OIDS)");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("invalid COPY file header (WITH OIDS)")));
+  }
 
   tmp &= ~(1 << 16);
 
-  if ((tmp >> 16) != 0)
+  if ((tmp >> 16) != 0) {
+    DBUG_INSTANT_PRINT("info", "unrecognized critical flags in COPY file header");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("unrecognized critical flags in COPY file header")));
+  }
 
   /* Header extension length */
   if (!CopyGetInt32(cstate, &tmp) ||
-      tmp < 0)
+      tmp < 0) {
+    DBUG_INSTANT_PRINT("info", "invalid COPY file header (missing length)");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("invalid COPY file header (missing length)")));
+  }
 
   /* Skip extension header, if present */
   while (tmp-- > 0) {
-    if (CopyReadBinaryData(cstate, readSig, 1) != 1)
+    if (CopyReadBinaryData(cstate, readSig, 1) != 1) {
+      DBUG_INSTANT_PRINT("info", "invalid COPY file header (wrong length)");
       ereport(ERROR,
               (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                errmsg("invalid COPY file header (wrong length)")));
+    }
   }
 }
 
@@ -257,10 +270,12 @@ CopyGetData(CopyFromState cstate, void *databuf, int minread, int maxread)
     case COPY_FILE:
       bytesread = fread(databuf, 1, maxread, cstate->copy_file);
 
-      if (ferror(cstate->copy_file))
+      if (ferror(cstate->copy_file)) {
+        DBUG_INSTANT_PRINT("info", "could not read from COPY file");
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not read from COPY file: %m")));
+      }
 
       if (bytesread == 0)
         cstate->raw_reached_eof = true;
@@ -281,10 +296,12 @@ readmessage:
           pq_startmsgread();
           mtype = pq_getbyte();
 
-          if (mtype == EOF)
+          if (mtype == EOF) {
+            DBUG_INSTANT_PRINT("info", "unexpected EOF on client connection with an open transaction");
             ereport(ERROR,
                     (errcode(ERRCODE_CONNECTION_FAILURE),
                      errmsg("unexpected EOF on client connection with an open transaction")));
+          }
 
           /* Validate message type and set packet size limit */
           switch (mtype) {
@@ -300,6 +317,7 @@ readmessage:
               break;
 
             default:
+              DBUG_INSTANT_PRINT("info", "unexpected message type 0x%02X during COPY from stdin", mtype);
               ereport(ERROR,
                       (errcode(ERRCODE_PROTOCOL_VIOLATION),
                        errmsg("unexpected message type 0x%02X during COPY from stdin",
@@ -309,10 +327,12 @@ readmessage:
           }
 
           /* Now collect the message body */
-          if (pq_getmessage(cstate->fe_msgbuf, maxmsglen))
+          if (pq_getmessage(cstate->fe_msgbuf, maxmsglen)) {
+            DBUG_INSTANT_PRINT("info", "unexpected EOF on client connection with an open transaction");
             ereport(ERROR,
                     (errcode(ERRCODE_CONNECTION_FAILURE),
                      errmsg("unexpected EOF on client connection with an open transaction")));
+          }
 
           RESUME_CANCEL_INTERRUPTS();
 
@@ -327,6 +347,7 @@ readmessage:
               return bytesread;
 
             case PqMsg_CopyFail:
+              DBUG_INSTANT_PRINT("info", "COPY from stdin failed: %s", pq_getmsgstring(cstate->fe_msgbuf));
               ereport(ERROR,
                       (errcode(ERRCODE_QUERY_CANCELED),
                        errmsg("COPY from stdin failed: %s",
@@ -421,6 +442,8 @@ CopyGetInt16(CopyFromState cstate, int16 *val)
 static void
 CopyConvertBuf(CopyFromState cstate)
 {
+  DBUG_TRACE;
+
   /*
    * If the file and server encoding are the same, no encoding conversion is
    * required.  However, we still need to verify that the input is valid for
@@ -557,6 +580,7 @@ CopyConvertBuf(CopyFromState cstate)
 static void
 CopyConversionError(CopyFromState cstate)
 {
+  DBUG_TRACE;
   Assert(cstate->raw_buf_len > 0);
   Assert(cstate->input_reached_error);
 
@@ -671,6 +695,7 @@ CopyLoadRawBuf(CopyFromState cstate)
 static void
 CopyLoadInputBuf(CopyFromState cstate)
 {
+  DBUG_TRACE;
   int     nbytes = INPUT_BUF_BYTES(cstate);
 
   /*
@@ -786,6 +811,7 @@ NextCopyFromRawFields(CopyFromState cstate, char ***fields, int *nfields)
 static pg_attribute_always_inline bool
 NextCopyFromRawFieldsInternal(CopyFromState cstate, char ***fields, int *nfields, bool is_csv)
 {
+  DBUG_TRACE;
   int     fldct;
   bool    done;
 
@@ -810,11 +836,13 @@ NextCopyFromRawFieldsInternal(CopyFromState cstate, char ***fields, int *nfields
       else
         fldct = CopyReadAttributesText(cstate);
 
-      if (fldct != list_length(cstate->attnumlist))
+      if (fldct != list_length(cstate->attnumlist)) {
+        DBUG_INSTANT_PRINT("info", "wrong number of fields in header line: got %d, expected %d", fldct, list_length(cstate->attnumlist));
         ereport(ERROR,
                 (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                  errmsg("wrong number of fields in header line: got %d, expected %d",
                         fldct, list_length(cstate->attnumlist))));
+      }
 
       fldnum = 0;
 
@@ -827,13 +855,18 @@ NextCopyFromRawFieldsInternal(CopyFromState cstate, char ***fields, int *nfields
 
         colName = cstate->raw_fields[fldnum++];
 
-        if (colName == NULL)
+        if (colName == NULL) {
+          DBUG_INSTANT_PRINT("info", "column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"",
+                             fldnum, cstate->opts.null_print, NameStr(attr->attname));
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"",
                           fldnum, cstate->opts.null_print, NameStr(attr->attname))));
+        }
 
         if (namestrcmp(&attr->attname, colName) != 0) {
+          DBUG_INSTANT_PRINT("info", "column name mismatch in header line field %d: got \"%s\", expected \"%s\"",
+                             fldnum, colName, NameStr(attr->attname));
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("column name mismatch in header line field %d: got \"%s\", expected \"%s\"",
@@ -885,6 +918,7 @@ bool
 NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
              Datum *values, bool *nulls)
 {
+  DBUG_TRACE;
   TupleDesc tupDesc;
   AttrNumber  num_phys_attrs,
               num_defaults = cstate->num_defaults;
@@ -969,10 +1003,12 @@ CopyFromTextLikeOneRow(CopyFromState cstate, ExprContext *econtext,
     return false;
 
   /* check for overflowing fields */
-  if (attr_count > 0 && fldct > attr_count)
+  if (attr_count > 0 && fldct > attr_count) {
+    DBUG_INSTANT_PRINT("info", "extra data after last expected column");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("extra data after last expected column")));
+  }
 
   fieldno = 0;
 
@@ -982,11 +1018,13 @@ CopyFromTextLikeOneRow(CopyFromState cstate, ExprContext *econtext,
     int     m = attnum - 1;
     Form_pg_attribute att = TupleDescAttr(tupDesc, m);
 
-    if (fieldno >= fldct)
+    if (fieldno >= fldct) {
+      DBUG_INSTANT_PRINT("info", "missing data for column \"%s\"", NameStr(att->attname));
       ereport(ERROR,
               (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                errmsg("missing data for column \"%s\"",
                       NameStr(att->attname))));
+    }
 
     string = field_strings[fieldno++];
 
@@ -1117,19 +1155,23 @@ CopyFromBinaryOneRow(CopyFromState cstate, ExprContext *econtext, Datum *values,
      */
     char    dummy;
 
-    if (CopyReadBinaryData(cstate, &dummy, 1) > 0)
+    if (CopyReadBinaryData(cstate, &dummy, 1) > 0) {
+      DBUG_INSTANT_PRINT("info", "received copy data after EOF marker");
       ereport(ERROR,
               (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                errmsg("received copy data after EOF marker")));
+    }
 
     return false;
   }
 
-  if (fld_count != attr_count)
+  if (fld_count != attr_count) {
+    DBUG_INSTANT_PRINT("info", "row field count is %d, expected %d", (int) fld_count, attr_count);
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("row field count is %d, expected %d",
                     (int) fld_count, attr_count)));
+  }
 
   foreach(cur, cstate->attnumlist) {
     int     attnum = lfirst_int(cur);
@@ -1158,6 +1200,7 @@ CopyFromBinaryOneRow(CopyFromState cstate, ExprContext *econtext, Datum *values,
 static bool
 CopyReadLine(CopyFromState cstate, bool is_csv)
 {
+  DBUG_TRACE;
   bool    result;
 
   resetStringInfo(&cstate->line_buf);
@@ -1232,6 +1275,7 @@ CopyReadLine(CopyFromState cstate, bool is_csv)
 static bool
 CopyReadLineText(CopyFromState cstate, bool is_csv)
 {
+  DBUG_TRACE;
   char     *copy_input_buf;
   int     input_buf_ptr;
   int     copy_buf_len;
@@ -1379,7 +1423,13 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
           cstate->eol_type = EOL_CRNL;  /* in case not set yet */
         } else {
           /* found \r, but no \n */
-          if (cstate->eol_type == EOL_CRNL)
+          if (cstate->eol_type == EOL_CRNL) {
+            if (!is_csv) {
+              DBUG_INSTANT_PRINT("info", "literal carriage return found in data");
+            } else {
+              DBUG_INSTANT_PRINT("info", "unquoted carriage return found in data");
+            }
+
             ereport(ERROR,
                     (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                      !is_csv ?
@@ -1388,6 +1438,7 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
                      !is_csv ?
                      errhint("Use \"\\r\" to represent carriage return.") :
                      errhint("Use quoted CSV field to represent carriage return.")));
+          }
 
           /*
            * if we got here, it is the first line and we didn't find
@@ -1395,7 +1446,8 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
            */
           cstate->eol_type = EOL_CR;
         }
-      } else if (cstate->eol_type == EOL_NL)
+      } else if (cstate->eol_type == EOL_NL) {
+        DBUG_INSTANT_PRINT("info", "literal carriage return found in data");
         ereport(ERROR,
                 (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                  !is_csv ?
@@ -1404,6 +1456,7 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
                  !is_csv ?
                  errhint("Use \"\\r\" to represent carriage return.") :
                  errhint("Use quoted CSV field to represent carriage return.")));
+      }
 
       /* If reach here, we have found the line terminator */
       break;
@@ -1411,7 +1464,13 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
 
     /* Process \n */
     if (c == '\n' && (!is_csv || !in_quote)) {
-      if (cstate->eol_type == EOL_CR || cstate->eol_type == EOL_CRNL)
+      if (cstate->eol_type == EOL_CR || cstate->eol_type == EOL_CRNL) {
+        if (!is_csv) {
+          DBUG_INSTANT_PRINT("info", "teral newline found in data");
+        } else {
+          DBUG_INSTANT_PRINT("info", "unquoted newline found in data");
+        }
+
         ereport(ERROR,
                 (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                  !is_csv ?
@@ -1420,6 +1479,7 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
                  !is_csv ?
                  errhint("Use \"\\n\" to represent newline.") :
                  errhint("Use quoted CSV field to represent newline.")));
+      }
 
       cstate->eol_type = EOL_NL;  /* in case not set yet */
       /* If reach here, we have found the line terminator */
@@ -1453,14 +1513,17 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
           /* if hit_eof, c2 will become '\0' */
           c2 = copy_input_buf[input_buf_ptr++];
 
-          if (c2 == '\n')
+          if (c2 == '\n') {
+            DBUG_INSTANT_PRINT("info", "end-of-copy marker does not match previous newline style");
             ereport(ERROR,
                     (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                      errmsg("end-of-copy marker does not match previous newline style")));
-          else if (c2 != '\r')
+          } else if (c2 != '\r') {
+            DBUG_INSTANT_PRINT("info", "end-of-copy marker is not alone on its line");
             ereport(ERROR,
                     (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                      errmsg("end-of-copy marker is not alone on its line")));
+          }
         }
 
         /* Get the next character */
@@ -1468,26 +1531,32 @@ CopyReadLineText(CopyFromState cstate, bool is_csv)
         /* if hit_eof, c2 will become '\0' */
         c2 = copy_input_buf[input_buf_ptr++];
 
-        if (c2 != '\r' && c2 != '\n')
+        if (c2 != '\r' && c2 != '\n') {
+          DBUG_INSTANT_PRINT("info", "end-of-copy marker is not alone on its line");
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("end-of-copy marker is not alone on its line")));
+        }
 
         if ((cstate->eol_type == EOL_NL && c2 != '\n') ||
             (cstate->eol_type == EOL_CRNL && c2 != '\n') ||
-            (cstate->eol_type == EOL_CR && c2 != '\r'))
+            (cstate->eol_type == EOL_CR && c2 != '\r')) {
+          DBUG_INSTANT_PRINT("info", "end-of-copy marker does not match previous newline style");
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("end-of-copy marker does not match previous newline style")));
+        }
 
         /*
          * If there is any data on this line before the \., complain.
          */
         if (cstate->line_buf.len > 0 ||
-            prev_raw_ptr > cstate->input_buf_index)
+            prev_raw_ptr > cstate->input_buf_index) {
+          DBUG_INSTANT_PRINT("info", "end-of-copy marker is not alone on its line");
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("end-of-copy marker is not alone on its line")));
+        }
 
         /*
          * Discard the \. and newline, then report EOF.
@@ -1551,6 +1620,7 @@ GetDecimalFromHex(char hex)
 static int
 CopyReadAttributesText(CopyFromState cstate)
 {
+  DBUG_TRACE;
   char    delimc = cstate->opts.delim[0];
   int     fieldno;
   char     *output_ptr;
@@ -1562,10 +1632,12 @@ CopyReadAttributesText(CopyFromState cstate)
    * line is empty, and return.
    */
   if (cstate->max_fields <= 0) {
-    if (cstate->line_buf.len != 0)
+    if (cstate->line_buf.len != 0) {
+      DBUG_INSTANT_PRINT("info", "extra data after last expected column");
       ereport(ERROR,
               (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                errmsg("extra data after last expected column")));
+    }
 
     return 0;
   }
@@ -1765,6 +1837,7 @@ CopyReadAttributesText(CopyFromState cstate)
         TupleDesc tupDesc = RelationGetDescr(cstate->rel);
         Form_pg_attribute att = TupleDescAttr(tupDesc, m);
 
+        DBUG_INSTANT_PRINT("info", "unexpected default marker in COPY data");
         ereport(ERROR,
                 (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                  errmsg("unexpected default marker in COPY data"),
@@ -1812,6 +1885,7 @@ CopyReadAttributesText(CopyFromState cstate)
 static int
 CopyReadAttributesCSV(CopyFromState cstate)
 {
+  DBUG_TRACE;
   char    delimc = cstate->opts.delim[0];
   char    quotec = cstate->opts.quote[0];
   char    escapec = cstate->opts.escape[0];
@@ -1825,10 +1899,12 @@ CopyReadAttributesCSV(CopyFromState cstate)
    * line is empty, and return.
    */
   if (cstate->max_fields <= 0) {
-    if (cstate->line_buf.len != 0)
+    if (cstate->line_buf.len != 0) {
+      DBUG_INSTANT_PRINT("info", "extra data after last expected column");
       ereport(ERROR,
               (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                errmsg("extra data after last expected column")));
+    }
 
     return 0;
   }
@@ -1911,10 +1987,12 @@ CopyReadAttributesCSV(CopyFromState cstate)
       for (;;) {
         end_ptr = cur_ptr;
 
-        if (cur_ptr >= line_end_ptr)
+        if (cur_ptr >= line_end_ptr) {
+          DBUG_INSTANT_PRINT("info", "unterminated CSV quoted field");
           ereport(ERROR,
                   (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                    errmsg("unterminated CSV quoted field")));
+        }
 
         c = *cur_ptr++;
 
@@ -1974,6 +2052,7 @@ endfield:
         TupleDesc tupDesc = RelationGetDescr(cstate->rel);
         Form_pg_attribute att = TupleDescAttr(tupDesc, m);
 
+        DBUG_INSTANT_PRINT("info", "unexpected default marker in COPY data");
         ereport(ERROR,
                 (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
                  errmsg("unexpected default marker in COPY data"),
@@ -2006,23 +2085,28 @@ CopyReadBinaryAttribute(CopyFromState cstate, FmgrInfo *flinfo,
                         Oid typioparam, int32 typmod,
                         bool *isnull)
 {
+  DBUG_TRACE;
   int32   fld_size;
   Datum   result;
 
-  if (!CopyGetInt32(cstate, &fld_size))
+  if (!CopyGetInt32(cstate, &fld_size)) {
+    DBUG_INSTANT_PRINT("info", "unexpected EOF in COPY data");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("unexpected EOF in COPY data")));
+  }
 
   if (fld_size == -1) {
     *isnull = true;
     return ReceiveFunctionCall(flinfo, NULL, typioparam, typmod);
   }
 
-  if (fld_size < 0)
+  if (fld_size < 0) {
+    DBUG_INSTANT_PRINT("info", "invalid field size");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("invalid field size")));
+  }
 
   /* reset attribute_buf to empty, and load raw data in it */
   resetStringInfo(&cstate->attribute_buf);
@@ -2030,10 +2114,12 @@ CopyReadBinaryAttribute(CopyFromState cstate, FmgrInfo *flinfo,
   enlargeStringInfo(&cstate->attribute_buf, fld_size);
 
   if (CopyReadBinaryData(cstate, cstate->attribute_buf.data,
-                         fld_size) != fld_size)
+                         fld_size) != fld_size) {
+    DBUG_INSTANT_PRINT("info", "unexpected EOF in COPY data");
     ereport(ERROR,
             (errcode(ERRCODE_BAD_COPY_FILE_FORMAT),
              errmsg("unexpected EOF in COPY data")));
+  }
 
   cstate->attribute_buf.len = fld_size;
   cstate->attribute_buf.data[fld_size] = '\0';
@@ -2043,10 +2129,12 @@ CopyReadBinaryAttribute(CopyFromState cstate, FmgrInfo *flinfo,
                                typioparam, typmod);
 
   /* Trouble if it didn't eat the whole buffer */
-  if (cstate->attribute_buf.cursor != cstate->attribute_buf.len)
+  if (cstate->attribute_buf.cursor != cstate->attribute_buf.len) {
+    DBUG_INSTANT_PRINT("info", "incorrect binary data format");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
              errmsg("incorrect binary data format")));
+  }
 
   *isnull = false;
   return result;

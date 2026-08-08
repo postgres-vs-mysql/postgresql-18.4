@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist.h"
 #include "access/stratnum.h"
@@ -26,6 +27,7 @@
 Datum
 gtsquery_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval = entry;
 
@@ -51,6 +53,7 @@ gtsquery_compress(PG_FUNCTION_ARGS)
 Datum
 gtsquery_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -85,12 +88,19 @@ gtsquery_consistent(PG_FUNCTION_ARGS)
       retval = false;
   }
 
+  if (retval) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(retval);
 }
 
 Datum
 gtsquery_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *size = (int *) PG_GETARG_POINTER(1);
   TSQuerySign sign;
@@ -109,11 +119,18 @@ gtsquery_union(PG_FUNCTION_ARGS)
 Datum
 gtsquery_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuerySign a = PG_GETARG_TSQUERYSIGN(0);
   TSQuerySign b = PG_GETARG_TSQUERYSIGN(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = (a == b);
+
+  if (*result) {
+    DBUG_PRINT("info", "result:true");
+  } else {
+    DBUG_PRINT("info", "result:false");
+  }
 
   PG_RETURN_POINTER(result);
 }
@@ -141,11 +158,13 @@ hemdist(TSQuerySign a, TSQuerySign b)
 Datum
 gtsquery_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuerySign origval = DatumGetTSQuerySign(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   TSQuerySign newval = DatumGetTSQuerySign(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
 
   *penalty = hemdist(origval, newval);
+  DBUG_PRINT("info", "penalty:%g", *penalty);
 
   PG_RETURN_POINTER(penalty);
 }
@@ -168,6 +187,7 @@ comparecost(const void *a, const void *b)
 Datum
 gtsquery_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   OffsetNumber maxoff = entryvec->n - 2;
@@ -191,6 +211,8 @@ gtsquery_picksplit(PG_FUNCTION_ARGS)
   left = v->spl_left = (OffsetNumber *) palloc(nbytes);
   right = v->spl_right = (OffsetNumber *) palloc(nbytes);
   v->spl_nleft = v->spl_nright = 0;
+
+  DBUG_PRINT("info", "first offset:%u, max offset:%u", FirstOffsetNumber, maxoff);
 
   for (k = FirstOffsetNumber; k < maxoff; k = OffsetNumberNext(k))
     for (j = OffsetNumberNext(k); j <= maxoff; j = OffsetNumberNext(j)) {
@@ -268,5 +290,6 @@ gtsquery_picksplit(PG_FUNCTION_ARGS)
 Datum
 gtsquery_consistent_oldsig(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return gtsquery_consistent(fcinfo);
 }

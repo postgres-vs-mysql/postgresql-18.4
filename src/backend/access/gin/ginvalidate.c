@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/gin_private.h"
@@ -30,6 +31,7 @@
 bool
 ginvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;
@@ -276,6 +278,7 @@ ginadjustmembers(Oid opfamilyoid,
                  List *operators,
                  List *functions)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*

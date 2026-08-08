@@ -25,6 +25,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/hashfn.h"
 #include "utils/builtins.h"
@@ -47,42 +48,49 @@
 Datum
 hashchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32((int32) PG_GETARG_CHAR(0));
 }
 
 Datum
 hashcharextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32_extended((int32) PG_GETARG_CHAR(0), PG_GETARG_INT64(1));
 }
 
 Datum
 hashint2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32((int32) PG_GETARG_INT16(0));
 }
 
 Datum
 hashint2extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32_extended((int32) PG_GETARG_INT16(0), PG_GETARG_INT64(1));
 }
 
 Datum
 hashint4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32(PG_GETARG_INT32(0));
 }
 
 Datum
 hashint4extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32_extended(PG_GETARG_INT32(0), PG_GETARG_INT64(1));
 }
 
 Datum
 hashint8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * The idea here is to produce a hash value compatible with the values
    * produced by hashint4 and hashint2 for logically equal inputs; this is
@@ -103,6 +111,7 @@ hashint8(PG_FUNCTION_ARGS)
 Datum
 hashint8extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Same approach as hashint8 */
   int64   val = PG_GETARG_INT64(0);
   uint32    lohalf = (uint32) val;
@@ -116,30 +125,35 @@ hashint8extended(PG_FUNCTION_ARGS)
 Datum
 hashoid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32((uint32) PG_GETARG_OID(0));
 }
 
 Datum
 hashoidextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32_extended((uint32) PG_GETARG_OID(0), PG_GETARG_INT64(1));
 }
 
 Datum
 hashenum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32((uint32) PG_GETARG_OID(0));
 }
 
 Datum
 hashenumextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hash_uint32_extended((uint32) PG_GETARG_OID(0), PG_GETARG_INT64(1));
 }
 
 Datum
 hashfloat4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    key = PG_GETARG_FLOAT4(0);
   float8    key8;
 
@@ -176,6 +190,7 @@ hashfloat4(PG_FUNCTION_ARGS)
 Datum
 hashfloat4extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    key = PG_GETARG_FLOAT4(0);
   uint64    seed = PG_GETARG_INT64(1);
   float8    key8;
@@ -195,6 +210,7 @@ hashfloat4extended(PG_FUNCTION_ARGS)
 Datum
 hashfloat8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    key = PG_GETARG_FLOAT8(0);
 
   /*
@@ -219,6 +235,7 @@ hashfloat8(PG_FUNCTION_ARGS)
 Datum
 hashfloat8extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    key = PG_GETARG_FLOAT8(0);
   uint64    seed = PG_GETARG_INT64(1);
 
@@ -235,6 +252,7 @@ hashfloat8extended(PG_FUNCTION_ARGS)
 Datum
 hashoidvector(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   oidvector  *key = (oidvector *) PG_GETARG_POINTER(0);
 
   check_valid_oidvector(key);
@@ -244,6 +262,7 @@ hashoidvector(PG_FUNCTION_ARGS)
 Datum
 hashoidvectorextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   oidvector  *key = (oidvector *) PG_GETARG_POINTER(0);
 
   check_valid_oidvector(key);
@@ -255,6 +274,7 @@ hashoidvectorextended(PG_FUNCTION_ARGS)
 Datum
 hashname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *key = NameStr(*PG_GETARG_NAME(0));
 
   return hash_any((unsigned char *) key, strlen(key));
@@ -263,6 +283,7 @@ hashname(PG_FUNCTION_ARGS)
 Datum
 hashnameextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *key = NameStr(*PG_GETARG_NAME(0));
 
   return hash_any_extended((unsigned char *) key, strlen(key),
@@ -272,6 +293,7 @@ hashnameextended(PG_FUNCTION_ARGS)
 Datum
 hashtext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *key = PG_GETARG_TEXT_PP(0);
   Oid     collid = PG_GET_COLLATION();
   pg_locale_t mylocale;
@@ -324,6 +346,7 @@ hashtext(PG_FUNCTION_ARGS)
 Datum
 hashtextextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *key = PG_GETARG_TEXT_PP(0);
   Oid     collid = PG_GET_COLLATION();
   pg_locale_t mylocale;
@@ -385,6 +408,7 @@ hashtextextended(PG_FUNCTION_ARGS)
 Datum
 hashvarlena(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   struct varlena *key = PG_GETARG_VARLENA_PP(0);
   Datum   result;
 
@@ -400,6 +424,7 @@ hashvarlena(PG_FUNCTION_ARGS)
 Datum
 hashvarlenaextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   struct varlena *key = PG_GETARG_VARLENA_PP(0);
   Datum   result;
 

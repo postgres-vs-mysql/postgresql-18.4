@@ -368,8 +368,7 @@ typedef struct A_Expr
  * Value nodes are inline for performance.  You can treat 'val' as a node,
  * as in IsA(&val, Integer).  'val' is not valid if isnull is true.
  */
-union ValUnion
-{
+union ValUnion {
   Node    node;
   Integer   ival;
   Float   fval;
@@ -1100,7 +1099,7 @@ typedef struct RangeTblEntry
    * this RTE in the containing struct's list of same; 0 if permissions need
    * not be checked for this RTE.
    *
-   * As a special case, relid, relkind, rellockmode, and perminfoindex can
+   * As a special case, relid, eelkind, rellockmode, and perminfoindex can
    * also be set (nonzero) in an RTE_SUBQUERY RTE.  This occurs when we
    * convert an RTE_RELATION RTE naming a view into an RTE_SUBQUERY
    * containing the view's query.  We still need to perform run-time locking
@@ -2479,8 +2478,8 @@ typedef enum AlterTableType
   AT_ReAddStatistics,     /* internal to commands/tablecmds.c */
 } AlterTableType;
 
-typedef struct AlterTableCmd  /* one subcommand of an ALTER TABLE */
-{
+typedef struct AlterTableCmd
+{ /* one subcommand of an ALTER TABLE */
   NodeTag   type;
   AlterTableType subtype;   /* Type of table alteration to apply */
   char     *name;     /* column, constraint, or trigger to act on,

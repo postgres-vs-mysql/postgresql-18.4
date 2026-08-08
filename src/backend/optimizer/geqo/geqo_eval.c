@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <float.h>
 #include <limits.h>
@@ -43,6 +44,89 @@ static List *merge_clump(PlannerInfo *root, List *clumps, Clump *new_clump,
 static bool desirable_join(PlannerInfo *root,
                            RelOptInfo *outer_rel, RelOptInfo *inner_rel);
 
+static void
+trace_tour(Gene *tour, int num_gene)
+{
+  char output[1024];
+  char *p;
+  int         i;
+
+  p = output;
+  {
+    /* write gene sequence */
+    for (i = 0; i < (num_gene - 1); i++) {
+      p += sprintf(p, "%d-", tour[i]);
+    }
+
+    p += sprintf(p, "%d ", tour[i]);
+
+    *p = '\0';
+    DBUG_PRINT("info", "tour:%s", output);
+  }
+}
+
+
+static char *
+append_int(char *p, int val)
+{
+  int n = sprintf(p, "%d", val);
+  return p + n;
+}
+
+static char *
+join_order_to_str(Path *path, char *p, int *is_ok)
+{
+  JoinPath *jpath;
+  int relid;
+
+  if (!path)
+    return p;
+
+  if (path->pathtype == T_NestLoop ||
+      path->pathtype == T_MergeJoin ||
+      path->pathtype == T_HashJoin) {
+    jpath = (JoinPath *) path;
+    p = join_order_to_str(jpath->outerjoinpath, p, is_ok);
+    *p++ = '-';
+    p = join_order_to_str(jpath->innerjoinpath, p, is_ok);
+  } else {
+    if (path->parent->reloptkind == RELOPT_BASEREL) {
+      relid = path->parent->relid;
+      p = append_int(p, relid);
+    } else {
+
+      if (IsA(path, GatherPath)) {
+        path = ((GatherPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, GatherMergePath)) {
+        path = ((GatherMergePath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else if (IsA(path, MaterialPath)) {
+        path = ((MaterialPath *)path)->subpath;
+        p = join_order_to_str(path, p, is_ok);
+      } else {
+        *is_ok = 0;
+        DBUG_PRINT("info", "path type:%d", path->pathtype);
+      }
+    }
+  }
+
+  return p;
+}
+
+static void
+get_join_order_string(Path *path, char *buf)
+{
+  int is_ok = 1;
+  char *p = join_order_to_str(path, buf, &is_ok);
+
+  if (is_ok) {
+    *p = '\0';  /* null-terminate */
+  } else {
+    buf[0] = '\0';
+  }
+}
+
 
 /*
  * geqo_eval
@@ -55,13 +139,17 @@ static bool desirable_join(PlannerInfo *root,
 Cost
 geqo_eval(PlannerInfo *root, Gene *tour, int num_gene)
 {
+  DBUG_TRACE;
   MemoryContext mycontext;
   MemoryContext oldcxt;
   RelOptInfo *joinrel;
   Cost    fitness;
   int     savelength;
   struct HTAB *savehash;
+  char join_order_str[1024];
 
+  DBUG_PRINT("info", "return cost of a query tree as an individual of the population");
+  trace_tour(tour, num_gene);
   /*
    * Create a private memory context that will hold all temp storage
    * allocated inside gimme_tree().
@@ -98,6 +186,8 @@ geqo_eval(PlannerInfo *root, Gene *tour, int num_gene)
   root->join_rel_hash = NULL;
 
   /* construct the best path for the given combination of relations */
+
+  DBUG_PRINT("info", "construct the best path for the given combination of relations");
   joinrel = gimme_tree(root, tour, num_gene);
 
   /*
@@ -110,7 +200,13 @@ geqo_eval(PlannerInfo *root, Gene *tour, int num_gene)
   if (joinrel) {
     Path     *best_path = joinrel->cheapest_total_path;
 
+    if (num_gene <= 100) {
+      get_join_order_string(best_path, join_order_str);
+      DBUG_PRINT("info", "join_order(through relids):%s", join_order_str);
+    }
+
     fitness = best_path->total_cost;
+    DBUG_PRINT("info", "compute fitness:%g", fitness);
   } else
     fitness = DBL_MAX;
 
@@ -159,10 +255,14 @@ geqo_eval(PlannerInfo *root, Gene *tour, int num_gene)
 RelOptInfo *
 gimme_tree(PlannerInfo *root, Gene *tour, int num_gene)
 {
+  DBUG_TRACE;
+  char join_order_str[2048];
   GeqoPrivateData *private = (GeqoPrivateData *) root->join_search_private;
   List     *clumps;
   int     rel_count;
+  char *p = join_order_str;
 
+  DBUG_PRINT("info", "form planner estimates for a join tree constructed in the specified order");
   /*
    * Sometimes, a relation can't yet be joined to others due to heuristics
    * or actual semantic restrictions.  We maintain a list of "clumps" of
@@ -176,6 +276,8 @@ gimme_tree(PlannerInfo *root, Gene *tour, int num_gene)
    */
   clumps = NIL;
 
+  DBUG_PRINT("info", "num_gene:%d", num_gene);
+
   for (rel_count = 0; rel_count < num_gene; rel_count++) {
     int     cur_rel_index;
     RelOptInfo *cur_rel;
@@ -186,6 +288,11 @@ gimme_tree(PlannerInfo *root, Gene *tour, int num_gene)
     cur_rel = (RelOptInfo *) list_nth(private->initial_rels,
                                       cur_rel_index - 1);
 
+    if (cur_rel->reloptkind == RELOPT_BASEREL) {
+      p += sprintf(p, "%d-", cur_rel->relid);
+      DBUG_PRINT("info", "index:%d, relid:%d", rel_count, cur_rel->relid);
+    }
+
     /* Make it into a single-rel clump */
     cur_clump = (Clump *) palloc(sizeof(Clump));
     cur_clump->joinrel = cur_rel;
@@ -195,11 +302,18 @@ gimme_tree(PlannerInfo *root, Gene *tour, int num_gene)
     clumps = merge_clump(root, clumps, cur_clump, num_gene, false);
   }
 
+  if (p != join_order_str) {
+    p = p - 1;
+    *p = '\0';
+    DBUG_PRINT("info", "convert tour to relids and join order:%s", join_order_str);
+  }
+
   if (list_length(clumps) > 1) {
     /* Force-join the remaining clumps in some legal order */
     List     *fclumps;
     ListCell   *lc;
 
+    DBUG_PRINT("info", "force-join the remaining clumps in some legal order");
     fclumps = NIL;
 
     foreach(lc, clumps) {
@@ -234,8 +348,11 @@ static List *
 merge_clump(PlannerInfo *root, List *clumps, Clump *new_clump, int num_gene,
             bool force)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   int     pos;
+
+  DBUG_PRINT("info", "look for a clump that new_clump can join to");
 
   /* Look for a clump that new_clump can join to */
   foreach(lc, clumps) {
@@ -251,12 +368,14 @@ merge_clump(PlannerInfo *root, List *clumps, Clump *new_clump, int num_gene,
        * root->join_rel_list yet, and so the paths constructed for it
        * will only include the ones we want.
        */
+      DBUG_PRINT("info", "construct a RelOptInfo representing the join of these two input relations");
       joinrel = make_join_rel(root,
                               old_clump->joinrel,
-                              new_clump->joinrel);
+                              new_clump->joinrel, NULL, NULL);
 
       /* Keep searching if join order is not valid */
       if (joinrel) {
+        DBUG_PRINT("info", "create paths for partitionwise joins");
         /* Create paths for partitionwise joins. */
         generate_partitionwise_join_paths(root, joinrel);
 
@@ -270,7 +389,7 @@ merge_clump(PlannerInfo *root, List *clumps, Clump *new_clump, int num_gene,
           generate_useful_gather_paths(root, joinrel, false);
 
         /* Find and save the cheapest paths for this joinrel */
-        set_cheapest(joinrel);
+        set_cheapest(root, joinrel);
 
         /* Absorb new clump into old */
         old_clump->joinrel = joinrel;
@@ -318,14 +437,19 @@ static bool
 desirable_join(PlannerInfo *root,
                RelOptInfo *outer_rel, RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
+
   /*
    * Join if there is an applicable join clause, or if there is a join order
    * restriction forcing these rels to be joined.
    */
   if (have_relevant_joinclause(root, outer_rel, inner_rel) ||
-      have_join_order_restriction(root, outer_rel, inner_rel))
+      have_join_order_restriction(root, outer_rel, inner_rel)) {
+    DBUG_PRINT("info", "we do want to join these two relations");
     return true;
+  }
 
   /* Otherwise postpone the join till later. */
+  DBUG_PRINT("info", "otherwise postpone the join till later");
   return false;
 }

@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/execParallel.h"
@@ -65,6 +66,7 @@ static void load_tuple_array(GatherMergeState *gm_state, int reader);
 GatherMergeState *
 ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   GatherMergeState *gm_state;
   Plan     *outerNode;
   TupleDesc tupDesc;
@@ -178,6 +180,7 @@ ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 static TupleTableSlot *
 ExecGatherMerge(PlanState *pstate)
 {
+  DBUG_TRACE;
   GatherMergeState *node = castNode(GatherMergeState, pstate);
   TupleTableSlot *slot;
   ExprContext *econtext;
@@ -296,6 +299,7 @@ ExecEndGatherMerge(GatherMergeState *node)
 void
 ExecShutdownGatherMerge(GatherMergeState *node)
 {
+  DBUG_TRACE;
   ExecShutdownGatherMergeWorkers(node);
 
   /* Now destroy the parallel context. */
@@ -314,6 +318,8 @@ ExecShutdownGatherMerge(GatherMergeState *node)
 static void
 ExecShutdownGatherMergeWorkers(GatherMergeState *node)
 {
+  DBUG_TRACE;
+
   if (node->pei != NULL)
     ExecParallelFinish(node->pei);
 
@@ -333,6 +339,7 @@ ExecShutdownGatherMergeWorkers(GatherMergeState *node)
 void
 ExecReScanGatherMerge(GatherMergeState *node)
 {
+  DBUG_TRACE;
   GatherMerge *gm = (GatherMerge *) node->ps.plan;
   PlanState  *outerPlan = outerPlanState(node);
 
@@ -387,6 +394,7 @@ ExecReScanGatherMerge(GatherMergeState *node)
 static void
 gather_merge_setup(GatherMergeState *gm_state)
 {
+  DBUG_TRACE;
   GatherMerge *gm = castNode(GatherMerge, gm_state->ps.plan);
   int     nreaders = gm->num_workers;
   int     i;
@@ -434,6 +442,7 @@ gather_merge_setup(GatherMergeState *gm_state)
 static void
 gather_merge_init(GatherMergeState *gm_state)
 {
+  DBUG_TRACE;
   int     nreaders = gm_state->nreaders;
   bool    nowait = true;
   int     i;
@@ -510,6 +519,7 @@ reread:
 static void
 gather_merge_clear_tuples(GatherMergeState *gm_state)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < gm_state->nreaders; i++) {
@@ -530,6 +540,7 @@ gather_merge_clear_tuples(GatherMergeState *gm_state)
 static TupleTableSlot *
 gather_merge_getnext(GatherMergeState *gm_state)
 {
+  DBUG_TRACE;
   int     i;
 
   if (!gm_state->gm_initialized) {
@@ -573,6 +584,7 @@ gather_merge_getnext(GatherMergeState *gm_state)
 static void
 load_tuple_array(GatherMergeState *gm_state, int reader)
 {
+  DBUG_TRACE;
   GMReaderTupleBuffer *tuple_buffer;
   int     i;
 
@@ -613,6 +625,7 @@ load_tuple_array(GatherMergeState *gm_state, int reader)
 static bool
 gather_merge_readnext(GatherMergeState *gm_state, int reader, bool nowait)
 {
+  DBUG_TRACE;
   GMReaderTupleBuffer *tuple_buffer;
   MinimalTuple tup;
 
@@ -674,7 +687,7 @@ gather_merge_readnext(GatherMergeState *gm_state, int reader, bool nowait)
   /* Build the TupleTableSlot for the given tuple */
   ExecStoreMinimalTuple(tup,  /* tuple to store */
                         gm_state->gm_slots[reader], /* slot in which to
-                             * store the tuple */
+                                   * store the tuple */
                         true);  /* pfree tuple when done with it */
 
   return true;
@@ -687,6 +700,7 @@ static MinimalTuple
 gm_readnext_tuple(GatherMergeState *gm_state, int nreader, bool nowait,
                   bool *done)
 {
+  DBUG_TRACE;
   TupleQueueReader *reader;
   MinimalTuple tup;
 

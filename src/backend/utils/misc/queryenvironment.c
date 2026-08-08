@@ -20,6 +20,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/table.h"
@@ -67,6 +68,7 @@ get_visible_ENR_metadata(QueryEnvironment *queryEnv, const char *refname)
 void
 register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 {
+  DBUG_TRACE;
   Assert(enr != NULL);
   Assert(get_ENR(queryEnv, enr->md.name) == NULL);
 
@@ -80,6 +82,7 @@ register_ENR(QueryEnvironment *queryEnv, EphemeralNamedRelation enr)
 void
 unregister_ENR(QueryEnvironment *queryEnv, const char *name)
 {
+  DBUG_TRACE;
   EphemeralNamedRelation match;
 
   match = get_ENR(queryEnv, name);
@@ -123,6 +126,7 @@ get_ENR(QueryEnvironment *queryEnv, const char *name)
 TupleDesc
 ENRMetadataGetTupDesc(EphemeralNamedRelationMetadata enrmd)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
 
   /* One, and only one, of these fields must be filled. */

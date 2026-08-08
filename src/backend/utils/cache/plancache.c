@@ -53,6 +53,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -183,6 +184,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
                  const char *query_string,
                  CommandTag commandTag)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
   MemoryContext source_context;
   MemoryContext oldcxt;
@@ -298,6 +300,7 @@ CreateOneShotCachedPlan(RawStmt *raw_parse_tree,
                         const char *query_string,
                         CommandTag commandTag)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
 
   Assert(query_string != NULL); /* required as of 8.4 */
@@ -397,9 +400,11 @@ CompleteCachedPlan(CachedPlanSource *plansource,
                    int cursor_options,
                    bool fixed_result)
 {
+  DBUG_TRACE;
   MemoryContext source_context = plansource->context;
   MemoryContext oldcxt = CurrentMemoryContext;
 
+  DBUG_PRINT("info", "second step of creating a plan cache entry");
   /* Assert caller is doing things in a sane order */
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
   Assert(!plansource->is_complete);
@@ -521,10 +526,13 @@ SetPostRewriteHook(CachedPlanSource *plansource,
 void
 SaveCachedPlan(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
   /* Assert caller is doing things in a sane order */
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
   Assert(plansource->is_complete);
   Assert(!plansource->is_saved);
+
+  DBUG_PRINT("info", "save a cached plan permanently");
 
   /* This seems worth a real test, though */
   if (plansource->is_oneshot)
@@ -565,7 +573,9 @@ SaveCachedPlan(CachedPlanSource *plansource)
 void
 DropCachedPlan(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
+  DBUG_PRINT("info", "destroy a cached plan");
 
   /* If it's been saved, remove it from the list */
   if (plansource->is_saved) {
@@ -593,6 +603,8 @@ DropCachedPlan(CachedPlanSource *plansource)
 static void
 ReleaseGenericPlan(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
+
   /* Be paranoid about the possibility that ReleaseCachedPlan fails */
   if (plansource->gplan) {
     CachedPlan *plan = plansource->gplan;
@@ -659,6 +671,7 @@ static List *
 RevalidateCachedQuery(CachedPlanSource *plansource,
                       QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   bool    snapshot_set;
   List     *tlist;      /* transient query-tree list */
   List     *qlist;      /* permanent query-tree list */
@@ -920,14 +933,18 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 static bool
 CheckCachedPlan(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
   CachedPlan *plan = plansource->gplan;
 
+  DBUG_PRINT("info", "see if the CachedPlanSource's generic plan is valid");
   /* Assert that caller checked the querytree */
   Assert(plansource->is_valid);
 
   /* If there's no generic plan, just say "false" */
-  if (!plan)
+  if (!plan) {
+    DBUG_PRINT("info", "if there's no generic plan, just say 'false'");
     return false;
+  }
 
   Assert(plan->magic == CACHEDPLAN_MAGIC);
   /* Generic plans are never one-shot */
@@ -937,8 +954,10 @@ CheckCachedPlan(CachedPlanSource *plansource)
    * If plan isn't valid for current role, we can't use it.
    */
   if (plan->is_valid && plan->dependsOnRole &&
-      plan->planRoleId != GetUserId())
+      plan->planRoleId != GetUserId()) {
+    DBUG_PRINT("info", "if plan isn't valid for current role, we can't use it");
     plan->is_valid = false;
+  }
 
   /*
    * If it appears valid, acquire locks and recheck; this is much the same
@@ -967,6 +986,7 @@ CheckCachedPlan(CachedPlanSource *plansource)
      * functions will have marked the plan invalid.
      */
     if (plan->is_valid) {
+      DBUG_PRINT("info", "successfully revalidated and locked the query");
       /* Successfully revalidated and locked the query. */
       return true;
     }
@@ -980,6 +1000,7 @@ CheckCachedPlan(CachedPlanSource *plansource)
    */
   ReleaseGenericPlan(plansource);
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -1003,6 +1024,7 @@ static CachedPlan *
 BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
                 ParamListInfo boundParams, QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   CachedPlan *plan;
   List     *plist;
   bool    snapshot_set;
@@ -1139,37 +1161,56 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 static bool
 choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
 {
+  DBUG_TRACE;
   double    avg_custom_cost;
 
   /* One-shot plans will always be considered custom */
-  if (plansource->is_oneshot)
+  if (plansource->is_oneshot) {
+    DBUG_PRINT("info", "one-shot plans will always be considered custom");
     return true;
+  }
 
   /* Otherwise, never any point in a custom plan if there's no parameters */
-  if (boundParams == NULL)
+  if (boundParams == NULL) {
+    DBUG_PRINT("info", "never any point in a custom plan if there's no parameters");
     return false;
+  }
 
   /* ... nor when planning would be a no-op */
-  if (!StmtPlanRequiresRevalidation(plansource))
+  if (!StmtPlanRequiresRevalidation(plansource)) {
+    DBUG_PRINT("info", "nor when planning would be a no-op");
     return false;
+  }
 
   /* Let settings force the decision */
-  if (plan_cache_mode == PLAN_CACHE_MODE_FORCE_GENERIC_PLAN)
+  if (plan_cache_mode == PLAN_CACHE_MODE_FORCE_GENERIC_PLAN) {
+    DBUG_PRINT("info", "plan_cache_mode:PLAN_CACHE_MODE_FORCE_GENERIC_PLAN and return false");
     return false;
+  }
 
-  if (plan_cache_mode == PLAN_CACHE_MODE_FORCE_CUSTOM_PLAN)
+  if (plan_cache_mode == PLAN_CACHE_MODE_FORCE_CUSTOM_PLAN) {
+    DBUG_PRINT("info", "plan_cache_mode:PLAN_CACHE_MODE_FORCE_CUSTOM_PLAN and return true");
     return true;
+  }
 
   /* See if caller wants to force the decision */
-  if (plansource->cursor_options & CURSOR_OPT_GENERIC_PLAN)
+  if (plansource->cursor_options & CURSOR_OPT_GENERIC_PLAN) {
+    DBUG_PRINT("info", "cursor_options:CURSOR_OPT_GENERIC_PLAN and return false");
     return false;
+  }
 
-  if (plansource->cursor_options & CURSOR_OPT_CUSTOM_PLAN)
+  if (plansource->cursor_options & CURSOR_OPT_CUSTOM_PLAN) {
+    DBUG_PRINT("info", "cursor_options:CURSOR_OPT_CUSTOM_PLAN and return true");
     return true;
+  }
 
   /* Generate custom plans until we have done at least 5 (arbitrary) */
-  if (plansource->num_custom_plans < 5)
+  DBUG_PRINT("info", "num_custom_plans:%ld", plansource->num_custom_plans);
+
+  if (plansource->num_custom_plans < 5) {
+    DBUG_PRINT("info", "generate custom plans until we have done at least 5 (arbitrary)");
     return true;
+  }
 
   avg_custom_cost = plansource->total_custom_cost / plansource->num_custom_plans;
 
@@ -1183,9 +1224,14 @@ choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
    * Note that if generic_cost is -1 (indicating we've not yet determined
    * the generic plan cost), we'll always prefer generic at this point.
    */
-  if (plansource->generic_cost < avg_custom_cost)
-    return false;
+  DBUG_PRINT("info", "plansource->generic_cost:%g, avg_custom_cost:%g", plansource->generic_cost, avg_custom_cost);
 
+  if (plansource->generic_cost < avg_custom_cost) {
+    DBUG_PRINT("info", "prefer generic plan if it's less expensive than the average custom plan");
+    return false;
+  }
+
+  DBUG_PRINT("info", "use custom plan");
   return true;
 }
 
@@ -1199,6 +1245,7 @@ choose_custom_plan(CachedPlanSource *plansource, ParamListInfo boundParams)
 static double
 cached_plan_cost(CachedPlan *plan, bool include_planner)
 {
+  DBUG_TRACE;
   double    result = 0;
   ListCell   *lc;
 
@@ -1238,6 +1285,7 @@ cached_plan_cost(CachedPlan *plan, bool include_planner)
     }
   }
 
+  DBUG_PRINT("info", "calculate estimated cost of a plan:%g", result);
   return result;
 }
 
@@ -1263,6 +1311,7 @@ CachedPlan *
 GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
               ResourceOwner owner, QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   CachedPlan *plan = NULL;
   List     *qlist;
   bool    customplan;
@@ -1270,6 +1319,7 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
   /* Assert caller is doing things in a sane order */
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
   Assert(plansource->is_complete);
+  DBUG_PRINT("info", "get a cached plan from a CachedPlanSource");
 
   /* This seems worth a real test, though */
   if (owner && !plansource->is_saved)
@@ -1279,15 +1329,18 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
   qlist = RevalidateCachedQuery(plansource, queryEnv);
 
   /* Decide whether to use a custom plan */
+  DBUG_PRINT("info", "decide whether to use a custom plan");
   customplan = choose_custom_plan(plansource, boundParams);
 
   if (!customplan) {
     if (CheckCachedPlan(plansource)) {
       /* We want a generic plan, and we already have a valid one */
+      DBUG_PRINT("info", "we want a generic plan, and we already have a valid one");
       plan = plansource->gplan;
       Assert(plan->magic == CACHEDPLAN_MAGIC);
     } else {
       /* Build a new generic plan */
+      DBUG_PRINT("info", "build a new generic plan");
       plan = BuildCachedPlan(plansource, qlist, NULL, queryEnv);
       /* Just make real sure plansource->gplan is clear */
       ReleaseGenericPlan(plansource);
@@ -1331,6 +1384,7 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 
   if (customplan) {
     /* Build a custom plan */
+    DBUG_PRINT("info", "build a custom plan");
     plan = BuildCachedPlan(plansource, qlist, boundParams, queryEnv);
     /* Accumulate total costs of custom plans */
     plansource->total_custom_cost += cached_plan_cost(plan, true);
@@ -1379,6 +1433,7 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 void
 ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner)
 {
+  DBUG_TRACE;
   Assert(plan->magic == CACHEDPLAN_MAGIC);
 
   if (owner) {
@@ -1391,11 +1446,17 @@ ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner)
 
   if (plan->refcount == 0) {
     /* Mark it no longer valid */
+    DBUG_PRINT("info", "mark it no longer valid");
     plan->magic = 0;
 
     /* One-shot plans do not own their context, so we can't free them */
-    if (!plan->is_oneshot)
+    if (!plan->is_oneshot) {
       MemoryContextDelete(plan->context);
+    } else {
+      DBUG_PRINT("info", "one-shot plans do not own their context, so we can't free them");
+    }
+  } else {
+    DBUG_PRINT("info", "plan refcount:%d", plan->refcount);
   }
 }
 
@@ -1426,6 +1487,7 @@ bool
 CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,
                                     CachedPlan *plan, ResourceOwner owner)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*
@@ -1541,6 +1603,7 @@ bool
 CachedPlanIsSimplyValid(CachedPlanSource *plansource, CachedPlan *plan,
                         ResourceOwner owner)
 {
+  DBUG_TRACE;
   /*
    * Careful here: since the caller doesn't necessarily hold a refcount on
    * the plan to start with, it's possible that "plan" is a dangling
@@ -1588,6 +1651,7 @@ void
 CachedPlanSetParentContext(CachedPlanSource *plansource,
                            MemoryContext newcontext)
 {
+  DBUG_TRACE;
   /* Assert caller is doing things in a sane order */
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
   Assert(plansource->is_complete);
@@ -1625,6 +1689,7 @@ CachedPlanSetParentContext(CachedPlanSource *plansource,
 CachedPlanSource *
 CopyCachedPlan(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
   CachedPlanSource *newsource;
   MemoryContext source_context;
   MemoryContext querytree_context;
@@ -1723,6 +1788,7 @@ CopyCachedPlan(CachedPlanSource *plansource)
 bool
 CachedPlanIsValid(CachedPlanSource *plansource)
 {
+  DBUG_TRACE;
   Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
   return plansource->is_valid;
 }
@@ -1737,6 +1803,7 @@ List *
 CachedPlanGetTargetList(CachedPlanSource *plansource,
                         QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   Query    *pstmt;
 
   /* Assert caller is doing things in a sane order */
@@ -1773,6 +1840,7 @@ CachedPlanGetTargetList(CachedPlanSource *plansource,
 CachedExpression *
 GetCachedExpression(Node *expr)
 {
+  DBUG_TRACE;
   CachedExpression *cexpr;
   List     *relationOids;
   List     *invalItems;
@@ -1830,6 +1898,7 @@ GetCachedExpression(Node *expr)
 void
 FreeCachedExpression(CachedExpression *cexpr)
 {
+  DBUG_TRACE;
   /* Sanity check */
   Assert(cexpr->magic == CACHEDEXPR_MAGIC);
   /* Unlink from global list */
@@ -1849,6 +1918,7 @@ FreeCachedExpression(CachedExpression *cexpr)
 static Query *
 QueryListGetPrimaryStmt(List *stmts)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, stmts) {
@@ -1868,6 +1938,7 @@ QueryListGetPrimaryStmt(List *stmts)
 static void
 AcquireExecutorLocks(List *stmt_list, bool acquire)
 {
+  DBUG_TRACE;
   ListCell   *lc1;
 
   foreach(lc1, stmt_list) {
@@ -1922,6 +1993,7 @@ AcquireExecutorLocks(List *stmt_list, bool acquire)
 static void
 AcquirePlannerLocks(List *stmt_list, bool acquire)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, stmt_list) {
@@ -1947,6 +2019,7 @@ AcquirePlannerLocks(List *stmt_list, bool acquire)
 static void
 ScanQueryForLocks(Query *parsetree, bool acquire)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Shouldn't get called on utility commands */
@@ -1955,6 +2028,8 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
   /*
    * First, process RTEs of the current query level.
    */
+  DBUG_PRINT("info", "first, process RTEs of the current query level");
+
   foreach(lc, parsetree->rtable) {
     RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
 
@@ -1962,10 +2037,13 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
       case RTE_RELATION:
 
         /* Acquire or release the appropriate type of lock */
-        if (acquire)
+        if (acquire) {
+          DBUG_PRINT("info", "acquire the appropriate type of lock");
           LockRelationOid(rte->relid, rte->rellockmode);
-        else
+        } else {
+          DBUG_PRINT("info", "release the appropriate type of lock");
           UnlockRelationOid(rte->relid, rte->rellockmode);
+        }
 
         break;
 
@@ -1973,10 +2051,13 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
 
         /* If this was a view, must lock/unlock the view */
         if (OidIsValid(rte->relid)) {
-          if (acquire)
+          if (acquire) {
+            DBUG_PRINT("info", "if this was a view, must lock the view");
             LockRelationOid(rte->relid, rte->rellockmode);
-          else
+          } else {
+            DBUG_PRINT("info", "if this was a view, must unlock the view");
             UnlockRelationOid(rte->relid, rte->rellockmode);
+          }
         }
 
         /* Recurse into subquery-in-FROM */
@@ -1993,6 +2074,7 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
   foreach(lc, parsetree->cteList) {
     CommonTableExpr *cte = lfirst_node(CommonTableExpr, lc);
 
+    DBUG_PRINT("info", "recurse into subquery-in-WITH");
     ScanQueryForLocks(castNode(Query, cte->ctequery), acquire);
   }
 
@@ -2001,6 +2083,7 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
    * the rtable and cteList.
    */
   if (parsetree->hasSubLinks) {
+    DBUG_PRINT("info", "recurse into sublink subqueries, too");
     query_tree_walker(parsetree, ScanQueryWalker, &acquire,
                       QTW_IGNORE_RC_SUBQUERIES);
   }
@@ -2012,6 +2095,8 @@ ScanQueryForLocks(Query *parsetree, bool acquire)
 static bool
 ScanQueryWalker(Node *node, bool *acquire)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -2040,6 +2125,7 @@ ScanQueryWalker(Node *node, bool *acquire)
 static TupleDesc
 PlanCacheComputeResultDesc(List *stmt_list)
 {
+  DBUG_TRACE;
   Query    *query;
 
   switch (ChoosePortalStrategy(stmt_list)) {
@@ -2076,6 +2162,7 @@ PlanCacheComputeResultDesc(List *stmt_list)
 static void
 PlanCacheRelCallback(Datum arg, Oid relid)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   dlist_foreach(iter, &saved_plan_list) {
@@ -2270,6 +2357,7 @@ PlanCacheSysCallback(Datum arg, int cacheid, uint32 hashvalue)
 void
 ResetPlanCache(void)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   dlist_foreach(iter, &saved_plan_list) {

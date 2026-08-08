@@ -65,6 +65,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/htup_details.h"
@@ -167,6 +168,7 @@ HeapTupleSetHintBits(HeapTupleHeader tuple, Buffer buffer,
 static bool
 HeapTupleSatisfiesSelf(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
 
   Assert(ItemPointerIsValid(&htup->t_self));
@@ -350,6 +352,7 @@ static bool
 HeapTupleSatisfiesToast(HeapTuple htup, Snapshot snapshot,
                         Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
 
   Assert(ItemPointerIsValid(&htup->t_self));
@@ -442,26 +445,32 @@ TM_Result
 HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
                          Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
 
   Assert(ItemPointerIsValid(&htup->t_self));
   Assert(htup->t_tableOid != InvalidOid);
 
   if (!HeapTupleHeaderXminCommitted(tuple)) {
-    if (HeapTupleHeaderXminInvalid(tuple))
+    if (HeapTupleHeaderXminInvalid(tuple)) {
+      DBUG_PRINT("info", "TM Invisible 1");
       return TM_Invisible;
+    }
 
     /* Used by pre-9.0 binary upgrades */
     if (tuple->t_infomask & HEAP_MOVED_OFF) {
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
 
-      if (TransactionIdIsCurrentTransactionId(xvac))
+      if (TransactionIdIsCurrentTransactionId(xvac)) {
+        DBUG_PRINT("info", "return TM_Invisible");
         return TM_Invisible;
+      }
 
       if (!TransactionIdIsInProgress(xvac)) {
         if (TransactionIdDidCommit(xvac)) {
           SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                       InvalidTransactionId);
+          DBUG_PRINT("info", "TM Invisible");
           return TM_Invisible;
         }
 
@@ -474,8 +483,10 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
 
       if (!TransactionIdIsCurrentTransactionId(xvac)) {
-        if (TransactionIdIsInProgress(xvac))
+        if (TransactionIdIsInProgress(xvac)) {
+          DBUG_PRINT("info", "TM Invisible");
           return TM_Invisible;
+        }
 
         if (TransactionIdDidCommit(xvac))
           SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
@@ -483,15 +494,20 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
         else {
           SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                       InvalidTransactionId);
+          DBUG_PRINT("info", "TM_Invisible");
           return TM_Invisible;
         }
       }
     } else if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmin(tuple))) {
-      if (HeapTupleHeaderGetCmin(tuple) >= curcid)
+      if (HeapTupleHeaderGetCmin(tuple) >= curcid) {
+        DBUG_PRINT("info", "TM Invisible: inserted after scan started");
         return TM_Invisible;  /* inserted after scan started */
+      }
 
-      if (tuple->t_infomask & HEAP_XMAX_INVALID)  /* xid invalid */
+      if (tuple->t_infomask & HEAP_XMAX_INVALID) { /* xid invalid */
+        DBUG_PRINT("info", "xid invalid and return TM OK");
         return TM_Ok;
+      }
 
       if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
         TransactionId xmax;
@@ -506,10 +522,13 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
          */
 
         if (tuple->t_infomask & HEAP_XMAX_IS_MULTI) {
-          if (MultiXactIdIsRunning(xmax, true))
+          if (MultiXactIdIsRunning(xmax, true)) {
+            DBUG_PRINT("info", "MultiXactIdIsRunning and return TM Being Modified");
             return TM_BeingModified;
-          else
+          } else {
+            DBUG_PRINT("info", "MultiXactIdIsNotRunning and return TM OK");
             return TM_Ok;
+          }
         }
 
         /*
@@ -517,9 +536,12 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
          * left in this Xmax; otherwise, report the tuple as
          * locked/updated.
          */
-        if (!TransactionIdIsInProgress(xmax))
+        if (!TransactionIdIsInProgress(xmax)) {
+          DBUG_PRINT("info", "If the locker is gone, return TM OK");
           return TM_Ok;
+        }
 
+        DBUG_PRINT("info", "TransactionIdIsInProgress and return TM Being Modified");
         return TM_BeingModified;
       }
 
@@ -533,16 +555,24 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
 
         /* deleting subtransaction must have aborted */
         if (!TransactionIdIsCurrentTransactionId(xmax)) {
-          if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple),
-                                   false))
-            return TM_BeingModified;
+          DBUG_PRINT("info", "deleting subtransaction must have aborted");
 
+          if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple),
+                                   false)) {
+            DBUG_PRINT("info", "MultiXactIdIsRunning and return TM_BeingModified");
+            return TM_BeingModified;
+          }
+
+          DBUG_PRINT("info", "MultiXactIdIsNotRunning and return TM OK");
           return TM_Ok;
         } else {
-          if (HeapTupleHeaderGetCmax(tuple) >= curcid)
+          if (HeapTupleHeaderGetCmax(tuple) >= curcid) {
+            DBUG_PRINT("info", "updated after scan started and return TM_SelfModified");
             return TM_SelfModified; /* updated after scan started */
-          else
+          } else {
+            DBUG_PRINT("info", "updated before scan started and return TM_Invisible");
             return TM_Invisible;  /* updated before scan started */
+          }
         }
       }
 
@@ -550,80 +580,116 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
         /* deleting subtransaction must have aborted */
         SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                     InvalidTransactionId);
+        DBUG_PRINT("info", "deleting subtransaction must have aborted and TM OK");
         return TM_Ok;
       }
 
-      if (HeapTupleHeaderGetCmax(tuple) >= curcid)
+      if (HeapTupleHeaderGetCmax(tuple) >= curcid) {
+        DBUG_PRINT("info", "updated after scan started and return TM_SelfModified");
         return TM_SelfModified; /* updated after scan started */
-      else
+      } else {
+        DBUG_PRINT("info", "updated before scan started and return TM Invisible");
         return TM_Invisible;  /* updated before scan started */
-    } else if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmin(tuple)))
+      }
+    } else if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmin(tuple)))  {
+      DBUG_PRINT("info", "TransactionIdIsInProgress and return TM Invisible");
       return TM_Invisible;
-    else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmin(tuple)))
+    } else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmin(tuple)))
       SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
                   HeapTupleHeaderGetRawXmin(tuple));
     else {
       /* it must have aborted or crashed */
       SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "it must have aborted or crashed and return TM Invisible");
       return TM_Invisible;
     }
   }
 
   /* by here, the inserting transaction has committed */
 
-  if (tuple->t_infomask & HEAP_XMAX_INVALID)  /* xid invalid or aborted */
+  if (tuple->t_infomask & HEAP_XMAX_INVALID) { /* xid invalid or aborted */
+    DBUG_PRINT("info", "xid invalid or aborted and return TM OK");
     return TM_Ok;
+  }
 
   if (tuple->t_infomask & HEAP_XMAX_COMMITTED) {
-    if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
-      return TM_Ok;
+    DBUG_PRINT("info", "tuple t_infomask contains HEAP_XMAX_COMMITTED");
 
-    if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid))
+    if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
+      DBUG_PRINT("info", "HEAP_XMAX_IS_LOCKED_ONLY and TM OK");
+      return TM_Ok;
+    }
+
+    if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid)) {
+      DBUG_PRINT("info", "updated by other and return TM Updated");
       return TM_Updated;  /* updated by other */
-    else
+    } else {
+      DBUG_PRINT("info", "deleted by other and return TM Deleted");
       return TM_Deleted;  /* deleted by other */
+    }
   }
 
   if (tuple->t_infomask & HEAP_XMAX_IS_MULTI) {
     TransactionId xmax;
 
-    if (HEAP_LOCKED_UPGRADED(tuple->t_infomask))
+    if (HEAP_LOCKED_UPGRADED(tuple->t_infomask)) {
+      DBUG_PRINT("info", "HEAP_LOCKED_UPGRADED and return TM OK");
       return TM_Ok;
+    }
 
     if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
-      if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), true))
+      DBUG_PRINT("info", "HEAP_XMAX_IS_LOCKED_ONLY true");
+
+      if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), true)) {
+        DBUG_PRINT("info", "MultiXactIdIsRunning and return TM Being Modified");
         return TM_BeingModified;
+      }
 
       SetHintBits(tuple, buffer, HEAP_XMAX_INVALID, InvalidTransactionId);
+      DBUG_PRINT("info", "MultiXactIdIsNotRunning and return TM OK");
       return TM_Ok;
     }
 
     xmax = HeapTupleGetUpdateXid(tuple);
 
     if (!TransactionIdIsValid(xmax)) {
-      if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false))
+      DBUG_PRINT("info", "TransactionIdIsValid false");
+
+      if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false)) {
+        DBUG_PRINT("info", "MultiXactIdIsRunning and return TM Being Modified");
         return TM_BeingModified;
+      }
     }
 
     /* not LOCKED_ONLY, so it has to have an xmax */
     Assert(TransactionIdIsValid(xmax));
 
     if (TransactionIdIsCurrentTransactionId(xmax)) {
-      if (HeapTupleHeaderGetCmax(tuple) >= curcid)
+      if (HeapTupleHeaderGetCmax(tuple) >= curcid) {
+        DBUG_PRINT("info", "updated after scan started and return TM Self Modified");
         return TM_SelfModified; /* updated after scan started */
-      else
+      } else {
+        DBUG_PRINT("info", "updated before scan started and return TM Invisible");
         return TM_Invisible;  /* updated before scan started */
+      }
     }
 
-    if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false))
+    if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false)) {
+      DBUG_PRINT("info", "MultiXactIdIsRunning true and return TM Being Modified");
       return TM_BeingModified;
+    }
 
     if (TransactionIdDidCommit(xmax)) {
-      if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid))
+      DBUG_PRINT("info", "TransactionIdDidCommit true for xmax:%u", xmax);
+
+      if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid)) {
+        DBUG_PRINT("info", "ItemPointerEquals false and return TM Updated");
         return TM_Updated;
-      else
+      } else {
+        DBUG_PRINT("info", "ItemPointerEquals true and return TM Deleted");
         return TM_Deleted;
+      }
     }
 
     /*
@@ -636,32 +702,43 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
        * There's no member, even just a locker, alive anymore, so we can
        * mark the Xmax as invalid.
        */
+      DBUG_PRINT("info", "there's no member, even just a locker, alive anymore, so we can mark the Xmax as invalid");
       SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "return TM OK");
       return TM_Ok;
     } else {
+      DBUG_PRINT("info", "there are lockers running and return TM Being Modified");
       /* There are lockers running */
       return TM_BeingModified;
     }
   }
 
   if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmax(tuple))) {
-    if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
+    if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
+      DBUG_PRINT("info", "HEAP_XMAX_IS_LOCKED_ONLY and return TM_BeingModified");
       return TM_BeingModified;
+    }
 
-    if (HeapTupleHeaderGetCmax(tuple) >= curcid)
+    if (HeapTupleHeaderGetCmax(tuple) >= curcid) {
+      DBUG_PRINT("info", "updated after scan started and return TM_SelfModified");
       return TM_SelfModified; /* updated after scan started */
-    else
+    } else {
+      DBUG_PRINT("info", "updated before scan started and return TM_Invisible");
       return TM_Invisible;  /* updated before scan started */
+    }
   }
 
-  if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple)))
+  if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple))) {
+    DBUG_PRINT("info", "TransactionIdIsInProgress true and return TM Being Modified");
     return TM_BeingModified;
+  }
 
   if (!TransactionIdDidCommit(HeapTupleHeaderGetRawXmax(tuple))) {
     /* it must have aborted or crashed */
     SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                 InvalidTransactionId);
+    DBUG_PRINT("info", "it must have aborted or crashed and return TM OK");
     return TM_Ok;
   }
 
@@ -670,16 +747,21 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
   if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
     SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                 InvalidTransactionId);
+    DBUG_PRINT("info", "xmax transaction committed and return TM OK");
     return TM_Ok;
   }
 
+  DBUG_PRINT("info", "xmax transaction committed");
   SetHintBits(tuple, buffer, HEAP_XMAX_COMMITTED,
               HeapTupleHeaderGetRawXmax(tuple));
 
-  if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid))
+  if (!ItemPointerEquals(&htup->t_self, &tuple->t_ctid)) {
+    DBUG_PRINT("info", "updated by other and return TM Updated");
     return TM_Updated;    /* updated by other */
-  else
+  } else {
+    DBUG_PRINT("info", "deleted by other and return TM Deleted");
     return TM_Deleted;    /* deleted by other */
+  }
 }
 
 /*
@@ -706,6 +788,7 @@ static bool
 HeapTupleSatisfiesDirty(HeapTuple htup, Snapshot snapshot,
                         Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
 
   Assert(ItemPointerIsValid(&htup->t_self));
@@ -909,8 +992,13 @@ static bool
 HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
                        Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
 
+  BlockNumber blockno = ItemPointerGetBlockNumber(&htup->t_self);
+  OffsetNumber offset = ItemPointerGetOffsetNumber(&htup->t_self);
+
+  DBUG_PRINT("info", "blkno:%u, offset:%u", blockno, offset);
   /*
    * Assert that the caller has registered the snapshot.  This function
    * doesn't care about the registration as such, but in general you
@@ -924,20 +1012,27 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
   Assert(htup->t_tableOid != InvalidOid);
 
   if (!HeapTupleHeaderXminCommitted(tuple)) {
-    if (HeapTupleHeaderXminInvalid(tuple))
+    DBUG_PRINT("info", "xmin is not committed");
+
+    if (HeapTupleHeaderXminInvalid(tuple)) {
+      DBUG_PRINT("info", "xmin is invalid and return false");
       return false;
+    }
 
     /* Used by pre-9.0 binary upgrades */
     if (tuple->t_infomask & HEAP_MOVED_OFF) {
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
 
-      if (TransactionIdIsCurrentTransactionId(xvac))
+      if (TransactionIdIsCurrentTransactionId(xvac)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
       if (!XidInMVCCSnapshot(xvac, snapshot)) {
         if (TransactionIdDidCommit(xvac)) {
           SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                       InvalidTransactionId);
+          DBUG_PRINT("info", "return false");
           return false;
         }
 
@@ -948,10 +1043,13 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
     /* Used by pre-9.0 binary upgrades */
     else if (tuple->t_infomask & HEAP_MOVED_IN) {
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
+      DBUG_PRINT("info", "moved from another place");
 
       if (!TransactionIdIsCurrentTransactionId(xvac)) {
-        if (XidInMVCCSnapshot(xvac, snapshot))
+        if (XidInMVCCSnapshot(xvac, snapshot)) {
+          DBUG_PRINT("info", "return false");
           return false;
+        }
 
         if (TransactionIdDidCommit(xvac))
           SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
@@ -959,18 +1057,25 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
         else {
           SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                       InvalidTransactionId);
+          DBUG_PRINT("info", "return false");
           return false;
         }
       }
     } else if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmin(tuple))) {
-      if (HeapTupleHeaderGetCmin(tuple) >= snapshot->curcid)
+      if (HeapTupleHeaderGetCmin(tuple) >= snapshot->curcid) {
+        DBUG_PRINT("info", "inserted after scan started and return false");
         return false; /* inserted after scan started */
+      }
 
-      if (tuple->t_infomask & HEAP_XMAX_INVALID)  /* xid invalid */
+      if (tuple->t_infomask & HEAP_XMAX_INVALID) {  /* xid invalid */
+        DBUG_PRINT("info", "xid invalid and return true");
         return true;
+      }
 
-      if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))  /* not deleter */
+      if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {  /* not deleter */
+        DBUG_PRINT("info", "not deleter and return true");
         return true;
+      }
 
       if (tuple->t_infomask & HEAP_XMAX_IS_MULTI) {
         TransactionId xmax;
@@ -981,50 +1086,67 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
         Assert(TransactionIdIsValid(xmax));
 
         /* updating subtransaction must have aborted */
-        if (!TransactionIdIsCurrentTransactionId(xmax))
+        if (!TransactionIdIsCurrentTransactionId(xmax)) {
+          DBUG_PRINT("info", "updating subtransaction must have aborted and return true");
           return true;
-        else if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid)
+        } else if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid) {
+          DBUG_PRINT("info", "updated after scan started and return true");
           return true;  /* updated after scan started */
-        else
+        } else {
+          DBUG_PRINT("info", "updated before scan started and return false");
           return false; /* updated before scan started */
+        }
       }
 
       if (!TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmax(tuple))) {
         /* deleting subtransaction must have aborted */
         SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                     InvalidTransactionId);
+        DBUG_PRINT("info", "deleting subtransaction must have aborted and return true");
         return true;
       }
 
-      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid)
+      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid) {
+        DBUG_PRINT("info", "deleted after scan started and return true");
         return true;  /* deleted after scan started */
-      else
+      } else {
+        DBUG_PRINT("info", "deleted before scan started and return false");
         return false; /* deleted before scan started */
-    } else if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmin(tuple), snapshot))
+      }
+    } else if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmin(tuple), snapshot)) {
+      DBUG_PRINT("info", "the given XID is still-in-progress according to the snapshot and return false");
       return false;
-    else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmin(tuple)))
+    } else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmin(tuple)))
       SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
                   HeapTupleHeaderGetRawXmin(tuple));
     else {
       /* it must have aborted or crashed */
       SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "it must have aborted or crashed and return false");
       return false;
     }
   } else {
     /* xmin is committed, but maybe not according to our snapshot */
     if (!HeapTupleHeaderXminFrozen(tuple) &&
-        XidInMVCCSnapshot(HeapTupleHeaderGetRawXmin(tuple), snapshot))
+        XidInMVCCSnapshot(HeapTupleHeaderGetRawXmin(tuple), snapshot)) {
+      DBUG_PRINT("info", "treat as still in progress");
       return false;   /* treat as still in progress */
+    }
   }
 
   /* by here, the inserting transaction has committed */
 
-  if (tuple->t_infomask & HEAP_XMAX_INVALID)  /* xid invalid or aborted */
+  if (tuple->t_infomask & HEAP_XMAX_INVALID) {  /* xid invalid or aborted */
+    DBUG_PRINT("info", "the inserting transaction has committed and");
+    DBUG_PRINT("info", "xid is invalid or aborted -->return true");
     return true;
+  }
 
-  if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
+  if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
+    DBUG_PRINT("info", "the tuple is only locked, so it is still considered visible.");
     return true;
+  }
 
   if (tuple->t_infomask & HEAP_XMAX_IS_MULTI) {
     TransactionId xmax;
@@ -1033,56 +1155,75 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
     Assert(!HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask));
 
     xmax = HeapTupleGetUpdateXid(tuple);
+    DBUG_PRINT("info", "not LOCKED_ONLY, so it has to have an xmax:%u", xmax);
 
     /* not LOCKED_ONLY, so it has to have an xmax */
     Assert(TransactionIdIsValid(xmax));
 
     if (TransactionIdIsCurrentTransactionId(xmax)) {
-      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid)
+      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid) {
+        DBUG_PRINT("info", "deleted after scan started and return true");
         return true;  /* deleted after scan started */
-      else
+      } else {
+        DBUG_PRINT("info", "deleted before scan started and return false");
         return false; /* deleted before scan started */
+      }
     }
 
-    if (XidInMVCCSnapshot(xmax, snapshot))
+    if (XidInMVCCSnapshot(xmax, snapshot)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
 
-    if (TransactionIdDidCommit(xmax))
+    if (TransactionIdDidCommit(xmax)) {
+      DBUG_PRINT("info", "return false");
       return false;   /* updating transaction committed */
+    }
 
+    DBUG_PRINT("info", "it must have aborted or crashed and return true");
     /* it must have aborted or crashed */
     return true;
   }
 
   if (!(tuple->t_infomask & HEAP_XMAX_COMMITTED)) {
     if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmax(tuple))) {
-      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid)
+      if (HeapTupleHeaderGetCmax(tuple) >= snapshot->curcid) {
+        DBUG_PRINT("info", "deleted after scan started and return true");
         return true;  /* deleted after scan started */
-      else
+      } else {
+        DBUG_PRINT("info", "deleted before scan started and return false");
         return false; /* deleted before scan started */
+      }
     }
 
-    if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmax(tuple), snapshot))
+    if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmax(tuple), snapshot)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
 
     if (!TransactionIdDidCommit(HeapTupleHeaderGetRawXmax(tuple))) {
       /* it must have aborted or crashed */
       SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "it must have aborted or crashed and return true");
       return true;
     }
 
+    DBUG_PRINT("info", "xmax transaction committed");
     /* xmax transaction committed */
     SetHintBits(tuple, buffer, HEAP_XMAX_COMMITTED,
                 HeapTupleHeaderGetRawXmax(tuple));
   } else {
     /* xmax is committed, but maybe not according to our snapshot */
-    if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmax(tuple), snapshot))
+    if (XidInMVCCSnapshot(HeapTupleHeaderGetRawXmax(tuple), snapshot)) {
+      DBUG_PRINT("info", "treat as still in progress and return true");
       return true;    /* treat as still in progress */
+    }
   }
 
   /* xmax transaction committed */
 
+  DBUG_PRINT("info", "xmax transaction committed and return false");
   return false;
 }
 
@@ -1104,6 +1245,7 @@ HTSV_Result
 HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
                          Buffer buffer)
 {
+  DBUG_TRACE;
   TransactionId dead_after = InvalidTransactionId;
   HTSV_Result res;
 
@@ -1112,8 +1254,10 @@ HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
   if (res == HEAPTUPLE_RECENTLY_DEAD) {
     Assert(TransactionIdIsValid(dead_after));
 
-    if (TransactionIdPrecedes(dead_after, OldestXmin))
+    if (TransactionIdPrecedes(dead_after, OldestXmin)) {
+      DBUG_PRINT("info", "mark heap tuple as DEAD because dead_after:%u and OldestXmin:%u", dead_after, OldestXmin);
       res = HEAPTUPLE_DEAD;
+    }
   } else
     Assert(!TransactionIdIsValid(dead_after));
 
@@ -1135,7 +1279,12 @@ HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
 HTSV_Result
 HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *dead_after)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
+
+  BlockNumber block = ItemPointerGetBlockNumber(&(htup->t_self));
+  OffsetNumber offset = ItemPointerGetOffsetNumber(&(htup->t_self));
+  DBUG_PRINT("info", "blkno:%u, offset:%u", block, offset);
 
   Assert(ItemPointerIsValid(&htup->t_self));
   Assert(htup->t_tableOid != InvalidOid);
@@ -1150,21 +1299,27 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
    * to any other transaction, so we can delete it immediately.
    */
   if (!HeapTupleHeaderXminCommitted(tuple)) {
-    if (HeapTupleHeaderXminInvalid(tuple))
+    if (HeapTupleHeaderXminInvalid(tuple)) {
+      DBUG_PRINT("info", "return heaptuple dead");
       return HEAPTUPLE_DEAD;
-    /* Used by pre-9.0 binary upgrades */
-    else if (tuple->t_infomask & HEAP_MOVED_OFF) {
+      /* Used by pre-9.0 binary upgrades */
+    } else if (tuple->t_infomask & HEAP_MOVED_OFF) {
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
 
-      if (TransactionIdIsCurrentTransactionId(xvac))
+      if (TransactionIdIsCurrentTransactionId(xvac)) {
+        DBUG_PRINT("info", "return heaptuple delete in progress");
         return HEAPTUPLE_DELETE_IN_PROGRESS;
+      }
 
-      if (TransactionIdIsInProgress(xvac))
+      if (TransactionIdIsInProgress(xvac)) {
+        DBUG_PRINT("info", "return heaptuple delete in progress");
         return HEAPTUPLE_DELETE_IN_PROGRESS;
+      }
 
       if (TransactionIdDidCommit(xvac)) {
         SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                     InvalidTransactionId);
+        DBUG_PRINT("info", "return heaptuple dead");
         return HEAPTUPLE_DEAD;
       }
 
@@ -1175,11 +1330,15 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
     else if (tuple->t_infomask & HEAP_MOVED_IN) {
       TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
 
-      if (TransactionIdIsCurrentTransactionId(xvac))
+      if (TransactionIdIsCurrentTransactionId(xvac)) {
+        DBUG_PRINT("info", "return heaptuple insert in progress");
         return HEAPTUPLE_INSERT_IN_PROGRESS;
+      }
 
-      if (TransactionIdIsInProgress(xvac))
+      if (TransactionIdIsInProgress(xvac)) {
+        DBUG_PRINT("info", "return heaptuple insert in progress2");
         return HEAPTUPLE_INSERT_IN_PROGRESS;
+      }
 
       if (TransactionIdDidCommit(xvac))
         SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
@@ -1187,21 +1346,29 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
       else {
         SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                     InvalidTransactionId);
+        DBUG_PRINT("info", "return heaptuple dead");
         return HEAPTUPLE_DEAD;
       }
     } else if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmin(tuple))) {
-      if (tuple->t_infomask & HEAP_XMAX_INVALID)  /* xid invalid */
+      if (tuple->t_infomask & HEAP_XMAX_INVALID)  { /* xid invalid */
+        DBUG_PRINT("info", "xid invalid and return heaptuple insert in progress");
         return HEAPTUPLE_INSERT_IN_PROGRESS;
+      }
 
       /* only locked? run infomask-only check first, for performance */
       if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask) ||
-          HeapTupleHeaderIsOnlyLocked(tuple))
+          HeapTupleHeaderIsOnlyLocked(tuple)) {
+        DBUG_PRINT("info", "only locked and return heaptuple insert in progress");
         return HEAPTUPLE_INSERT_IN_PROGRESS;
+      }
 
       /* inserted and then deleted by same xact */
-      if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetUpdateXid(tuple)))
+      if (TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetUpdateXid(tuple))) {
+        DBUG_PRINT("info", "return heaptuple delete in progress");
         return HEAPTUPLE_DELETE_IN_PROGRESS;
+      }
 
+      DBUG_PRINT("info", "deleting subtransaction must have aborted and return heaptuple insert in progress");
       /* deleting subtransaction must have aborted */
       return HEAPTUPLE_INSERT_IN_PROGRESS;
     } else if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmin(tuple))) {
@@ -1213,6 +1380,7 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
        * always correct to return INSERT_IN_PROGRESS because that's
        * what's happening from the view of other backends.
        */
+      DBUG_PRINT("info", "return heaptuple insert in progress");
       return HEAPTUPLE_INSERT_IN_PROGRESS;
     } else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmin(tuple)))
       SetHintBits(tuple, buffer, HEAP_XMIN_COMMITTED,
@@ -1223,6 +1391,7 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
        */
       SetHintBits(tuple, buffer, HEAP_XMIN_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "return heaptuple dead");
       return HEAPTUPLE_DEAD;
     }
 
@@ -1237,8 +1406,10 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
    * Okay, the inserter committed, so it was good at some point.  Now what
    * about the deleting transaction?
    */
-  if (tuple->t_infomask & HEAP_XMAX_INVALID)
+  if (tuple->t_infomask & HEAP_XMAX_INVALID) {
+    DBUG_PRINT("info", "tuple infomask contains HEAP_XMAX_INVALID and return heaptuple live");
     return HEAPTUPLE_LIVE;
+  }
 
   if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask)) {
     /*
@@ -1255,13 +1426,17 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
          */
         if (!HEAP_LOCKED_UPGRADED(tuple->t_infomask) &&
             MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple),
-                                 true))
+                                 true)) {
+          DBUG_PRINT("info", "if it's a pre-pg_upgrade tuple and return heaptuple live");
           return HEAPTUPLE_LIVE;
+        }
 
         SetHintBits(tuple, buffer, HEAP_XMAX_INVALID, InvalidTransactionId);
       } else {
-        if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple)))
+        if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple))) {
+          DBUG_PRINT("info", "the transaction is running in some backend and return heaptuple live");
           return HEAPTUPLE_LIVE;
+        }
 
         SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                     InvalidTransactionId);
@@ -1274,6 +1449,8 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
      * actually update it.
      */
 
+    DBUG_PRINT("info", "we don't really care whether xmax did commit, abort or crash");
+    DBUG_PRINT("info", "return heaptuple live");
     return HEAPTUPLE_LIVE;
   }
 
@@ -1286,9 +1463,10 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
     /* not LOCKED_ONLY, so it has to have an xmax */
     Assert(TransactionIdIsValid(xmax));
 
-    if (TransactionIdIsInProgress(xmax))
+    if (TransactionIdIsInProgress(xmax)) {
+      DBUG_PRINT("info", "return heaptuple delete in progress");
       return HEAPTUPLE_DELETE_IN_PROGRESS;
-    else if (TransactionIdDidCommit(xmax)) {
+    } else if (TransactionIdDidCommit(xmax)) {
       /*
        * The multixact might still be running due to lockers.  Need to
        * allow for pruning if below the xid horizon regardless --
@@ -1298,6 +1476,7 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
        * lockers will also be present in newer tuple versions.
        */
       *dead_after = xmax;
+      DBUG_PRINT("info", "return heaptuple recently dead");
       return HEAPTUPLE_RECENTLY_DEAD;
     } else if (!MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false)) {
       /*
@@ -1307,13 +1486,15 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
       SetHintBits(tuple, buffer, HEAP_XMAX_INVALID, InvalidTransactionId);
     }
 
+    DBUG_PRINT("info", "return heaptuple live");
     return HEAPTUPLE_LIVE;
   }
 
   if (!(tuple->t_infomask & HEAP_XMAX_COMMITTED)) {
-    if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple)))
+    if (TransactionIdIsInProgress(HeapTupleHeaderGetRawXmax(tuple))) {
+      DBUG_PRINT("info", "return heaptuple delete in progress");
       return HEAPTUPLE_DELETE_IN_PROGRESS;
-    else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmax(tuple)))
+    } else if (TransactionIdDidCommit(HeapTupleHeaderGetRawXmax(tuple)))
       SetHintBits(tuple, buffer, HEAP_XMAX_COMMITTED,
                   HeapTupleHeaderGetRawXmax(tuple));
     else {
@@ -1322,6 +1503,7 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
        */
       SetHintBits(tuple, buffer, HEAP_XMAX_INVALID,
                   InvalidTransactionId);
+      DBUG_PRINT("info", "not in progress and return heaptuple live");
       return HEAPTUPLE_LIVE;
     }
 
@@ -1337,6 +1519,7 @@ HeapTupleSatisfiesVacuumHorizon(HeapTuple htup, Buffer buffer, TransactionId *de
    * some open transactions could still see the tuple.
    */
   *dead_after = HeapTupleHeaderGetRawXmax(tuple);
+  DBUG_PRINT("info", "return recently dead");
   return HEAPTUPLE_RECENTLY_DEAD;
 }
 
@@ -1357,6 +1540,7 @@ static bool
 HeapTupleSatisfiesNonVacuumable(HeapTuple htup, Snapshot snapshot,
                                 Buffer buffer)
 {
+  DBUG_TRACE;
   TransactionId dead_after = InvalidTransactionId;
   HTSV_Result res;
 
@@ -1365,8 +1549,10 @@ HeapTupleSatisfiesNonVacuumable(HeapTuple htup, Snapshot snapshot,
   if (res == HEAPTUPLE_RECENTLY_DEAD) {
     Assert(TransactionIdIsValid(dead_after));
 
-    if (GlobalVisTestIsRemovableXid(snapshot->vistest, dead_after))
+    if (GlobalVisTestIsRemovableXid(snapshot->vistest, dead_after)) {
+      DBUG_PRINT("info", "mark heap tuple as DEAD");
       res = HEAPTUPLE_DEAD;
+    }
   } else
     Assert(!TransactionIdIsValid(dead_after));
 
@@ -1515,6 +1701,7 @@ static bool
 HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
                                Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader tuple = htup->t_data;
   TransactionId xmin = HeapTupleHeaderGetXmin(tuple);
   TransactionId xmax = HeapTupleHeaderGetRawXmax(tuple);
@@ -1687,9 +1874,20 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
 bool
 HeapTupleSatisfiesVisibility(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 {
+  DBUG_TRACE;
+  bool result = false;
+
   switch (snapshot->snapshot_type) {
     case SNAPSHOT_MVCC:
-      return HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
+      result = HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
+
+      if (result) {
+        DBUG_PRINT("info", "HeapTupleSatisfiesMVCC result true");
+      } else {
+        DBUG_PRINT("info", "HeapTupleSatisfiesMVCC result false");
+      }
+
+      return result;
 
     case SNAPSHOT_SELF:
       return HeapTupleSatisfiesSelf(htup, snapshot, buffer);

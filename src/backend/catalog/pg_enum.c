@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -83,6 +84,7 @@ static int  sort_order_cmp(const void *p1, const void *p2);
 void
 EnumValuesCreate(Oid enumTypeOid, List *vals)
 {
+  DBUG_TRACE;
   Relation  pg_enum;
   Oid      *oids;
   int     elemno,
@@ -169,12 +171,14 @@ EnumValuesCreate(Oid enumTypeOid, List *vals)
      * labels are stored in a name field, for easier syscache lookup, so
      * check the length to make sure it's within range.
      */
-    if (strlen(lab) > (NAMEDATALEN - 1))
+    if (strlen(lab) > (NAMEDATALEN - 1)) {
+      DBUG_INSTANT_PRINT("info", "invalid enum label \"%s\"", lab);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_NAME),
                errmsg("invalid enum label \"%s\"", lab),
                errdetail("Labels must be %d bytes or less.",
                          NAMEDATALEN - 1)));
+    }
 
     ExecClearTuple(slot[slotCount]);
 
@@ -224,6 +228,7 @@ EnumValuesCreate(Oid enumTypeOid, List *vals)
 void
 EnumValuesDelete(Oid enumTypeOid)
 {
+  DBUG_TRACE;
   Relation  pg_enum;
   ScanKeyData key[1];
   SysScanDesc scan;
@@ -254,6 +259,7 @@ EnumValuesDelete(Oid enumTypeOid)
 static void
 init_uncommitted_enum_types(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   hash_ctl.keysize = sizeof(Oid);
@@ -271,6 +277,7 @@ init_uncommitted_enum_types(void)
 static void
 init_uncommitted_enum_values(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   hash_ctl.keysize = sizeof(Oid);
@@ -295,6 +302,7 @@ AddEnumLabel(Oid enumTypeOid,
              bool newValIsAfter,
              bool skipIfExists)
 {
+  DBUG_TRACE;
   Relation  pg_enum;
   Oid     newOid;
   Datum   values[Natts_pg_enum];
@@ -308,12 +316,14 @@ AddEnumLabel(Oid enumTypeOid,
   int     i;
 
   /* check length of new label is ok */
-  if (strlen(newVal) > (NAMEDATALEN - 1))
+  if (strlen(newVal) > (NAMEDATALEN - 1)) {
+    DBUG_INSTANT_PRINT("info", "invalid enum label \"%s\"", newVal);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_NAME),
              errmsg("invalid enum label \"%s\"", newVal),
              errdetail("Labels must be %d bytes or less.",
                        NAMEDATALEN - 1)));
+  }
 
   /*
    * Acquire a lock on the enum type, which we won't release until commit.
@@ -343,11 +353,13 @@ AddEnumLabel(Oid enumTypeOid,
                errmsg("enum label \"%s\" already exists, skipping",
                       newVal)));
       return;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "enum label \"%s\" already exists", newVal);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("enum label \"%s\" already exists",
                       newVal)));
+    }
   }
 
   pg_enum = table_open(EnumRelationId, RowExclusiveLock);
@@ -394,11 +406,13 @@ restart:
         break;
     }
 
-    if (nbr_index >= nelems)
+    if (nbr_index >= nelems) {
+      DBUG_INSTANT_PRINT("info", "\"%s\" is not an existing enum label", newVal);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("\"%s\" is not an existing enum label",
                       neighbor)));
+    }
 
     nbr_en = (Form_pg_enum) GETSTRUCT(existing[nbr_index]);
 
@@ -450,20 +464,24 @@ restart:
 
   /* Get a new OID for the new label */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_pg_enum_oid))
+    if (!OidIsValid(binary_upgrade_next_pg_enum_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_enum OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_enum OID value not set when in binary upgrade mode")));
+    }
 
     /*
      * Use binary-upgrade override for pg_enum.oid, if supplied. During
      * binary upgrade, all pg_enum.oid's are set this way so they are
      * guaranteed to be consistent.
      */
-    if (neighbor != NULL)
+    if (neighbor != NULL) {
+      DBUG_INSTANT_PRINT("info", "ALTER TYPE ADD BEFORE/AFTER is incompatible with binary upgrade");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("ALTER TYPE ADD BEFORE/AFTER is incompatible with binary upgrade")));
+    }
 
     newOid = binary_upgrade_next_pg_enum_oid;
     binary_upgrade_next_pg_enum_oid = InvalidOid;
@@ -590,6 +608,7 @@ RenameEnumLabel(Oid enumTypeOid,
                 const char *oldVal,
                 const char *newVal)
 {
+  DBUG_TRACE;
   Relation  pg_enum;
   HeapTuple enum_tup;
   Form_pg_enum en;
@@ -600,12 +619,14 @@ RenameEnumLabel(Oid enumTypeOid,
   int     i;
 
   /* check length of new label is ok */
-  if (strlen(newVal) > (NAMEDATALEN - 1))
+  if (strlen(newVal) > (NAMEDATALEN - 1)) {
+    DBUG_INSTANT_PRINT("info", "invalid enum label \"%s\"", newVal);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_NAME),
              errmsg("invalid enum label \"%s\"", newVal),
              errdetail("Labels must be %d bytes or less.",
                        NAMEDATALEN - 1)));
+  }
 
   /*
    * Acquire a lock on the enum type, which we won't release until commit.
@@ -642,17 +663,21 @@ RenameEnumLabel(Oid enumTypeOid,
       found_new = true;
   }
 
-  if (!old_tup)
+  if (!old_tup) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not an existing enum label", oldVal);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("\"%s\" is not an existing enum label",
                     oldVal)));
+  }
 
-  if (found_new)
+  if (found_new) {
+    DBUG_INSTANT_PRINT("info", "enum label \"%s\" already exists", newVal);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("enum label \"%s\" already exists",
                     newVal)));
+  }
 
   /* OK, make a writable copy of old tuple */
   enum_tup = heap_copytuple(old_tup);
@@ -675,6 +700,7 @@ RenameEnumLabel(Oid enumTypeOid,
 static bool
 EnumTypeUncommitted(Oid typ_id)
 {
+  DBUG_TRACE;
   bool    found;
 
   /* If we've made no uncommitted types table, it's not in the table */
@@ -693,6 +719,7 @@ EnumTypeUncommitted(Oid typ_id)
 bool
 EnumUncommitted(Oid enum_id)
 {
+  DBUG_TRACE;
   bool    found;
 
   /* If we've made no uncommitted values table, it's not in the table */
@@ -746,6 +773,7 @@ AtEOXact_Enum(void)
 static void
 RenumberEnumType(Relation pg_enum, HeapTuple *existing, int nelems)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -812,6 +840,7 @@ EstimateUncommittedEnumsSpace(void)
 void
 SerializeUncommittedEnums(void *space, Size size)
 {
+  DBUG_TRACE;
   Oid      *serialized = (Oid *) space;
 
   /*
@@ -858,6 +887,7 @@ SerializeUncommittedEnums(void *space, Size size)
 void
 RestoreUncommittedEnums(void *space)
 {
+  DBUG_TRACE;
   Oid      *serialized = (Oid *) space;
 
   Assert(!uncommitted_enum_types);

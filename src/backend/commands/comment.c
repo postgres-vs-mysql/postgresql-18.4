@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -39,6 +40,7 @@
 ObjectAddress
 CommentObject(CommentStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  relation;
   ObjectAddress address = InvalidObjectAddress;
 
@@ -54,6 +56,7 @@ CommentObject(CommentStmt *stmt)
     char     *database = strVal(stmt->object);
 
     if (!OidIsValid(get_database_oid(database, true))) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", database);
       ereport(WARNING,
               (errcode(ERRCODE_UNDEFINED_DATABASE),
                errmsg("database \"%s\" does not exist", database)));
@@ -92,12 +95,14 @@ CommentObject(CommentStmt *stmt)
           relation->rd_rel->relkind != RELKIND_MATVIEW &&
           relation->rd_rel->relkind != RELKIND_COMPOSITE_TYPE &&
           relation->rd_rel->relkind != RELKIND_FOREIGN_TABLE &&
-          relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+          relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+        DBUG_INSTANT_PRINT("info", "cannot set comment on relation \"%s\"", RelationGetRelationName(relation));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("cannot set comment on relation \"%s\"",
                         RelationGetRelationName(relation)),
                  errdetail_relkind_not_supported(relation->rd_rel->relkind)));
+      }
 
       break;
 
@@ -141,6 +146,7 @@ CommentObject(CommentStmt *stmt)
 void
 CreateComments(Oid oid, Oid classoid, int32 subid, const char *comment)
 {
+  DBUG_TRACE;
   Relation  description;
   ScanKeyData skey[3];
   SysScanDesc sd;
@@ -232,6 +238,7 @@ CreateComments(Oid oid, Oid classoid, int32 subid, const char *comment)
 void
 CreateSharedComments(Oid oid, Oid classoid, const char *comment)
 {
+  DBUG_TRACE;
   Relation  shdescription;
   ScanKeyData skey[2];
   SysScanDesc sd;
@@ -316,6 +323,7 @@ CreateSharedComments(Oid oid, Oid classoid, const char *comment)
 void
 DeleteComments(Oid oid, Oid classoid, int32 subid)
 {
+  DBUG_TRACE;
   Relation  description;
   ScanKeyData skey[3];
   int     nkeys;
@@ -362,6 +370,7 @@ DeleteComments(Oid oid, Oid classoid, int32 subid)
 void
 DeleteSharedComments(Oid oid, Oid classoid)
 {
+  DBUG_TRACE;
   Relation  shdescription;
   ScanKeyData skey[2];
   SysScanDesc sd;
@@ -398,6 +407,7 @@ DeleteSharedComments(Oid oid, Oid classoid)
 char *
 GetComment(Oid oid, Oid classoid, int32 subid)
 {
+  DBUG_TRACE;
   Relation  description;
   ScanKeyData skey[3];
   SysScanDesc sd;

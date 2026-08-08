@@ -23,8 +23,7 @@
 
 #define PGTYPES_FMT_NUM_MAX_DIGITS    40
 
-union un_fmt_comb
-{
+union un_fmt_comb {
   char     *str_val;
   unsigned int uint_val;
   char    char_val;

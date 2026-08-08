@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -72,8 +73,12 @@ static Expr *process_duplicate_ors(List *orlist);
 Node *
 negate_clause(Node *node)
 {
+  DBUG_TRACE;
+
   if (node == NULL)     /* should not happen */
     elog(ERROR, "can't negate an empty subexpression");
+
+  DBUG_PRINT("info", "negate a Boolean expression");
 
   switch (nodeTag(node)) {
     case T_Const: {
@@ -297,6 +302,7 @@ negate_clause(Node *node)
 Expr *
 canonicalize_qual(Expr *qual, bool is_check)
 {
+  DBUG_TRACE;
   Expr     *newqual;
 
   /* Quick exit for empty qual */
@@ -327,8 +333,11 @@ canonicalize_qual(Expr *qual, bool is_check)
 static List *
 pull_ands(List *andlist)
 {
+  DBUG_TRACE;
   List     *out_list = NIL;
   ListCell   *arg;
+
+  DBUG_PRINT("info", "recursively flatten nested AND clauses into a single and-clause list");
 
   foreach(arg, andlist) {
     Node     *subexpr = (Node *) lfirst(arg);
@@ -353,8 +362,11 @@ pull_ands(List *andlist)
 static List *
 pull_ors(List *orlist)
 {
+  DBUG_TRACE;
   List     *out_list = NIL;
   ListCell   *arg;
+
+  DBUG_PRINT("info", "recursively flatten nested OR clauses into a single or-clause list");
 
   foreach(arg, orlist) {
     Node     *subexpr = (Node *) lfirst(arg);
@@ -410,6 +422,10 @@ pull_ors(List *orlist)
 static Expr *
 find_duplicate_ors(Expr *qual, bool is_check)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "given a qualification tree with the NOTs pushed down, search for OR clauses");
+  DBUG_PRINT("info", "to which the inverse OR distributive law might apply");
+
   if (is_orclause(qual)) {
     List     *orlist = NIL;
     ListCell   *temp;
@@ -511,11 +527,14 @@ find_duplicate_ors(Expr *qual, bool is_check)
 static Expr *
 process_duplicate_ors(List *orlist)
 {
+  DBUG_TRACE;
   List     *reference = NIL;
   int     num_subclauses = 0;
   List     *winners;
   List     *neworlist;
   ListCell   *temp;
+
+  DBUG_PRINT("info", "given a list of exprs which are ORed together, try to apply he inverse OR distributive law");
 
   /* OR of no inputs reduces to FALSE */
   if (orlist == NIL)

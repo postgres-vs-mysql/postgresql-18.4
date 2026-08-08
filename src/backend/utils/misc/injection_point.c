@@ -15,6 +15,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "utils/injection_point.h"
@@ -118,6 +119,7 @@ injection_point_cache_add(const char *name,
                           InjectionPointCallback callback,
                           const void *private_data)
 {
+  DBUG_TRACE;
   InjectionPointCacheEntry *entry;
   bool    found;
 
@@ -158,6 +160,7 @@ injection_point_cache_add(const char *name,
 static void
 injection_point_cache_remove(const char *name)
 {
+  DBUG_TRACE;
   bool    found PG_USED_FOR_ASSERTS_ONLY;
 
   (void) hash_search(InjectionPointCache, name, HASH_REMOVE, &found);
@@ -172,6 +175,7 @@ injection_point_cache_remove(const char *name)
 static InjectionPointCacheEntry *
 injection_point_cache_load(InjectionPointEntry *entry, int slot_idx, uint64 generation)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   void     *injection_callback_local;
 
@@ -205,6 +209,7 @@ injection_point_cache_load(InjectionPointEntry *entry, int slot_idx, uint64 gene
 static InjectionPointCacheEntry *
 injection_point_cache_get(const char *name)
 {
+  DBUG_TRACE;
   bool    found;
   InjectionPointCacheEntry *entry;
 
@@ -244,6 +249,7 @@ InjectionPointShmemSize(void)
 void
 InjectionPointShmemInit(void)
 {
+  DBUG_TRACE;
 #ifdef USE_INJECTION_POINTS
   bool    found;
 
@@ -273,6 +279,7 @@ InjectionPointAttach(const char *name,
                      const void *private_data,
                      int private_data_size)
 {
+  DBUG_TRACE;
 #ifdef USE_INJECTION_POINTS
   InjectionPointEntry *entry;
   uint64    generation;
@@ -362,6 +369,7 @@ InjectionPointAttach(const char *name,
 bool
 InjectionPointDetach(const char *name)
 {
+  DBUG_TRACE;
 #ifdef USE_INJECTION_POINTS
   bool    found = false;
   int     idx;
@@ -423,6 +431,7 @@ InjectionPointDetach(const char *name)
 static InjectionPointCacheEntry *
 InjectionPointCacheRefresh(const char *name)
 {
+  DBUG_TRACE;
   uint32    max_inuse;
   int     namelen;
   InjectionPointEntry local_copy;
@@ -536,6 +545,7 @@ InjectionPointCacheRefresh(const char *name)
 void
 InjectionPointLoad(const char *name)
 {
+  DBUG_TRACE;
 #ifdef USE_INJECTION_POINTS
   InjectionPointCacheRefresh(name);
 #else

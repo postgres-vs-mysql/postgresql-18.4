@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -76,6 +77,7 @@ AggregateCreate(const char *aggName,
                 const char *aggminitval,
                 char proparallel)
 {
+  DBUG_TRACE;
   Relation  aggdesc;
   HeapTuple tup;
   HeapTuple oldtup;
@@ -109,27 +111,35 @@ AggregateCreate(const char *aggName,
   AclResult aclresult;
 
   /* sanity checks (caller should have caught these) */
-  if (!aggName)
+  if (!aggName) {
+    DBUG_INSTANT_PRINT("info", "no aggregate name supplied");
     elog(ERROR, "no aggregate name supplied");
+  }
 
-  if (!aggtransfnName)
+  if (!aggtransfnName) {
+    DBUG_INSTANT_PRINT("info", "aggregate must have a transition function");
     elog(ERROR, "aggregate must have a transition function");
+  }
 
-  if (numDirectArgs < 0 || numDirectArgs > numArgs)
+  if (numDirectArgs < 0 || numDirectArgs > numArgs) {
+    DBUG_INSTANT_PRINT("info", "incorrect number of direct arguments for aggregate");
     elog(ERROR, "incorrect number of direct arguments for aggregate");
+  }
 
   /*
    * Aggregates can have at most FUNC_MAX_ARGS-1 args, else the transfn
    * and/or finalfn will be unrepresentable in pg_proc.  We must check now
    * to protect fixed-size arrays here and possibly in called functions.
    */
-  if (numArgs < 0 || numArgs > FUNC_MAX_ARGS - 1)
+  if (numArgs < 0 || numArgs > FUNC_MAX_ARGS - 1) {
+    DBUG_INSTANT_PRINT("info", "aggregates cannot have more than %d argument", FUNC_MAX_ARGS - 1);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
              errmsg_plural("aggregates cannot have more than %d argument",
                            "aggregates cannot have more than %d arguments",
                            FUNC_MAX_ARGS - 1,
                            FUNC_MAX_ARGS - 1)));
+  }
 
   /*
    * If transtype is polymorphic, must have polymorphic argument also; else
@@ -139,11 +149,13 @@ AggregateCreate(const char *aggName,
               aggArgTypes,
               numArgs);
 
-  if (detailmsg)
+  if (detailmsg) {
+    DBUG_INSTANT_PRINT("info", "cannot determine transition data type");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("cannot determine transition data type"),
              errdetail_internal("%s", detailmsg)));
+  }
 
   /*
    * Likewise for moving-aggregate transtype, if any
@@ -153,11 +165,13 @@ AggregateCreate(const char *aggName,
                 aggArgTypes,
                 numArgs);
 
-    if (detailmsg)
+    if (detailmsg) {
+      DBUG_INSTANT_PRINT("info", "cannot determine transition data type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("cannot determine transition data type"),
                errdetail_internal("%s", detailmsg)));
+    }
   }
 
   /*
@@ -168,10 +182,12 @@ AggregateCreate(const char *aggName,
    * have use for such a case, we aren't bothering for now.
    */
   if (AGGKIND_IS_ORDERED_SET(aggKind) && OidIsValid(variadicArgType) &&
-      variadicArgType != ANYOID)
+      variadicArgType != ANYOID) {
+    DBUG_INSTANT_PRINT("info", "a variadic ordered-set aggregate must use VARIADIC type ANY");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("a variadic ordered-set aggregate must use VARIADIC type ANY")));
+  }
 
   /*
    * If it's a hypothetical-set aggregate, there must be at least as many
@@ -193,10 +209,12 @@ AggregateCreate(const char *aggName,
         numDirectArgs < numAggregatedArgs ||
         memcmp(aggArgTypes + (numDirectArgs - numAggregatedArgs),
                aggArgTypes + numDirectArgs,
-               numAggregatedArgs * sizeof(Oid)) != 0)
+               numAggregatedArgs * sizeof(Oid)) != 0) {
+      DBUG_INSTANT_PRINT("info", "a hypothetical-set aggregate must have direct arguments matching its aggregated arguments");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("a hypothetical-set aggregate must have direct arguments matching its aggregated arguments")));
+    }
   }
 
   /*
@@ -238,17 +256,23 @@ AggregateCreate(const char *aggName,
    * convinced that it's either safe or useful.  When transtype is
    * polymorphic we *must* demand exact equality.
    */
-  if (rettype != aggTransType)
+  if (rettype != aggTransType) {
+    char *format1 = format_type_be(aggTransType);
+    DBUG_INSTANT_PRINT("info", "return type of transition function %s is not %s",
+                       NameListToString(aggtransfnName), format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("return type of transition function %s is not %s",
                     NameListToString(aggtransfnName),
-                    format_type_be(aggTransType))));
+                    format1)));
+  }
 
   tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(transfn));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for function %u", transfn);
     elog(ERROR, "cache lookup failed for function %u", transfn);
+  }
 
   proc = (Form_pg_proc) GETSTRUCT(tup);
 
@@ -259,10 +283,12 @@ AggregateCreate(const char *aggName,
    */
   if (proc->proisstrict && agginitval == NULL) {
     if (numArgs < 1 ||
-        !IsBinaryCoercible(aggArgTypes[0], aggTransType))
+        !IsBinaryCoercible(aggArgTypes[0], aggTransType)) {
+      DBUG_INSTANT_PRINT("info", "must not omit initial value when transition function is strict and transition type is not compatible with input type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("must not omit initial value when transition function is strict and transition type is not compatible with input type")));
+    }
   }
 
   ReleaseSysCache(tup);
@@ -282,12 +308,15 @@ AggregateCreate(const char *aggName,
                                    &rettype);
 
     /* As above, return type must exactly match declared mtranstype. */
-    if (rettype != aggmTransType)
+    if (rettype != aggmTransType) {
+      char *format1 = format_type_be(aggmTransType);
+      DBUG_INSTANT_PRINT("info", "return type of transition function %s is not %s", NameListToString(aggmtransfnName), format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("return type of transition function %s is not %s",
                       NameListToString(aggmtransfnName),
-                      format_type_be(aggmTransType))));
+                      format1)));
+    }
 
     tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(mtransfn));
 
@@ -302,10 +331,12 @@ AggregateCreate(const char *aggName,
      */
     if (proc->proisstrict && aggminitval == NULL) {
       if (numArgs < 1 ||
-          !IsBinaryCoercible(aggArgTypes[0], aggmTransType))
+          !IsBinaryCoercible(aggArgTypes[0], aggmTransType)) {
+        DBUG_INSTANT_PRINT("info", "must not omit initial value when transition function is strict and transition type is not compatible with input type");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("must not omit initial value when transition function is strict and transition type is not compatible with input type")));
+      }
     }
 
     /* Remember if mtransfn is strict; we may need this below */
@@ -327,12 +358,16 @@ AggregateCreate(const char *aggName,
                                       &rettype);
 
     /* As above, return type must exactly match declared mtranstype. */
-    if (rettype != aggmTransType)
+    if (rettype != aggmTransType) {
+      char *format1 = format_type_be(aggmTransType);
+      DBUG_INSTANT_PRINT("info", "return type of inverse transition function %s is not %s",
+                         NameListToString(aggminvtransfnName), format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("return type of inverse transition function %s is not %s",
                       NameListToString(aggminvtransfnName),
-                      format_type_be(aggmTransType))));
+                      format1)));
+    }
 
     tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(minvtransfn));
 
@@ -346,10 +381,12 @@ AggregateCreate(const char *aggName,
      * transition functions to agree.  This saves having to handle
      * assorted special cases at execution time.
      */
-    if (proc->proisstrict != mtransIsStrict)
+    if (proc->proisstrict != mtransIsStrict) {
+      DBUG_INSTANT_PRINT("info", "strictness of aggregate's forward and inverse transition functions must match");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("strictness of aggregate's forward and inverse transition functions must match")));
+    }
 
     ReleaseSysCache(tup);
   }
@@ -389,10 +426,12 @@ AggregateCreate(const char *aggName,
      * Nothing bad would happen at runtime (you'd just get a null result),
      * but it's surely not what the user wants, so let's complain now.
      */
-    if (finalfnExtraArgs && func_strict(finalfn))
+    if (finalfnExtraArgs && func_strict(finalfn)) {
+      DBUG_INSTANT_PRINT("info", "final function with extra arguments must not be declared STRICT");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("final function with extra arguments must not be declared STRICT")));
+    }
   } else {
     /*
      * If no finalfn, aggregate result type is type of the state value
@@ -418,23 +457,30 @@ AggregateCreate(const char *aggName,
                                     &combineType);
 
     /* Ensure the return type matches the aggregate's trans type */
-    if (combineType != aggTransType)
+    if (combineType != aggTransType) {
+      char *format1 = format_type_be(aggTransType);
+      DBUG_INSTANT_PRINT("info", "return type of combine function %s is not %s", NameListToString(aggcombinefnName), format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("return type of combine function %s is not %s",
                       NameListToString(aggcombinefnName),
-                      format_type_be(aggTransType))));
+                      format1)));
+    }
 
     /*
      * A combine function to combine INTERNAL states must accept nulls and
      * ensure that the returned state is in the correct memory context. We
      * cannot directly check the latter, but we can check the former.
      */
-    if (aggTransType == INTERNALOID && func_strict(combinefn))
+    if (aggTransType == INTERNALOID && func_strict(combinefn)) {
+      char *format1 = format_type_be(aggTransType);
+      DBUG_INSTANT_PRINT("info", "combine function with transition type %s must not be declared STRICT",
+                         format1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("combine function with transition type %s must not be declared STRICT",
-                      format_type_be(aggTransType))));
+                      format1)));
+    }
   }
 
   /*
@@ -448,12 +494,16 @@ AggregateCreate(const char *aggName,
                                    fnArgs, InvalidOid,
                                    &rettype);
 
-    if (rettype != BYTEAOID)
+    if (rettype != BYTEAOID) {
+      char *format1 = format_type_be(BYTEAOID);
+      DBUG_INSTANT_PRINT("info", "return type of serialization function %s is not %s",
+                         NameListToString(aggserialfnName), format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("return type of serialization function %s is not %s",
                       NameListToString(aggserialfnName),
-                      format_type_be(BYTEAOID))));
+                      format1)));
+    }
   }
 
   /*
@@ -468,12 +518,16 @@ AggregateCreate(const char *aggName,
                                      fnArgs, InvalidOid,
                                      &rettype);
 
-    if (rettype != INTERNALOID)
+    if (rettype != INTERNALOID) {
+      char *format1 = format_type_be(INTERNALOID);
+      DBUG_INSTANT_PRINT("info", "return type of deserialization function %s is not %s", NameListToString(aggdeserialfnName),
+                         format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("return type of deserialization function %s is not %s",
                       NameListToString(aggdeserialfnName),
-                      format_type_be(INTERNALOID))));
+                      format1)));
+    }
   }
 
   /*
@@ -488,11 +542,13 @@ AggregateCreate(const char *aggName,
               aggArgTypes,
               numArgs);
 
-  if (detailmsg)
+  if (detailmsg) {
+    DBUG_PRINT("info", "cannot determine result data type");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("cannot determine result data type"),
              errdetail_internal("%s", detailmsg)));
+  }
 
   /*
    * Also, the return type can't be INTERNAL unless there's at least one
@@ -504,11 +560,13 @@ AggregateCreate(const char *aggName,
               aggArgTypes,
               numArgs);
 
-  if (detailmsg)
+  if (detailmsg) {
+    DBUG_INSTANT_PRINT("info", "unsafe use of pseudo-type \"internal\"");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("unsafe use of pseudo-type \"internal\""),
              errdetail_internal("%s", detailmsg)));
+  }
 
   /*
    * If a moving-aggregate implementation is supplied, look up its finalfn
@@ -543,10 +601,12 @@ AggregateCreate(const char *aggName,
                                      &rettype);
 
       /* As above, check strictness if mfinalfnExtraArgs is given */
-      if (mfinalfnExtraArgs && func_strict(mfinalfn))
+      if (mfinalfnExtraArgs && func_strict(mfinalfn)) {
+        DBUG_INSTANT_PRINT("info", "final function with extra arguments must not be declared STRICT");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("final function with extra arguments must not be declared STRICT")));
+      }
     } else {
       /*
        * If no finalfn, aggregate result type is type of the state value
@@ -556,20 +616,27 @@ AggregateCreate(const char *aggName,
 
     Assert(OidIsValid(rettype));
 
-    if (rettype != finaltype)
+    if (rettype != finaltype) {
+      char *format1 = format_type_be(rettype);
+      char *format2 = format_type_be(finaltype);
+      DBUG_INSTANT_PRINT("info", "moving-aggregate implementation returns type %s, but plain implementation returns type %s",
+                         format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("moving-aggregate implementation returns type %s, but plain implementation returns type %s",
-                      format_type_be(rettype),
-                      format_type_be(finaltype))));
+                      format1,
+                      format2)));
+    }
   }
 
   /* handle sortop, if supplied */
   if (aggsortopName) {
-    if (numArgs != 1)
+    if (numArgs != 1) {
+      DBUG_INSTANT_PRINT("info", "sort operator can only be specified for single-argument aggregates");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("sort operator can only be specified for single-argument aggregates")));
+    }
 
     sortop = LookupOperName(NULL, aggsortopName,
                             aggArgTypes[0], aggArgTypes[0],
@@ -699,7 +766,8 @@ AggregateCreate(const char *aggName,
      * we must not change aggkind or aggnumdirectargs, which affect how an
      * aggregate call is treated in parse analysis.
      */
-    if (aggKind != oldagg->aggkind)
+    if (aggKind != oldagg->aggkind) {
+      DBUG_INSTANT_PRINT("info", "cannot change routine kind");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot change routine kind"),
@@ -710,11 +778,14 @@ AggregateCreate(const char *aggName,
                 oldagg->aggkind == AGGKIND_HYPOTHETICAL ?
                 errdetail("\"%s\" is a hypothetical-set aggregate.", aggName) :
                 0)));
+    }
 
-    if (numDirectArgs != oldagg->aggnumdirectargs)
+    if (numDirectArgs != oldagg->aggnumdirectargs) {
+      DBUG_INSTANT_PRINT("info", "cannot change number of direct arguments of an aggregate function");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("cannot change number of direct arguments of an aggregate function")));
+    }
 
     replaces[Anum_pg_aggregate_aggfnoid - 1] = false;
     replaces[Anum_pg_aggregate_aggkind - 1] = false;
@@ -819,6 +890,7 @@ lookup_agg_function(List *fnName,
                     Oid variadicArgType,
                     Oid *rettype)
 {
+  DBUG_TRACE;
   Oid     fnOid;
   bool    retset;
   int     nvargs;
@@ -842,19 +914,23 @@ lookup_agg_function(List *fnName,
                              &true_oid_array, NULL);
 
   /* only valid case is a normal function not returning a set */
-  if (fdresult != FUNCDETAIL_NORMAL || !OidIsValid(fnOid))
+  if (fdresult != FUNCDETAIL_NORMAL || !OidIsValid(fnOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(fnName, nargs, NIL, input_types));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(fnName, nargs,
                                           NIL, input_types))));
+  }
 
-  if (retset)
+  if (retset) {
+    DBUG_INSTANT_PRINT("info", "function %s returns a set", func_signature_string(fnName, nargs, NIL, input_types));
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("function %s returns a set",
                     func_signature_string(fnName, nargs,
                                           NIL, input_types))));
+  }
 
   /*
    * If the agg is declared to take VARIADIC ANY, the underlying functions
@@ -864,12 +940,15 @@ lookup_agg_function(List *fnName,
    * user expects.)  Other combinations should work without any special
    * pushups, given that we told func_get_detail not to expand VARIADIC.
    */
-  if (variadicArgType == ANYOID && vatype != ANYOID)
+  if (variadicArgType == ANYOID && vatype != ANYOID) {
+    DBUG_INSTANT_PRINT("info", "function %s must accept VARIADIC ANY to be used in this aggregate",
+                       func_signature_string(fnName, nargs, NIL, input_types));
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("function %s must accept VARIADIC ANY to be used in this aggregate",
                     func_signature_string(fnName, nargs,
                                           NIL, input_types))));
+  }
 
   /*
    * If there are any polymorphic types involved, enforce consistency, and
@@ -887,12 +966,14 @@ lookup_agg_function(List *fnName,
    * coercion, but nodeAgg.c isn't prepared to deal with that
    */
   for (i = 0; i < nargs; i++) {
-    if (!IsBinaryCoercible(input_types[i], true_oid_array[i]))
+    if (!IsBinaryCoercible(input_types[i], true_oid_array[i])) {
+      DBUG_INSTANT_PRINT("info", "function %s requires run-time type coercion", func_signature_string(fnName, nargs, NIL, true_oid_array));
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("function %s requires run-time type coercion",
                       func_signature_string(fnName, nargs,
                                             NIL, true_oid_array))));
+    }
   }
 
   /* Check aggregate creator has permission to call the function */
@@ -901,5 +982,6 @@ lookup_agg_function(List *fnName,
   if (aclresult != ACLCHECK_OK)
     aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(fnOid));
 
+  DBUG_PRINT("info", "return OID of function:%u", fnOid);
   return fnOid;
 }

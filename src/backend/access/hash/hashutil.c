@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/reloptions.h"
@@ -22,7 +23,7 @@
 #include "utils/rel.h"
 
 #define CALC_NEW_BUCKET(old_bucket, lowmask) \
-      old_bucket | (lowmask + 1)
+  old_bucket | (lowmask + 1)
 
 /*
  * _hash_checkqual -- does the index tuple satisfy the scan conditions?
@@ -30,6 +31,7 @@
 bool
 _hash_checkqual(IndexScanDesc scan, IndexTuple itup)
 {
+  DBUG_TRACE;
   /*
    * Currently, we can't check any of the scan conditions since we do not
    * have the original index entry value to supply to the sk_func. Always
@@ -52,17 +54,23 @@ _hash_checkqual(IndexScanDesc scan, IndexTuple itup)
                           &isNull);
 
     /* assume sk_func is strict */
-    if (isNull)
+    if (isNull) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
 
-    if (key->sk_flags & SK_ISNULL)
+    if (key->sk_flags & SK_ISNULL) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
 
     test = FunctionCall2Coll(&key->sk_func, key->sk_collation,
                              datum, key->sk_argument);
 
-    if (!DatumGetBool(test))
+    if (!DatumGetBool(test)) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
 
     key++;
     scanKeySize--;
@@ -70,6 +78,8 @@ _hash_checkqual(IndexScanDesc scan, IndexTuple itup)
 
 #endif
 
+
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -82,6 +92,7 @@ _hash_checkqual(IndexScanDesc scan, IndexTuple itup)
 uint32
 _hash_datum2hashkey(Relation rel, Datum key)
 {
+  DBUG_TRACE;
   FmgrInfo   *procinfo;
   Oid     collation;
 
@@ -102,6 +113,7 @@ _hash_datum2hashkey(Relation rel, Datum key)
 uint32
 _hash_datum2hashkey_type(Relation rel, Datum key, Oid keytype)
 {
+  DBUG_TRACE;
   RegProcedure hash_proc;
   Oid     collation;
 
@@ -177,6 +189,7 @@ _hash_spareindex(uint32 num_bucket)
 uint32
 _hash_get_totalbuckets(uint32 splitpoint_phase)
 {
+  DBUG_TRACE;
   uint32    splitpoint_group;
   uint32    total_buckets;
   uint32    phases_within_splitpoint_group;
@@ -213,6 +226,7 @@ _hash_get_totalbuckets(uint32 splitpoint_phase)
 void
 _hash_checkpage(Relation rel, Buffer buf, int flags)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
 
   /*
@@ -276,6 +290,7 @@ _hash_checkpage(Relation rel, Buffer buf, int flags)
 bytea *
 hashoptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   static const relopt_parse_elt tab[] = {
     {"fillfactor", RELOPT_TYPE_INT, offsetof(HashOptions, fillfactor)},
   };
@@ -321,6 +336,7 @@ _hash_convert_tuple(Relation index,
                     Datum *user_values, bool *user_isnull,
                     Datum *index_values, bool *index_isnull)
 {
+  DBUG_TRACE;
   uint32    hashkey;
 
   /*
@@ -351,12 +367,15 @@ _hash_convert_tuple(Relation index,
 OffsetNumber
 _hash_binsearch(Page page, uint32 hash_value)
 {
+  DBUG_TRACE;
   OffsetNumber upper;
   OffsetNumber lower;
+  int count = 0;
 
   /* Loop invariant: lower <= desired place <= upper */
   upper = PageGetMaxOffsetNumber(page) + 1;
   lower = FirstOffsetNumber;
+  DBUG_PRINT("info", "orig lower:%u, upper:%d.", lower, upper);
 
   while (upper > lower) {
     OffsetNumber off;
@@ -368,12 +387,15 @@ _hash_binsearch(Page page, uint32 hash_value)
 
     itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, off));
     hashkey = _hash_get_indextuple_hashkey(itup);
+    count++;
 
     if (hashkey < hash_value)
       lower = off + 1;
     else
       upper = off;
   }
+
+  DBUG_PRINT("info", "compared cnt:%d, return lower:%u", count, lower);
 
   return lower;
 }
@@ -389,6 +411,7 @@ _hash_binsearch(Page page, uint32 hash_value)
 OffsetNumber
 _hash_binsearch_last(Page page, uint32 hash_value)
 {
+  DBUG_TRACE;
   OffsetNumber upper;
   OffsetNumber lower;
 
@@ -423,6 +446,7 @@ _hash_binsearch_last(Page page, uint32 hash_value)
 BlockNumber
 _hash_get_oldblock_from_newbucket(Relation rel, Bucket new_bucket)
 {
+  DBUG_TRACE;
   Bucket    old_bucket;
   uint32    mask;
   Buffer    metabuf;
@@ -462,6 +486,7 @@ _hash_get_oldblock_from_newbucket(Relation rel, Bucket new_bucket)
 BlockNumber
 _hash_get_newblock_from_oldbucket(Relation rel, Bucket old_bucket)
 {
+  DBUG_TRACE;
   Bucket    new_bucket;
   Buffer    metabuf;
   HashMetaPage metap;
@@ -496,6 +521,7 @@ Bucket
 _hash_get_newbucket_from_oldbucket(Relation rel, Bucket old_bucket,
                                    uint32 lowmask, uint32 maxbucket)
 {
+  DBUG_TRACE;
   Bucket    new_bucket;
 
   new_bucket = CALC_NEW_BUCKET(old_bucket, lowmask);
@@ -537,6 +563,7 @@ _hash_get_newbucket_from_oldbucket(Relation rel, Bucket old_bucket,
 void
 _hash_kill_items(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   BlockNumber blkno;
@@ -592,6 +619,7 @@ _hash_kill_items(IndexScanDesc scan)
 
       if (ItemPointerEquals(&ituple->t_tid, &currItem->heapTid)) {
         /* found the item */
+        DBUG_PRINT("info", "found the item and mark dead");
         ItemIdMarkDead(iid);
         killedsomething = true;
         break;      /* out of inner search loop */

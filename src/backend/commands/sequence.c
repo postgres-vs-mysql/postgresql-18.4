@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/htup_details.h"
@@ -118,6 +119,7 @@ static void process_owned_by(Relation seqrel, List *owned_by, bool for_identity)
 ObjectAddress
 DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
 {
+  DBUG_TRACE;
   FormData_pg_sequence seqform;
   FormData_pg_sequence_data seqdataform;
   bool    need_seq_rewrite;
@@ -133,6 +135,8 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
   Datum   pgs_values[Natts_pg_sequence];
   bool    pgs_nulls[Natts_pg_sequence];
   int     i;
+
+  DBUG_PRINT("info", "create a new sequence relation");
 
   /*
    * If if_not_exists was given and a relation with the same name already
@@ -259,6 +263,7 @@ DefineSequence(ParseState *pstate, CreateSeqStmt *seq)
 void
 ResetSequence(Oid seq_relid)
 {
+  DBUG_TRACE;
   Relation  seq_rel;
   SeqTable  elm;
   Form_pg_sequence_data seq;
@@ -269,6 +274,7 @@ ResetSequence(Oid seq_relid)
   Form_pg_sequence pgsform;
   int64   startv;
 
+  DBUG_PRINT("info", "reset a sequence to its initial value");
   /*
    * Read the old sequence.  This does a bit more work than really
    * necessary, but it's simple, and we do want to double-check that it's
@@ -337,6 +343,7 @@ ResetSequence(Oid seq_relid)
 static void
 fill_seq_with_data(Relation rel, HeapTuple tuple)
 {
+  DBUG_TRACE;
   fill_seq_fork_with_data(rel, tuple, MAIN_FORKNUM);
 
   if (rel->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED) {
@@ -357,6 +364,7 @@ fill_seq_with_data(Relation rel, HeapTuple tuple)
 static void
 fill_seq_fork_with_data(Relation rel, HeapTuple tuple, ForkNumber forkNum)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
   sequence_magic *sm;
@@ -435,6 +443,7 @@ fill_seq_fork_with_data(Relation rel, HeapTuple tuple, ForkNumber forkNum)
 ObjectAddress
 AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     relid;
   SeqTable  elm;
   Relation  seqrel;
@@ -449,6 +458,7 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
   HeapTuple seqtuple;
   HeapTuple newdatatuple;
 
+  DBUG_PRINT("info", "modify the definition of a sequence relation");
   /* Open and lock sequence, and check for ownership along the way. */
   relid = RangeVarGetRelidExtended(stmt->sequence,
                                    ShareRowExclusiveLock,
@@ -539,6 +549,7 @@ AlterSequence(ParseState *pstate, AlterSeqStmt *stmt)
 void
 SequenceChangePersistence(Oid relid, char newrelpersistence)
 {
+  DBUG_TRACE;
   SeqTable  elm;
   Relation  seqrel;
   Buffer    buf;
@@ -568,6 +579,7 @@ SequenceChangePersistence(Oid relid, char newrelpersistence)
 void
 DeleteSequenceTuple(Oid relid)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tuple;
 
@@ -592,6 +604,7 @@ DeleteSequenceTuple(Oid relid)
 Datum
 nextval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *seqin = PG_GETARG_TEXT_PP(0);
   RangeVar   *sequence;
   Oid     relid;
@@ -614,6 +627,7 @@ nextval(PG_FUNCTION_ARGS)
 Datum
 nextval_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
 
   PG_RETURN_INT64(nextval_internal(relid, true));
@@ -622,6 +636,7 @@ nextval_oid(PG_FUNCTION_ARGS)
 int64
 nextval_internal(Oid relid, bool check_permissions)
 {
+  DBUG_TRACE;
   SeqTable  elm;
   Relation  seqrel;
   Buffer    buf;
@@ -648,11 +663,13 @@ nextval_internal(Oid relid, bool check_permissions)
 
   if (check_permissions &&
       pg_class_aclcheck(elm->relid, GetUserId(),
-                        ACL_USAGE | ACL_UPDATE) != ACLCHECK_OK)
+                        ACL_USAGE | ACL_UPDATE) != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "permission denied for sequence %s", RelationGetRelationName(seqrel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied for sequence %s",
                     RelationGetRelationName(seqrel))));
+  }
 
   /* read-only transactions may only modify temp sequences */
   if (!seqrel->rd_islocaltemp)
@@ -671,6 +688,7 @@ nextval_internal(Oid relid, bool check_permissions)
     elm->last += elm->increment;
     sequence_close(seqrel, NoLock);
     last_used_seq = elm;
+    DBUG_PRINT("info", "some numbers were cached and result:%ld", elm->last);
     return elm->last;
   }
 
@@ -736,12 +754,15 @@ nextval_internal(Oid relid, bool check_permissions)
         if (rescnt > 0)
           break;    /* stop fetching */
 
-        if (!cycle)
+        if (!cycle) {
+          DBUG_INSTANT_PRINT("info", "nextval: reached maximum value of sequence \"%s\" (%lld)",
+                             RelationGetRelationName(seqrel),  (long long) maxv);
           ereport(ERROR,
                   (errcode(ERRCODE_SEQUENCE_GENERATOR_LIMIT_EXCEEDED),
                    errmsg("nextval: reached maximum value of sequence \"%s\" (%" PRId64 ")",
                           RelationGetRelationName(seqrel),
                           maxv)));
+        }
 
         next = minv;
       } else
@@ -753,12 +774,15 @@ nextval_internal(Oid relid, bool check_permissions)
         if (rescnt > 0)
           break;    /* stop fetching */
 
-        if (!cycle)
+        if (!cycle) {
+          DBUG_INSTANT_PRINT("info", "nextval: reached minimum value of sequence \"%s\" (%lld)",
+                             RelationGetRelationName(seqrel), (long long) minv);
           ereport(ERROR,
                   (errcode(ERRCODE_SEQUENCE_GENERATOR_LIMIT_EXCEEDED),
                    errmsg("nextval: reached minimum value of sequence \"%s\" (%" PRId64 ")",
                           RelationGetRelationName(seqrel),
                           minv)));
+        }
 
         next = maxv;
       } else
@@ -852,12 +876,14 @@ nextval_internal(Oid relid, bool check_permissions)
 
   sequence_close(seqrel, NoLock);
 
+  DBUG_PRINT("info", "result:%ld", result);
   return result;
 }
 
 Datum
 currval_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   result;
   SeqTable  elm;
@@ -867,17 +893,21 @@ currval_oid(PG_FUNCTION_ARGS)
   init_sequence(relid, &elm, &seqrel);
 
   if (pg_class_aclcheck(elm->relid, GetUserId(),
-                        ACL_SELECT | ACL_USAGE) != ACLCHECK_OK)
+                        ACL_SELECT | ACL_USAGE) != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "permission denied for sequence %s", RelationGetRelationName(seqrel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied for sequence %s",
                     RelationGetRelationName(seqrel))));
+  }
 
-  if (!elm->last_valid)
+  if (!elm->last_valid) {
+    DBUG_INSTANT_PRINT("info", "currval of sequence \"%s\" is not yet defined in this session", RelationGetRelationName(seqrel));
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("currval of sequence \"%s\" is not yet defined in this session",
                     RelationGetRelationName(seqrel))));
+  }
 
   result = elm->last;
 
@@ -889,19 +919,24 @@ currval_oid(PG_FUNCTION_ARGS)
 Datum
 lastval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Relation  seqrel;
   int64   result;
 
-  if (last_used_seq == NULL)
+  if (last_used_seq == NULL) {
+    DBUG_INSTANT_PRINT("info", "lastval is not yet defined in this session");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("lastval is not yet defined in this session")));
+  }
 
   /* Someone may have dropped the sequence since the last nextval() */
-  if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(last_used_seq->relid)))
+  if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(last_used_seq->relid))) {
+    DBUG_INSTANT_PRINT("info", "lastval is not yet defined in this session");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("lastval is not yet defined in this session")));
+  }
 
   seqrel = lock_and_open_sequence(last_used_seq);
 
@@ -909,15 +944,17 @@ lastval(PG_FUNCTION_ARGS)
   Assert(last_used_seq->last_valid);
 
   if (pg_class_aclcheck(last_used_seq->relid, GetUserId(),
-                        ACL_SELECT | ACL_USAGE) != ACLCHECK_OK)
+                        ACL_SELECT | ACL_USAGE) != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "permission denied for sequence %s", RelationGetRelationName(seqrel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied for sequence %s",
                     RelationGetRelationName(seqrel))));
+  }
 
   result = last_used_seq->last;
   sequence_close(seqrel, NoLock);
-
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
@@ -937,6 +974,7 @@ lastval(PG_FUNCTION_ARGS)
 static void
 do_setval(Oid relid, int64 next, bool iscalled)
 {
+  DBUG_TRACE;
   SeqTable  elm;
   Relation  seqrel;
   Buffer    buf;
@@ -947,14 +985,17 @@ do_setval(Oid relid, int64 next, bool iscalled)
   int64   maxv,
           minv;
 
+  DBUG_PRINT("info", "main internal procedure that handles 2 & 3 arg forms of SETVAL");
   /* open and lock sequence */
   init_sequence(relid, &elm, &seqrel);
 
-  if (pg_class_aclcheck(elm->relid, GetUserId(), ACL_UPDATE) != ACLCHECK_OK)
+  if (pg_class_aclcheck(elm->relid, GetUserId(), ACL_UPDATE) != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "permission denied for sequence %s", RelationGetRelationName(seqrel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied for sequence %s",
                     RelationGetRelationName(seqrel))));
+  }
 
   pgstuple = SearchSysCache1(SEQRELID, ObjectIdGetDatum(relid));
 
@@ -980,12 +1021,15 @@ do_setval(Oid relid, int64 next, bool iscalled)
   /* lock page buffer and read tuple */
   seq = read_seq_tuple(seqrel, &buf, &seqdatatuple);
 
-  if ((next < minv) || (next > maxv))
+  if ((next < minv) || (next > maxv)) {
+    DBUG_INSTANT_PRINT("info", "setval: value %lld is out of bounds for sequence \"%s\" (%lld..%lld)",
+                       (long long) next, RelationGetRelationName(seqrel), (long long) minv, (long long) maxv);
     ereport(ERROR,
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("setval: value %" PRId64 " is out of bounds for sequence \"%s\" (%" PRId64 "..%" PRId64 ")",
                     next, RelationGetRelationName(seqrel),
                     minv, maxv)));
+  }
 
   /* Set the currval() state only if iscalled = true */
   if (iscalled) {
@@ -1041,6 +1085,7 @@ do_setval(Oid relid, int64 next, bool iscalled)
 Datum
 setval_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   next = PG_GETARG_INT64(1);
 
@@ -1056,6 +1101,7 @@ setval_oid(PG_FUNCTION_ARGS)
 Datum
 setval3_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   next = PG_GETARG_INT64(1);
   bool    iscalled = PG_GETARG_BOOL(2);
@@ -1077,6 +1123,7 @@ setval3_oid(PG_FUNCTION_ARGS)
 static Relation
 lock_and_open_sequence(SeqTable seq)
 {
+  DBUG_TRACE;
   LocalTransactionId thislxid = MyProc->vxid.lxid;
 
   /* Get the lock if not already held in this xact */
@@ -1104,6 +1151,7 @@ lock_and_open_sequence(SeqTable seq)
 static void
 create_seq_hashtable(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   ctl.keysize = sizeof(Oid);
@@ -1120,6 +1168,7 @@ create_seq_hashtable(void)
 static void
 init_sequence(Oid relid, SeqTable *p_elm, Relation *p_rel)
 {
+  DBUG_TRACE;
   SeqTable  elm;
   Relation  seqrel;
   bool    found;
@@ -1179,6 +1228,7 @@ init_sequence(Oid relid, SeqTable *p_elm, Relation *p_rel)
 static Form_pg_sequence_data
 read_seq_tuple(Relation rel, Buffer *buf, HeapTuple seqdatatuple)
 {
+  DBUG_TRACE;
   Page    page;
   ItemId    lp;
   sequence_magic *sm;
@@ -1251,6 +1301,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
             bool *need_seq_rewrite,
             List **owned_by)
 {
+  DBUG_TRACE;
   DefElem    *as_type = NULL;
   DefElem    *start_value = NULL;
   DefElem    *restart_value = NULL;
@@ -1331,6 +1382,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
        * LOGGED and UNLOGGED options, but for those, the default error
        * below seems sufficient.)
        */
+      DBUG_INSTANT_PRINT("info", "invalid sequence option SEQUENCE NAME");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("invalid sequence option SEQUENCE NAME"),
@@ -1353,12 +1405,14 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 
     if (newtypid != INT2OID &&
         newtypid != INT4OID &&
-        newtypid != INT8OID)
+        newtypid != INT8OID) {
+      DBUG_INSTANT_PRINT("info", "identity column type must be smallint, integer, or bigint");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                for_identity
                ? errmsg("identity column type must be smallint, integer, or bigint")
                : errmsg("sequence type must be smallint, integer, or bigint")));
+    }
 
     if (!isInit) {
       /*
@@ -1387,10 +1441,12 @@ init_params(ParseState *pstate, List *options, bool for_identity,
   if (increment_by != NULL) {
     seqform->seqincrement = defGetInt64(increment_by);
 
-    if (seqform->seqincrement == 0)
+    if (seqform->seqincrement == 0) {
+      DBUG_INSTANT_PRINT("info", "INCREMENT must not be zero");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("INCREMENT must not be zero")));
+    }
 
     seqdataform->log_cnt = 0;
   } else if (isInit) {
@@ -1427,12 +1483,16 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 
   /* Validate maximum value.  No need to check INT8 as seqmax is an int64 */
   if ((seqform->seqtypid == INT2OID && (seqform->seqmax < PG_INT16_MIN || seqform->seqmax > PG_INT16_MAX))
-      || (seqform->seqtypid == INT4OID && (seqform->seqmax < PG_INT32_MIN || seqform->seqmax > PG_INT32_MAX)))
+      || (seqform->seqtypid == INT4OID && (seqform->seqmax < PG_INT32_MIN || seqform->seqmax > PG_INT32_MAX))) {
+    char *format1 = format_type_be(seqform->seqtypid);
+    DBUG_INSTANT_PRINT("info", "MAXVALUE (%lld) is out of range for sequence data type %s", (long long) seqform->seqmax,
+                       format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("MAXVALUE (%" PRId64 ") is out of range for sequence data type %s",
                     seqform->seqmax,
                     format_type_be(seqform->seqtypid))));
+  }
 
   /* MINVALUE (null arg means NO MINVALUE) */
   if (min_value != NULL && min_value->arg) {
@@ -1455,20 +1515,27 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 
   /* Validate minimum value.  No need to check INT8 as seqmin is an int64 */
   if ((seqform->seqtypid == INT2OID && (seqform->seqmin < PG_INT16_MIN || seqform->seqmin > PG_INT16_MAX))
-      || (seqform->seqtypid == INT4OID && (seqform->seqmin < PG_INT32_MIN || seqform->seqmin > PG_INT32_MAX)))
+      || (seqform->seqtypid == INT4OID && (seqform->seqmin < PG_INT32_MIN || seqform->seqmin > PG_INT32_MAX))) {
+    char *format1 = format_type_be(seqform->seqtypid);
+    DBUG_INSTANT_PRINT("info", "MINVALUE (%lld) is out of range for sequence data type %s",
+                       (long long) seqform->seqmin, format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("MINVALUE (%" PRId64 ") is out of range for sequence data type %s",
                     seqform->seqmin,
                     format_type_be(seqform->seqtypid))));
+  }
 
   /* crosscheck min/max */
-  if (seqform->seqmin >= seqform->seqmax)
+  if (seqform->seqmin >= seqform->seqmax) {
+    DBUG_INSTANT_PRINT("info", "MINVALUE (%lld) must be less than MAXVALUE (%lld)",
+                       (long long) seqform->seqmin, (long long) seqform->seqmax);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("MINVALUE (%" PRId64 ") must be less than MAXVALUE (%" PRId64 ")",
                     seqform->seqmin,
                     seqform->seqmax)));
+  }
 
   /* START WITH */
   if (start_value != NULL) {
@@ -1481,19 +1548,25 @@ init_params(ParseState *pstate, List *options, bool for_identity,
   }
 
   /* crosscheck START */
-  if (seqform->seqstart < seqform->seqmin)
+  if (seqform->seqstart < seqform->seqmin) {
+    DBUG_INSTANT_PRINT("info", "START value (%lld) cannot be less than MINVALUE (%lld)",
+                       (long long) seqform->seqstart, (long long) seqform->seqmin);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("START value (%" PRId64 ") cannot be less than MINVALUE (%" PRId64 ")",
                     seqform->seqstart,
                     seqform->seqmin)));
+  }
 
-  if (seqform->seqstart > seqform->seqmax)
+  if (seqform->seqstart > seqform->seqmax) {
+    DBUG_INSTANT_PRINT("info", "START value (%lld) cannot be greater than MAXVALUE (%lld)",
+                       (long long) seqform->seqstart, (long long) seqform->seqmax);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("START value (%" PRId64 ") cannot be greater than MAXVALUE (%" PRId64 ")",
                     seqform->seqstart,
                     seqform->seqmax)));
+  }
 
   /* RESTART [WITH] */
   if (restart_value != NULL) {
@@ -1510,29 +1583,37 @@ init_params(ParseState *pstate, List *options, bool for_identity,
   }
 
   /* crosscheck RESTART (or current value, if changing MIN/MAX) */
-  if (seqdataform->last_value < seqform->seqmin)
+  if (seqdataform->last_value < seqform->seqmin) {
+    DBUG_INSTANT_PRINT("info", "RESTART value (%lld) cannot be less than MINVALUE (%lld)",
+                       (long long) seqdataform->last_value, (long long) seqform->seqmin);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("RESTART value (%" PRId64 ") cannot be less than MINVALUE (%" PRId64 ")",
                     seqdataform->last_value,
                     seqform->seqmin)));
+  }
 
-  if (seqdataform->last_value > seqform->seqmax)
+  if (seqdataform->last_value > seqform->seqmax) {
+    DBUG_INSTANT_PRINT("info", "RESTART value (%lld) cannot be greater than MAXVALUE (%lld)",
+                       (long long) seqdataform->last_value, (long long) seqform->seqmax);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("RESTART value (%" PRId64 ") cannot be greater than MAXVALUE (%" PRId64 ")",
                     seqdataform->last_value,
                     seqform->seqmax)));
+  }
 
   /* CACHE */
   if (cache_value != NULL) {
     seqform->seqcache = defGetInt64(cache_value);
 
-    if (seqform->seqcache <= 0)
+    if (seqform->seqcache <= 0) {
+      DBUG_INSTANT_PRINT("info", "seqcache must be greater than zero");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("CACHE (%" PRId64 ") must be greater than zero",
                       seqform->seqcache)));
+    }
 
     seqdataform->log_cnt = 0;
   } else if (isInit) {
@@ -1551,6 +1632,7 @@ init_params(ParseState *pstate, List *options, bool for_identity,
 static void
 process_owned_by(Relation seqrel, List *owned_by, bool for_identity)
 {
+  DBUG_TRACE;
   DependencyType deptype;
   int     nnames;
   Relation  tablerel;
@@ -1563,11 +1645,13 @@ process_owned_by(Relation seqrel, List *owned_by, bool for_identity)
 
   if (nnames == 1) {
     /* Must be OWNED BY NONE */
-    if (strcmp(strVal(linitial(owned_by)), "none") != 0)
+    if (strcmp(strVal(linitial(owned_by)), "none") != 0) {
+      DBUG_INSTANT_PRINT("info", "invalid OWNED BY option");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("invalid OWNED BY option"),
                errhint("Specify OWNED BY table.column or OWNED BY NONE.")));
+    }
 
     tablerel = NULL;
     attnum = 0;
@@ -1588,32 +1672,41 @@ process_owned_by(Relation seqrel, List *owned_by, bool for_identity)
     if (!(tablerel->rd_rel->relkind == RELKIND_RELATION ||
           tablerel->rd_rel->relkind == RELKIND_FOREIGN_TABLE ||
           tablerel->rd_rel->relkind == RELKIND_VIEW ||
-          tablerel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE))
+          tablerel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)) {
+      DBUG_INSTANT_PRINT("info", "sequence cannot be owned by relation \"%s\"", RelationGetRelationName(tablerel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("sequence cannot be owned by relation \"%s\"",
                       RelationGetRelationName(tablerel)),
                errdetail_relkind_not_supported(tablerel->rd_rel->relkind)));
+    }
 
     /* We insist on same owner and schema */
-    if (seqrel->rd_rel->relowner != tablerel->rd_rel->relowner)
+    if (seqrel->rd_rel->relowner != tablerel->rd_rel->relowner) {
+      DBUG_INSTANT_PRINT("info", "sequence must have same owner as table it is linked to");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("sequence must have same owner as table it is linked to")));
+    }
 
-    if (RelationGetNamespace(seqrel) != RelationGetNamespace(tablerel))
+    if (RelationGetNamespace(seqrel) != RelationGetNamespace(tablerel)) {
+      DBUG_INSTANT_PRINT("info", "sequence must be in same schema as table it is linked to");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("sequence must be in same schema as table it is linked to")));
+    }
 
     /* Now, fetch the attribute number from the system cache */
     attnum = get_attnum(RelationGetRelid(tablerel), attrname);
 
-    if (attnum == InvalidAttrNumber)
+    if (attnum == InvalidAttrNumber) {
+      DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist",
+                         attrname, RelationGetRelationName(tablerel));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column \"%s\" of relation \"%s\" does not exist",
                       attrname, RelationGetRelationName(tablerel))));
+    }
   }
 
   /*
@@ -1623,13 +1716,15 @@ process_owned_by(Relation seqrel, List *owned_by, bool for_identity)
     Oid     tableId;
     int32   colId;
 
-    if (sequenceIsOwned(RelationGetRelid(seqrel), DEPENDENCY_INTERNAL, &tableId, &colId))
+    if (sequenceIsOwned(RelationGetRelid(seqrel), DEPENDENCY_INTERNAL, &tableId, &colId)) {
+      DBUG_INSTANT_PRINT("info", "cannot change ownership of identity sequence");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot change ownership of identity sequence"),
                errdetail("Sequence \"%s\" is linked to table \"%s\".",
                          RelationGetRelationName(seqrel),
                          get_rel_name(tableId))));
+    }
   }
 
   /*
@@ -1700,6 +1795,7 @@ sequence_options(Oid relid)
 Datum
 pg_sequence_parameters(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   TupleDesc tupdesc;
   Datum   values[7];
@@ -1707,14 +1803,19 @@ pg_sequence_parameters(PG_FUNCTION_ARGS)
   HeapTuple pgstuple;
   Form_pg_sequence pgsform;
 
-  if (pg_class_aclcheck(relid, GetUserId(), ACL_SELECT | ACL_UPDATE | ACL_USAGE) != ACLCHECK_OK)
+  if (pg_class_aclcheck(relid, GetUserId(), ACL_SELECT | ACL_UPDATE | ACL_USAGE) != ACLCHECK_OK) {
+    char *rel_name = get_rel_name(relid);
+    DBUG_INSTANT_PRINT("info", "permission denied for sequence %s", rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied for sequence %s",
-                    get_rel_name(relid))));
+                    rel_name)));
+  }
 
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("info", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   memset(isnull, 0, sizeof(isnull));
 
@@ -1806,6 +1907,7 @@ pg_get_sequence_data(PG_FUNCTION_ARGS)
 Datum
 pg_sequence_last_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   SeqTable  elm;
   Relation  seqrel;
@@ -1851,6 +1953,7 @@ pg_sequence_last_value(PG_FUNCTION_ARGS)
 void
 seq_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
   Buffer    buffer;

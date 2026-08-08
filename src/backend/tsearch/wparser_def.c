@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -284,6 +285,7 @@ newTParserPosition(TParserPosition *prev)
 static TParser *
 TParserInit(char *str, int len)
 {
+  DBUG_TRACE;
   TParser    *prs = (TParser *) palloc0(sizeof(TParser));
 
   prs->charmaxlen = pg_database_encoding_max_length();
@@ -320,6 +322,7 @@ TParserInit(char *str, int len)
   fprintf(stderr, "parsing \"%.*s\"\n", len, str);
 #endif
 
+  DBUG_PRINT("info", "parsing '%s'", str);
   return prs;
 }
 
@@ -337,6 +340,7 @@ TParserInit(char *str, int len)
 static TParser *
 TParserCopyInit(const TParser *orig)
 {
+  DBUG_TRACE;
   TParser    *prs = (TParser *) palloc0(sizeof(TParser));
 
   prs->charmaxlen = orig->charmaxlen;
@@ -364,6 +368,8 @@ TParserCopyInit(const TParser *orig)
 static void
 TParserClose(TParser *prs)
 {
+  DBUG_TRACE;
+
   while (prs->state) {
     TParserPosition *ptr = prs->state->prev;
 
@@ -389,6 +395,8 @@ TParserClose(TParser *prs)
 static void
 TParserCopyClose(TParser *prs)
 {
+  DBUG_TRACE;
+
   while (prs->state) {
     TParserPosition *ptr = prs->state->prev;
 
@@ -1870,6 +1878,7 @@ TParserGet(TParser *prs)
 Datum
 prsd_lextype(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LexDescr   *descr = (LexDescr *) palloc(sizeof(LexDescr) * (LASTNUM + 1));
   int     i;
 
@@ -1887,28 +1896,34 @@ prsd_lextype(PG_FUNCTION_ARGS)
 Datum
 prsd_start(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(TParserInit((char *) PG_GETARG_POINTER(0), PG_GETARG_INT32(1)));
 }
 
 Datum
 prsd_nexttoken(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TParser    *p = (TParser *) PG_GETARG_POINTER(0);
   char    **t = (char **) PG_GETARG_POINTER(1);
   int      *tlen = (int *) PG_GETARG_POINTER(2);
 
-  if (!TParserGet(p))
+  if (!TParserGet(p)) {
+    DBUG_PRINT("info", "return 0");
     PG_RETURN_INT32(0);
+  }
 
   *t = p->token;
   *tlen = p->lenbytetoken;
 
+  DBUG_PRINT("info", "token:%s, len:%d, type:%d", *t, *tlen, p->type);
   PG_RETURN_INT32(p->type);
 }
 
 Datum
 prsd_end(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TParser    *p = (TParser *) PG_GETARG_POINTER(0);
 
   TParserClose(p);
@@ -1973,6 +1988,8 @@ checkcondition_HL(void *opaque, QueryOperand *val, ExecPhraseData *data)
   hlCheck    *checkval = (hlCheck *) opaque;
   int     i;
 
+  DBUG_PRINT("info", "TS_execute callback for matching a tsquery operand to headline words");
+
   /* scan words array for matching items */
   for (i = 0; i < checkval->len; i++) {
     if (checkval->words[i].item == val) {
@@ -2017,6 +2034,7 @@ static bool
 hlCover(HeadlineParsedText *prs, TSQuery query, List *locations,
         int *nextpos, int *p, int *q)
 {
+  DBUG_TRACE;
   int     pos = *nextpos;
 
   /* This loop repeats when our selected word-range fails the query */
@@ -2167,6 +2185,7 @@ static void
 mark_fragment(HeadlineParsedText *prs, bool highlightall,
               int startpos, int endpos)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = startpos; i <= endpos; i++) {
@@ -2200,6 +2219,7 @@ static void
 get_next_fragment(HeadlineParsedText *prs, int *startpos, int *endpos,
                   int *curlen, int *poslen, int max_words)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -2257,6 +2277,7 @@ mark_hl_fragments(HeadlineParsedText *prs, TSQuery query, List *locations,
                   int shortword, int min_words,
                   int max_words, int max_fragments)
 {
+  DBUG_TRACE;
   int32   poslen,
           curlen,
           i,
@@ -2439,6 +2460,7 @@ mark_hl_words(HeadlineParsedText *prs, TSQuery query, List *locations,
               bool highlightall,
               int shortword, int min_words, int max_words)
 {
+  DBUG_TRACE;
   int     nextpos = 0,
           p = 0,
           q = 0;
@@ -2603,6 +2625,7 @@ mark_hl_words(HeadlineParsedText *prs, TSQuery query, List *locations,
 Datum
 prsd_headline(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeadlineParsedText *prs = (HeadlineParsedText *) PG_GETARG_POINTER(0);
   List     *prsoptions = (List *) PG_GETARG_POINTER(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);

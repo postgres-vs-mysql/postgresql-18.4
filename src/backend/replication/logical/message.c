@@ -29,6 +29,7 @@
  * ---------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -86,6 +87,7 @@ LogLogicalMessage(const char *prefix, const char *message, size_t size,
 void
 logicalmsg_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   if (info != XLOG_LOGICAL_MESSAGE)

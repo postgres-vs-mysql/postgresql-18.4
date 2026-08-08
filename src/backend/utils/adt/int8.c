@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -48,9 +49,13 @@ typedef struct {
 Datum
 int8in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *num = PG_GETARG_CSTRING(0);
 
-  PG_RETURN_INT64(pg_strtoint64_safe(num, fcinfo->context));
+  int64 result = pg_strtoint64_safe(num, fcinfo->context);
+
+  DBUG_PRINT("info", "result:%ld", result);
+  PG_RETURN_INT64(result);
 }
 
 
@@ -59,6 +64,7 @@ int8in(PG_FUNCTION_ARGS)
 Datum
 int8out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val = PG_GETARG_INT64(0);
   char    buf[MAXINT8LEN + 1];
   char     *result;
@@ -72,6 +78,7 @@ int8out(PG_FUNCTION_ARGS)
    */
   result = palloc(len);
   memcpy(result, buf, len);
+  DBUG_PRINT("info", "result:%s", result);
   PG_RETURN_CSTRING(result);
 }
 
@@ -81,9 +88,13 @@ int8out(PG_FUNCTION_ARGS)
 Datum
 int8recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+  int64 result = pq_getmsgint64(buf);
 
-  PG_RETURN_INT64(pq_getmsgint64(buf));
+  DBUG_PRINT("info", "result:%ld", result);
+
+  PG_RETURN_INT64(result);
 }
 
 /*
@@ -92,9 +103,11 @@ int8recv(PG_FUNCTION_ARGS)
 Datum
 int8send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   StringInfoData buf;
 
+  DBUG_PRINT("info", "convert int8(%ld) to binary format", arg1);
   pq_begintypsend(&buf);
   pq_sendint64(&buf, arg1);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
@@ -111,8 +124,15 @@ int8send(PG_FUNCTION_ARGS)
 Datum
 int8eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 == val2) {
+    DBUG_PRINT("info", "is val1(%ld) equal to val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "is val1(%ld) equal to val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 == val2);
 }
@@ -120,8 +140,15 @@ int8eq(PG_FUNCTION_ARGS)
 Datum
 int8ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 != val2) {
+    DBUG_PRINT("info", "val1(%ld) != val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) != val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 != val2);
 }
@@ -129,8 +156,15 @@ int8ne(PG_FUNCTION_ARGS)
 Datum
 int8lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 < val2) {
+    DBUG_PRINT("info", "val1(%ld) < val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) < val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 < val2);
 }
@@ -138,8 +172,15 @@ int8lt(PG_FUNCTION_ARGS)
 Datum
 int8gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%ld) > val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) > val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 > val2);
 }
@@ -147,8 +188,15 @@ int8gt(PG_FUNCTION_ARGS)
 Datum
 int8le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 <= val2) {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 <= val2);
 }
@@ -156,8 +204,15 @@ int8le(PG_FUNCTION_ARGS)
 Datum
 int8ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 >= val2) {
+    DBUG_PRINT("info", "val1(%ld) >= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) >= val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 >= val2);
 }
@@ -168,8 +223,15 @@ int8ge(PG_FUNCTION_ARGS)
 Datum
 int84eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 == val2) {
+    DBUG_PRINT("info", "val1(%ld) == val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) == val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 == val2);
 }
@@ -177,8 +239,15 @@ int84eq(PG_FUNCTION_ARGS)
 Datum
 int84ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 != val2) {
+    DBUG_PRINT("info", "val1(%ld) != val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) != val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 != val2);
 }
@@ -186,8 +255,15 @@ int84ne(PG_FUNCTION_ARGS)
 Datum
 int84lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 < val2) {
+    DBUG_PRINT("info", "val1(%ld) < val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) < val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 < val2);
 }
@@ -195,8 +271,15 @@ int84lt(PG_FUNCTION_ARGS)
 Datum
 int84gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 > val2);
 }
@@ -204,8 +287,15 @@ int84gt(PG_FUNCTION_ARGS)
 Datum
 int84le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 <= val2) {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 <= val2);
 }
@@ -213,8 +303,15 @@ int84le(PG_FUNCTION_ARGS)
 Datum
 int84ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int32   val2 = PG_GETARG_INT32(1);
+
+  if (val1 >= val2) {
+    DBUG_PRINT("info", "val1(%ld) >= val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) >= val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 >= val2);
 }
@@ -225,8 +322,15 @@ int84ge(PG_FUNCTION_ARGS)
 Datum
 int48eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 == val2) {
+    DBUG_PRINT("info", "val1(%d) == val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) == val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 == val2);
 }
@@ -234,8 +338,15 @@ int48eq(PG_FUNCTION_ARGS)
 Datum
 int48ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 != val2) {
+    DBUG_PRINT("info", "val1(%d) != val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) != val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 != val2);
 }
@@ -243,8 +354,15 @@ int48ne(PG_FUNCTION_ARGS)
 Datum
 int48lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 < val2) {
+    DBUG_PRINT("info", "val1(%d) < val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) < val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 < val2);
 }
@@ -252,8 +370,15 @@ int48lt(PG_FUNCTION_ARGS)
 Datum
 int48gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%d) > val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) > val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 > val2);
 }
@@ -261,8 +386,15 @@ int48gt(PG_FUNCTION_ARGS)
 Datum
 int48le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 <= val2) {
+    DBUG_PRINT("info", "val1(%d) <= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) <= val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 <= val2);
 }
@@ -270,8 +402,16 @@ int48le(PG_FUNCTION_ARGS)
 Datum
 int48ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   val1 = PG_GETARG_INT32(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 >= val2) {
+    DBUG_PRINT("info", "val1(%d) >= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) >= val2(%ld)? No", val1, val2);
+  }
+
 
   PG_RETURN_BOOL(val1 >= val2);
 }
@@ -282,8 +422,15 @@ int48ge(PG_FUNCTION_ARGS)
 Datum
 int82eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 == val2) {
+    DBUG_PRINT("info", "val1(%ld) == val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) == val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 == val2);
 }
@@ -291,8 +438,15 @@ int82eq(PG_FUNCTION_ARGS)
 Datum
 int82ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 != val2) {
+    DBUG_PRINT("info", "val1(%ld) != val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) != val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 != val2);
 }
@@ -300,8 +454,15 @@ int82ne(PG_FUNCTION_ARGS)
 Datum
 int82lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 < val2) {
+    DBUG_PRINT("info", "val1(%ld) < val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) < val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 < val2);
 }
@@ -309,8 +470,15 @@ int82lt(PG_FUNCTION_ARGS)
 Datum
 int82gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 > val2);
 }
@@ -318,8 +486,15 @@ int82gt(PG_FUNCTION_ARGS)
 Datum
 int82le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 <= val2) {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) <= val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 <= val2);
 }
@@ -327,8 +502,15 @@ int82le(PG_FUNCTION_ARGS)
 Datum
 int82ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val1 = PG_GETARG_INT64(0);
   int16   val2 = PG_GETARG_INT16(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%ld) > val2(%d)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 >= val2);
 }
@@ -339,8 +521,15 @@ int82ge(PG_FUNCTION_ARGS)
 Datum
 int28eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 == val2) {
+    DBUG_PRINT("info", "val1(%d) == val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) == val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 == val2);
 }
@@ -348,8 +537,15 @@ int28eq(PG_FUNCTION_ARGS)
 Datum
 int28ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 != val2) {
+    DBUG_PRINT("info", "val1(%d) != val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) != val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 != val2);
 }
@@ -357,8 +553,15 @@ int28ne(PG_FUNCTION_ARGS)
 Datum
 int28lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 < val2) {
+    DBUG_PRINT("info", "val1(%d) < val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) < val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 < val2);
 }
@@ -366,8 +569,15 @@ int28lt(PG_FUNCTION_ARGS)
 Datum
 int28gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 > val2) {
+    DBUG_PRINT("info", "val1(%d) > val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) > val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 > val2);
 }
@@ -375,8 +585,15 @@ int28gt(PG_FUNCTION_ARGS)
 Datum
 int28le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 <= val2) {
+    DBUG_PRINT("info", "val1(%d) <= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) <= val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 <= val2);
 }
@@ -384,8 +601,15 @@ int28le(PG_FUNCTION_ARGS)
 Datum
 int28ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   val1 = PG_GETARG_INT16(0);
   int64   val2 = PG_GETARG_INT64(1);
+
+  if (val1 >= val2) {
+    DBUG_PRINT("info", "val1(%d) >= val2(%ld)? Yes", val1, val2);
+  } else {
+    DBUG_PRINT("info", "val1(%d) >= val2(%ld)? No", val1, val2);
+  }
 
   PG_RETURN_BOOL(val1 >= val2);
 }
@@ -399,6 +623,7 @@ int28ge(PG_FUNCTION_ARGS)
 Datum
 in_range_int8_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   val = PG_GETARG_INT64(0);
   int64   base = PG_GETARG_INT64(1);
   int64   offset = PG_GETARG_INT64(2);
@@ -437,6 +662,7 @@ in_range_int8_int8(PG_FUNCTION_ARGS)
 Datum
 int8um(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
   int64   result;
 
@@ -446,20 +672,24 @@ int8um(PG_FUNCTION_ARGS)
              errmsg("bigint out of range")));
 
   result = -arg;
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8up(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
 
+  DBUG_PRINT("info", "result:%ld", arg);
   PG_RETURN_INT64(arg);
 }
 
 Datum
 int8pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -469,12 +699,14 @@ int8pl(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -484,12 +716,14 @@ int8mi(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -499,12 +733,14 @@ int8mul(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -537,6 +773,7 @@ int8div(PG_FUNCTION_ARGS)
 
   result = arg1 / arg2;
 
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
@@ -546,6 +783,7 @@ int8div(PG_FUNCTION_ARGS)
 Datum
 int8abs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   result;
 
@@ -555,6 +793,7 @@ int8abs(PG_FUNCTION_ARGS)
              errmsg("bigint out of range")));
 
   result = (arg1 < 0) ? -arg1 : arg1;
+  DBUG_PRINT("info", "result:%ld", result);
   PG_RETURN_INT64(result);
 }
 
@@ -564,8 +803,10 @@ int8abs(PG_FUNCTION_ARGS)
 Datum
 int8mod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64 result;
 
   if (unlikely(arg2 == 0)) {
     ereport(ERROR,
@@ -585,7 +826,9 @@ int8mod(PG_FUNCTION_ARGS)
 
   /* No overflow is possible */
 
-  PG_RETURN_INT64(arg1 % arg2);
+  result = arg1 % arg2;
+  DBUG_PRINT("info", "result:%ld", result);
+  PG_RETURN_INT64(result);
 }
 
 /*
@@ -641,8 +884,10 @@ int8gcd_internal(int64 arg1, int64 arg2)
      * well-defined, namely zero.  Guard against this and just return the
      * result, gcd(INT64_MIN, -1) = 1.
      */
-    if (arg2 == -1)
+    if (arg2 == -1) {
+      DBUG_PRINT("info", "result:1");
       return 1;
+    }
   }
 
   /* Use the Euclidean algorithm to find the GCD */
@@ -659,18 +904,21 @@ int8gcd_internal(int64 arg1, int64 arg2)
   if (arg1 < 0)
     arg1 = -arg1;
 
+  DBUG_PRINT("info", "result:%ld", arg1);
   return arg1;
 }
 
 Datum
 int8gcd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
 
   result = int8gcd_internal(arg1, arg2);
 
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
@@ -680,6 +928,7 @@ int8gcd(PG_FUNCTION_ARGS)
 Datum
 int8lcm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   gcd;
@@ -711,12 +960,14 @@ int8lcm(PG_FUNCTION_ARGS)
   if (result < 0)
     result = -result;
 
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8inc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * When int8 is pass-by-reference, we provide this special case to avoid
    * palloc overhead for COUNT(): when called as an aggregate, we know that
@@ -725,6 +976,7 @@ int8inc(PG_FUNCTION_ARGS)
    * incorrect, so just ifdef it out.)
    */
 #ifndef USE_FLOAT8_BYVAL    /* controls int8 too */
+
   if (AggCheckCallContext(fcinfo, NULL)) {
     int64    *arg = (int64 *) PG_GETARG_POINTER(0);
 
@@ -733,6 +985,7 @@ int8inc(PG_FUNCTION_ARGS)
               (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
                errmsg("bigint out of range")));
 
+    DBUG_PRINT("info", "result:%ld", *arg);
     PG_RETURN_POINTER(arg);
   } else
 #endif
@@ -746,6 +999,7 @@ int8inc(PG_FUNCTION_ARGS)
               (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
                errmsg("bigint out of range")));
 
+    DBUG_PRINT("info", "result:%ld", result);
     PG_RETURN_INT64(result);
   }
 }
@@ -753,6 +1007,7 @@ int8inc(PG_FUNCTION_ARGS)
 Datum
 int8dec(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * When int8 is pass-by-reference, we provide this special case to avoid
    * palloc overhead for COUNT(): when called as an aggregate, we know that
@@ -761,6 +1016,7 @@ int8dec(PG_FUNCTION_ARGS)
    * incorrect, so just ifdef it out.)
    */
 #ifndef USE_FLOAT8_BYVAL    /* controls int8 too */
+
   if (AggCheckCallContext(fcinfo, NULL)) {
     int64    *arg = (int64 *) PG_GETARG_POINTER(0);
 
@@ -769,6 +1025,7 @@ int8dec(PG_FUNCTION_ARGS)
               (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
                errmsg("bigint out of range")));
 
+    DBUG_PRINT("info", "result:%ld", *arg);
     PG_RETURN_POINTER(arg);
   } else
 #endif
@@ -782,6 +1039,7 @@ int8dec(PG_FUNCTION_ARGS)
               (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
                errmsg("bigint out of range")));
 
+    DBUG_PRINT("info", "result:%ld", result);
     PG_RETURN_INT64(result);
   }
 }
@@ -799,18 +1057,21 @@ int8dec(PG_FUNCTION_ARGS)
 Datum
 int8inc_any(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return int8inc(fcinfo);
 }
 
 Datum
 int8inc_float8_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return int8inc(fcinfo);
 }
 
 Datum
 int8dec_any(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return int8dec(fcinfo);
 }
 
@@ -821,6 +1082,7 @@ int8dec_any(PG_FUNCTION_ARGS)
 Datum
 int8inc_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   if (IsA(rawreq, SupportRequestWFuncMonotonic)) {
@@ -859,30 +1121,35 @@ int8inc_support(PG_FUNCTION_ARGS)
 Datum
 int8larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
 
   result = ((arg1 > arg2) ? arg1 : arg2);
 
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int8smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
 
   result = ((arg1 < arg2) ? arg1 : arg2);
 
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int84pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
   int64   result;
@@ -892,12 +1159,14 @@ int84pl(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int84mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
   int64   result;
@@ -907,12 +1176,14 @@ int84mi(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int84mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
   int64   result;
@@ -922,12 +1193,14 @@ int84mul(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int84div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
   int64   result;
@@ -960,12 +1233,14 @@ int84div(PG_FUNCTION_ARGS)
 
   result = arg1 / arg2;
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int48pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg1 = PG_GETARG_INT32(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -975,12 +1250,14 @@ int48pl(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int48mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg1 = PG_GETARG_INT32(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -990,12 +1267,14 @@ int48mi(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int48mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg1 = PG_GETARG_INT32(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -1005,14 +1284,17 @@ int48mul(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int48div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg1 = PG_GETARG_INT32(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64  result;
 
   if (unlikely(arg2 == 0)) {
     ereport(ERROR,
@@ -1022,13 +1304,16 @@ int48div(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
   }
 
+  result = (int64) arg1 / arg2;
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   /* No overflow is possible */
-  PG_RETURN_INT64((int64) arg1 / arg2);
+  PG_RETURN_INT64(result);
 }
 
 Datum
 int82pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int16   arg2 = PG_GETARG_INT16(1);
   int64   result;
@@ -1038,12 +1323,14 @@ int82pl(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int82mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int16   arg2 = PG_GETARG_INT16(1);
   int64   result;
@@ -1053,12 +1340,14 @@ int82mi(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int82mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int16   arg2 = PG_GETARG_INT16(1);
   int64   result;
@@ -1068,12 +1357,14 @@ int82mul(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int82div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int16   arg2 = PG_GETARG_INT16(1);
   int64   result;
@@ -1106,12 +1397,14 @@ int82div(PG_FUNCTION_ARGS)
 
   result = arg1 / arg2;
 
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int28pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   arg1 = PG_GETARG_INT16(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -1121,12 +1414,14 @@ int28pl(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int28mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   arg1 = PG_GETARG_INT16(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -1136,12 +1431,14 @@ int28mi(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int28mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   arg1 = PG_GETARG_INT16(0);
   int64   arg2 = PG_GETARG_INT64(1);
   int64   result;
@@ -1151,14 +1448,17 @@ int28mul(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("bigint out of range")));
 
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
   PG_RETURN_INT64(result);
 }
 
 Datum
 int28div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   arg1 = PG_GETARG_INT16(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64 result;
 
   if (unlikely(arg2 == 0)) {
     ereport(ERROR,
@@ -1168,8 +1468,10 @@ int28div(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
   }
 
+  result = (int64) arg1 / arg2;
   /* No overflow is possible */
-  PG_RETURN_INT64((int64) arg1 / arg2);
+  DBUG_PRINT("info", "take a (%d) and b (%ld) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 /* Binary arithmetics
@@ -1185,54 +1487,73 @@ int28div(PG_FUNCTION_ARGS)
 Datum
 int8and(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64  result = (arg1 & arg2);
 
-  PG_RETURN_INT64(arg1 & arg2);
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 Datum
 int8or(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64  result = (arg1 | arg2);
 
-  PG_RETURN_INT64(arg1 | arg2);
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 Datum
 int8xor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int64   arg2 = PG_GETARG_INT64(1);
+  int64  result = (arg1 ^ arg2);
 
-  PG_RETURN_INT64(arg1 ^ arg2);
+  DBUG_PRINT("info", "take a (%ld) and b (%ld) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 Datum
 int8not(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
+  int64  result = (~arg1);
 
-  PG_RETURN_INT64(~arg1);
+  DBUG_PRINT("info", "take arg(%ld) as input and return result: %ld", arg1, result);
+  PG_RETURN_INT64(result);
+
 }
 
 Datum
 int8shl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
+  int64  result = (arg1 << arg2);
 
-  PG_RETURN_INT64(arg1 << arg2);
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 Datum
 int8shr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg1 = PG_GETARG_INT64(0);
   int32   arg2 = PG_GETARG_INT32(1);
+  int64  result = (arg1 >> arg2);
 
-  PG_RETURN_INT64(arg1 >> arg2);
+  DBUG_PRINT("info", "take a (%ld) and b (%d) as input and return result: %ld", arg1, arg2, result);
+  PG_RETURN_INT64(result);
 }
 
 /*----------------------------------------------------------
@@ -1242,14 +1563,17 @@ int8shr(PG_FUNCTION_ARGS)
 Datum
 int48(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg = PG_GETARG_INT32(0);
 
+  DBUG_PRINT("info", "result: %ld", (int64) arg);
   PG_RETURN_INT64((int64) arg);
 }
 
 Datum
 int84(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
 
   if (unlikely(arg < PG_INT32_MIN) || unlikely(arg > PG_INT32_MAX))
@@ -1263,6 +1587,7 @@ int84(PG_FUNCTION_ARGS)
 Datum
 int28(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   arg = PG_GETARG_INT16(0);
 
   PG_RETURN_INT64((int64) arg);
@@ -1271,6 +1596,7 @@ int28(PG_FUNCTION_ARGS)
 Datum
 int82(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
 
   if (unlikely(arg < PG_INT16_MIN) || unlikely(arg > PG_INT16_MAX))
@@ -1284,6 +1610,7 @@ int82(PG_FUNCTION_ARGS)
 Datum
 i8tod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
   float8    result;
 
@@ -1298,6 +1625,7 @@ i8tod(PG_FUNCTION_ARGS)
 Datum
 dtoi8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
 
   /*
@@ -1319,6 +1647,7 @@ dtoi8(PG_FUNCTION_ARGS)
 Datum
 i8tof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
   float4    result;
 
@@ -1333,6 +1662,7 @@ i8tof(PG_FUNCTION_ARGS)
 Datum
 ftoi8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
 
   /*
@@ -1354,6 +1684,7 @@ ftoi8(PG_FUNCTION_ARGS)
 Datum
 i8tooid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   arg = PG_GETARG_INT64(0);
 
   if (unlikely(arg < 0) || unlikely(arg > PG_UINT32_MAX))
@@ -1367,6 +1698,7 @@ i8tooid(PG_FUNCTION_ARGS)
 Datum
 oidtoi8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg = PG_GETARG_OID(0);
 
   PG_RETURN_INT64((int64) arg);
@@ -1378,12 +1710,14 @@ oidtoi8(PG_FUNCTION_ARGS)
 Datum
 generate_series_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return generate_series_step_int8(fcinfo);
 }
 
 Datum
 generate_series_step_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   generate_series_fctx *fctx;
   int64   result;
@@ -1458,6 +1792,7 @@ generate_series_step_int8(PG_FUNCTION_ARGS)
 Datum
 generate_series_int8_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 

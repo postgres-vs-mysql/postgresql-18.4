@@ -35,6 +35,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/spgist.h"
 #include "access/stratnum.h"
@@ -59,6 +60,7 @@ static int  adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
 Datum
 spg_range_quad_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
@@ -94,6 +96,7 @@ spg_range_quad_config(PG_FUNCTION_ARGS)
 static int16
 getQuadrant(TypeCacheEntry *typcache, const RangeType *centroid, const RangeType *tst)
 {
+  DBUG_TRACE;
   RangeBound  centroidLower,
               centroidUpper;
   bool    centroidEmpty;
@@ -127,6 +130,7 @@ getQuadrant(TypeCacheEntry *typcache, const RangeType *centroid, const RangeType
 Datum
 spg_range_quad_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   RangeType  *inRange = DatumGetRangeTypeP(in->datum),
@@ -196,6 +200,7 @@ bound_cmp(const void *a, const void *b, void *arg)
 Datum
 spg_range_quad_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   int     i;
@@ -295,6 +300,7 @@ spg_range_quad_picksplit(PG_FUNCTION_ARGS)
 Datum
 spg_range_quad_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   int     which;
@@ -876,6 +882,8 @@ static int
 adjacent_inner_consistent(TypeCacheEntry *typcache, const RangeBound *arg,
                           const RangeBound *centroid, const RangeBound *prev)
 {
+  DBUG_TRACE;
+
   if (prev) {
     int     prevcmp;
     int     cmp;
@@ -904,6 +912,7 @@ adjacent_inner_consistent(TypeCacheEntry *typcache, const RangeBound *arg,
 Datum
 spg_range_quad_leaf_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
   spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
   RangeType  *leafRange = DatumGetRangeTypeP(in->leafDatum);
@@ -911,6 +920,7 @@ spg_range_quad_leaf_consistent(PG_FUNCTION_ARGS)
   bool    res;
   int     i;
 
+  DBUG_PRINT("info", "check leaf value against query using corresponding function");
   /* all tests are exact */
   out->recheck = false;
 
@@ -989,6 +999,12 @@ spg_range_quad_leaf_consistent(PG_FUNCTION_ARGS)
      */
     if (!res)
       break;
+  }
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   PG_RETURN_BOOL(res);

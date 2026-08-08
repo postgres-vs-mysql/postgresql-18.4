@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
 */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup.h"
@@ -143,6 +144,7 @@ check_enable_rls(Oid relid, Oid checkAsUser, bool noError)
 Datum
 row_security_active(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By OID */
   Oid     tableoid = PG_GETARG_OID(0);
   int     rls_status;
@@ -154,6 +156,7 @@ row_security_active(PG_FUNCTION_ARGS)
 Datum
 row_security_active_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By qualified name */
   text     *tablename = PG_GETARG_TEXT_PP(0);
   RangeVar   *tablerel;

@@ -1760,8 +1760,7 @@ Decomp_hash_func(const void *key)
   uint32    a = 0;
   uint32    b = 1;
 
-  while (keylen--)
-  {
+  while (keylen--) {
     unsigned char c = *k++;
 
     a = a * 257 + c;
@@ -1772,16 +1771,14 @@ Decomp_hash_func(const void *key)
 }
 
 /* Hash lookup information for decomposition */
-static const pg_unicode_decompinfo UnicodeDecompInfo =
-{
+static const pg_unicode_decompinfo UnicodeDecompInfo = {
   UnicodeDecompMain,
   Decomp_hash_func,
   6843
 };
 
 /* Inverse lookup array -- contains indexes into UnicodeDecompMain[] */
-static const uint16 RecompInverseLookup[961] =
-{
+static const uint16 RecompInverseLookup[961] = {
   /* U+003C+0338 -> U+226E */ 1858,
   /* U+003D+0338 -> U+2260 */ 1855,
   /* U+003E+0338 -> U+226F */ 1859,
@@ -2998,8 +2995,7 @@ Recomp_hash_func(const void *key)
   uint32    a = 0;
   uint32    b = 0;
 
-  while (keylen--)
-  {
+  while (keylen--) {
     unsigned char c = *k++;
 
     a = a * 257 + c;
@@ -3010,8 +3006,7 @@ Recomp_hash_func(const void *key)
 }
 
 /* Hash lookup information for recomposition */
-static const pg_unicode_recompinfo UnicodeRecompInfo =
-{
+static const pg_unicode_recompinfo UnicodeRecompInfo = {
   RecompInverseLookup,
   Recomp_hash_func,
   961

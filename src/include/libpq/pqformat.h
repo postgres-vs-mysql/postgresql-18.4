@@ -171,8 +171,7 @@ pq_sendbyte(StringInfo buf, uint8 byt)
 static inline void
 pq_sendint(StringInfo buf, uint32 i, int b)
 {
-  switch (b)
-  {
+  switch (b) {
     case 1:
       pq_sendint8(buf, (uint8) i);
       break;

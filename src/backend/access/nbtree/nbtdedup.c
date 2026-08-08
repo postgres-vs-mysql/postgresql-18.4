@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/nbtxlog.h"
@@ -58,6 +59,7 @@ void
 _bt_dedup_pass(Relation rel, Buffer buf, IndexTuple newitem, Size newitemsz,
                bool bottomupdedup)
 {
+  DBUG_TRACE;
   OffsetNumber offnum,
                minoff,
                maxoff;
@@ -295,6 +297,7 @@ bool
 _bt_bottomupdel_pass(Relation rel, Buffer buf, Relation heapRel,
                      Size newitemsz)
 {
+  DBUG_TRACE;
   OffsetNumber offnum,
                minoff,
                maxoff;
@@ -418,6 +421,7 @@ void
 _bt_dedup_start_pending(BTDedupState state, IndexTuple base,
                         OffsetNumber baseoff)
 {
+  DBUG_TRACE;
   Assert(state->nhtids == 0);
   Assert(state->nitems == 0);
   Assert(!BTreeTupleIsPivot(base));
@@ -532,6 +536,7 @@ _bt_dedup_save_htid(BTDedupState state, IndexTuple itup)
 Size
 _bt_dedup_finish_pending(Page newpage, BTDedupState state)
 {
+  DBUG_TRACE;
   OffsetNumber tupoff;
   Size    tuplesz;
   Size    spacesaving;
@@ -626,6 +631,7 @@ static void
 _bt_bottomupdel_finish_pending(Page page, BTDedupState state,
                                TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   bool    dupinterval = (state->nitems > 1);
 
   Assert(state->nitems > 0);
@@ -755,6 +761,7 @@ static bool
 _bt_do_singleval(Relation rel, Page page, BTDedupState state,
                  OffsetNumber minoff, IndexTuple newitem)
 {
+  DBUG_TRACE;
   int     nkeyatts = IndexRelationGetNumberOfKeyAttributes(rel);
   ItemId    itemid;
   IndexTuple  itup;
@@ -793,6 +800,7 @@ _bt_do_singleval(Relation rel, Page page, BTDedupState state,
 static void
 _bt_singleval_fillfactor(Page page, BTDedupState state, Size newitemsz)
 {
+  DBUG_TRACE;
   Size    leftfree;
   int     reduction;
 
@@ -836,6 +844,7 @@ _bt_singleval_fillfactor(Page page, BTDedupState state, Size newitemsz)
 IndexTuple
 _bt_form_posting(IndexTuple base, ItemPointer htids, int nhtids)
 {
+  DBUG_TRACE;
   uint32    keysize,
             newsize;
   IndexTuple  itup;
@@ -894,6 +903,7 @@ _bt_form_posting(IndexTuple base, ItemPointer htids, int nhtids)
 void
 _bt_update_posting(BTVacuumPosting vacposting)
 {
+  DBUG_TRACE;
   IndexTuple  origtuple = vacposting->itup;
   uint32    keysize,
             newsize;
@@ -991,6 +1001,7 @@ _bt_update_posting(BTVacuumPosting vacposting)
 IndexTuple
 _bt_swap_posting(IndexTuple newitem, IndexTuple oposting, int postingoff)
 {
+  DBUG_TRACE;
   int     nhtids;
   char     *replacepos;
   char     *replaceposright;
@@ -1047,6 +1058,7 @@ _bt_swap_posting(IndexTuple newitem, IndexTuple oposting, int postingoff)
 static bool
 _bt_posting_valid(IndexTuple posting)
 {
+  DBUG_TRACE;
   ItemPointerData last;
   ItemPointer htid;
 

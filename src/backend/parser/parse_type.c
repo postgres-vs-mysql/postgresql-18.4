@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/namespace.h"
@@ -87,10 +88,12 @@ LookupTypeNameExtended(ParseState *pstate,
     char     *field = NULL;
     Oid     relid;
     AttrNumber  attnum;
+    char *format1;
 
     /* deconstruct the name list */
     switch (list_length(typeName->names)) {
       case 1:
+        DBUG_INSTANT_PRINT("info", "improper %%TYPE reference (too few dotted names): %s", NameListToString(typeName->names));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("improper %%TYPE reference (too few dotted names): %s",
@@ -117,6 +120,7 @@ LookupTypeNameExtended(ParseState *pstate,
         break;
 
       default:
+        DBUG_INSTANT_PRINT("info", "improper %%TYPE reference (too many dotted names): %s", NameListToString(typeName->names));
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("improper %%TYPE reference (too many dotted names): %s",
@@ -138,12 +142,14 @@ LookupTypeNameExtended(ParseState *pstate,
     if (attnum == InvalidAttrNumber) {
       if (missing_ok)
         typoid = InvalidOid;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", field, rel->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("column \"%s\" of relation \"%s\" does not exist",
                         field, rel->relname),
                  parser_errposition(pstate, typeName->location)));
+      }
     } else {
       typoid = get_atttype(relid, attnum);
 
@@ -151,10 +157,12 @@ LookupTypeNameExtended(ParseState *pstate,
       Assert(typeName->arrayBounds == NIL);
 
       /* emit nuisance notice (intentionally not errposition'd) */
+      format1 = format_type_be(typoid);
+      DBUG_INSTANT_PRINT("info", "type reference %s converted to %s", TypeNameToString(typeName), format1);
       ereport(NOTICE,
               (errmsg("type reference %s converted to %s",
                       TypeNameToString(typeName),
-                      format_type_be(typoid))));
+                      format1)));
     }
   } else {
     /* Normal reference to a type name */
@@ -232,12 +240,14 @@ LookupTypeNameOid(ParseState *pstate, const TypeName *typeName, bool missing_ok)
   tup = LookupTypeName(pstate, typeName, NULL, missing_ok);
 
   if (tup == NULL) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", TypeNameToString(typeName));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("type \"%s\" does not exist",
                       TypeNameToString(typeName)),
                parser_errposition(pstate, typeName->location)));
+    }
 
     return InvalidOid;
   }
@@ -262,19 +272,23 @@ typenameType(ParseState *pstate, const TypeName *typeName, int32 *typmod_p)
 
   tup = LookupTypeName(pstate, typeName, typmod_p, false);
 
-  if (tup == NULL)
+  if (tup == NULL) {
+    DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", TypeNameToString(typeName));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("type \"%s\" does not exist",
                     TypeNameToString(typeName)),
              parser_errposition(pstate, typeName->location)));
+  }
 
-  if (!((Form_pg_type) GETSTRUCT(tup))->typisdefined)
+  if (!((Form_pg_type) GETSTRUCT(tup))->typisdefined) {
+    DBUG_INSTANT_PRINT("info", "type \"%s\" is only a shell", TypeNameToString(typeName));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("type \"%s\" is only a shell",
                     TypeNameToString(typeName)),
              parser_errposition(pstate, typeName->location)));
+  }
 
   return tup;
 }
@@ -329,6 +343,7 @@ typenameTypeIdAndMod(ParseState *pstate, const TypeName *typeName,
 static int32
 typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
 {
+  DBUG_TRACE;
   int32   result;
   Oid     typmodin;
   Datum    *datums;
@@ -346,21 +361,25 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
    * for the shell-type case, since a shell couldn't possibly have a
    * typmodin function.
    */
-  if (!((Form_pg_type) GETSTRUCT(typ))->typisdefined)
+  if (!((Form_pg_type) GETSTRUCT(typ))->typisdefined) {
+    DBUG_INSTANT_PRINT("info", "type modifier cannot be specified for shell type \"%s\"", TypeNameToString(typeName));
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("type modifier cannot be specified for shell type \"%s\"",
                     TypeNameToString(typeName)),
              parser_errposition(pstate, typeName->location)));
+  }
 
   typmodin = ((Form_pg_type) GETSTRUCT(typ))->typmodin;
 
-  if (typmodin == InvalidOid)
+  if (typmodin == InvalidOid) {
+    DBUG_INSTANT_PRINT("info", "type modifier is not allowed for type \"%s\"", TypeNameToString(typeName));
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("type modifier is not allowed for type \"%s\"",
                     TypeNameToString(typeName)),
              parser_errposition(pstate, typeName->location)));
+  }
 
   /*
    * Convert the list of raw-grammar-output expressions to a cstring array.
@@ -394,11 +413,13 @@ typenameTypeMod(ParseState *pstate, const TypeName *typeName, Type typ)
         cstr = strVal(linitial(cr->fields));
     }
 
-    if (!cstr)
+    if (!cstr) {
+      DBUG_INSTANT_PRINT("info", "type modifiers must be simple constants or identifiers");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("type modifiers must be simple constants or identifiers"),
                parser_errposition(pstate, typeName->location)));
+    }
 
     datums[n++] = CStringGetDatum(cstr);
   }
@@ -533,6 +554,7 @@ GetColumnDefCollation(ParseState *pstate, const ColumnDef *coldef, Oid typeOid)
   Oid     result;
   Oid     typcollation = get_typcollation(typeOid);
   int     location = coldef->location;
+  char *format1;
 
   if (coldef->collClause) {
     /* We have a raw COLLATE clause, so look up the collation */
@@ -548,12 +570,15 @@ GetColumnDefCollation(ParseState *pstate, const ColumnDef *coldef, Oid typeOid)
   }
 
   /* Complain if COLLATE is applied to an uncollatable type */
-  if (OidIsValid(result) && !OidIsValid(typcollation))
+  if (OidIsValid(result) && !OidIsValid(typcollation)) {
+    format1 = format_type_be(typeOid);
+    DBUG_INSTANT_PRINT("info", "collations are not supported by type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("collations are not supported by type %s",
-                    format_type_be(typeOid)),
+                    format1),
              parser_errposition(pstate, location)));
+  }
 
   return result;
 }
@@ -642,6 +667,7 @@ typeTypeCollation(Type typ)
 Datum
 stringTypeDatum(Type tp, char *string, int32 atttypmod)
 {
+  DBUG_TRACE;
   Form_pg_type typform = (Form_pg_type) GETSTRUCT(tp);
   Oid     typinput = typform->typinput;
   Oid     typioparam = getTypeIOParam(tp);

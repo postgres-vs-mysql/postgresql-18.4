@@ -60,6 +60,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_collation.h"
@@ -357,6 +358,7 @@ cmpaffix(const void *s1, const void *s2)
 static void
 getNextFlagFromString(IspellDict *Conf, const char **sflagset, char *sflag)
 {
+  DBUG_TRACE;
   int32   s;
   char     *next;
   const char *sbuf = *sflagset;
@@ -497,6 +499,8 @@ IsAffixFlagInUse(IspellDict *Conf, int affix, const char *affixflag)
 static void
 NIAddSpell(IspellDict *Conf, const char *word, const char *flag)
 {
+  DBUG_TRACE;
+
   if (Conf->nspell >= Conf->mspell) {
     if (Conf->mspell) {
       Conf->mspell *= 2;
@@ -525,6 +529,7 @@ NIAddSpell(IspellDict *Conf, const char *word, const char *flag)
 void
 NIImportDictionary(IspellDict *Conf, const char *filename)
 {
+  DBUG_TRACE;
   tsearch_readline_state trst;
   char     *line;
 
@@ -609,6 +614,7 @@ NIImportDictionary(IspellDict *Conf, const char *filename)
 static int
 FindWord(IspellDict *Conf, const char *word, const char *affixflag, int flag)
 {
+  DBUG_TRACE;
   SPNode     *node = Conf->Dictionary;
   SPNodeData *StopLow,
              *StopHigh,
@@ -683,6 +689,7 @@ static void
 NIAddAffix(IspellDict *Conf, const char *flag, char flagflags, const char *mask,
            const char *find, const char *repl, int type)
 {
+  DBUG_TRACE;
   AFFIX    *Affix;
 
   if (Conf->naffixes >= Conf->maffixes) {
@@ -850,6 +857,7 @@ static int
 parse_ooaffentry(char *str, char *type, char *flag, char *find,
                  char *repl, char *mask)
 {
+  DBUG_TRACE;
   int     state = PAE_WAIT_TYPE;
   int     fields_read = 0;
   bool    valid = false;
@@ -913,6 +921,7 @@ parse_ooaffentry(char *str, char *type, char *flag, char *find,
 static bool
 parse_affentry(const char *str, char *mask, char *find, char *repl)
 {
+  DBUG_TRACE;
   int     state = PAE_WAIT_MASK;
   char     *pmask = mask,
             *pfind = find,
@@ -1173,6 +1182,7 @@ getAffixFlagSet(IspellDict *Conf, char *s)
 static void
 NIImportOOAffixes(IspellDict *Conf, const char *filename)
 {
+  DBUG_TRACE;
   char    type[BUFSIZ],
           *ptype = NULL;
   char    sflag[BUFSIZ];
@@ -1403,6 +1413,7 @@ nextline:
 void
 NIImportAffixes(IspellDict *Conf, const char *filename)
 {
+  DBUG_TRACE;
   char     *pstr = NULL;
   char    flag[BUFSIZ];
   char    mask[BUFSIZ];
@@ -1548,6 +1559,7 @@ isnewformat:
 static int
 MergeAffix(IspellDict *Conf, int a1, int a2)
 {
+  DBUG_TRACE;
   const char **ptr;
 
   Assert(a1 < Conf->nAffixData && a2 < Conf->nAffixData);
@@ -1614,6 +1626,7 @@ makeCompoundFlags(IspellDict *Conf, int affix)
 static SPNode *
 mkSPNode(IspellDict *Conf, int low, int high, int level)
 {
+  DBUG_TRACE;
   int     i;
   int     nchar = 0;
   char    lastchar = '\0';
@@ -1694,6 +1707,7 @@ mkSPNode(IspellDict *Conf, int low, int high, int level)
 void
 NISortDictionary(IspellDict *Conf)
 {
+  DBUG_TRACE;
   int     i;
   int     naffix;
   int     curaffix;
@@ -1799,6 +1813,7 @@ NISortDictionary(IspellDict *Conf)
 static AffixNode *
 mkANode(IspellDict *Conf, int low, int high, int level, int type)
 {
+  DBUG_TRACE;
   int     i;
   int     nchar = 0;
   uint8   lastchar = '\0';
@@ -1877,6 +1892,7 @@ mkANode(IspellDict *Conf, int low, int high, int level, int type)
 static void
 mkVoidAffix(IspellDict *Conf, bool issuffix, int startsuffix)
 {
+  DBUG_TRACE;
   int     i,
           cnt = 0;
   int     start = (issuffix) ? startsuffix : 0;
@@ -1943,6 +1959,7 @@ isAffixInUse(IspellDict *Conf, const char *affixflag)
 void
 NISortAffixes(IspellDict *Conf)
 {
+  DBUG_TRACE;
   AFFIX    *Affix;
   size_t    i;
   CMPDAffix  *ptr;
@@ -1995,6 +2012,7 @@ NISortAffixes(IspellDict *Conf)
 static AffixNodeData *
 FindAffixes(AffixNode *node, const char *word, int wrdlen, int *level, int type)
 {
+  DBUG_TRACE;
   AffixNodeData *StopLow,
                 *StopHigh,
                 *StopMiddle;
@@ -2060,6 +2078,7 @@ FindAffixes(AffixNode *node, const char *word, int wrdlen, int *level, int type)
 static char *
 CheckAffix(const char *word, size_t len, AFFIX *Affix, int flagflags, char *newword, int *baselen)
 {
+  DBUG_TRACE;
   size_t    keeplen,
             findlen;
 
@@ -2174,6 +2193,7 @@ addToResult(char **forms, char **cur, char *word)
 static char **
 NormalizeSubWord(IspellDict *Conf, const char *word, int flag)
 {
+  DBUG_TRACE;
   AffixNodeData *suffix = NULL,
                  *prefix = NULL;
   int     slevel = 0,
@@ -2367,6 +2387,7 @@ AddStem(SplitVar *v, char *word)
 static SplitVar *
 SplitToVariants(IspellDict *Conf, SPNode *snode, SplitVar *orig, const char *word, int wordlen, int startpos, int minpos)
 {
+  DBUG_TRACE;
   SplitVar   *var = NULL;
   SPNodeData *StopLow,
              *StopHigh,
@@ -2517,6 +2538,8 @@ SplitToVariants(IspellDict *Conf, SPNode *snode, SplitVar *orig, const char *wor
 static void
 addNorm(TSLexeme **lres, TSLexeme **lcur, char *word, int flags, uint16 NVariant)
 {
+  DBUG_TRACE;
+
   if (*lres == NULL)
     *lcur = *lres = (TSLexeme *) palloc(MAX_NORM * sizeof(TSLexeme));
 
@@ -2532,6 +2555,7 @@ addNorm(TSLexeme **lres, TSLexeme **lcur, char *word, int flags, uint16 NVariant
 TSLexeme *
 NINormalizeWord(IspellDict *Conf, const char *word)
 {
+  DBUG_TRACE;
   char    **res;
   TSLexeme   *lcur = NULL,
               *lres = NULL;

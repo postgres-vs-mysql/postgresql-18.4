@@ -221,11 +221,9 @@ GistPageGetDeleteXid(Page page)
 
   /* Is the deleteXid field present? */
   if (((PageHeader) page)->pd_lower >= MAXALIGN(SizeOfPageHeaderData) +
-      offsetof(GISTDeletedPageContents, deleteXid) + sizeof(FullTransactionId))
-  {
+      offsetof(GISTDeletedPageContents, deleteXid) + sizeof(FullTransactionId)) {
     return ((GISTDeletedPageContents *) PageGetContents(page))->deleteXid;
-  }
-  else
+  } else
     return FullTransactionIdFromEpochAndXid(0, FirstNormalTransactionId);
 }
 

@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/htup.h"
@@ -172,6 +173,7 @@ WaitForReplicationWorkerAttach(LogicalRepWorker *worker,
                                uint16 generation,
                                BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   bool    result = false;
   bool    dropped_latch = false;
 
@@ -241,6 +243,7 @@ WaitForReplicationWorkerAttach(LogicalRepWorker *worker,
 LogicalRepWorker *
 logicalrep_worker_find(Oid subid, Oid relid, bool only_running)
 {
+  DBUG_TRACE;
   int     i;
   LogicalRepWorker *res = NULL;
 
@@ -271,6 +274,7 @@ logicalrep_worker_find(Oid subid, Oid relid, bool only_running)
 List *
 logicalrep_workers_find(Oid subid, bool only_running, bool acquire_lock)
 {
+  DBUG_TRACE;
   int     i;
   List     *res = NIL;
 
@@ -303,6 +307,7 @@ logicalrep_worker_launch(LogicalRepWorkerType wtype,
                          Oid dbid, Oid subid, const char *subname, Oid userid,
                          Oid relid, dsm_handle subworker_dsm)
 {
+  DBUG_TRACE;
   BackgroundWorker bgw;
   BackgroundWorkerHandle *bgw_handle;
   uint16    generation;
@@ -519,6 +524,7 @@ retry:
 static void
 logicalrep_worker_stop_internal(LogicalRepWorker *worker, int signo)
 {
+  DBUG_TRACE;
   uint16    generation;
 
   Assert(LWLockHeldByMeInMode(LogicalRepWorkerLock, LW_SHARED));
@@ -597,6 +603,7 @@ logicalrep_worker_stop_internal(LogicalRepWorker *worker, int signo)
 void
 logicalrep_worker_stop(Oid subid, Oid relid)
 {
+  DBUG_TRACE;
   LogicalRepWorker *worker;
 
   LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
@@ -620,6 +627,7 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 void
 logicalrep_pa_worker_stop(ParallelApplyWorkerInfo *winfo)
 {
+  DBUG_TRACE;
   int     slot_no;
   uint16    generation;
   LogicalRepWorker *worker;
@@ -662,6 +670,7 @@ logicalrep_pa_worker_stop(ParallelApplyWorkerInfo *winfo)
 void
 logicalrep_worker_wakeup(Oid subid, Oid relid)
 {
+  DBUG_TRACE;
   LogicalRepWorker *worker;
 
   LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
@@ -682,6 +691,7 @@ logicalrep_worker_wakeup(Oid subid, Oid relid)
 void
 logicalrep_worker_wakeup_ptr(LogicalRepWorker *worker)
 {
+  DBUG_TRACE;
   Assert(LWLockHeldByMe(LogicalRepWorkerLock));
 
   SetLatch(&worker->proc->procLatch);
@@ -693,6 +703,7 @@ logicalrep_worker_wakeup_ptr(LogicalRepWorker *worker)
 void
 logicalrep_worker_attach(int slot)
 {
+  DBUG_TRACE;
   /* Block concurrent access. */
   LWLockAcquire(LogicalRepWorkerLock, LW_EXCLUSIVE);
 
@@ -728,6 +739,8 @@ logicalrep_worker_attach(int slot)
 static void
 logicalrep_worker_detach(void)
 {
+  DBUG_TRACE;
+
   /* Stop the parallel apply workers. */
   if (am_leader_apply_worker()) {
     List     *workers;
@@ -831,6 +844,7 @@ logicalrep_worker_onexit(int code, Datum arg)
 int
 logicalrep_sync_worker_count(Oid subid)
 {
+  DBUG_TRACE;
   int     i;
   int     res = 0;
 
@@ -854,6 +868,7 @@ logicalrep_sync_worker_count(Oid subid)
 static int
 logicalrep_pa_worker_count(Oid subid)
 {
+  DBUG_TRACE;
   int     i;
   int     res = 0;
 
@@ -899,6 +914,7 @@ ApplyLauncherShmemSize(void)
 void
 ApplyLauncherRegister(void)
 {
+  DBUG_TRACE;
   BackgroundWorker bgw;
 
   /*
@@ -935,6 +951,7 @@ ApplyLauncherRegister(void)
 void
 ApplyLauncherShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   LogicalRepCtx = (LogicalRepCtxStruct *)
@@ -1009,6 +1026,7 @@ logicalrep_launcher_attach_dshmem(void)
 static void
 ApplyLauncherSetWorkerStartTime(Oid subid, TimestampTz start_time)
 {
+  DBUG_TRACE;
   LauncherLastStartTimesEntry *entry;
   bool    found;
 
@@ -1025,6 +1043,7 @@ ApplyLauncherSetWorkerStartTime(Oid subid, TimestampTz start_time)
 static TimestampTz
 ApplyLauncherGetWorkerStartTime(Oid subid)
 {
+  DBUG_TRACE;
   LauncherLastStartTimesEntry *entry;
   TimestampTz ret;
 
@@ -1063,6 +1082,8 @@ ApplyLauncherForgetWorkerStartTime(Oid subid)
 void
 AtEOXact_ApplyLauncher(bool isCommit)
 {
+  DBUG_TRACE;
+
   if (isCommit) {
     if (on_commit_launcher_wakeup)
       ApplyLauncherWakeup();
@@ -1098,6 +1119,7 @@ ApplyLauncherWakeup(void)
 void
 ApplyLauncherMain(Datum main_arg)
 {
+  DBUG_TRACE;
   ereport(DEBUG1,
           (errmsg_internal("logical replication launcher started")));
 
@@ -1260,6 +1282,7 @@ GetLeaderApplyWorkerPid(pid_t pid)
 Datum
 pg_stat_get_subscription(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_STAT_GET_SUBSCRIPTION_COLS 10
   Oid     subid = PG_ARGISNULL(0) ? InvalidOid : PG_GETARG_OID(0);
   int     i;

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <unistd.h>
@@ -63,6 +64,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
        int stmt_location, int stmt_len,
        uint64 *processed)
 {
+  DBUG_TRACE;
   bool    is_from = stmt->is_from;
   bool    pipe = (stmt->filename == NULL);
   Relation  rel;
@@ -76,7 +78,8 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
    */
   if (!pipe) {
     if (stmt->is_program) {
-      if (!has_privs_of_role(GetUserId(), ROLE_PG_EXECUTE_SERVER_PROGRAM))
+      if (!has_privs_of_role(GetUserId(), ROLE_PG_EXECUTE_SERVER_PROGRAM)) {
+        DBUG_INSTANT_PRINT("info", "permission denied to COPY to or from an external program");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to COPY to or from an external program"),
@@ -84,8 +87,10 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
                            "pg_execute_server_program"),
                  errhint("Anyone can COPY to stdout or from stdin. "
                          "psql's \\copy command also works for anyone.")));
+      }
     } else {
-      if (is_from && !has_privs_of_role(GetUserId(), ROLE_PG_READ_SERVER_FILES))
+      if (is_from && !has_privs_of_role(GetUserId(), ROLE_PG_READ_SERVER_FILES)) {
+        DBUG_INSTANT_PRINT("info", "permission denied to COPY from a file");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to COPY from a file"),
@@ -93,8 +98,10 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
                            "pg_read_server_files"),
                  errhint("Anyone can COPY to stdout or from stdin. "
                          "psql's \\copy command also works for anyone.")));
+      }
 
-      if (!is_from && !has_privs_of_role(GetUserId(), ROLE_PG_WRITE_SERVER_FILES))
+      if (!is_from && !has_privs_of_role(GetUserId(), ROLE_PG_WRITE_SERVER_FILES)) {
+        DBUG_INSTANT_PRINT("info", "permission denied to COPY to a file");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to COPY to a file"),
@@ -102,6 +109,7 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
                            "pg_write_server_files"),
                  errhint("Anyone can COPY to stdout or from stdin. "
                          "psql's \\copy command also works for anyone.")));
+      }
     }
   }
 
@@ -221,11 +229,13 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
       RangeVar   *from;
       List     *targetList = NIL;
 
-      if (is_from)
+      if (is_from) {
+        DBUG_INSTANT_PRINT("info", "COPY FROM not supported with row-level security");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("COPY FROM not supported with row-level security"),
                  errhint("Use INSERT statements instead.")));
+      }
 
       /*
        * Build target list
@@ -353,6 +363,8 @@ DoCopy(ParseState *pstate, const CopyStmt *stmt,
 static CopyHeaderChoice
 defGetCopyHeaderChoice(DefElem *def, bool is_from)
 {
+  DBUG_TRACE;
+
   /*
    * If no parameter value given, assume "true" is meant.
    */
@@ -398,11 +410,13 @@ defGetCopyHeaderChoice(DefElem *def, bool is_from)
         return COPY_HEADER_FALSE;
 
       if (pg_strcasecmp(sval, "match") == 0) {
-        if (!is_from)
+        if (!is_from) {
+          DBUG_INSTANT_PRINT("info", "cannot use \"%s\" with HEADER in COPY TO", sval);
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cannot use \"%s\" with HEADER in COPY TO",
                           sval)));
+        }
 
         return COPY_HEADER_MATCH;
       }
@@ -410,6 +424,7 @@ defGetCopyHeaderChoice(DefElem *def, bool is_from)
     break;
   }
 
+  DBUG_INSTANT_PRINT("info", "%s requires a Boolean value or \"match\"", def->defname);
   ereport(ERROR,
           (errcode(ERRCODE_SYNTAX_ERROR),
            errmsg("%s requires a Boolean value or \"match\"",
@@ -423,15 +438,18 @@ defGetCopyHeaderChoice(DefElem *def, bool is_from)
 static CopyOnErrorChoice
 defGetCopyOnErrorChoice(DefElem *def, ParseState *pstate, bool is_from)
 {
+  DBUG_TRACE;
   char     *sval = defGetString(def);
 
-  if (!is_from)
+  if (!is_from) {
+    DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "ON_ERROR", "COPY TO");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
               second %s is a COPY with direction, e.g. COPY TO */
              errmsg("COPY %s cannot be used with %s", "ON_ERROR", "COPY TO"),
              parser_errposition(pstate, def->location)));
+  }
 
   /*
    * Allow "stop", or "ignore" values.
@@ -442,6 +460,7 @@ defGetCopyOnErrorChoice(DefElem *def, ParseState *pstate, bool is_from)
   if (pg_strcasecmp(sval, "ignore") == 0)
     return COPY_ON_ERROR_IGNORE;
 
+  DBUG_INSTANT_PRINT("info", "COPY %s \"%s\" not recognized", "ON_ERROR", sval);
   ereport(ERROR,
           (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
            /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR */
@@ -487,6 +506,7 @@ defGetCopyRejectLimitOption(DefElem *def)
 static CopyLogVerbosityChoice
 defGetCopyLogVerbosityChoice(DefElem *def, ParseState *pstate)
 {
+  DBUG_TRACE;
   char     *sval;
 
   /*
@@ -503,6 +523,7 @@ defGetCopyLogVerbosityChoice(DefElem *def, ParseState *pstate)
   if (pg_strcasecmp(sval, "verbose") == 0)
     return COPY_LOG_VERBOSITY_VERBOSE;
 
+  DBUG_INSTANT_PRINT("info", "COPY %s \"%s\" not recognized", "LOG_VERBOSITY", sval);
   ereport(ERROR,
           (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
            /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR */
@@ -533,6 +554,7 @@ ProcessCopyOptions(ParseState *pstate,
                    bool is_from,
                    List *options)
 {
+  DBUG_TRACE;
   bool    format_specified = false;
   bool    freeze_specified = false;
   bool    header_specified = false;
@@ -565,11 +587,13 @@ ProcessCopyOptions(ParseState *pstate,
         opts_out->csv_mode = true;
       else if (strcmp(fmt, "binary") == 0)
         opts_out->binary = true;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "COPY format \"%s\" not recognized", fmt);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("COPY format \"%s\" not recognized", fmt),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "freeze") == 0) {
       if (freeze_specified)
         errorConflictingDefElem(defel, pstate);
@@ -615,12 +639,14 @@ ProcessCopyOptions(ParseState *pstate,
         opts_out->force_quote_all = true;
       else if (defel->arg && IsA(defel->arg, List))
         opts_out->force_quote = castNode(List, defel->arg);
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "argument to option \"%s\" must be a list of column names", defel->defname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument to option \"%s\" must be a list of column names",
                         defel->defname),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "force_not_null") == 0) {
       if (opts_out->force_notnull || opts_out->force_notnull_all)
         errorConflictingDefElem(defel, pstate);
@@ -629,12 +655,14 @@ ProcessCopyOptions(ParseState *pstate,
         opts_out->force_notnull_all = true;
       else if (defel->arg && IsA(defel->arg, List))
         opts_out->force_notnull = castNode(List, defel->arg);
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "argument to option \"%s\" must be a list of column names", defel->defname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument to option \"%s\" must be a list of column names",
                         defel->defname),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "force_null") == 0) {
       if (opts_out->force_null || opts_out->force_null_all)
         errorConflictingDefElem(defel, pstate);
@@ -643,12 +671,14 @@ ProcessCopyOptions(ParseState *pstate,
         opts_out->force_null_all = true;
       else if (defel->arg && IsA(defel->arg, List))
         opts_out->force_null = castNode(List, defel->arg);
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "argument to option \"%s\" must be a list of column names", defel->defname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument to option \"%s\" must be a list of column names",
                         defel->defname),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "convert_selectively") == 0) {
       /*
        * Undocumented, not-accessible-from-SQL option: convert only the
@@ -662,24 +692,28 @@ ProcessCopyOptions(ParseState *pstate,
 
       if (defel->arg == NULL || IsA(defel->arg, List))
         opts_out->convert_select = castNode(List, defel->arg);
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "argument to option \"%s\" must be a list of column names", defel->defname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument to option \"%s\" must be a list of column names",
                         defel->defname),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "encoding") == 0) {
       if (opts_out->file_encoding >= 0)
         errorConflictingDefElem(defel, pstate);
 
       opts_out->file_encoding = pg_char_to_encoding(defGetString(defel));
 
-      if (opts_out->file_encoding < 0)
+      if (opts_out->file_encoding < 0) {
+        DBUG_INSTANT_PRINT("info", "argument to option \"%s\" must be a valid encoding name", defel->defname);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("argument to option \"%s\" must be a valid encoding name",
                         defel->defname),
                  parser_errposition(pstate, defel->location)));
+      }
     } else if (strcmp(defel->defname, "on_error") == 0) {
       if (on_error_specified)
         errorConflictingDefElem(defel, pstate);
@@ -698,33 +732,41 @@ ProcessCopyOptions(ParseState *pstate,
 
       reject_limit_specified = true;
       opts_out->reject_limit = defGetCopyRejectLimitOption(defel);
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "option \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("option \"%s\" not recognized",
                       defel->defname),
                parser_errposition(pstate, defel->location)));
+    }
   }
 
   /*
    * Check for incompatible options (must do these three before inserting
    * defaults)
    */
-  if (opts_out->binary && opts_out->delim)
+  if (opts_out->binary && opts_out->delim) {
+    DBUG_INSTANT_PRINT("info", "cannot specify %s in BINARY mode", "DELIMITER");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("cannot specify %s in BINARY mode", "DELIMITER")));
+  }
 
-  if (opts_out->binary && opts_out->null_print)
+  if (opts_out->binary && opts_out->null_print) {
+    DBUG_INSTANT_PRINT("info", "cannot specify %s in BINARY mode", "NULL");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("cannot specify %s in BINARY mode", "NULL")));
+  }
 
-  if (opts_out->binary && opts_out->default_print)
+  if (opts_out->binary && opts_out->default_print) {
+    DBUG_INSTANT_PRINT("info", "cannot specify %s in BINARY mode", "DEFAULT");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("cannot specify %s in BINARY mode", "DEFAULT")));
+  }
 
   /* Set defaults for omitted options */
   if (!opts_out->delim)
@@ -744,32 +786,40 @@ ProcessCopyOptions(ParseState *pstate,
   }
 
   /* Only single-byte delimiter strings are supported. */
-  if (strlen(opts_out->delim) != 1)
+  if (strlen(opts_out->delim) != 1) {
+    DBUG_INSTANT_PRINT("info", "COPY delimiter must be a single one-byte character");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("COPY delimiter must be a single one-byte character")));
+  }
 
   /* Disallow end-of-line characters */
   if (strchr(opts_out->delim, '\r') != NULL ||
-      strchr(opts_out->delim, '\n') != NULL)
+      strchr(opts_out->delim, '\n') != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY delimiter cannot be newline or carriage return");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("COPY delimiter cannot be newline or carriage return")));
+  }
 
   if (strchr(opts_out->null_print, '\r') != NULL ||
-      strchr(opts_out->null_print, '\n') != NULL)
+      strchr(opts_out->null_print, '\n') != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY null representation cannot use newline or carriage return");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("COPY null representation cannot use newline or carriage return")));
+  }
 
   if (opts_out->default_print) {
     opts_out->default_print_len = strlen(opts_out->default_print);
 
     if (strchr(opts_out->default_print, '\r') != NULL ||
-        strchr(opts_out->default_print, '\n') != NULL)
+        strchr(opts_out->default_print, '\n') != NULL) {
+      DBUG_INSTANT_PRINT("info", "COPY default representation cannot use newline or carriage return");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("COPY default representation cannot use newline or carriage return")));
+    }
   }
 
   /*
@@ -784,170 +834,214 @@ ProcessCopyOptions(ParseState *pstate,
    */
   if (!opts_out->csv_mode &&
       strchr("\\.abcdefghijklmnopqrstuvwxyz0123456789",
-             opts_out->delim[0]) != NULL)
+             opts_out->delim[0]) != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY delimiter cannot be \"%s\"", opts_out->delim);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("COPY delimiter cannot be \"%s\"", opts_out->delim)));
+  }
 
   /* Check header */
-  if (opts_out->binary && opts_out->header_line)
+  if (opts_out->binary && opts_out->header_line) {
+    DBUG_INSTANT_PRINT("info", "cannot specify %s in BINARY mode", "HEADER");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("cannot specify %s in BINARY mode", "HEADER")));
+  }
 
   /* Check quote */
-  if (!opts_out->csv_mode && opts_out->quote != NULL)
+  if (!opts_out->csv_mode && opts_out->quote != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires CSV mode", "QUOTE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("COPY %s requires CSV mode", "QUOTE")));
+  }
 
-  if (opts_out->csv_mode && strlen(opts_out->quote) != 1)
+  if (opts_out->csv_mode && strlen(opts_out->quote) != 1) {
+    DBUG_INSTANT_PRINT("info", "COPY quote must be a single one-byte character");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("COPY quote must be a single one-byte character")));
+  }
 
-  if (opts_out->csv_mode && opts_out->delim[0] == opts_out->quote[0])
+  if (opts_out->csv_mode && opts_out->delim[0] == opts_out->quote[0]) {
+    DBUG_INSTANT_PRINT("info", "COPY delimiter and quote must be different");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("COPY delimiter and quote must be different")));
+  }
 
   /* Check escape */
-  if (!opts_out->csv_mode && opts_out->escape != NULL)
+  if (!opts_out->csv_mode && opts_out->escape != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires CSV mode", "ESCAPE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("COPY %s requires CSV mode", "ESCAPE")));
+  }
 
-  if (opts_out->csv_mode && strlen(opts_out->escape) != 1)
+  if (opts_out->csv_mode && strlen(opts_out->escape) != 1) {
+    DBUG_INSTANT_PRINT("info", "COPY escape must be a single one-byte character");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("COPY escape must be a single one-byte character")));
+  }
 
   /* Check force_quote */
-  if (!opts_out->csv_mode && (opts_out->force_quote || opts_out->force_quote_all))
+  if (!opts_out->csv_mode && (opts_out->force_quote || opts_out->force_quote_all)) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires CSV mode", "FORCE_QUOTE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("COPY %s requires CSV mode", "FORCE_QUOTE")));
+  }
 
-  if ((opts_out->force_quote || opts_out->force_quote_all) && is_from)
+  if ((opts_out->force_quote || opts_out->force_quote_all) && is_from) {
+    DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "FORCE_QUOTE", "COPY FROM");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
               second %s is a COPY with direction, e.g. COPY TO */
              errmsg("COPY %s cannot be used with %s", "FORCE_QUOTE",
                     "COPY FROM")));
+  }
 
   /* Check force_notnull */
   if (!opts_out->csv_mode && (opts_out->force_notnull != NIL ||
-                              opts_out->force_notnull_all))
+                              opts_out->force_notnull_all)) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires CSV mode", "FORCE_NOT_NULL");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("COPY %s requires CSV mode", "FORCE_NOT_NULL")));
+  }
 
   if ((opts_out->force_notnull != NIL || opts_out->force_notnull_all) &&
-      !is_from)
+      !is_from) {
+    DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "FORCE_NOT_NULL", "COPY TO");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
               second %s is a COPY with direction, e.g. COPY TO */
              errmsg("COPY %s cannot be used with %s", "FORCE_NOT_NULL",
                     "COPY TO")));
+  }
 
   /* Check force_null */
   if (!opts_out->csv_mode && (opts_out->force_null != NIL ||
-                              opts_out->force_null_all))
+                              opts_out->force_null_all)) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires CSV mode", "FORCE_NULL");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /*- translator: %s is the name of a COPY option, e.g. ON_ERROR */
              errmsg("COPY %s requires CSV mode", "FORCE_NULL")));
+  }
 
   if ((opts_out->force_null != NIL || opts_out->force_null_all) &&
-      !is_from)
+      !is_from) {
+    DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "FORCE_NULL", "COPY TO");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
               second %s is a COPY with direction, e.g. COPY TO */
              errmsg("COPY %s cannot be used with %s", "FORCE_NULL",
                     "COPY TO")));
+  }
 
   /* Don't allow the delimiter to appear in the null string. */
-  if (strchr(opts_out->null_print, opts_out->delim[0]) != NULL)
+  if (strchr(opts_out->null_print, opts_out->delim[0]) != NULL) {
+    DBUG_INSTANT_PRINT("info", "COPY delimiter character must not appear in the %s specification", "NULL");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: %s is the name of a COPY option, e.g. NULL */
              errmsg("COPY delimiter character must not appear in the %s specification",
                     "NULL")));
+  }
 
   /* Don't allow the CSV quote char to appear in the null string. */
   if (opts_out->csv_mode &&
-      strchr(opts_out->null_print, opts_out->quote[0]) != NULL)
+      strchr(opts_out->null_print, opts_out->quote[0]) != NULL) {
+    DBUG_INSTANT_PRINT("info", "CSV quote character must not appear in the %s specification", "NULL");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: %s is the name of a COPY option, e.g. NULL */
              errmsg("CSV quote character must not appear in the %s specification",
                     "NULL")));
+  }
 
   /* Check freeze */
-  if (opts_out->freeze && !is_from)
+  if (opts_out->freeze && !is_from) {
+    DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "FREEZE", "COPY TO");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
               second %s is a COPY with direction, e.g. COPY TO */
              errmsg("COPY %s cannot be used with %s", "FREEZE",
                     "COPY TO")));
+  }
 
   if (opts_out->default_print) {
-    if (!is_from)
+    if (!is_from) {
+      DBUG_INSTANT_PRINT("info", "COPY %s cannot be used with %s", "DEFAULT", "COPY TO");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /*- translator: first %s is the name of a COPY option, e.g. ON_ERROR,
                 second %s is a COPY with direction, e.g. COPY TO */
                errmsg("COPY %s cannot be used with %s", "DEFAULT",
                       "COPY TO")));
+    }
 
     /* Don't allow the delimiter to appear in the default string. */
-    if (strchr(opts_out->default_print, opts_out->delim[0]) != NULL)
+    if (strchr(opts_out->default_print, opts_out->delim[0]) != NULL) {
+      DBUG_INSTANT_PRINT("info", "COPY delimiter character must not appear in the %s specification", "DEFAULT");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /*- translator: %s is the name of a COPY option, e.g. NULL */
                errmsg("COPY delimiter character must not appear in the %s specification",
                       "DEFAULT")));
+    }
 
     /* Don't allow the CSV quote char to appear in the default string. */
     if (opts_out->csv_mode &&
-        strchr(opts_out->default_print, opts_out->quote[0]) != NULL)
+        strchr(opts_out->default_print, opts_out->quote[0]) != NULL) {
+      DBUG_INSTANT_PRINT("info", "CSV quote character must not appear in the %s specification", "DEFAULT");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /*- translator: %s is the name of a COPY option, e.g. NULL */
                errmsg("CSV quote character must not appear in the %s specification",
                       "DEFAULT")));
+    }
 
     /* Don't allow the NULL and DEFAULT string to be the same */
     if (opts_out->null_print_len == opts_out->default_print_len &&
         strncmp(opts_out->null_print, opts_out->default_print,
-                opts_out->null_print_len) == 0)
+                opts_out->null_print_len) == 0) {
+      DBUG_INSTANT_PRINT("info", "NULL specification and DEFAULT specification cannot be the same");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("NULL specification and DEFAULT specification cannot be the same")));
+    }
   }
 
   /* Check on_error */
-  if (opts_out->binary && opts_out->on_error != COPY_ON_ERROR_STOP)
+  if (opts_out->binary && opts_out->on_error != COPY_ON_ERROR_STOP) {
+    DBUG_INSTANT_PRINT("info", "only ON_ERROR STOP is allowed in BINARY mode");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("only ON_ERROR STOP is allowed in BINARY mode")));
+  }
 
-  if (opts_out->reject_limit && !opts_out->on_error)
+  if (opts_out->reject_limit && !opts_out->on_error) {
+    DBUG_INSTANT_PRINT("info", "COPY %s requires %s to be set to %s", "REJECT_LIMIT", "ON_ERROR", "IGNORE");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              /*- translator: first and second %s are the names of COPY option, e.g.
               * ON_ERROR, third is the value of the COPY option, e.g. IGNORE */
              errmsg("COPY %s requires %s to be set to %s",
                     "REJECT_LIMIT", "ON_ERROR", "IGNORE")));
+  }
 }
 
 /*
@@ -967,6 +1061,7 @@ ProcessCopyOptions(ParseState *pstate,
 List *
 CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
 {
+  DBUG_TRACE;
   List     *attnums = NIL;
 
   if (attnamelist == NIL) {
@@ -1001,12 +1096,14 @@ CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
           continue;
 
         if (namestrcmp(&(att->attname), name) == 0) {
-          if (att->attgenerated)
+          if (att->attgenerated) {
+            DBUG_INSTANT_PRINT("info", "column \"%s\" is a generated column", name);
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                      errmsg("column \"%s\" is a generated column",
                             name),
                      errdetail("Generated columns cannot be used in COPY.")));
+          }
 
           attnum = att->attnum;
           break;
@@ -1014,24 +1111,29 @@ CopyGetAttnums(TupleDesc tupDesc, Relation rel, List *attnamelist)
       }
 
       if (attnum == InvalidAttrNumber) {
-        if (rel != NULL)
+        if (rel != NULL) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", name, RelationGetRelationName(rel));
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_COLUMN),
                    errmsg("column \"%s\" of relation \"%s\" does not exist",
                           name, RelationGetRelationName(rel))));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" does not exist", name);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_COLUMN),
                    errmsg("column \"%s\" does not exist",
                           name)));
+        }
       }
 
       /* Check for duplicates */
-      if (list_member_int(attnums, attnum))
+      if (list_member_int(attnums, attnum)) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" specified more than once", name);
         ereport(ERROR,
                 (errcode(ERRCODE_DUPLICATE_COLUMN),
                  errmsg("column \"%s\" specified more than once",
                         name)));
+      }
 
       attnums = lappend_int(attnums, attnum);
     }

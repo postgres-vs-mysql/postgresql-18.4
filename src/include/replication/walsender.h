@@ -13,6 +13,7 @@
 #define _WALSENDER_H
 
 #include "access/xlogdefs.h"
+#include "debug_trace.h"
 
 /*
  * What to do with a snapshot in create replication slot command.
@@ -64,8 +65,9 @@ extern void WalSndRqstFileReload(void);
 static inline void
 WalSndWakeupProcessRequests(bool physical, bool logical)
 {
-  if (wake_wal_senders)
-  {
+  DBUG_TRACE;
+
+  if (wake_wal_senders) {
     wake_wal_senders = false;
 
     if (max_wal_senders > 0)

@@ -11,6 +11,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "libpq/pqsignal.h"
@@ -141,6 +142,7 @@ static bgworker_main_type LookupBackgroundWorkerFunction(const char *libraryname
 Size
 BackgroundWorkerShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* Array of workers is variably sized. */
@@ -148,6 +150,7 @@ BackgroundWorkerShmemSize(void)
   size = add_size(size, mul_size(max_worker_processes,
                                  sizeof(BackgroundWorkerSlot)));
 
+  DBUG_PRINT("info", "return size:%lu", size);
   return size;
 }
 
@@ -157,6 +160,7 @@ BackgroundWorkerShmemSize(void)
 void
 BackgroundWorkerShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   BackgroundWorkerData = ShmemInitStruct("Background Worker Data",
@@ -238,6 +242,7 @@ FindRegisteredWorkerBySlotNumber(int slotno)
 void
 BackgroundWorkerStateChange(bool allow_new_workers)
 {
+  DBUG_TRACE;
   int     slotno;
 
   /*
@@ -248,6 +253,8 @@ BackgroundWorkerStateChange(bool allow_new_workers)
    * looping.
    */
   if (max_worker_processes != BackgroundWorkerData->total_slots) {
+    DBUG_INSTANT_PRINT("info", "inconsistent background worker state (max_worker_processes=%d, total_slots=%d)",
+                       max_worker_processes, BackgroundWorkerData->total_slots);
     ereport(LOG,
             (errmsg("inconsistent background worker state (\"max_worker_processes\"=%d, total slots=%d)",
                     max_worker_processes,
@@ -342,6 +349,7 @@ BackgroundWorkerStateChange(bool allow_new_workers)
                                     MCXT_ALLOC_NO_OOM | MCXT_ALLOC_ZERO);
 
     if (rw == NULL) {
+      DBUG_INSTANT_PRINT("info", "out of memory");
       ereport(LOG,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of memory")));
@@ -374,6 +382,11 @@ BackgroundWorkerStateChange(bool allow_new_workers)
     rw->rw_worker.bgw_restart_time = slot->worker.bgw_restart_time;
     rw->rw_worker.bgw_main_arg = slot->worker.bgw_main_arg;
     memcpy(rw->rw_worker.bgw_extra, slot->worker.bgw_extra, BGW_EXTRALEN);
+    rw->rw_worker.bgw_debug_traced = slot->worker.bgw_debug_traced;
+
+    if (rw->rw_worker.bgw_debug_traced) {
+      DBUG_PRINT("info", "bgw_debug_traced was set to true");
+    }
 
     /*
      * Copy the PID to be notified about state changes, but only if the
@@ -398,6 +411,7 @@ BackgroundWorkerStateChange(bool allow_new_workers)
     rw->rw_shmem_slot = slotno;
     rw->rw_terminate = false;
 
+    DBUG_PRINT("info", "registering background worker \"%s\"", rw->rw_worker.bgw_name);
     /* Log it! */
     ereport(DEBUG1,
             (errmsg_internal("registering background worker \"%s\"",
@@ -420,6 +434,7 @@ BackgroundWorkerStateChange(bool allow_new_workers)
 void
 ForgetBackgroundWorker(RegisteredBgWorker *rw)
 {
+  DBUG_TRACE;
   BackgroundWorkerSlot *slot;
 
   Assert(rw->rw_shmem_slot < max_worker_processes);
@@ -474,6 +489,7 @@ ReportBackgroundWorkerPID(RegisteredBgWorker *rw)
 void
 ReportBackgroundWorkerExit(RegisteredBgWorker *rw)
 {
+  DBUG_TRACE;
   BackgroundWorkerSlot *slot;
   int     notify_pid;
 
@@ -505,6 +521,7 @@ ReportBackgroundWorkerExit(RegisteredBgWorker *rw)
 void
 BackgroundWorkerStopNotifications(pid_t pid)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   dlist_foreach(iter, &BackgroundWorkerList) {
@@ -532,6 +549,7 @@ BackgroundWorkerStopNotifications(pid_t pid)
 void
 ForgetUnstartedBackgroundWorkers(void)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   dlist_foreach_modify(iter, &BackgroundWorkerList) {
@@ -569,6 +587,7 @@ ForgetUnstartedBackgroundWorkers(void)
 void
 ResetBackgroundWorkerCrashTimes(void)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   dlist_foreach_modify(iter, &BackgroundWorkerList) {
@@ -618,6 +637,7 @@ ResetBackgroundWorkerCrashTimes(void)
 static bool
 SanityCheckBackgroundWorker(BackgroundWorker *worker, int elevel)
 {
+  DBUG_TRACE;
   /* sanity check for flags */
 
   /*
@@ -627,6 +647,8 @@ SanityCheckBackgroundWorker(BackgroundWorker *worker, int elevel)
    * signal when reading code.
    */
   if (!(worker->bgw_flags & BGWORKER_SHMEM_ACCESS)) {
+    DBUG_INSTANT_PRINT("info", "background worker \"%s\": background workers without shared memory access are not supported",
+                       worker->bgw_name);
     ereport(elevel,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("background worker \"%s\": background workers without shared memory access are not supported",
@@ -636,6 +658,8 @@ SanityCheckBackgroundWorker(BackgroundWorker *worker, int elevel)
 
   if (worker->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION) {
     if (worker->bgw_start_time == BgWorkerStart_PostmasterStart) {
+      DBUG_INSTANT_PRINT("info", "background worker \"%s\": cannot request database access if starting at postmaster start",
+                         worker->bgw_name);
       ereport(elevel,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("background worker \"%s\": cannot request database access if starting at postmaster start",
@@ -649,6 +673,7 @@ SanityCheckBackgroundWorker(BackgroundWorker *worker, int elevel)
   if ((worker->bgw_restart_time < 0 &&
        worker->bgw_restart_time != BGW_NEVER_RESTART) ||
       (worker->bgw_restart_time > USECS_PER_DAY / 1000)) {
+    DBUG_INSTANT_PRINT("info", "background worker \"%s\": invalid restart interval", worker->bgw_name);
     ereport(elevel,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("background worker \"%s\": invalid restart interval",
@@ -663,6 +688,7 @@ SanityCheckBackgroundWorker(BackgroundWorker *worker, int elevel)
    */
   if (worker->bgw_restart_time != BGW_NEVER_RESTART &&
       (worker->bgw_flags & BGWORKER_CLASS_PARALLEL) != 0) {
+    DBUG_INSTANT_PRINT("info", "background worker \"%s\": parallel workers may not be configured for restart", worker->bgw_name);
     ereport(elevel,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("background worker \"%s\": parallel workers may not be configured for restart",
@@ -699,6 +725,7 @@ bgworker_die(SIGNAL_ARGS)
 void
 BackgroundWorkerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   BackgroundWorker *worker;
   bgworker_main_type entrypt;
@@ -831,6 +858,7 @@ BackgroundWorkerMain(const void *startup_data, size_t startup_data_len)
 void
 BackgroundWorkerInitializeConnection(const char *dbname, const char *username, uint32 flags)
 {
+  DBUG_TRACE;
   BackgroundWorker *worker = MyBgworkerEntry;
   bits32    init_flags = 0; /* never honor session_preload_libraries */
 
@@ -867,6 +895,7 @@ BackgroundWorkerInitializeConnection(const char *dbname, const char *username, u
 void
 BackgroundWorkerInitializeConnectionByOid(Oid dboid, Oid useroid, uint32 flags)
 {
+  DBUG_TRACE;
   BackgroundWorker *worker = MyBgworkerEntry;
   bits32    init_flags = 0; /* never honor session_preload_libraries */
 
@@ -879,10 +908,12 @@ BackgroundWorkerInitializeConnectionByOid(Oid dboid, Oid useroid, uint32 flags)
     init_flags |= INIT_PG_OVERRIDE_ROLE_LOGIN;
 
   /* XXX is this the right errcode? */
-  if (!(worker->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION))
+  if (!(worker->bgw_flags & BGWORKER_BACKEND_DATABASE_CONNECTION)) {
+    DBUG_INSTANT_PRINT("info", "database connection requirement not indicated during registration");
     ereport(FATAL,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("database connection requirement not indicated during registration")));
+  }
 
   InitPostgres(NULL, dboid, /* database to connect to */
                NULL, useroid, /* role to connect as */
@@ -922,6 +953,7 @@ BackgroundWorkerUnblockSignals(void)
 void
 RegisterBackgroundWorker(BackgroundWorker *worker)
 {
+  DBUG_TRACE;
   RegisteredBgWorker *rw;
   static int  numworkers = 0;
 
@@ -944,6 +976,7 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
     if (process_shared_preload_libraries_in_progress)
       return;
 
+    DBUG_INSTANT_PRINT("info", "background worker \"%s\": must be registered in \"shared_preload_libraries\"", worker->bgw_name);
     ereport(LOG,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("background worker \"%s\": must be registered in \"shared_preload_libraries\"",
@@ -955,10 +988,13 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
    * Cannot register static background workers after calling
    * BackgroundWorkerShmemInit().
    */
-  if (BackgroundWorkerData != NULL)
+  if (BackgroundWorkerData != NULL) {
+    DBUG_INSTANT_PRINT("info", "cannot register background worker \"%s\" after shmem init", worker->bgw_name);
     elog(ERROR, "cannot register background worker \"%s\" after shmem init",
          worker->bgw_name);
+  }
 
+  DBUG_PRINT("info", "unregistering background worker \"%s\"", worker->bgw_name);
   ereport(DEBUG1,
           (errmsg_internal("registering background worker \"%s\"", worker->bgw_name)));
 
@@ -966,6 +1002,7 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
     return;
 
   if (worker->bgw_notify_pid != 0) {
+    DBUG_INSTANT_PRINT("info", "ackground worker \"%s\": only dynamic background workers can request notification", worker->bgw_name);
     ereport(LOG,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("background worker \"%s\": only dynamic background workers can request notification",
@@ -980,6 +1017,7 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
    * important to relax this restriction.
    */
   if (++numworkers > max_worker_processes) {
+    DBUG_INSTANT_PRINT("info", "too many background workers");
     ereport(LOG,
             (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
              errmsg("too many background workers"),
@@ -999,6 +1037,7 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
                                   MCXT_ALLOC_NO_OOM);
 
   if (rw == NULL) {
+    DBUG_INSTANT_PRINT("info", "out of memory");
     ereport(LOG,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("out of memory")));
@@ -1009,7 +1048,11 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
   rw->rw_pid = 0;
   rw->rw_crashed_at = 0;
   rw->rw_terminate = false;
+  rw->rw_worker.bgw_debug_traced = 0;
 
+  if (!trace_disabled) {
+    rw->rw_worker.bgw_debug_traced = 1;
+  }
   dlist_push_head(&BackgroundWorkerList, &rw->rw_lnode);
 }
 
@@ -1027,6 +1070,7 @@ bool
 RegisterDynamicBackgroundWorker(BackgroundWorker *worker,
                                 BackgroundWorkerHandle **handle)
 {
+  DBUG_TRACE;
   int     slotno;
   bool    success = false;
   bool    parallel;
@@ -1080,8 +1124,12 @@ RegisterDynamicBackgroundWorker(BackgroundWorker *worker,
       slot->pid = InvalidPid; /* indicates not started yet */
       slot->generation++;
       slot->terminate = false;
+      slot->worker.bgw_debug_traced = 0;
       generation = slot->generation;
 
+      if (!trace_disabled) {
+        slot->worker.bgw_debug_traced = 1;
+      }
       if (parallel)
         BackgroundWorkerData->parallel_register_count++;
 
@@ -1135,6 +1183,7 @@ RegisterDynamicBackgroundWorker(BackgroundWorker *worker,
 BgwHandleStatus
 GetBackgroundWorkerPid(BackgroundWorkerHandle *handle, pid_t *pidp)
 {
+  DBUG_TRACE;
   BackgroundWorkerSlot *slot;
   pid_t   pid;
 
@@ -1191,6 +1240,7 @@ GetBackgroundWorkerPid(BackgroundWorkerHandle *handle, pid_t *pidp)
 BgwHandleStatus
 WaitForBackgroundWorkerStartup(BackgroundWorkerHandle *handle, pid_t *pidp)
 {
+  DBUG_TRACE;
   BgwHandleStatus status;
   int     rc;
 
@@ -1236,6 +1286,7 @@ WaitForBackgroundWorkerStartup(BackgroundWorkerHandle *handle, pid_t *pidp)
 BgwHandleStatus
 WaitForBackgroundWorkerShutdown(BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   BgwHandleStatus status;
   int     rc;
 
@@ -1274,6 +1325,7 @@ WaitForBackgroundWorkerShutdown(BackgroundWorkerHandle *handle)
 void
 TerminateBackgroundWorker(BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   BackgroundWorkerSlot *slot;
   bool    signal_postmaster = false;
 
@@ -1316,6 +1368,8 @@ TerminateBackgroundWorker(BackgroundWorkerHandle *handle)
 static bgworker_main_type
 LookupBackgroundWorkerFunction(const char *libraryname, const char *funcname)
 {
+  DBUG_TRACE;
+
   /*
    * If the function is to be loaded from postgres itself, search the
    * InternalBGWorkers array.
@@ -1348,6 +1402,7 @@ LookupBackgroundWorkerFunction(const char *libraryname, const char *funcname)
 const char *
 GetBackgroundWorkerTypeByPid(pid_t pid)
 {
+  DBUG_TRACE;
   int     slotno;
   bool    found = false;
   static char result[BGW_MAXLEN];

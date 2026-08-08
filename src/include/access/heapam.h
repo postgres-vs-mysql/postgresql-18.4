@@ -14,6 +14,7 @@
 #ifndef HEAPAM_H
 #define HEAPAM_H
 
+#include "debug_trace.h"
 #include "access/heapam_xlog.h"
 #include "access/relation.h"  /* for backward compatibility */
 #include "access/relscan.h"
@@ -440,10 +441,19 @@ extern void HeapCheckForSerializableConflictOut(bool visible, Relation relation,
 static inline void
 heap_execute_freeze_tuple(HeapTupleHeader tuple, HeapTupleFreeze *frz)
 {
+  DBUG_TRACE;
+  ItemPointer ctid = &tuple->t_ctid;
+  BlockNumber blkno = ItemPointerGetBlockNumber(ctid);
+  OffsetNumber offset = ItemPointerGetOffsetNumber(ctid);
+
+  DBUG_PRINT("info", "set xmax:%u for tuple(blkno:%u, offset:%u)", frz->xmax, blkno, offset);
+
   HeapTupleHeaderSetXmax(tuple, frz->xmax);
 
-  if (frz->frzflags & XLH_FREEZE_XVAC)
+  if (frz->frzflags & XLH_FREEZE_XVAC) {
+    DBUG_PRINT("info", "set FrozenTransactionId:%u for tuple(blkno:%u, offset:%u)", FrozenTransactionId, blkno, offset);
     HeapTupleHeaderSetXvac(tuple, FrozenTransactionId);
+  }
 
   if (frz->frzflags & XLH_INVALID_XVAC)
     HeapTupleHeaderSetXvac(tuple, InvalidTransactionId);

@@ -14,6 +14,7 @@
  *--------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -42,6 +43,7 @@ static void ShowAllGUCConfig(DestReceiver *dest);
 void
 ExecSetVariableStmt(VariableSetStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   GucAction action = stmt->is_local ? GUC_ACTION_LOCAL : GUC_ACTION_SET;
 
   /*
@@ -189,6 +191,7 @@ ExtractSetVariableArgs(VariableSetStmt *stmt)
 static char *
 flatten_set_variable_args(const char *name, List *args)
 {
+  DBUG_TRACE;
   struct config_generic *record;
   int     flags;
   StringInfoData buf;
@@ -313,6 +316,7 @@ flatten_set_variable_args(const char *name, List *args)
 void
 SetPGVariable(const char *name, List *args, bool is_local)
 {
+  DBUG_TRACE;
   char     *argstring = flatten_set_variable_args(name, args);
 
   /* Note SET DEFAULT (argstring == NULL) is equivalent to RESET */
@@ -330,6 +334,7 @@ SetPGVariable(const char *name, List *args, bool is_local)
 Datum
 set_config_by_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
   char     *value;
   char     *new_value;
@@ -380,6 +385,8 @@ set_config_by_name(PG_FUNCTION_ARGS)
 void
 GetPGVariable(const char *name, DestReceiver *dest)
 {
+  DBUG_TRACE;
+
   if (guc_name_compare(name, "all") == 0)
     ShowAllGUCConfig(dest);
   else
@@ -392,6 +399,7 @@ GetPGVariable(const char *name, DestReceiver *dest)
 TupleDesc
 GetPGVariableResultDesc(const char *name)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
 
   if (guc_name_compare(name, "all") == 0) {
@@ -424,6 +432,7 @@ GetPGVariableResultDesc(const char *name)
 static void
 ShowGUCConfigOption(const char *name, DestReceiver *dest)
 {
+  DBUG_TRACE;
   TupOutputState *tstate;
   TupleDesc tupdesc;
   const char *varname;
@@ -452,6 +461,7 @@ ShowGUCConfigOption(const char *name, DestReceiver *dest)
 static void
 ShowAllGUCConfig(DestReceiver *dest)
 {
+  DBUG_TRACE;
   struct config_generic **guc_vars;
   int     num_vars;
   TupOutputState *tstate;
@@ -533,6 +543,7 @@ ShowAllGUCConfig(DestReceiver *dest)
 Datum
 pg_settings_get_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define MAX_GUC_FLAGS 6
   char     *varname = TextDatumGetCString(PG_GETARG_DATUM(0));
   struct config_generic *record;
@@ -590,6 +601,7 @@ ConfigOptionIsVisible(struct config_generic *conf)
 static void
 GetConfigOptionValues(struct config_generic *conf, const char **values)
 {
+  DBUG_TRACE;
   char    buffer[256];
 
   /* first get the generic attributes */
@@ -793,6 +805,7 @@ GetConfigOptionValues(struct config_generic *conf, const char **values)
 Datum
 show_config_by_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *varname = TextDatumGetCString(PG_GETARG_DATUM(0));
   char     *varval;
 
@@ -811,6 +824,7 @@ show_config_by_name(PG_FUNCTION_ARGS)
 Datum
 show_config_by_name_missing_ok(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *varname = TextDatumGetCString(PG_GETARG_DATUM(0));
   bool    missing_ok = PG_GETARG_BOOL(1);
   char     *varval;
@@ -835,6 +849,7 @@ show_config_by_name_missing_ok(PG_FUNCTION_ARGS)
 Datum
 show_all_settings(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   struct config_generic **guc_vars;
   int     num_vars;
@@ -967,6 +982,7 @@ show_all_settings(PG_FUNCTION_ARGS)
 Datum
 show_all_file_settings(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define NUM_PG_FILE_SETTINGS_ATTS 7
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   ConfigVariable *conf;

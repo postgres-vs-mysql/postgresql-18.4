@@ -76,8 +76,7 @@ MAKE_SYSCACHE(COLLOID, pg_collation_oid_index, 8);
 static inline const char *
 collprovider_name(char c)
 {
-  switch (c)
-  {
+  switch (c) {
     case COLLPROVIDER_BUILTIN:
       return "builtin";
 

@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/spgist.h"
 #include "access/spgist_private.h"
@@ -27,6 +28,7 @@
 Datum
 spg_kd_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
@@ -53,6 +55,7 @@ getSide(double coord, bool isX, Point *tst)
 Datum
 spg_kd_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   Point    *inPoint = DatumGetPointP(in->datum);
@@ -108,6 +111,7 @@ y_cmp(const void *a, const void *b)
 Datum
 spg_kd_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   int     i;
@@ -159,6 +163,7 @@ spg_kd_picksplit(PG_FUNCTION_ARGS)
 Datum
 spg_kd_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   double    coord;

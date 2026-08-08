@@ -4,6 +4,7 @@
  * contrib/ltree/ltree_op.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -84,49 +85,99 @@ PG_FREE_IF_COPY(b,1)
 Datum
 ltree_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+  DBUG_PRINT("ltree", "result:%d", res);
   PG_RETURN_INT32(res);
 }
 
 Datum
 ltree_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res < 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res < 0);
 }
 
 Datum
 ltree_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res <= 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res <= 0);
 }
 
 Datum
 ltree_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res == 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res == 0);
 }
 
 Datum
 ltree_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res >= 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res >= 0);
 }
 
 Datum
 ltree_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res > 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res > 0);
 }
 
 Datum
 ltree_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RUNCMP;
+
+  if (res != 0) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res != 0);
 }
 
@@ -134,6 +185,7 @@ ltree_ne(PG_FUNCTION_ARGS)
 Datum
 hash_ltree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   uint32    result = 1;
   int     an = a->numlevel;
@@ -156,6 +208,7 @@ hash_ltree(PG_FUNCTION_ARGS)
   }
 
   PG_FREE_IF_COPY(a, 0);
+  DBUG_PRINT("ltree", "compute a hash for the ltree:%u", result);
   PG_RETURN_UINT32(result);
 }
 
@@ -163,6 +216,7 @@ hash_ltree(PG_FUNCTION_ARGS)
 Datum
 hash_ltree_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   const uint64 seed = PG_GETARG_INT64(1);
   uint64    result = 1;
@@ -190,65 +244,92 @@ hash_ltree_extended(PG_FUNCTION_ARGS)
   }
 
   PG_FREE_IF_COPY(a, 0);
+  DBUG_PRINT("ltree", "compute an extended hash for the ltree:%lu", result);
   PG_RETURN_UINT64(result);
 }
 
 Datum
 nlevel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   int     res = a->numlevel;
 
   PG_FREE_IF_COPY(a, 0);
+  DBUG_PRINT("ltree", "result:%d", res);
   PG_RETURN_INT32(res);
 }
 
 bool
 inner_isparent(const ltree *c, const ltree *p)
 {
+  DBUG_TRACE;
   ltree_level *cl = LTREE_FIRST(c);
   ltree_level *pl = LTREE_FIRST(p);
   int     pn = p->numlevel;
 
-  if (pn > c->numlevel)
+  if (pn > c->numlevel) {
+    DBUG_PRINT("ltree", "return false");
     return false;
+  }
 
   while (pn > 0) {
-    if (cl->len != pl->len)
+    if (cl->len != pl->len) {
+      DBUG_PRINT("ltree", "return false");
       return false;
+    }
 
-    if (memcmp(cl->name, pl->name, cl->len) != 0)
+    if (memcmp(cl->name, pl->name, cl->len) != 0) {
+      DBUG_PRINT("ltree", "return false");
       return false;
+    }
 
     pn--;
     cl = LEVEL_NEXT(cl);
     pl = LEVEL_NEXT(pl);
   }
 
+  DBUG_PRINT("ltree", "return true");
   return true;
 }
 
 Datum
 ltree_isparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *c = PG_GETARG_LTREE_P(1);
   ltree    *p = PG_GETARG_LTREE_P(0);
   bool    res = inner_isparent(c, p);
 
   PG_FREE_IF_COPY(c, 1);
   PG_FREE_IF_COPY(p, 0);
+
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 ltree_risparent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *c = PG_GETARG_LTREE_P(0);
   ltree    *p = PG_GETARG_LTREE_P(1);
   bool    res = inner_isparent(c, p);
 
   PG_FREE_IF_COPY(c, 0);
   PG_FREE_IF_COPY(p, 1);
+
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
@@ -256,6 +337,7 @@ ltree_risparent(PG_FUNCTION_ARGS)
 static ltree *
 inner_subltree(ltree *t, int32 startpos, int32 endpos)
 {
+  DBUG_TRACE;
   char     *start = NULL,
             *end = NULL;
   ltree_level *ptr = LTREE_FIRST(t);
@@ -296,6 +378,7 @@ inner_subltree(ltree *t, int32 startpos, int32 endpos)
 Datum
 subltree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *t = PG_GETARG_LTREE_P(0);
   ltree    *res = inner_subltree(t, PG_GETARG_INT32(1), PG_GETARG_INT32(2));
 
@@ -306,6 +389,7 @@ subltree(PG_FUNCTION_ARGS)
 Datum
 subpath(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *t = PG_GETARG_LTREE_P(0);
   int32   start = PG_GETARG_INT32(1);
   int32   len = (fcinfo->nargs == 3) ? PG_GETARG_INT32(2) : 0;
@@ -339,6 +423,7 @@ subpath(PG_FUNCTION_ARGS)
 static ltree *
 ltree_concat(ltree *a, ltree *b)
 {
+  DBUG_TRACE;
   ltree    *r;
   int     numlevel = (int) a->numlevel + b->numlevel;
 
@@ -362,6 +447,7 @@ ltree_concat(ltree *a, ltree *b)
 Datum
 ltree_addltree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   ltree    *b = PG_GETARG_LTREE_P(1);
   ltree    *r;
@@ -375,6 +461,7 @@ ltree_addltree(PG_FUNCTION_ARGS)
 Datum
 ltree_addtext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   text     *b = PG_GETARG_TEXT_PP(1);
   char     *s;
@@ -400,6 +487,7 @@ ltree_addtext(PG_FUNCTION_ARGS)
 Datum
 ltree_index(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(0);
   ltree    *b = PG_GETARG_LTREE_P(1);
   int     start = (fcinfo->nargs == 3) ? PG_GETARG_INT32(2) : 0;
@@ -452,12 +540,14 @@ ltree_index(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(a, 0);
   PG_FREE_IF_COPY(b, 1);
+  DBUG_PRINT("ltree", "result:%d", i);
   PG_RETURN_INT32(i);
 }
 
 Datum
 ltree_textadd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *a = PG_GETARG_LTREE_P(1);
   text     *b = PG_GETARG_TEXT_PP(0);
   char     *s;
@@ -489,6 +579,7 @@ ltree_textadd(PG_FUNCTION_ARGS)
 ltree *
 lca_inner(ltree **a, int len)
 {
+  DBUG_TRACE;
   int     tmp,
           num,
           i,
@@ -565,6 +656,7 @@ lca_inner(ltree **a, int len)
 Datum
 lca(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     i;
   ltree   **a,
           *res;
@@ -590,6 +682,7 @@ lca(PG_FUNCTION_ARGS)
 Datum
 text2ltree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   char     *s;
   ltree    *out;
@@ -607,6 +700,7 @@ text2ltree(PG_FUNCTION_ARGS)
 Datum
 ltree2text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree    *in = PG_GETARG_LTREE_P(0);
   char     *ptr;
   int     i;
@@ -644,6 +738,7 @@ ltree2text(PG_FUNCTION_ARGS)
 Datum
 ltreeparentsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -651,9 +746,10 @@ ltreeparentsel(PG_FUNCTION_ARGS)
   double    selec;
 
   /* Use generic restriction selectivity logic, with default 0.001. */
+  DBUG_PRINT("ltree", "use generic restriction selectivity logic, with default 0.001");
   selec = generic_restriction_selectivity(root, operator, InvalidOid,
                                           args, varRelid,
                                           0.001);
-
+  DBUG_PRINT("ltree", "return selectivity of parent relationship for ltree data types:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }

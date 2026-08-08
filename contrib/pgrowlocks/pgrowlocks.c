@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/multixact.h"
@@ -67,6 +68,7 @@ PG_FUNCTION_INFO_V1(pgrowlocks);
 Datum
 pgrowlocks(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   AttInMetadata *attinmeta;

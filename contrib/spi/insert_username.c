@@ -5,6 +5,7 @@
  * usage:  insert_username (column_name)
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
@@ -24,6 +25,7 @@ PG_FUNCTION_INFO_V1(insert_username);
 Datum
 insert_username(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   Trigger    *trigger;    /* to get trigger name */
   int     nargs;      /* # of arguments */

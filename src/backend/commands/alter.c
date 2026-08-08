@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/relation.h"
@@ -174,6 +175,7 @@ report_namespace_conflict(Oid classId, const char *name, Oid nspOid)
 static void
 AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 {
+  DBUG_TRACE;
   Oid     classId = RelationGetRelid(rel);
   int     oidCacheId = get_object_catcache_oid(classId);
   int     nameCacheId = get_object_catcache_name(classId);
@@ -192,6 +194,7 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
   bool     *nulls;
   bool     *replaces;
   NameData  nameattrdata;
+  char *name_str;
 
   oldtup = SearchSysCache1(oidCacheId, ObjectIdGetDatum(objectId));
 
@@ -216,11 +219,14 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
   /* Permission checks ... superusers can always do it */
   if (!superuser()) {
     /* Fail if object does not have an explicit owner */
-    if (Anum_owner <= 0)
+    if (Anum_owner <= 0) {
+      name_str = getObjectDescriptionOids(classId, objectId);
+      DBUG_INSTANT_PRINT("info", "must be superuser to rename %s", name_str);
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("must be superuser to rename %s",
-                      getObjectDescriptionOids(classId, objectId))));
+                      name_str)));
+    }
 
     /* Otherwise, must be owner of the existing object */
     datum = heap_getattr(oldtup, Anum_owner,
@@ -259,11 +265,13 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
        */
       form = (Form_pg_subscription) GETSTRUCT(oldtup);
 
-      if (!form->subpasswordrequired && !superuser())
+      if (!form->subpasswordrequired && !superuser()) {
+        DBUG_INSTANT_PRINT("info", "password_required=false is superuser-only");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("password_required=false is superuser-only"),
                  errhint("Subscriptions with the password_required option set to false may only be created or modified by the superuser.")));
+      }
     }
   }
 
@@ -368,6 +376,8 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 ObjectAddress
 ExecRenameStmt(RenameStmt *stmt)
 {
+  DBUG_TRACE;
+
   switch (stmt->renameType) {
     case OBJECT_TABCONSTRAINT:
     case OBJECT_DOMCONSTRAINT:
@@ -464,6 +474,7 @@ ExecRenameStmt(RenameStmt *stmt)
 ObjectAddress
 ExecAlterObjectDependsStmt(AlterObjectDependsStmt *stmt, ObjectAddress *refAddress)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   ObjectAddress refAddr;
   Relation  rel;
@@ -527,6 +538,7 @@ ObjectAddress
 ExecAlterObjectSchemaStmt(AlterObjectSchemaStmt *stmt,
                           ObjectAddress *oldSchemaAddr)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Oid     oldNspOid;
 
@@ -616,6 +628,7 @@ Oid
 AlterObjectNamespace_oid(Oid classId, Oid objid, Oid nspOid,
                          ObjectAddresses *objsMoved)
 {
+  DBUG_TRACE;
   Oid     oldNspOid = InvalidOid;
 
   switch (classId) {
@@ -679,6 +692,7 @@ AlterObjectNamespace_oid(Oid classId, Oid objid, Oid nspOid,
 static Oid
 AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 {
+  DBUG_TRACE;
   Oid     classId = RelationGetRelid(rel);
   int     oidCacheId = get_object_catcache_oid(classId);
   int     nameCacheId = get_object_catcache_name(classId);
@@ -694,6 +708,7 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
   Datum    *values;
   bool     *nulls;
   bool     *replaces;
+  char *name_str;
 
   tup = SearchSysCacheCopy1(oidCacheId, ObjectIdGetDatum(objid));
 
@@ -727,11 +742,14 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
     AclResult aclresult;
 
     /* Fail if object does not have an explicit owner */
-    if (Anum_owner <= 0)
+    if (Anum_owner <= 0) {
+      name_str = getObjectDescriptionOids(classId, objid);
+      DBUG_INSTANT_PRINT("info", "must be superuser to set schema of %s", name_str);
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("must be superuser to set schema of %s",
-                      getObjectDescriptionOids(classId, objid))));
+                      name_str)));
+    }
 
     /* Otherwise, must be owner of the existing object */
     owner = heap_getattr(tup, Anum_owner, RelationGetDescr(rel), &isnull);
@@ -816,6 +834,7 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 ObjectAddress
 ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     newowner = get_rolespec_oid(stmt->newowner, false);
 
   switch (stmt->objectType) {
@@ -903,6 +922,7 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 void
 AlterObjectOwner_internal(Oid classId, Oid objectId, Oid new_ownerId)
 {
+  DBUG_TRACE;
   /* For large objects, the catalog to modify is pg_largeobject_metadata */
   Oid     catalogId = (classId == LargeObjectRelationId) ? LargeObjectMetadataRelationId : classId;
   AttrNumber  Anum_oid = get_object_attnum_oid(catalogId);

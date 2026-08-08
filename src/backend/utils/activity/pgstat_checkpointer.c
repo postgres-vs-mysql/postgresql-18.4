@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "utils/memutils.h"
 #include "utils/pgstat_internal.h"
@@ -30,6 +31,7 @@ PgStat_CheckpointerStats PendingCheckpointerStats = {0};
 void
 pgstat_report_checkpointer(void)
 {
+  DBUG_TRACE;
   PgStatShared_Checkpointer *stats_shmem = &pgStatLocal.shmem->checkpointer;
 
   Assert(!pgStatLocal.shmem->is_shutdown);
@@ -90,7 +92,7 @@ pgstat_checkpointer_init_shmem_cb(void *stats)
 {
   PgStatShared_Checkpointer *stats_shmem = (PgStatShared_Checkpointer *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 void

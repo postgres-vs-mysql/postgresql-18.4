@@ -44,6 +44,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "access/table.h"
@@ -746,6 +747,7 @@ ExecRelationIsTargetRelation(EState *estate, Index scanrelid)
 Relation
 ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags)
 {
+  DBUG_TRACE;
   Relation  rel;
 
   /* Open the relation. */
@@ -778,6 +780,7 @@ void
 ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos,
                    Bitmapset *unpruned_relids)
 {
+  DBUG_TRACE;
   /* Remember the range table List as-is */
   estate->es_range_table = rangeTable;
 
@@ -829,6 +832,7 @@ ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos,
 Relation
 ExecGetRangeTableRelation(EState *estate, Index rti, bool isResultRel)
 {
+  DBUG_TRACE;
   Relation  rel;
 
   Assert(rti > 0 && rti <= estate->es_range_table_size);
@@ -882,6 +886,7 @@ void
 ExecInitResultRelation(EState *estate, ResultRelInfo *resultRelInfo,
                        Index rti)
 {
+  DBUG_TRACE;
   Relation  resultRelationDesc;
 
   resultRelationDesc = ExecGetRangeTableRelation(estate, rti, true);
@@ -1063,6 +1068,7 @@ ShutdownExprContext(ExprContext *econtext, bool isCommit)
 Datum
 GetAttributeByName(HeapTupleHeader tuple, const char *attname, bool *isNull)
 {
+  DBUG_TRACE;
   AttrNumber  attrno;
   Datum   result;
   Oid     tupType;
@@ -1126,6 +1132,7 @@ GetAttributeByNum(HeapTupleHeader tuple,
                   AttrNumber attrno,
                   bool *isNull)
 {
+  DBUG_TRACE;
   Datum   result;
   Oid     tupType;
   int32   tupTypmod;
@@ -1320,6 +1327,7 @@ ExecGetChildToRootMap(ResultRelInfo *resultRelInfo)
 TupleConversionMap *
 ExecGetRootToChildMap(ResultRelInfo *resultRelInfo, EState *estate)
 {
+  DBUG_TRACE;
   /* Mustn't get called for a non-child result relation. */
   Assert(resultRelInfo->ri_RootResultRelInfo);
 
@@ -1432,6 +1440,7 @@ ExecGetAllUpdatedCols(ResultRelInfo *relinfo, EState *estate)
 static RTEPermissionInfo *
 GetResultRTEPermissionInfo(ResultRelInfo *relinfo, EState *estate)
 {
+  DBUG_TRACE;
   Index   rti;
   RangeTblEntry *rte;
   RTEPermissionInfo *perminfo = NULL;

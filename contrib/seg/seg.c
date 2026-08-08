@@ -8,6 +8,7 @@
 ******************************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <float.h>
 #include <math.h>
@@ -105,6 +106,7 @@ static int  restore(char *result, float val, int n);
 Datum
 seg_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   SEG      *result = palloc(sizeof(SEG));
   yyscan_t  scanner;
@@ -122,6 +124,7 @@ seg_in(PG_FUNCTION_ARGS)
 Datum
 seg_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *seg = PG_GETARG_SEG_P(0);
   char     *result;
   char     *p;
@@ -162,6 +165,7 @@ seg_out(PG_FUNCTION_ARGS)
 Datum
 seg_center(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *seg = PG_GETARG_SEG_P(0);
 
   PG_RETURN_FLOAT4(((float) seg->lower + (float) seg->upper) / 2.0);
@@ -170,6 +174,7 @@ seg_center(PG_FUNCTION_ARGS)
 Datum
 seg_lower(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *seg = PG_GETARG_SEG_P(0);
 
   PG_RETURN_FLOAT4(seg->lower);
@@ -178,6 +183,7 @@ seg_lower(PG_FUNCTION_ARGS)
 Datum
 seg_upper(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *seg = PG_GETARG_SEG_P(0);
 
   PG_RETURN_FLOAT4(seg->upper);
@@ -197,6 +203,7 @@ seg_upper(PG_FUNCTION_ARGS)
 Datum
 gseg_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -224,6 +231,7 @@ gseg_consistent(PG_FUNCTION_ARGS)
 Datum
 gseg_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *sizep = (int *) PG_GETARG_POINTER(1);
   int     numranges,
@@ -254,12 +262,14 @@ gseg_union(PG_FUNCTION_ARGS)
 Datum
 gseg_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
 Datum
 gseg_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
@@ -270,6 +280,7 @@ gseg_decompress(PG_FUNCTION_ARGS)
 Datum
 gseg_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -319,6 +330,7 @@ gseg_picksplit_item_cmp(const void *a, const void *b)
 Datum
 gseg_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   int     i;
@@ -413,6 +425,7 @@ gseg_picksplit(PG_FUNCTION_ARGS)
 Datum
 gseg_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   if (DirectFunctionCall2(seg_same, PG_GETARG_DATUM(0), PG_GETARG_DATUM(1)))
@@ -551,6 +564,7 @@ gseg_binary_union(Datum r1, Datum r2, int *sizep)
 Datum
 seg_contains(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -560,6 +574,7 @@ seg_contains(PG_FUNCTION_ARGS)
 Datum
 seg_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   a = PG_GETARG_DATUM(0);
   Datum   b = PG_GETARG_DATUM(1);
 
@@ -573,6 +588,7 @@ seg_contained(PG_FUNCTION_ARGS)
 Datum
 seg_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
@@ -585,6 +601,7 @@ seg_same(PG_FUNCTION_ARGS)
 Datum
 seg_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -597,6 +614,7 @@ seg_overlap(PG_FUNCTION_ARGS)
 Datum
 seg_over_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -608,6 +626,7 @@ seg_over_left(PG_FUNCTION_ARGS)
 Datum
 seg_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -619,6 +638,7 @@ seg_left(PG_FUNCTION_ARGS)
 Datum
 seg_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -630,6 +650,7 @@ seg_right(PG_FUNCTION_ARGS)
 Datum
 seg_over_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -639,6 +660,7 @@ seg_over_right(PG_FUNCTION_ARGS)
 Datum
 seg_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
   SEG      *n;
@@ -673,6 +695,7 @@ seg_union(PG_FUNCTION_ARGS)
 Datum
 seg_inter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
   SEG      *n;
@@ -716,6 +739,7 @@ rt_seg_size(SEG *a, float *size)
 Datum
 seg_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *seg = PG_GETARG_SEG_P(0);
 
   PG_RETURN_FLOAT4(fabsf(seg->upper - seg->lower));
@@ -728,6 +752,7 @@ seg_size(PG_FUNCTION_ARGS)
 Datum
 seg_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SEG      *a = PG_GETARG_SEG_P(0);
   SEG      *b = PG_GETARG_SEG_P(1);
 
@@ -864,6 +889,7 @@ seg_cmp(PG_FUNCTION_ARGS)
 Datum
 seg_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
@@ -874,6 +900,7 @@ seg_lt(PG_FUNCTION_ARGS)
 Datum
 seg_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
@@ -884,6 +911,7 @@ seg_le(PG_FUNCTION_ARGS)
 Datum
 seg_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
@@ -894,6 +922,7 @@ seg_gt(PG_FUNCTION_ARGS)
 Datum
 seg_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
@@ -905,6 +934,7 @@ seg_ge(PG_FUNCTION_ARGS)
 Datum
 seg_different(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = DatumGetInt32(DirectFunctionCall2(seg_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));

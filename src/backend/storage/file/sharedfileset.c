@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -37,6 +38,7 @@ static void SharedFileSetOnDetach(dsm_segment *segment, Datum datum);
 void
 SharedFileSetInit(SharedFileSet *fileset, dsm_segment *seg)
 {
+  DBUG_TRACE;
   /* Initialize the shared fileset specific members. */
   SpinLockInit(&fileset->mutex);
   fileset->refcnt = 1;
@@ -55,6 +57,7 @@ SharedFileSetInit(SharedFileSet *fileset, dsm_segment *seg)
 void
 SharedFileSetAttach(SharedFileSet *fileset, dsm_segment *seg)
 {
+  DBUG_TRACE;
   bool    success;
 
   SpinLockAcquire(&fileset->mutex);
@@ -83,6 +86,7 @@ SharedFileSetAttach(SharedFileSet *fileset, dsm_segment *seg)
 void
 SharedFileSetDeleteAll(SharedFileSet *fileset)
 {
+  DBUG_TRACE;
   FileSetDeleteAll(&fileset->fs);
 }
 
@@ -96,6 +100,7 @@ SharedFileSetDeleteAll(SharedFileSet *fileset)
 static void
 SharedFileSetOnDetach(dsm_segment *segment, Datum datum)
 {
+  DBUG_TRACE;
   bool    unlink_all = false;
   SharedFileSet *fileset = (SharedFileSet *) DatumGetPointer(datum);
 

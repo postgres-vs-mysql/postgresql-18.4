@@ -16,6 +16,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/reloptions.h"
@@ -53,6 +54,7 @@ typedef struct {
 static void
 InvalidateTableSpaceCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   TableSpaceCacheEntry *spc;
 
@@ -77,6 +79,7 @@ InvalidateTableSpaceCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 InitializeTableSpaceCache(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   /* Initialize the hash table. */
@@ -106,6 +109,7 @@ InitializeTableSpaceCache(void)
 static TableSpaceCacheEntry *
 get_tablespace(Oid spcid)
 {
+  DBUG_TRACE;
   TableSpaceCacheEntry *spc;
   HeapTuple tp;
   TableSpaceOpts *opts;
@@ -186,6 +190,7 @@ get_tablespace_page_costs(Oid spcid,
                           double *spc_random_page_cost,
                           double *spc_seq_page_cost)
 {
+  DBUG_TRACE;
   TableSpaceCacheEntry *spc = get_tablespace(spcid);
 
   Assert(spc != NULL);
@@ -195,6 +200,8 @@ get_tablespace_page_costs(Oid spcid,
       *spc_random_page_cost = random_page_cost;
     else
       *spc_random_page_cost = spc->opts->random_page_cost;
+
+    DBUG_PRINT("info", "spc_random_page_cost:%g", *spc_random_page_cost);
   }
 
   if (spc_seq_page_cost) {
@@ -202,7 +209,10 @@ get_tablespace_page_costs(Oid spcid,
       *spc_seq_page_cost = seq_page_cost;
     else
       *spc_seq_page_cost = spc->opts->seq_page_cost;
+
+    DBUG_PRINT("info", "spc_seq_page_cost:%g", *spc_seq_page_cost);
   }
+
 }
 
 /*
@@ -215,12 +225,16 @@ get_tablespace_page_costs(Oid spcid,
 int
 get_tablespace_io_concurrency(Oid spcid)
 {
+  DBUG_TRACE;
   TableSpaceCacheEntry *spc = get_tablespace(spcid);
 
-  if (!spc->opts || spc->opts->effective_io_concurrency < 0)
+  if (!spc->opts || spc->opts->effective_io_concurrency < 0) {
+    DBUG_PRINT("info", "result: %d", effective_io_concurrency);
     return effective_io_concurrency;
-  else
+  } else {
+    DBUG_PRINT("info", "result: %d", spc->opts->effective_io_concurrency);
     return spc->opts->effective_io_concurrency;
+  }
 }
 
 /*
@@ -229,10 +243,14 @@ get_tablespace_io_concurrency(Oid spcid)
 int
 get_tablespace_maintenance_io_concurrency(Oid spcid)
 {
+  DBUG_TRACE;
   TableSpaceCacheEntry *spc = get_tablespace(spcid);
 
-  if (!spc->opts || spc->opts->maintenance_io_concurrency < 0)
+  if (!spc->opts || spc->opts->maintenance_io_concurrency < 0) {
+    DBUG_PRINT("info", "result: %d", maintenance_io_concurrency);
     return maintenance_io_concurrency;
-  else
+  } else {
+    DBUG_PRINT("info", "result: %d", spc->opts->maintenance_io_concurrency);
     return spc->opts->maintenance_io_concurrency;
+  }
 }

@@ -71,6 +71,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -147,6 +148,7 @@ static bool SyncRepQueueIsOrderedByLSN(int mode);
 void
 SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 {
+  DBUG_TRACE;
   int     mode;
 
   /*

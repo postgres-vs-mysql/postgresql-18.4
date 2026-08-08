@@ -8,6 +8,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/dependency.h"
@@ -91,6 +92,8 @@ sepgsql_object_access(ObjectAccessType access,
                       int subId,
                       void *arg)
 {
+  DBUG_TRACE;
+
   if (next_object_access_hook)
     (*next_object_access_hook) (access, classId, objectId, subId, arg);
 
@@ -280,17 +283,24 @@ sepgsql_object_access(ObjectAccessType access,
 static bool
 sepgsql_exec_check_perms(List *rangeTbls, List *rteperminfos, bool abort)
 {
+  DBUG_TRACE;
+
   /*
    * If security provider is stacking and one of them replied 'false' at
    * least, we don't need to check any more.
    */
   if (next_exec_check_perms_hook &&
-      !(*next_exec_check_perms_hook) (rangeTbls, rteperminfos, abort))
+      !(*next_exec_check_perms_hook) (rangeTbls, rteperminfos, abort)) {
+    DBUG_PRINT("sepgsql", "return false");
     return false;
+  }
 
-  if (!sepgsql_dml_privileges(rangeTbls, rteperminfos, abort))
+  if (!sepgsql_dml_privileges(rangeTbls, rteperminfos, abort)) {
+    DBUG_PRINT("sepgsql", "return false");
     return false;
+  }
 
+  DBUG_PRINT("sepgsql", "return true");
   return true;
 }
 
@@ -310,6 +320,7 @@ sepgsql_utility_command(PlannedStmt *pstmt,
                         DestReceiver *dest,
                         QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Node     *parsetree = pstmt->utilityStmt;
   sepgsql_context_info_t saved_context_info = sepgsql_context_info;
   ListCell   *cell;
@@ -389,6 +400,8 @@ sepgsql_utility_command(PlannedStmt *pstmt,
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
+
   /*
    * We allow to load the SE-PostgreSQL module on single-user-mode or
    * shared_preload_libraries settings only.

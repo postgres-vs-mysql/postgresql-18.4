@@ -36,6 +36,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "common/hashfn.h"
@@ -141,6 +142,7 @@ bms_copy(const Bitmapset *a)
 bool
 bms_equal(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(bms_is_valid_set(a));
@@ -148,25 +150,35 @@ bms_equal(const Bitmapset *a, const Bitmapset *b)
 
   /* Handle cases where either input is NULL */
   if (a == NULL) {
-    if (b == NULL)
+    if (b == NULL) {
+      DBUG_PRINT("info", "are two bitmapsets equal? Yes");
       return true;
+    }
 
+    DBUG_PRINT("info", "are two bitmapsets equal? No");
     return false;
-  } else if (b == NULL)
+  } else if (b == NULL) {
+    DBUG_PRINT("info", "are two bitmapsets equal? No");
     return false;
+  }
 
   /* can't be equal if the word counts don't match */
-  if (a->nwords != b->nwords)
+  if (a->nwords != b->nwords) {
+    DBUG_PRINT("info", "can't be equal if the word counts don't match");
     return false;
+  }
 
   /* check each word matches */
   i = 0;
 
   do {
-    if (a->words[i] != b->words[i])
+    if (a->words[i] != b->words[i]) {
+      DBUG_PRINT("info", "check that each word matches, and the difference is at position %d", i);
       return false;
+    }
   } while (++i < a->nwords);
 
+  DBUG_PRINT("info", "are two bitmapsets equal? Yes");
   return true;
 }
 
@@ -181,20 +193,36 @@ bms_equal(const Bitmapset *a, const Bitmapset *b)
 int
 bms_compare(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(bms_is_valid_set(a));
   Assert(bms_is_valid_set(b));
 
   /* Handle cases where either input is NULL */
-  if (a == NULL)
+  if (a == NULL) {
+    if (b == NULL) {
+      DBUG_PRINT("info", "return 0");
+    } else {
+      DBUG_PRINT("info", "return -1");
+    }
+
     return (b == NULL) ? 0 : -1;
-  else if (b == NULL)
+  } else if (b == NULL) {
+    DBUG_PRINT("info", "return 1");
     return +1;
+  }
 
   /* the set with the most words must be greater */
-  if (a->nwords != b->nwords)
+  if (a->nwords != b->nwords) {
+    if (a->nwords > b->nwords) {
+      DBUG_PRINT("info", "return 1");
+    } else {
+      DBUG_PRINT("info", "return -1");
+    }
+
     return (a->nwords > b->nwords) ? +1 : -1;
+  }
 
   i = a->nwords - 1;
 
@@ -202,10 +230,18 @@ bms_compare(const Bitmapset *a, const Bitmapset *b)
     bitmapword  aw = a->words[i];
     bitmapword  bw = b->words[i];
 
-    if (aw != bw)
+    if (aw != bw) {
+      if (aw > bw) {
+        DBUG_PRINT("info", "return 1");
+      } else {
+        DBUG_PRINT("info", "return -1");
+      }
+
       return (aw > bw) ? +1 : -1;
+    }
   } while (--i >= 0);
 
+  DBUG_PRINT("info", "return 0");
   return 0;
 }
 
@@ -251,6 +287,7 @@ bms_free(Bitmapset *a)
 Bitmapset *
 bms_union(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   Bitmapset  *result;
   const Bitmapset *other;
   int     otherlen;
@@ -260,11 +297,15 @@ bms_union(const Bitmapset *a, const Bitmapset *b)
   Assert(bms_is_valid_set(b));
 
   /* Handle cases where either input is NULL */
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "a is null, returning bms_copy(b)");
     return bms_copy(b);
+  }
 
-  if (b == NULL)
+  if (b == NULL) {
+    DBUG_PRINT("info", "b is null, returning bms_copy(a)");
     return bms_copy(a);
+  }
 
   /* Identify shorter and longer input; copy the longer one */
   if (a->nwords <= b->nwords) {
@@ -283,6 +324,7 @@ bms_union(const Bitmapset *a, const Bitmapset *b)
     result->words[i] |= other->words[i];
   } while (++i < otherlen);
 
+  DBUG_PRINT("info", "a->nwords:%d, b->nwords:%d, result->nwords:%d", a->nwords, b->nwords, result->nwords);
   return result;
 }
 
@@ -293,6 +335,7 @@ bms_union(const Bitmapset *a, const Bitmapset *b)
 Bitmapset *
 bms_intersect(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   Bitmapset  *result;
   const Bitmapset *other;
   int     lastnonzero;
@@ -345,6 +388,7 @@ bms_intersect(const Bitmapset *a, const Bitmapset *b)
 Bitmapset *
 bms_difference(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   Bitmapset  *result;
   int     i;
 
@@ -410,30 +454,40 @@ bms_difference(const Bitmapset *a, const Bitmapset *b)
 bool
 bms_is_subset(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(bms_is_valid_set(a));
   Assert(bms_is_valid_set(b));
 
   /* Handle cases where either input is NULL */
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "empty set is a subset of anything");
     return true;      /* empty set is a subset of anything */
+  }
 
-  if (b == NULL)
+  if (b == NULL) {
+    DBUG_PRINT("info", "is 'a' a subset of 'b'? No");
     return false;
+  }
 
   /* 'a' can't be a subset of 'b' if it contains more words */
-  if (a->nwords > b->nwords)
+  if (a->nwords > b->nwords) {
+    DBUG_PRINT("info", "'a' can't be a subset of 'b' if it contains more words");
     return false;
+  }
 
   /* Check all 'a' members are set in 'b' */
   i = 0;
 
   do {
-    if ((a->words[i] & ~b->words[i]) != 0)
+    if ((a->words[i] & ~b->words[i]) != 0) {
+      DBUG_PRINT("info", "is 'a' a subset of 'b'? No");
       return false;
+    }
   } while (++i < a->nwords);
 
+  DBUG_PRINT("info", "is 'a' a subset of 'b'? Yes");
   return true;
 }
 
@@ -513,6 +567,7 @@ bms_subset_compare(const Bitmapset *a, const Bitmapset *b)
 bool
 bms_is_member(int x, const Bitmapset *a)
 {
+  DBUG_TRACE;
   int     wordnum,
           bitnum;
 
@@ -522,18 +577,25 @@ bms_is_member(int x, const Bitmapset *a)
   if (x < 0)
     elog(ERROR, "negative bitmapset member not allowed");
 
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "is x(%d) a member of A? No", x);
     return false;
+  }
 
   wordnum = WORDNUM(x);
   bitnum = BITNUM(x);
 
-  if (wordnum >= a->nwords)
+  if (wordnum >= a->nwords) {
+    DBUG_PRINT("info", "is x(%d) a member of A? No", x);
     return false;
+  }
 
-  if ((a->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0)
+  if ((a->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0) {
+    DBUG_PRINT("info", "is x(%d) a member of A? Yes", x);
     return true;
+  }
 
+  DBUG_PRINT("info", "is x(%d) a member of A? No", x);
   return false;
 }
 
@@ -546,6 +608,7 @@ bms_is_member(int x, const Bitmapset *a)
 int
 bms_member_index(Bitmapset *a, int x)
 {
+  DBUG_TRACE;
   int     i;
   int     bitnum;
   int     wordnum;
@@ -555,8 +618,10 @@ bms_member_index(Bitmapset *a, int x)
   Assert(bms_is_valid_set(a));
 
   /* return -1 if not a member of the bitmap */
-  if (!bms_is_member(x, a))
+  if (!bms_is_member(x, a)) {
+    DBUG_PRINT("info", "return -1 if not a member of the bitmap");
     return -1;
+  }
 
   wordnum = WORDNUM(x);
   bitnum = BITNUM(x);
@@ -579,6 +644,7 @@ bms_member_index(Bitmapset *a, int x)
   mask = ((bitmapword) 1 << bitnum) - 1;
   result += bmw_popcount(a->words[wordnum] & mask);
 
+  DBUG_PRINT("info", "determine 0-based index of member x in the bitmap:%d", result);
   return result;
 }
 
@@ -588,6 +654,7 @@ bms_member_index(Bitmapset *a, int x)
 bool
 bms_overlap(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   int     shortlen;
   int     i;
 
@@ -595,18 +662,23 @@ bms_overlap(const Bitmapset *a, const Bitmapset *b)
   Assert(bms_is_valid_set(b));
 
   /* Handle cases where either input is NULL */
-  if (a == NULL || b == NULL)
+  if (a == NULL || b == NULL) {
+    DBUG_PRINT("info", "do sets overlap? No");
     return false;
+  }
 
   /* Check words in common */
   shortlen = Min(a->nwords, b->nwords);
   i = 0;
 
   do {
-    if ((a->words[i] & b->words[i]) != 0)
+    if ((a->words[i] & b->words[i]) != 0) {
+      DBUG_PRINT("info", "do sets overlap? Yes");
       return true;
+    }
   } while (++i < shortlen);
 
+  DBUG_PRINT("info", "do sets overlap? No");
   return false;
 }
 
@@ -616,14 +688,17 @@ bms_overlap(const Bitmapset *a, const Bitmapset *b)
 bool
 bms_overlap_list(const Bitmapset *a, const List *b)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   int     wordnum,
           bitnum;
 
   Assert(bms_is_valid_set(a));
 
-  if (a == NULL || b == NIL)
+  if (a == NULL || b == NIL) {
+    DBUG_PRINT("info", "does a set overlap an integer list? No");
     return false;
+  }
 
   foreach(lc, b) {
     int     x = lfirst_int(lc);
@@ -635,10 +710,13 @@ bms_overlap_list(const Bitmapset *a, const List *b)
     bitnum = BITNUM(x);
 
     if (wordnum < a->nwords)
-      if ((a->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0)
+      if ((a->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0) {
+        DBUG_PRINT("info", "does a set overlap an integer list? Yes");
         return true;
+      }
   }
 
+  DBUG_PRINT("info", "does a set overlap an integer list? No");
   return false;
 }
 
@@ -650,30 +728,40 @@ bms_overlap_list(const Bitmapset *a, const List *b)
 bool
 bms_nonempty_difference(const Bitmapset *a, const Bitmapset *b)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(bms_is_valid_set(a));
   Assert(bms_is_valid_set(b));
 
   /* Handle cases where either input is NULL */
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "do sets have a nonempty difference? No");
     return false;
+  }
 
-  if (b == NULL)
+  if (b == NULL) {
+    DBUG_PRINT("info", "do sets have a nonempty difference? Yes");
     return true;
+  }
 
   /* if 'a' has more words then it must contain additional members */
-  if (a->nwords > b->nwords)
+  if (a->nwords > b->nwords) {
+    DBUG_PRINT("info", "do sets have a nonempty difference? Yes");
     return true;
+  }
 
   /* Check all 'a' members are set in 'b' */
   i = 0;
 
   do {
-    if ((a->words[i] & ~b->words[i]) != 0)
+    if ((a->words[i] & ~b->words[i]) != 0) {
+      DBUG_PRINT("info", "do sets have a nonempty difference? Yes");
       return true;
+    }
   } while (++i < a->nwords);
 
+  DBUG_PRINT("info", "do sets have a nonempty difference? No");
   return false;
 }
 
@@ -685,6 +773,7 @@ bms_nonempty_difference(const Bitmapset *a, const Bitmapset *b)
 int
 bms_singleton_member(const Bitmapset *a)
 {
+  DBUG_TRACE;
   int     result = -1;
   int     nwords;
   int     wordnum;
@@ -711,6 +800,7 @@ bms_singleton_member(const Bitmapset *a)
 
   /* we don't expect non-NULL sets to be empty */
   Assert(result >= 0);
+  DBUG_PRINT("info", "return the sole integer member of set:%d", result);
   return result;
 }
 
@@ -728,14 +818,17 @@ bms_singleton_member(const Bitmapset *a)
 bool
 bms_get_singleton_member(const Bitmapset *a, int *member)
 {
+  DBUG_TRACE;
   int     result = -1;
   int     nwords;
   int     wordnum;
 
   Assert(bms_is_valid_set(a));
 
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "test whether the given set is a singleton? No");
     return false;
+  }
 
   nwords = a->nwords;
   wordnum = 0;
@@ -744,8 +837,10 @@ bms_get_singleton_member(const Bitmapset *a, int *member)
     bitmapword  w = a->words[wordnum];
 
     if (w != 0) {
-      if (result >= 0 || HAS_MULTIPLE_ONES(w))
+      if (result >= 0 || HAS_MULTIPLE_ONES(w)) {
+        DBUG_PRINT("info", "test whether the given set is a singleton? No");
         return false;
+      }
 
       result = wordnum * BITS_PER_BITMAPWORD;
       result += bmw_rightmost_one_pos(w);
@@ -755,6 +850,8 @@ bms_get_singleton_member(const Bitmapset *a, int *member)
   /* we don't expect non-NULL sets to be empty */
   Assert(result >= 0);
   *member = result;
+
+  DBUG_PRINT("info", "test whether the given set is a singleton? Yes");
   return true;
 }
 
@@ -764,14 +861,17 @@ bms_get_singleton_member(const Bitmapset *a, int *member)
 int
 bms_num_members(const Bitmapset *a)
 {
+  DBUG_TRACE;
   int     result = 0;
   int     nwords;
   int     wordnum;
 
   Assert(bms_is_valid_set(a));
 
-  if (a == NULL)
+  if (a == NULL) {
+    DBUG_PRINT("info", "count members of set:0");
     return 0;
+  }
 
   nwords = a->nwords;
   wordnum = 0;
@@ -784,6 +884,8 @@ bms_num_members(const Bitmapset *a)
       result += bmw_popcount(w);
   } while (++wordnum < nwords);
 
+
+  DBUG_PRINT("info", "count members of set:%d", result);
   return result;
 }
 

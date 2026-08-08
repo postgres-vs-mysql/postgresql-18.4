@@ -97,6 +97,7 @@ The remaining code is authored by Andrew Dunstan <amdunstan@ncshp.org> and
 #ifndef DMETAPHONE_MAIN
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "utils/builtins.h"
 
@@ -130,6 +131,7 @@ PG_FUNCTION_INFO_V1(dmetaphone);
 Datum
 dmetaphone(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg;
   char     *aptr,
            *codes[2],
@@ -162,6 +164,7 @@ PG_FUNCTION_INFO_V1(dmetaphone_alt);
 Datum
 dmetaphone_alt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg;
   char     *aptr,
            *codes[2],

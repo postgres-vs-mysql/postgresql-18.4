@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "common/string.h"
@@ -94,6 +95,8 @@ bool
 tsearch_readline_begin(tsearch_readline_state *stp,
                        const char *filename)
 {
+  DBUG_TRACE;
+
   if ((stp->fp = AllocateFile(filename, "r")) == NULL)
     return false;
 
@@ -117,6 +120,7 @@ tsearch_readline_begin(tsearch_readline_state *stp,
 char *
 tsearch_readline(tsearch_readline_state *stp)
 {
+  DBUG_TRACE;
   char     *recoded;
 
   /* Advance line number to use in error reports */
@@ -162,6 +166,8 @@ tsearch_readline(tsearch_readline_state *stp)
 void
 tsearch_readline_end(tsearch_readline_state *stp)
 {
+  DBUG_TRACE;
+
   /* Suppress use of curline in any error reported below */
   if (stp->curline) {
     if (stp->curline != stp->buf.data)
@@ -185,6 +191,7 @@ tsearch_readline_end(tsearch_readline_state *stp)
 static void
 tsearch_readline_callback(void *arg)
 {
+  DBUG_TRACE;
   tsearch_readline_state *stp = (tsearch_readline_state *) arg;
 
   /*

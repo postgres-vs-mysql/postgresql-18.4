@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
 */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/hash.h"
@@ -50,6 +51,8 @@ static List *generate_partition_qual(Relation rel);
 PartitionKey
 RelationGetPartitionKey(Relation rel)
 {
+  DBUG_TRACE;
+
   if (rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
     return NULL;
 
@@ -77,6 +80,7 @@ RelationGetPartitionKey(Relation rel)
 static void
 RelationBuildPartitionKey(Relation relation)
 {
+  DBUG_TRACE;
   Form_pg_partitioned_table form;
   HeapTuple tuple;
   bool    isnull;
@@ -276,6 +280,8 @@ RelationBuildPartitionKey(Relation relation)
 List *
 RelationGetPartitionQual(Relation rel)
 {
+  DBUG_TRACE;
+
   /* Quick exit */
   if (!rel->rd_rel->relispartition)
     return NIL;
@@ -298,6 +304,7 @@ RelationGetPartitionQual(Relation rel)
 Expr *
 get_partition_qual_relid(Oid relid)
 {
+  DBUG_TRACE;
   Expr     *result = NULL;
 
   /* Do the work only if this relation exists and is a partition. */
@@ -335,6 +342,7 @@ get_partition_qual_relid(Oid relid)
 static List *
 generate_partition_qual(Relation rel)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   MemoryContext oldcxt;
   Datum   boundDatum;

@@ -14,6 +14,7 @@ Jan Wieck <jwieck@debis.com> who told me about the timestamp_in("now") function.
 OH, me, I'm Terry Mackintosh <terry@terrym.com>
 */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
@@ -32,6 +33,7 @@ PG_FUNCTION_INFO_V1(moddatetime);
 Datum
 moddatetime(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   Trigger    *trigger;    /* to get trigger name */
   int     nargs;      /* # of arguments */

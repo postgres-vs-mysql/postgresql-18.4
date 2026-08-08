@@ -42,6 +42,7 @@ static PLpgSQL_nsitem *ns_top = NULL;
 void
 plpgsql_ns_init(void)
 {
+  DBUG_TRACE;
   ns_top = NULL;
 }
 
@@ -53,6 +54,8 @@ plpgsql_ns_init(void)
 void
 plpgsql_ns_push(const char *label, PLpgSQL_label_type label_type)
 {
+  DBUG_TRACE;
+
   if (label == NULL)
     label = "";
 
@@ -67,6 +70,7 @@ plpgsql_ns_push(const char *label, PLpgSQL_label_type label_type)
 void
 plpgsql_ns_pop(void)
 {
+  DBUG_TRACE;
   Assert(ns_top != NULL);
 
   while (ns_top->itemtype != PLPGSQL_NSTYPE_LABEL)
@@ -83,6 +87,7 @@ plpgsql_ns_pop(void)
 PLpgSQL_nsitem *
 plpgsql_ns_top(void)
 {
+  DBUG_TRACE;
   return ns_top;
 }
 
@@ -94,6 +99,7 @@ plpgsql_ns_top(void)
 void
 plpgsql_ns_additem(PLpgSQL_nsitem_type itemtype, int itemno, const char *name)
 {
+  DBUG_TRACE;
   PLpgSQL_nsitem *nse;
 
   Assert(name != NULL);
@@ -134,6 +140,8 @@ plpgsql_ns_lookup(PLpgSQL_nsitem *ns_cur, bool localmode,
                   const char *name1, const char *name2, const char *name3,
                   int *names_used)
 {
+  DBUG_TRACE;
+
   /* Outer loop iterates once per block level in the namespace chain */
   while (ns_cur != NULL) {
     PLpgSQL_nsitem *nsitem;
@@ -192,6 +200,8 @@ plpgsql_ns_lookup(PLpgSQL_nsitem *ns_cur, bool localmode,
 PLpgSQL_nsitem *
 plpgsql_ns_lookup_label(PLpgSQL_nsitem *ns_cur, const char *name)
 {
+  DBUG_TRACE;
+
   while (ns_cur != NULL) {
     if (ns_cur->itemtype == PLPGSQL_NSTYPE_LABEL &&
         strcmp(ns_cur->name, name) == 0)
@@ -211,6 +221,8 @@ plpgsql_ns_lookup_label(PLpgSQL_nsitem *ns_cur, const char *name)
 PLpgSQL_nsitem *
 plpgsql_ns_find_nearest_loop(PLpgSQL_nsitem *ns_cur)
 {
+  DBUG_TRACE;
+
   while (ns_cur != NULL) {
     if (ns_cur->itemtype == PLPGSQL_NSTYPE_LABEL &&
         ns_cur->itemno == PLPGSQL_LABEL_LOOP)
@@ -229,6 +241,8 @@ plpgsql_ns_find_nearest_loop(PLpgSQL_nsitem *ns_cur)
 const char *
 plpgsql_stmt_typename(PLpgSQL_stmt *stmt)
 {
+  DBUG_TRACE;
+
   switch (stmt->cmd_type) {
     case PLPGSQL_STMT_BLOCK:
       return _("statement block");
@@ -980,6 +994,7 @@ dump_stmt(PLpgSQL_stmt *stmt)
 static void
 dump_stmts(List *stmts)
 {
+  DBUG_TRACE;
   ListCell   *s;
 
   dump_indent += 2;
@@ -1043,6 +1058,7 @@ dump_assign(PLpgSQL_stmt_assign *stmt)
 static void
 dump_if(PLpgSQL_stmt_if *stmt)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   dump_ind();
@@ -1473,6 +1489,7 @@ dump_return_query(PLpgSQL_stmt_return_query *stmt)
 static void
 dump_raise(PLpgSQL_stmt_raise *stmt)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   int     i = 0;
 
@@ -1668,6 +1685,7 @@ dump_dynfors(PLpgSQL_stmt_dynfors *stmt)
 static void
 dump_getdiag(PLpgSQL_stmt_getdiag *stmt)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   dump_ind();
@@ -1699,6 +1717,7 @@ dump_expr(PLpgSQL_expr *expr)
 void
 plpgsql_dumptree(PLpgSQL_function *func)
 {
+  DBUG_TRACE;
   int     i;
   PLpgSQL_datum *d;
 

@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/objectaccess.h"
@@ -56,6 +57,7 @@ SetExprState *
 ExecInitTableFunctionResult(Expr *expr,
                             ExprContext *econtext, PlanState *parent)
 {
+  DBUG_TRACE;
   SetExprState *state = makeNode(SetExprState);
 
   state->funcReturnsSet = false;
@@ -101,6 +103,7 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
                             TupleDesc expectedDesc,
                             bool randomAccess)
 {
+  DBUG_TRACE;
   Tuplestorestate *tupstore = NULL;
   TupleDesc tupdesc = NULL;
   Oid     funcrettype;
@@ -113,6 +116,7 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
   MemoryContext callerContext;
   bool    first_time = true;
 
+  DBUG_PRINT("info", "evaluate a table function, producing a materialized result in a Tuplestore object");
   /*
    * Execute per-tablefunc actions in appropriate context.
    *
@@ -293,10 +297,12 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
              * necessary in case the type is RECORD.
              */
             if (HeapTupleHeaderGetTypeId(td) != tupdesc->tdtypeid ||
-                HeapTupleHeaderGetTypMod(td) != tupdesc->tdtypmod)
+                HeapTupleHeaderGetTypMod(td) != tupdesc->tdtypmod) {
+              DBUG_INSTANT_PRINT("info", "rows returned by function are not all of the same row type");
               ereport(ERROR,
                       (errcode(ERRCODE_DATATYPE_MISMATCH),
                        errmsg("rows returned by function are not all of the same row type")));
+            }
           }
 
           /*
@@ -339,24 +345,30 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
        * (Note: for historical reasons, we don't complain if a non-SRF
        * returns ExprEndResult; that's treated as returning NULL.)
        */
-      if (!returnsSet)
+      if (!returnsSet) {
+        DBUG_INSTANT_PRINT("info", "table-function protocol for value-per-call mode was not followed");
         ereport(ERROR,
                 (errcode(ERRCODE_E_R_I_E_SRF_PROTOCOL_VIOLATED),
                  errmsg("table-function protocol for value-per-call mode was not followed")));
+      }
     } else if (rsinfo.returnMode == SFRM_Materialize) {
       /* check we're on the same page as the function author */
-      if (!first_time || rsinfo.isDone != ExprSingleResult || !returnsSet)
+      if (!first_time || rsinfo.isDone != ExprSingleResult || !returnsSet) {
+        DBUG_INSTANT_PRINT("info", "table-function protocol for materialize mode was not followed");
         ereport(ERROR,
                 (errcode(ERRCODE_E_R_I_E_SRF_PROTOCOL_VIOLATED),
                  errmsg("table-function protocol for materialize mode was not followed")));
+      }
 
       /* Done evaluating the set result */
       break;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized table-function returnMode: %d", (int) rsinfo.returnMode);
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_SRF_PROTOCOL_VIOLATED),
                errmsg("unrecognized table-function returnMode: %d",
                       (int) rsinfo.returnMode)));
+    }
 
     first_time = false;
   }
@@ -419,6 +431,7 @@ SetExprState *
 ExecInitFunctionResultSet(Expr *expr,
                           ExprContext *econtext, PlanState *parent)
 {
+  DBUG_TRACE;
   SetExprState *state = makeNode(SetExprState);
 
   state->funcReturnsSet = true;
@@ -441,9 +454,11 @@ ExecInitFunctionResultSet(Expr *expr,
     state->args = ExecInitExprList(op->args, parent);
     init_sexpr(op->opfuncid, op->inputcollid, expr, state, parent,
                econtext->ecxt_per_query_memory, true, true);
-  } else
+  } else {
+    DBUG_INSTANT_PRINT("info", "unrecognized node type: %d", (int) nodeTag(expr));
     elog(ERROR, "unrecognized node type: %d",
          (int) nodeTag(expr));
+  }
 
   /* shouldn't get here unless the selected function returns set */
   Assert(state->func.fn_retset);
@@ -471,6 +486,7 @@ ExecMakeFunctionResultSet(SetExprState *fcache,
                           bool *isNull,
                           ExprDoneCond *isDone)
 {
+  DBUG_TRACE;
   List     *arguments;
   Datum   result;
   FunctionCallInfo fcinfo;
@@ -617,10 +633,12 @@ restart:
     }
   } else if (rsinfo.returnMode == SFRM_Materialize) {
     /* check we're on the same page as the function author */
-    if (rsinfo.isDone != ExprSingleResult)
+    if (rsinfo.isDone != ExprSingleResult) {
+      DBUG_INSTANT_PRINT("info", "table-function protocol for materialize mode was not followed");
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_SRF_PROTOCOL_VIOLATED),
                errmsg("table-function protocol for materialize mode was not followed")));
+    }
 
     if (rsinfo.setResult != NULL) {
       /* prepare to return values from the tuplestore */
@@ -635,11 +653,13 @@ restart:
     *isDone = ExprEndResult;
     *isNull = true;
     result = (Datum) 0;
-  } else
+  } else {
+    DBUG_INSTANT_PRINT("info", "unrecognized table-function returnMode: %d", (int) rsinfo.returnMode);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_SRF_PROTOCOL_VIOLATED),
              errmsg("unrecognized table-function returnMode: %d",
                     (int) rsinfo.returnMode)));
+  }
 
   return result;
 }
@@ -653,6 +673,7 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
            SetExprState *sexpr, PlanState *parent,
            MemoryContext sexprCxt, bool allowSRF, bool needDescForSRF)
 {
+  DBUG_TRACE;
   AclResult aclresult;
   size_t    numargs = list_length(sexpr->args);
 
@@ -670,13 +691,14 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
    * server has been compiled with FUNC_MAX_ARGS smaller than some functions
    * declared in pg_proc?
    */
-  if (list_length(sexpr->args) > FUNC_MAX_ARGS)
+  if (list_length(sexpr->args) > FUNC_MAX_ARGS) {
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
              errmsg_plural("cannot pass more than %d argument to a function",
                            "cannot pass more than %d arguments to a function",
                            FUNC_MAX_ARGS,
                            FUNC_MAX_ARGS)));
+  }
 
   /* Set up the primary fmgr lookup information */
   fmgr_info_cxt(foid, &(sexpr->func), sexprCxt);
@@ -690,12 +712,14 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
                            input_collation, NULL, NULL);
 
   /* If function returns set, check if that's allowed by caller */
-  if (sexpr->func.fn_retset && !allowSRF)
+  if (sexpr->func.fn_retset && !allowSRF) {
+    DBUG_INSTANT_PRINT("info", "set-valued function called in context that cannot accept a set");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("set-valued function called in context that cannot accept a set"),
              parent ? executor_errposition(parent->state,
                                            exprLocation((Node *) node)) : 0));
+  }
 
   /* Otherwise, caller should have marked the sexpr correctly */
   Assert(sexpr->func.fn_retset == sexpr->funcReturnsSet);
@@ -758,6 +782,7 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
 static void
 ShutdownSetExpr(Datum arg)
 {
+  DBUG_TRACE;
   SetExprState *sexpr = castNode(SetExprState, DatumGetPointer(arg));
 
   /* If we have a slot, make sure it's let go of any tuplestore pointer */
@@ -785,6 +810,7 @@ ExecEvalFuncArgs(FunctionCallInfo fcinfo,
                  List *argList,
                  ExprContext *econtext)
 {
+  DBUG_TRACE;
   int     i;
   ListCell   *arg;
 
@@ -816,6 +842,7 @@ ExecPrepareTuplestoreResult(SetExprState *sexpr,
                             Tuplestorestate *resultStore,
                             TupleDesc resultDesc)
 {
+  DBUG_TRACE;
   sexpr->funcResultStore = resultStore;
 
   if (sexpr->funcResultSlot == NULL) {
@@ -835,6 +862,7 @@ ExecPrepareTuplestoreResult(SetExprState *sexpr,
       /* don't assume resultDesc is long-lived */
       slotDesc = CreateTupleDescCopy(resultDesc);
     } else {
+      DBUG_INSTANT_PRINT("info", "function returning setof record called in context that cannot accept type record");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("function returning setof record called in "
@@ -886,9 +914,11 @@ ExecPrepareTuplestoreResult(SetExprState *sexpr,
 static void
 tupledesc_match(TupleDesc dst_tupdesc, TupleDesc src_tupdesc)
 {
+  DBUG_TRACE;
   int     i;
 
-  if (dst_tupdesc->natts != src_tupdesc->natts)
+  if (dst_tupdesc->natts != src_tupdesc->natts) {
+    DBUG_INSTANT_PRINT("info", "function return row and query-specified return row do not match");
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("function return row and query-specified return row do not match"),
@@ -896,6 +926,7 @@ tupledesc_match(TupleDesc dst_tupdesc, TupleDesc src_tupdesc)
                               "Returned row contains %d attributes, but query expects %d.",
                               src_tupdesc->natts,
                               src_tupdesc->natts, dst_tupdesc->natts)));
+  }
 
   for (i = 0; i < dst_tupdesc->natts; i++) {
     Form_pg_attribute dattr = TupleDescAttr(dst_tupdesc, i);
@@ -904,7 +935,8 @@ tupledesc_match(TupleDesc dst_tupdesc, TupleDesc src_tupdesc)
     if (IsBinaryCoercible(sattr->atttypid, dattr->atttypid))
       continue;     /* no worries */
 
-    if (!dattr->attisdropped)
+    if (!dattr->attisdropped) {
+      DBUG_INSTANT_PRINT("info", "function return row and query-specified return row do not match");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("function return row and query-specified return row do not match"),
@@ -912,13 +944,16 @@ tupledesc_match(TupleDesc dst_tupdesc, TupleDesc src_tupdesc)
                          format_type_be(sattr->atttypid),
                          i + 1,
                          format_type_be(dattr->atttypid))));
+    }
 
     if (dattr->attlen != sattr->attlen ||
-        dattr->attalign != sattr->attalign)
+        dattr->attalign != sattr->attalign) {
+      DBUG_INSTANT_PRINT("info", "function return row and query-specified return row do not match");
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("function return row and query-specified return row do not match"),
                errdetail("Physical storage mismatch on dropped attribute at ordinal position %d.",
                          i + 1)));
+    }
   }
 }

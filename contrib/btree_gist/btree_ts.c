@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_ts.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -202,6 +203,7 @@ tstz_to_ts_gmt(TimestampTz ts)
 Datum
 gbt_ts_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
@@ -210,6 +212,7 @@ gbt_ts_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_tstz_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
 
@@ -234,6 +237,7 @@ gbt_tstz_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_ts_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
@@ -242,6 +246,7 @@ gbt_ts_fetch(PG_FUNCTION_ARGS)
 Datum
 gbt_ts_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Timestamp query = PG_GETARG_TIMESTAMP(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -250,6 +255,7 @@ gbt_ts_consistent(PG_FUNCTION_ARGS)
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
   tsKEY    *kkk = (tsKEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
+  bool result;
 
   /* All cases served by this function are exact */
   *recheck = false;
@@ -257,13 +263,21 @@ gbt_ts_consistent(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, &query, &strategy,
+  result = (gbt_num_consistent(&key, &query, &strategy,
                                     GIST_LEAF(entry), &tinfo, fcinfo->flinfo));
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 gbt_ts_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  float8 result;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Timestamp query = PG_GETARG_TIMESTAMP(1);
 
@@ -274,13 +288,16 @@ gbt_ts_distance(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_FLOAT8(gbt_num_distance(&key, &query, GIST_LEAF(entry),
+  result = (gbt_num_distance(&key, &query, GIST_LEAF(entry),
                                     &tinfo, fcinfo->flinfo));
+  DBUG_PRINT("btree_gist", "distance:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 gbt_tstz_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TimestampTz query = PG_GETARG_TIMESTAMPTZ(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -290,6 +307,7 @@ gbt_tstz_consistent(PG_FUNCTION_ARGS)
   char     *kkk = (char *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
   Timestamp qqq;
+  bool result;
 
   /* All cases served by this function are exact */
   *recheck = false;
@@ -298,13 +316,21 @@ gbt_tstz_consistent(PG_FUNCTION_ARGS)
   key.upper = (GBT_NUMKEY *) &kkk[MAXALIGN(tinfo.size)];
   qqq = tstz_to_ts_gmt(query);
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, &qqq, &strategy,
+  result = (gbt_num_consistent(&key, &qqq, &strategy,
                                     GIST_LEAF(entry), &tinfo, fcinfo->flinfo));
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 gbt_tstz_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TimestampTz query = PG_GETARG_TIMESTAMPTZ(1);
 
@@ -312,19 +338,23 @@ gbt_tstz_distance(PG_FUNCTION_ARGS)
   char     *kkk = (char *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
   Timestamp qqq;
+  float8 result;
 
   key.lower = (GBT_NUMKEY *) &kkk[0];
   key.upper = (GBT_NUMKEY *) &kkk[MAXALIGN(tinfo.size)];
   qqq = tstz_to_ts_gmt(query);
 
-  PG_RETURN_FLOAT8(gbt_num_distance(&key, &qqq, GIST_LEAF(entry),
+  result = (gbt_num_distance(&key, &qqq, GIST_LEAF(entry),
                                     &tinfo, fcinfo->flinfo));
+  DBUG_PRINT("btree_gist", "distance:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
 Datum
 gbt_ts_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   void     *out = palloc(sizeof(tsKEY));
 
@@ -345,6 +375,7 @@ gbt_ts_union(PG_FUNCTION_ARGS)
 Datum
 gbt_ts_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   tsKEY    *origentry = (tsKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   tsKEY    *newentry = (tsKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -375,6 +406,7 @@ gbt_ts_penalty(PG_FUNCTION_ARGS)
 Datum
 gbt_ts_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(gbt_num_picksplit((GistEntryVector *) PG_GETARG_POINTER(0),
                                       (GIST_SPLITVEC *) PG_GETARG_POINTER(1),
                                       &tinfo, fcinfo->flinfo));
@@ -383,11 +415,19 @@ gbt_ts_picksplit(PG_FUNCTION_ARGS)
 Datum
 gbt_ts_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   tsKEY    *b1 = (tsKEY *) PG_GETARG_POINTER(0);
   tsKEY    *b2 = (tsKEY *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_num_same((void *) b1, (void *) b2, &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 

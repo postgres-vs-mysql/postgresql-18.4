@@ -72,8 +72,7 @@ pg_comp_crc32c_dispatch(pg_crc32c crc, const void *data, size_t len)
 {
 #ifdef HAVE__BUILTIN_CONSTANT_P
 
-  if (__builtin_constant_p(len) && len < 32)
-  {
+  if (__builtin_constant_p(len) && len < 32) {
     const unsigned char *p = (const unsigned char *) data;
 
     /*
@@ -94,8 +93,7 @@ pg_comp_crc32c_dispatch(pg_crc32c crc, const void *data, size_t len)
       crc = _mm_crc32_u8(crc, *p++);
 
     return crc;
-  }
-  else
+  } else
     /* Otherwise, use a runtime check for AVX-512 instructions. */
     return pg_comp_crc32c(crc, data, len);
 

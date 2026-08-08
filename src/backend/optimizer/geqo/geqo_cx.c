@@ -35,6 +35,7 @@
 
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo.h"
 
 #if defined(CX)
@@ -50,6 +51,7 @@ int
 cx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring,
    int num_gene, City * city_table)
 {
+  DBUG_TRACE;
   int     i,
           start_pos,
           curr_pos;
@@ -92,6 +94,8 @@ cx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring,
 
   /* failed to create a complete tour */
   if (count < num_gene) {
+    DBUG_PRINT("info", "failed to create a complete tour");
+
     for (i = 1; i <= num_gene; i++) {
       if (!city_table[i].used) {
         offspring[city_table[i].tour2_position] =
@@ -99,6 +103,8 @@ cx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring,
         count++;
       }
     }
+  } else {
+    DBUG_PRINT("info", "a complete tour is generated");
   }
 
 
@@ -107,12 +113,15 @@ cx(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring,
   /* still failed to create a complete tour */
   if (count < num_gene) {
 
+    DBUG_PRINT("info", "still failed to create a complete tour");
+
     /* count the number of differences between mom and offspring */
     for (i = 0; i < num_gene; i++)
       if (tour1[i] != offspring[i])
         num_diffs++;
   }
 
+  DBUG_PRINT("info", "cycle crossover and num_diffs:%d", num_diffs);
   return num_diffs;
 }
 

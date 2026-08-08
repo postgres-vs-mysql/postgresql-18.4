@@ -6,6 +6,7 @@
  *    constraints using general triggers.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -48,6 +49,7 @@ PG_FUNCTION_INFO_V1(check_primary_key);
 Datum
 check_primary_key(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   Trigger    *trigger;    /* to get trigger name */
   int     nargs;      /* # of args specified in CREATE TRIGGER */
@@ -248,6 +250,7 @@ PG_FUNCTION_INFO_V1(check_foreign_key);
 Datum
 check_foreign_key(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   Trigger    *trigger;    /* to get trigger name */
   int     nargs;      /* # of args specified in CREATE TRIGGER */
@@ -617,6 +620,7 @@ check_foreign_key(PG_FUNCTION_ARGS)
 static EPlan *
 find_plan(char *ident, EPlan **eplan, int *nplans)
 {
+  DBUG_TRACE;
   EPlan    *newp;
   int     i;
   MemoryContext oldcontext;

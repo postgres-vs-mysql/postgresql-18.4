@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "miscadmin.h"
@@ -174,6 +175,7 @@ const Size  shm_mq_minimum_size =
 shm_mq *
 shm_mq_create(void *address, Size size)
 {
+  DBUG_TRACE;
   shm_mq     *mq = address;
   Size    data_offset = MAXALIGN(offsetof(shm_mq, mq_ring));
 
@@ -203,6 +205,7 @@ shm_mq_create(void *address, Size size)
 void
 shm_mq_set_receiver(shm_mq *mq, PGPROC *proc)
 {
+  DBUG_TRACE;
   PGPROC     *sender;
 
   SpinLockAcquire(&mq->mq_mutex);
@@ -221,6 +224,7 @@ shm_mq_set_receiver(shm_mq *mq, PGPROC *proc)
 void
 shm_mq_set_sender(shm_mq *mq, PGPROC *proc)
 {
+  DBUG_TRACE;
   PGPROC     *receiver;
 
   SpinLockAcquire(&mq->mq_mutex);
@@ -239,6 +243,7 @@ shm_mq_set_sender(shm_mq *mq, PGPROC *proc)
 PGPROC *
 shm_mq_get_receiver(shm_mq *mq)
 {
+  DBUG_TRACE;
   PGPROC     *receiver;
 
   SpinLockAcquire(&mq->mq_mutex);
@@ -254,6 +259,7 @@ shm_mq_get_receiver(shm_mq *mq)
 PGPROC *
 shm_mq_get_sender(shm_mq *mq)
 {
+  DBUG_TRACE;
   PGPROC     *sender;
 
   SpinLockAcquire(&mq->mq_mutex);
@@ -287,6 +293,7 @@ shm_mq_get_sender(shm_mq *mq)
 shm_mq_handle *
 shm_mq_attach(shm_mq *mq, dsm_segment *seg, BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   shm_mq_handle *mqh = palloc(sizeof(shm_mq_handle));
 
   Assert(mq->mq_receiver == MyProc || mq->mq_sender == MyProc);
@@ -327,6 +334,7 @@ shm_mq_result
 shm_mq_send(shm_mq_handle *mqh, Size nbytes, const void *data, bool nowait,
             bool force_flush)
 {
+  DBUG_TRACE;
   shm_mq_iovec iov;
 
   iov.data = data;
@@ -359,6 +367,7 @@ shm_mq_result
 shm_mq_sendv(shm_mq_handle *mqh, shm_mq_iovec *iov, int iovcnt, bool nowait,
              bool force_flush)
 {
+  DBUG_TRACE;
   shm_mq_result res;
   shm_mq     *mq = mqh->mqh_queue;
   PGPROC     *receiver;
@@ -569,6 +578,7 @@ shm_mq_sendv(shm_mq_handle *mqh, shm_mq_iovec *iov, int iovcnt, bool nowait,
 shm_mq_result
 shm_mq_receive(shm_mq_handle *mqh, Size *nbytesp, void **datap, bool nowait)
 {
+  DBUG_TRACE;
   shm_mq     *mq = mqh->mqh_queue;
   shm_mq_result res;
   Size    rb = 0;
@@ -811,6 +821,7 @@ shm_mq_receive(shm_mq_handle *mqh, Size *nbytesp, void **datap, bool nowait)
 shm_mq_result
 shm_mq_wait_for_attach(shm_mq_handle *mqh)
 {
+  DBUG_TRACE;
   shm_mq     *mq = mqh->mqh_queue;
   PGPROC    **victim;
 
@@ -833,6 +844,8 @@ shm_mq_wait_for_attach(shm_mq_handle *mqh)
 void
 shm_mq_detach(shm_mq_handle *mqh)
 {
+  DBUG_TRACE;
+
   /* Before detaching, notify the receiver about any already-written data. */
   if (mqh->mqh_send_pending > 0) {
     shm_mq_inc_bytes_written(mqh->mqh_queue, mqh->mqh_send_pending);
@@ -872,6 +885,7 @@ shm_mq_detach(shm_mq_handle *mqh)
 static void
 shm_mq_detach_internal(shm_mq *mq)
 {
+  DBUG_TRACE;
   PGPROC     *victim;
 
   SpinLockAcquire(&mq->mq_mutex);
@@ -906,6 +920,7 @@ static shm_mq_result
 shm_mq_send_bytes(shm_mq_handle *mqh, Size nbytes, const void *data,
                   bool nowait, Size *bytes_written)
 {
+  DBUG_TRACE;
   shm_mq     *mq = mqh->mqh_queue;
   Size    sent = 0;
   uint64    used;
@@ -1061,6 +1076,7 @@ static shm_mq_result
 shm_mq_receive_bytes(shm_mq_handle *mqh, Size bytes_needed, bool nowait,
                      Size *nbytesp, void **datap)
 {
+  DBUG_TRACE;
   shm_mq     *mq = mqh->mqh_queue;
   Size    ringsize = mq->mq_ring_size;
   uint64    used;
@@ -1157,6 +1173,7 @@ shm_mq_receive_bytes(shm_mq_handle *mqh, Size bytes_needed, bool nowait,
 static bool
 shm_mq_counterparty_gone(shm_mq *mq, BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   pid_t   pid;
 
   /* If the queue has been detached, counterparty is definitely gone. */
@@ -1195,6 +1212,7 @@ shm_mq_counterparty_gone(shm_mq *mq, BackgroundWorkerHandle *handle)
 static bool
 shm_mq_wait_internal(shm_mq *mq, PGPROC **ptr, BackgroundWorkerHandle *handle)
 {
+  DBUG_TRACE;
   bool    result = false;
 
   for (;;) {
@@ -1245,6 +1263,7 @@ shm_mq_wait_internal(shm_mq *mq, PGPROC **ptr, BackgroundWorkerHandle *handle)
 static void
 shm_mq_inc_bytes_read(shm_mq *mq, Size n)
 {
+  DBUG_TRACE;
   PGPROC     *sender;
 
   /*
@@ -1278,6 +1297,7 @@ shm_mq_inc_bytes_read(shm_mq *mq, Size n)
 static void
 shm_mq_inc_bytes_written(shm_mq *mq, Size n)
 {
+  DBUG_TRACE;
   /*
    * Separate prior reads of mq_ring from the write of mq_bytes_written
    * which we're about to do.  Pairs with the read barrier found in
@@ -1298,6 +1318,7 @@ shm_mq_inc_bytes_written(shm_mq *mq, Size n)
 static void
 shm_mq_detach_callback(dsm_segment *seg, Datum arg)
 {
+  DBUG_TRACE;
   shm_mq     *mq = (shm_mq *) DatumGetPointer(arg);
 
   shm_mq_detach_internal(mq);

@@ -16,6 +16,7 @@
  * src/backend/utils/adt/cash.c
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -167,6 +168,7 @@ cash_div_int64(Cash c, int64 i)
 Datum
 cash_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   Cash    result;
@@ -375,6 +377,7 @@ cash_in(PG_FUNCTION_ARGS)
 Datum
 cash_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    value = PG_GETARG_CASH(0);
   uint64    uvalue;
   char     *result;
@@ -586,6 +589,7 @@ cash_out(PG_FUNCTION_ARGS)
 Datum
 cash_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_CASH((Cash) pq_getmsgint64(buf));
@@ -597,6 +601,7 @@ cash_recv(PG_FUNCTION_ARGS)
 Datum
 cash_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    arg1 = PG_GETARG_CASH(0);
   StringInfoData buf;
 
@@ -612,6 +617,7 @@ cash_send(PG_FUNCTION_ARGS)
 Datum
 cash_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -621,6 +627,7 @@ cash_eq(PG_FUNCTION_ARGS)
 Datum
 cash_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -630,6 +637,7 @@ cash_ne(PG_FUNCTION_ARGS)
 Datum
 cash_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -639,6 +647,7 @@ cash_lt(PG_FUNCTION_ARGS)
 Datum
 cash_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -648,6 +657,7 @@ cash_le(PG_FUNCTION_ARGS)
 Datum
 cash_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -657,6 +667,7 @@ cash_gt(PG_FUNCTION_ARGS)
 Datum
 cash_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -666,6 +677,7 @@ cash_ge(PG_FUNCTION_ARGS)
 Datum
 cash_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -684,6 +696,7 @@ cash_cmp(PG_FUNCTION_ARGS)
 Datum
 cash_pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -697,6 +710,7 @@ cash_pl(PG_FUNCTION_ARGS)
 Datum
 cash_mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
 
@@ -710,6 +724,7 @@ cash_mi(PG_FUNCTION_ARGS)
 Datum
 cash_div_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    dividend = PG_GETARG_CASH(0);
   Cash    divisor = PG_GETARG_CASH(1);
   float8    quotient;
@@ -730,6 +745,7 @@ cash_div_cash(PG_FUNCTION_ARGS)
 Datum
 cash_mul_flt8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   float8    f = PG_GETARG_FLOAT8(1);
 
@@ -743,6 +759,7 @@ cash_mul_flt8(PG_FUNCTION_ARGS)
 Datum
 flt8_mul_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    f = PG_GETARG_FLOAT8(0);
   Cash    c = PG_GETARG_CASH(1);
 
@@ -756,6 +773,7 @@ flt8_mul_cash(PG_FUNCTION_ARGS)
 Datum
 cash_div_flt8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   float8    f = PG_GETARG_FLOAT8(1);
 
@@ -769,6 +787,7 @@ cash_div_flt8(PG_FUNCTION_ARGS)
 Datum
 cash_mul_flt4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   float4    f = PG_GETARG_FLOAT4(1);
 
@@ -782,6 +801,7 @@ cash_mul_flt4(PG_FUNCTION_ARGS)
 Datum
 flt4_mul_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    f = PG_GETARG_FLOAT4(0);
   Cash    c = PG_GETARG_CASH(1);
 
@@ -796,6 +816,7 @@ flt4_mul_cash(PG_FUNCTION_ARGS)
 Datum
 cash_div_flt4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   float4    f = PG_GETARG_FLOAT4(1);
 
@@ -809,6 +830,7 @@ cash_div_flt4(PG_FUNCTION_ARGS)
 Datum
 cash_mul_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int64   i = PG_GETARG_INT64(1);
 
@@ -822,6 +844,7 @@ cash_mul_int8(PG_FUNCTION_ARGS)
 Datum
 int8_mul_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   i = PG_GETARG_INT64(0);
   Cash    c = PG_GETARG_CASH(1);
 
@@ -834,6 +857,7 @@ int8_mul_cash(PG_FUNCTION_ARGS)
 Datum
 cash_div_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int64   i = PG_GETARG_INT64(1);
 
@@ -847,6 +871,7 @@ cash_div_int8(PG_FUNCTION_ARGS)
 Datum
 cash_mul_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int32   i = PG_GETARG_INT32(1);
 
@@ -860,6 +885,7 @@ cash_mul_int4(PG_FUNCTION_ARGS)
 Datum
 int4_mul_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   i = PG_GETARG_INT32(0);
   Cash    c = PG_GETARG_CASH(1);
 
@@ -874,6 +900,7 @@ int4_mul_cash(PG_FUNCTION_ARGS)
 Datum
 cash_div_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int32   i = PG_GETARG_INT32(1);
 
@@ -887,6 +914,7 @@ cash_div_int4(PG_FUNCTION_ARGS)
 Datum
 cash_mul_int2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int16   s = PG_GETARG_INT16(1);
 
@@ -899,6 +927,7 @@ cash_mul_int2(PG_FUNCTION_ARGS)
 Datum
 int2_mul_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   s = PG_GETARG_INT16(0);
   Cash    c = PG_GETARG_CASH(1);
 
@@ -912,6 +941,7 @@ int2_mul_cash(PG_FUNCTION_ARGS)
 Datum
 cash_div_int2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c = PG_GETARG_CASH(0);
   int16   s = PG_GETARG_INT16(1);
 
@@ -924,6 +954,7 @@ cash_div_int2(PG_FUNCTION_ARGS)
 Datum
 cashlarger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
   Cash    result;
@@ -939,6 +970,7 @@ cashlarger(PG_FUNCTION_ARGS)
 Datum
 cashsmaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    c1 = PG_GETARG_CASH(0);
   Cash    c2 = PG_GETARG_CASH(1);
   Cash    result;
@@ -955,6 +987,7 @@ cashsmaller(PG_FUNCTION_ARGS)
 Datum
 cash_words(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    value = PG_GETARG_CASH(0);
   uint64    val;
   StringInfoData buf;
@@ -1039,6 +1072,7 @@ cash_words(PG_FUNCTION_ARGS)
 Datum
 cash_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Cash    money = PG_GETARG_CASH(0);
   Datum   result;
   int     fpoint;
@@ -1097,6 +1131,7 @@ cash_numeric(PG_FUNCTION_ARGS)
 Datum
 numeric_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   amount = PG_GETARG_DATUM(0);
   Cash    result;
   int     fpoint;
@@ -1133,6 +1168,7 @@ numeric_cash(PG_FUNCTION_ARGS)
 Datum
 int4_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   amount = PG_GETARG_INT32(0);
   Cash    result;
   int     fpoint;
@@ -1165,6 +1201,7 @@ int4_cash(PG_FUNCTION_ARGS)
 Datum
 int8_cash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   amount = PG_GETARG_INT64(0);
   Cash    result;
   int     fpoint;

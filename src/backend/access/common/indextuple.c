@@ -15,6 +15,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/heaptoast.h"
@@ -45,6 +46,7 @@ index_form_tuple(TupleDesc tupleDescriptor,
                  const Datum *values,
                  const bool *isnull)
 {
+  DBUG_TRACE;
   return index_form_tuple_context(tupleDescriptor, values, isnull,
                                   CurrentMemoryContext);
 }
@@ -67,6 +69,7 @@ index_form_tuple_context(TupleDesc tupleDescriptor,
                          const bool *isnull,
                          MemoryContext context)
 {
+  DBUG_TRACE;
   char     *tp;       /* tuple pointer */
   IndexTuple  tuple;      /* return tuple */
   Size    size,
@@ -82,6 +85,8 @@ index_form_tuple_context(TupleDesc tupleDescriptor,
   Datum   untoasted_values[INDEX_MAX_KEYS] = {0};
   bool    untoasted_free[INDEX_MAX_KEYS] = {0};
 #endif
+
+  DBUG_PRINT("info", "number Of Attributes:%d", numberOfAttributes);
 
   if (numberOfAttributes > INDEX_MAX_KEYS)
     ereport(ERROR,
@@ -438,6 +443,7 @@ void
 index_deform_tuple(IndexTuple tup, TupleDesc tupleDescriptor,
                    Datum *values, bool *isnull)
 {
+  DBUG_TRACE;
   char     *tp;       /* ptr to tuple data */
   bits8    *bp;       /* ptr to null bitmap in tuple */
 
@@ -462,6 +468,7 @@ index_deform_tuple_internal(TupleDesc tupleDescriptor,
                             Datum *values, bool *isnull,
                             char *tp, bits8 *bp, int hasnulls)
 {
+  DBUG_TRACE;
   int     natts = tupleDescriptor->natts; /* number of atts to extract */
   int     attnum;
   int     off = 0;    /* offset in tuple data */
@@ -522,6 +529,7 @@ index_deform_tuple_internal(TupleDesc tupleDescriptor,
 IndexTuple
 CopyIndexTuple(IndexTuple source)
 {
+  DBUG_TRACE;
   IndexTuple  result;
   Size    size;
 
@@ -552,6 +560,7 @@ IndexTuple
 index_truncate_tuple(TupleDesc sourceDescriptor, IndexTuple source,
                      int leavenatts)
 {
+  DBUG_TRACE;
   TupleDesc truncdesc;
   Datum   values[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];

@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "executor/execExpr.h"
@@ -519,6 +520,7 @@ array_exec_setup(const SubscriptingRef *sbsref,
 Datum
 array_subscript_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   static const SubscriptRoutines sbsroutines = {
     .transform = array_subscript_transform,
     .exec_setup = array_exec_setup,
@@ -546,6 +548,7 @@ array_subscript_handler(PG_FUNCTION_ARGS)
 Datum
 raw_array_subscript_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   static const SubscriptRoutines sbsroutines = {
     .transform = array_subscript_transform,
     .exec_setup = array_exec_setup,

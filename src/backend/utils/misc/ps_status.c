@@ -12,6 +12,7 @@
  *--------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -118,9 +119,11 @@ static char **save_argv;
 char    **
 save_ps_display_args(int argc, char **argv)
 {
+  DBUG_TRACE;
   save_argc = argc;
   save_argv = argv;
 
+  DBUG_PRINT("info", "call this early in startup to save the original argc/argv values");
 #if defined(PS_USE_CLOBBER_ARGV)
 
   /*

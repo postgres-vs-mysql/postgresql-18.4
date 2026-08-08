@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin.h"
 #include "access/gin.h"
@@ -171,6 +172,7 @@ ParallelContext *
 CreateParallelContext(const char *library_name, const char *function_name,
                       int nworkers)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   ParallelContext *pcxt;
 
@@ -179,6 +181,7 @@ CreateParallelContext(const char *library_name, const char *function_name,
 
   /* Number of workers should be non-negative. */
   Assert(nworkers >= 0);
+  DBUG_PRINT("info", "number of workers:%d", nworkers);
 
   /* We might be running in a short-lived memory context. */
   oldcontext = MemoryContextSwitchTo(TopTransactionContext);
@@ -208,6 +211,7 @@ CreateParallelContext(const char *library_name, const char *function_name,
 void
 InitializeParallelDSM(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   Size    library_len = 0;
   Size    guc_len = 0;
@@ -504,6 +508,7 @@ InitializeParallelDSM(ParallelContext *pcxt)
 void
 ReinitializeParallelDSM(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   FixedParallelState *fps;
 
@@ -574,10 +579,13 @@ ReinitializeParallelWorkers(ParallelContext *pcxt, int nworkers_to_launch)
 void
 LaunchParallelWorkers(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   BackgroundWorker worker;
   int     i;
   bool    any_registrations_failed = false;
+
+  DBUG_PRINT("info", "launch parallel workers");
 
   /* Skip this if we have no workers. */
   if (pcxt->nworkers == 0 || pcxt->nworkers_to_launch == 0)
@@ -594,6 +602,7 @@ LaunchParallelWorkers(ParallelContext *pcxt)
 
   /* Configure a worker. */
   memset(&worker, 0, sizeof(worker));
+  DBUG_PRINT("info", "parallel worker for PID %d", MyProcPid);
   snprintf(worker.bgw_name, BGW_MAXLEN, "parallel worker for PID %d",
            MyProcPid);
   snprintf(worker.bgw_type, BGW_MAXLEN, "parallel worker");
@@ -615,6 +624,8 @@ LaunchParallelWorkers(ParallelContext *pcxt)
    * fails.  It wouldn't help much anyway, because registering the worker in
    * no way guarantees that it will start up and initialize successfully.
    */
+  DBUG_PRINT("info", "start workers");
+
   for (i = 0; i < pcxt->nworkers_to_launch; ++i) {
     memcpy(worker.bgw_extra, &i, sizeof(int));
 
@@ -640,6 +651,9 @@ LaunchParallelWorkers(ParallelContext *pcxt)
       pcxt->worker[i].error_mqh = NULL;
     }
   }
+
+  DBUG_PRINT("info", "now that nworkers_launched:%d has taken its final value, we can initialize known_attached_workers",
+             pcxt->nworkers_launched);
 
   /*
    * Now that nworkers_launched has taken its final value, we can initialize
@@ -690,6 +704,7 @@ LaunchParallelWorkers(ParallelContext *pcxt)
 void
 WaitForParallelWorkersToAttach(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Skip this if we have no launched workers. */
@@ -740,11 +755,13 @@ WaitForParallelWorkersToAttach(ParallelContext *pcxt)
          */
         mq = shm_mq_get_queue(pcxt->worker[i].error_mqh);
 
-        if (shm_mq_get_sender(mq) == NULL)
+        if (shm_mq_get_sender(mq) == NULL) {
+          DBUG_INSTANT_PRINT("info", "parallel worker failed to initialize");
           ereport(ERROR,
                   (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                    errmsg("parallel worker failed to initialize"),
                    errhint("More details may be available in the server log.")));
+        }
 
         pcxt->known_attached_workers[i] = true;
         ++pcxt->nknown_attached_workers;
@@ -786,6 +803,9 @@ WaitForParallelWorkersToAttach(ParallelContext *pcxt)
 void
 WaitForParallelWorkersToFinish(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "wait for all workers to finish computing");
+
   for (;;) {
     bool    anyone_alive = false;
     int     nfinished = 0;
@@ -805,9 +825,10 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
        * the worker, we know it started up cleanly, and therefore we're
        * certain to be notified when it exits.
        */
-      if (pcxt->worker[i].error_mqh == NULL)
+      if (pcxt->worker[i].error_mqh == NULL) {
         ++nfinished;
-      else if (pcxt->known_attached_workers[i]) {
+        DBUG_PRINT("info", "the worker has already exited cleanly");
+      } else if (pcxt->known_attached_workers[i]) {
         anyone_alive = true;
         break;
       }
@@ -816,6 +837,7 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
     if (!anyone_alive) {
       /* If all workers are known to have finished, we're done. */
       if (nfinished >= pcxt->nworkers_launched) {
+        DBUG_PRINT("info", "all workers are known to have finished and we're done");
         Assert(nfinished == pcxt->nworkers_launched);
         break;
       }
@@ -851,11 +873,13 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
          */
         mq = shm_mq_get_queue(pcxt->worker[i].error_mqh);
 
-        if (shm_mq_get_sender(mq) == NULL)
+        if (shm_mq_get_sender(mq) == NULL) {
+          DBUG_INSTANT_PRINT("info", "parallel worker failed to initialize");
           ereport(ERROR,
                   (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                    errmsg("parallel worker failed to initialize"),
                    errhint("More details may be available in the server log.")));
+        }
 
         /*
          * The worker is stopped, but is attached to the error queue.
@@ -867,10 +891,14 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
          * will happen on the next pass through the loop.
          */
       }
+    } else {
+      DBUG_PRINT("info", "anyone_alive is true");
     }
 
+    DBUG_PRINT("info", "invoke WaitLatch");
     (void) WaitLatch(MyLatch, WL_LATCH_SET | WL_EXIT_ON_PM_DEATH, -1,
                      WAIT_EVENT_PARALLEL_FINISH);
+    DBUG_PRINT("info", "after call WaitLatch and reset latch");
     ResetLatch(MyLatch);
   }
 
@@ -895,7 +923,10 @@ WaitForParallelWorkersToFinish(ParallelContext *pcxt)
 static void
 WaitForParallelWorkersToExit(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   int     i;
+
+  DBUG_PRINT("info", "wait for all workers to exit");
 
   /* Wait until the workers actually die. */
   for (i = 0; i < pcxt->nworkers_launched; ++i) {
@@ -912,10 +943,12 @@ WaitForParallelWorkersToExit(ParallelContext *pcxt)
      * dead.  This doesn't necessitate a PANIC since they will all abort
      * eventually, but we can't safely continue this session.
      */
-    if (status == BGWH_POSTMASTER_DIED)
+    if (status == BGWH_POSTMASTER_DIED) {
+      DBUG_INSTANT_PRINT("info", "postmaster exited during a parallel transaction");
       ereport(FATAL,
               (errcode(ERRCODE_ADMIN_SHUTDOWN),
                errmsg("postmaster exited during a parallel transaction")));
+    }
 
     /* Release memory. */
     pfree(pcxt->worker[i].bgwhandle);
@@ -934,6 +967,7 @@ WaitForParallelWorkersToExit(ParallelContext *pcxt)
 void
 DestroyParallelContext(ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -1026,6 +1060,7 @@ HandleParallelMessageInterrupt(void)
 void
 ProcessParallelMessages(void)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   MemoryContext oldcontext;
 
@@ -1090,10 +1125,12 @@ ProcessParallelMessages(void)
           appendBinaryStringInfo(&msg, data, nbytes);
           ProcessParallelMessage(pcxt, i, &msg);
           pfree(msg.data);
-        } else
+        } else {
+          DBUG_INSTANT_PRINT("info", "lost connection to parallel worker");
           ereport(ERROR,
                   (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                    errmsg("lost connection to parallel worker")));
+        }
       }
     }
   }
@@ -1112,7 +1149,10 @@ ProcessParallelMessages(void)
 static void
 ProcessParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 {
+  DBUG_TRACE;
   char    msgtype;
+
+  DBUG_PRINT("info", "handle a single protocol message received from a single parallel worker");
 
   if (pcxt->known_attached_workers != NULL &&
       !pcxt->known_attached_workers[i]) {
@@ -1128,6 +1168,7 @@ ProcessParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
       ErrorData edata;
       ErrorContextCallback *save_error_context_stack;
 
+      DBUG_PRINT("info", "parse ErrorResponse or NoticeResponse");
       /* Parse ErrorResponse or NoticeResponse. */
       pq_parse_errornotice(msg, &edata);
 
@@ -1173,6 +1214,7 @@ ProcessParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
       const char *channel;
       const char *payload;
 
+      DBUG_PRINT("info", "propagate NotifyResponse");
       pid = pq_getmsgint(msg, 4);
       channel = pq_getmsgrawstring(msg);
       payload = pq_getmsgrawstring(msg);
@@ -1194,6 +1236,7 @@ ProcessParallelMessage(ParallelContext *pcxt, int i, StringInfo msg)
 
       pq_getmsgend(msg);
 
+      DBUG_PRINT("info", "parallel progress reporting");
       pgstat_progress_incr_param(index, incr);
 
       break;
@@ -1262,6 +1305,7 @@ AtEOXact_Parallel(bool isCommit)
 void
 ParallelWorkerMain(Datum main_arg)
 {
+  DBUG_TRACE;
   dsm_segment *seg;
   shm_toc    *toc;
   FixedParallelState *fps;
@@ -1287,6 +1331,7 @@ ParallelWorkerMain(Datum main_arg)
   Snapshot  tsnapshot;
   Snapshot  asnapshot;
 
+  DBUG_PRINT("info", "main entrypoint for parallel workers");
   /* Set flag to indicate that we're initializing a parallel worker. */
   InitializingParallelWorker = true;
 
@@ -1314,17 +1359,21 @@ ParallelWorkerMain(Datum main_arg)
    */
   seg = dsm_attach(DatumGetUInt32(main_arg));
 
-  if (seg == NULL)
+  if (seg == NULL) {
+    DBUG_INSTANT_PRINT("info", "could not map dynamic shared memory segment");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("could not map dynamic shared memory segment")));
+  }
 
   toc = shm_toc_attach(PARALLEL_MAGIC, dsm_segment_address(seg));
 
-  if (toc == NULL)
+  if (toc == NULL) {
+    DBUG_INSTANT_PRINT("info", "invalid magic number in dynamic shared memory segment");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("invalid magic number in dynamic shared memory segment")));
+  }
 
   /* Look up fixed parallel state. */
   fps = shm_toc_lookup(toc, PARALLEL_KEY_FIXED, false);
@@ -1384,6 +1433,8 @@ ParallelWorkerMain(Datum main_arg)
   library_name = entrypointstate;
   function_name = entrypointstate + strlen(library_name) + 1;
 
+  DBUG_PRINT("info", "identify the entry point to be called");
+  DBUG_PRINT("info", "library_name:%s, function_name:%s", library_name, function_name);
   entrypt = LookupParallelWorkerFunction(library_name, function_name);
 
   /*
@@ -1467,6 +1518,8 @@ ParallelWorkerMain(Datum main_arg)
    */
   asnapspace = shm_toc_lookup(toc, PARALLEL_KEY_ACTIVE_SNAPSHOT, false);
   tsnapspace = shm_toc_lookup(toc, PARALLEL_KEY_TRANSACTION_SNAPSHOT, true);
+  DBUG_PRINT("info", "if the transaction isolation level is REPEATABLE READ or SERIALIZABLE,");
+  DBUG_PRINT("info", "the leader has serialized the transaction snapshot and we must restore it");
   asnapshot = RestoreSnapshot(asnapspace);
   tsnapshot = tsnapspace ? RestoreSnapshot(tsnapspace) : asnapshot;
   RestoreTransactionSnapshot(tsnapshot,
@@ -1477,6 +1530,7 @@ ParallelWorkerMain(Datum main_arg)
    * We've changed which tuples we can see, and must therefore invalidate
    * system caches.
    */
+  DBUG_PRINT("info", "we've changed which tuples we can see , and must therefore invalidate system caches");
   InvalidateSystemCaches();
 
   /*
@@ -1534,8 +1588,10 @@ ParallelWorkerMain(Datum main_arg)
   /*
    * Time to do the real work: invoke the caller-supplied code.
    */
+  DBUG_PRINT("info", "time to do the real work: invoke the caller-supplied code");
   entrypt(seg, toc);
 
+  DBUG_PRINT("info", "must exit parallel mode to pop active snapshot");
   /* Must exit parallel mode to pop active snapshot. */
   ExitParallelMode();
 
@@ -1559,6 +1615,7 @@ ParallelWorkerMain(Datum main_arg)
 void
 ParallelWorkerReportLastRecEnd(XLogRecPtr last_xlog_end)
 {
+  DBUG_TRACE;
   FixedParallelState *fps = MyFixedParallelState;
 
   Assert(fps != NULL);
@@ -1617,6 +1674,8 @@ ParallelWorkerShutdown(int code, Datum arg)
 static parallel_worker_main_type
 LookupParallelWorkerFunction(const char *libraryname, const char *funcname)
 {
+  DBUG_TRACE;
+
   /*
    * If the function is to be loaded from postgres itself, search the
    * InternalParallelWorkers array.

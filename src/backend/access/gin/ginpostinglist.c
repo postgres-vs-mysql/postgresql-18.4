@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 
@@ -197,6 +198,7 @@ GinPostingList *
 ginCompressPostingList(const ItemPointer ipd, int nipd, int maxsize,
                        int *nwritten)
 {
+  DBUG_TRACE;
   uint64    prev;
   int     totalpacked = 0;
   int     maxbytes;
@@ -285,6 +287,7 @@ ginCompressPostingList(const ItemPointer ipd, int nipd, int maxsize,
 ItemPointer
 ginPostingListDecode(GinPostingList *plist, int *ndecoded_out)
 {
+  DBUG_TRACE;
   return ginPostingListDecodeAllSegments(plist,
                                          SizeOfGinPostingList(plist),
                                          ndecoded_out);
@@ -298,6 +301,7 @@ ginPostingListDecode(GinPostingList *plist, int *ndecoded_out)
 ItemPointer
 ginPostingListDecodeAllSegments(GinPostingList *segment, int len, int *ndecoded_out)
 {
+  DBUG_TRACE;
   ItemPointer result;
   int     nallocated;
   uint64    val;
@@ -360,6 +364,7 @@ int
 ginPostingListDecodeAllSegmentsToTbm(GinPostingList *ptr, int len,
                                      TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   int     ndecoded;
   ItemPointer items;
 
@@ -381,6 +386,7 @@ ginMergeItemPointers(ItemPointerData *a, uint32 na,
                      ItemPointerData *b, uint32 nb,
                      int *nmerged)
 {
+  DBUG_TRACE;
   ItemPointerData *dst;
 
   dst = (ItemPointer) palloc((na + nb) * sizeof(ItemPointerData));

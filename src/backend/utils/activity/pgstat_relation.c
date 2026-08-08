@@ -16,6 +16,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/twophase_rmgr.h"
 #include "access/xact.h"
@@ -176,6 +177,7 @@ pgstat_create_relation(Relation rel)
 void
 pgstat_drop_relation(Relation rel)
 {
+  DBUG_TRACE;
   int     nest_level = GetCurrentTransactionNestLevel();
   PgStat_TableStatus *pgstat_info;
 
@@ -209,6 +211,7 @@ pgstat_report_vacuum(Oid tableoid, bool shared,
                      PgStat_Counter livetuples, PgStat_Counter deadtuples,
                      TimestampTz starttime)
 {
+  DBUG_TRACE;
   PgStat_EntryRef *entry_ref;
   PgStatShared_Relation *shtabentry;
   PgStat_StatTabEntry *tabentry;
@@ -278,6 +281,7 @@ pgstat_report_analyze(Relation rel,
                       PgStat_Counter livetuples, PgStat_Counter deadtuples,
                       bool resetcounter, TimestampTz starttime)
 {
+  DBUG_TRACE;
   PgStat_EntryRef *entry_ref;
   PgStatShared_Relation *shtabentry;
   PgStat_StatTabEntry *tabentry;
@@ -364,6 +368,8 @@ pgstat_report_analyze(Relation rel,
 void
 pgstat_count_heap_insert(Relation rel, PgStat_Counter n)
 {
+  DBUG_TRACE;
+
   if (pgstat_should_count_relation(rel)) {
     PgStat_TableStatus *pgstat_info = rel->pgstat_info;
 
@@ -378,6 +384,7 @@ pgstat_count_heap_insert(Relation rel, PgStat_Counter n)
 void
 pgstat_count_heap_update(Relation rel, bool hot, bool newpage)
 {
+  DBUG_TRACE;
   Assert(!(hot && newpage));
 
   if (pgstat_should_count_relation(rel)) {
@@ -403,6 +410,8 @@ pgstat_count_heap_update(Relation rel, bool hot, bool newpage)
 void
 pgstat_count_heap_delete(Relation rel)
 {
+  DBUG_TRACE;
+
   if (pgstat_should_count_relation(rel)) {
     PgStat_TableStatus *pgstat_info = rel->pgstat_info;
 
@@ -417,6 +426,8 @@ pgstat_count_heap_delete(Relation rel)
 void
 pgstat_count_truncate(Relation rel)
 {
+  DBUG_TRACE;
+
   if (pgstat_should_count_relation(rel)) {
     PgStat_TableStatus *pgstat_info = rel->pgstat_info;
 
@@ -439,6 +450,8 @@ pgstat_count_truncate(Relation rel)
 void
 pgstat_update_heap_dead_tuples(Relation rel, int delta)
 {
+  DBUG_TRACE;
+
   if (pgstat_should_count_relation(rel)) {
     PgStat_TableStatus *pgstat_info = rel->pgstat_info;
 
@@ -723,6 +736,7 @@ void
 pgstat_twophase_postcommit(TransactionId xid, uint16 info,
                            void *recdata, uint32 len)
 {
+  DBUG_TRACE;
   TwoPhasePgStatRecord *rec = (TwoPhasePgStatRecord *) recdata;
   PgStat_TableStatus *pgstat_info;
 
@@ -760,6 +774,7 @@ void
 pgstat_twophase_postabort(TransactionId xid, uint16 info,
                           void *recdata, uint32 len)
 {
+  DBUG_TRACE;
   TwoPhasePgStatRecord *rec = (TwoPhasePgStatRecord *) recdata;
   PgStat_TableStatus *pgstat_info;
 

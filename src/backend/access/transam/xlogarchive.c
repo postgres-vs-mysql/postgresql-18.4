@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -55,6 +56,7 @@ RestoreArchivedFile(char *path, const char *xlogfname,
                     const char *recovername, off_t expectedSize,
                     bool cleanupEnabled)
 {
+  DBUG_TRACE;
   char    xlogpath[MAXPGPATH];
   char     *xlogRestoreCmd;
   char    lastRestartPointFname[MAXPGPATH];
@@ -104,17 +106,21 @@ RestoreArchivedFile(char *path, const char *xlogfname,
    * Make sure there is no existing file named recovername.
    */
   if (stat(xlogpath, &stat_buf) != 0) {
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", xlogpath);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not stat file \"%s\": %m",
                       xlogpath)));
+    }
   } else {
-    if (unlink(xlogpath) != 0)
+    if (unlink(xlogpath) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not remove file \"%s\"", xlogpath);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not remove file \"%s\": %m",
                       xlogpath)));
+    }
   }
 
   /*
@@ -149,6 +155,7 @@ RestoreArchivedFile(char *path, const char *xlogfname,
                                        xlogpath, xlogfname,
                                        lastRestartPointFname);
 
+  DBUG_PRINT("info", "executing restore command \"%s\"", xlogRestoreCmd);
   ereport(DEBUG3,
           (errmsg_internal("executing restore command \"%s\"",
                            xlogRestoreCmd)));
@@ -197,10 +204,15 @@ RestoreArchivedFile(char *path, const char *xlogfname,
          * incorrectly conclude we've reached the end of WAL and we're
          * done recovering ...
          */
-        if (StandbyMode && stat_buf.st_size < expectedSize)
+        if (StandbyMode && stat_buf.st_size < expectedSize) {
           elevel = DEBUG1;
-        else
+          DBUG_PRINT("info", "archive file \"%s\" has wrong size: %lld instead of %lld", xlogfname,
+              (long long int) stat_buf.st_size, (long long int) expectedSize);
+        } else {
           elevel = FATAL;
+          DBUG_INSTANT_PRINT("info", "archive file \"%s\" has wrong size: %lld instead of %lld", xlogfname,
+              (long long int) stat_buf.st_size, (long long int) expectedSize);
+        }
 
         ereport(elevel,
                 (errmsg("archive file \"%s\" has wrong size: %lld instead of %lld",
@@ -209,6 +221,7 @@ RestoreArchivedFile(char *path, const char *xlogfname,
                         (long long int) expectedSize)));
         return false;
       } else {
+        DBUG_PRINT("info", "restored log file \"%s\" from archive", xlogfname);
         ereport(LOG,
                 (errmsg("restored log file \"%s\" from archive",
                         xlogfname)));
@@ -219,6 +232,11 @@ RestoreArchivedFile(char *path, const char *xlogfname,
       /* stat failed */
       int     elevel = (errno == ENOENT) ? LOG : FATAL;
 
+      if (elevel == FATAL) {
+        DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", xlogpath);
+      } else {
+        DBUG_PRINT("info", "could not stat file \"%s\"", xlogpath);
+      }
       ereport(elevel,
               (errcode_for_file_access(),
                errmsg("could not stat file \"%s\": %m", xlogpath),
@@ -253,6 +271,8 @@ RestoreArchivedFile(char *path, const char *xlogfname,
   if (wait_result_is_signal(rc, SIGTERM))
     proc_exit(1);
 
+  DBUG_INSTANT_PRINT("info", "could not restore file \"%s\" from archive: %s",
+      xlogfname, wait_result_to_str(rc));
   ereport(wait_result_is_any_signal(rc, true) ? FATAL : DEBUG2,
           (errmsg("could not restore file \"%s\" from archive: %s",
                   xlogfname, wait_result_to_str(rc))));
@@ -284,6 +304,7 @@ void
 ExecuteRecoveryCommand(const char *command, const char *commandName,
                        bool failOnSignal, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   char     *xlogRecoveryCmd;
   char    lastRestartPointFname[MAXPGPATH];
   int     rc;
@@ -308,6 +329,7 @@ ExecuteRecoveryCommand(const char *command, const char *commandName,
    */
   xlogRecoveryCmd = replace_percent_placeholders(command, commandName, "r", lastRestartPointFname);
 
+  DBUG_PRINT("info", "executing %s \"%s\"", commandName, command);
   ereport(DEBUG3,
           (errmsg_internal("executing %s \"%s\"", commandName, command)));
 
@@ -326,6 +348,7 @@ ExecuteRecoveryCommand(const char *command, const char *commandName,
      * If the failure was due to any sort of signal, it's best to punt and
      * abort recovery.  See comments in RestoreArchivedFile().
      */
+    DBUG_INSTANT_PRINT("info", "%s \"%s\": %s", commandName, command, wait_result_to_str(rc));
     ereport((failOnSignal && wait_result_is_any_signal(rc, true)) ? FATAL : WARNING,
             /*------
                translator: First %s represents a postgresql.conf parameter name like
@@ -345,6 +368,7 @@ ExecuteRecoveryCommand(const char *command, const char *commandName,
 void
 KeepFileRestoredFromArchive(const char *path, const char *xlogfname)
 {
+  DBUG_TRACE;
   char    xlogfpath[MAXPGPATH];
   bool    reload = false;
   struct stat statbuf;
@@ -371,6 +395,7 @@ KeepFileRestoredFromArchive(const char *path, const char *xlogfname)
              xlogfpath, deletedcounter++);
 
     if (rename(xlogfpath, oldpath) != 0) {
+      DBUG_INSTANT_PRINT("info", "ould not rename file \"%s\" to \"%s\"", xlogfpath, oldpath);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not rename file \"%s\" to \"%s\": %m",
@@ -382,11 +407,13 @@ KeepFileRestoredFromArchive(const char *path, const char *xlogfname)
     strlcpy(oldpath, xlogfpath, MAXPGPATH);
 #endif
 
-    if (unlink(oldpath) != 0)
+    if (unlink(oldpath) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not remove file \"%s\"", xlogfpath);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not remove file \"%s\": %m",
                       xlogfpath)));
+    }
 
     reload = true;
   }
@@ -433,6 +460,7 @@ KeepFileRestoredFromArchive(const char *path, const char *xlogfname)
 void
 XLogArchiveNotify(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveStatusPath[MAXPGPATH];
   FILE     *fd;
 
@@ -441,6 +469,7 @@ XLogArchiveNotify(const char *xlog)
   fd = AllocateFile(archiveStatusPath, "w");
 
   if (fd == NULL) {
+    DBUG_INSTANT_PRINT("info", "could not create archive status file \"%s\"", archiveStatusPath);
     ereport(LOG,
             (errcode_for_file_access(),
              errmsg("could not create archive status file \"%s\": %m",
@@ -449,6 +478,7 @@ XLogArchiveNotify(const char *xlog)
   }
 
   if (FreeFile(fd)) {
+    DBUG_INSTANT_PRINT("info", "could not write archive status file \"%s\"", archiveStatusPath);
     ereport(LOG,
             (errcode_for_file_access(),
              errmsg("could not write archive status file \"%s\": %m",
@@ -481,6 +511,7 @@ XLogArchiveNotify(const char *xlog)
 void
 XLogArchiveNotifySeg(XLogSegNo segno, TimeLineID tli)
 {
+  DBUG_TRACE;
   char    xlog[MAXFNAMELEN];
 
   Assert(tli != 0);
@@ -499,6 +530,7 @@ XLogArchiveNotifySeg(XLogSegNo segno, TimeLineID tli)
 void
 XLogArchiveForceDone(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveReady[MAXPGPATH];
   char    archiveDone[MAXPGPATH];
   struct stat stat_buf;
@@ -522,6 +554,7 @@ XLogArchiveForceDone(const char *xlog)
   fd = AllocateFile(archiveDone, "w");
 
   if (fd == NULL) {
+    DBUG_INSTANT_PRINT("info", "could not create archive status file \"%s\"", archiveDone);
     ereport(LOG,
             (errcode_for_file_access(),
              errmsg("could not create archive status file \"%s\": %m",
@@ -530,6 +563,7 @@ XLogArchiveForceDone(const char *xlog)
   }
 
   if (FreeFile(fd)) {
+    DBUG_INSTANT_PRINT("info", "could not write archive status file \"%s\"", archiveDone);
     ereport(LOG,
             (errcode_for_file_access(),
              errmsg("could not write archive status file \"%s\": %m",
@@ -555,20 +589,25 @@ XLogArchiveForceDone(const char *xlog)
 bool
 XLogArchiveCheckDone(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveStatusPath[MAXPGPATH];
   struct stat stat_buf;
 
   /* The file is always deletable if archive_mode is "off". */
-  if (!XLogArchivingActive())
+  if (!XLogArchivingActive()) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /*
    * During archive recovery, the file is deletable if archive_mode is not
    * "always".
    */
   if (!XLogArchivingAlways() &&
-      GetRecoveryState() == RECOVERY_STATE_ARCHIVE)
+      GetRecoveryState() == RECOVERY_STATE_ARCHIVE) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /*
    * At this point of the logic, note that we are either a primary with
@@ -579,23 +618,31 @@ XLogArchiveCheckDone(const char *xlog)
   /* First check for .done --- this means archiver is done with it */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /* check for .ready --- this means archiver is still busy with it */
   StatusFilePath(archiveStatusPath, xlog, ".ready");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Race condition --- maybe archiver just finished, so recheck */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /* Retry creation of the .ready file */
   XLogArchiveNotify(xlog);
+    
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -612,26 +659,33 @@ XLogArchiveCheckDone(const char *xlog)
 bool
 XLogArchiveIsBusy(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveStatusPath[MAXPGPATH];
   struct stat stat_buf;
 
   /* First check for .done --- this means archiver is done with it */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* check for .ready --- this means archiver is still busy with it */
   StatusFilePath(archiveStatusPath, xlog, ".ready");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /* Race condition --- maybe archiver just finished, so recheck */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * Check to see if the WAL file has been removed by checkpoint, which
@@ -641,9 +695,12 @@ XLogArchiveIsBusy(const char *xlog)
   snprintf(archiveStatusPath, MAXPGPATH, XLOGDIR "/%s", xlog);
 
   if (stat(archiveStatusPath, &stat_buf) != 0 &&
-      errno == ENOENT)
+      errno == ENOENT) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -661,27 +718,35 @@ XLogArchiveIsBusy(const char *xlog)
 bool
 XLogArchiveIsReadyOrDone(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveStatusPath[MAXPGPATH];
   struct stat stat_buf;
 
   /* First check for .done --- this means archiver is done with it */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /* check for .ready --- this means archiver is still busy with it */
   StatusFilePath(archiveStatusPath, xlog, ".ready");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /* Race condition --- maybe archiver just finished, so recheck */
   StatusFilePath(archiveStatusPath, xlog, ".done");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -694,14 +759,18 @@ XLogArchiveIsReadyOrDone(const char *xlog)
 bool
 XLogArchiveIsReady(const char *xlog)
 {
+  DBUG_TRACE;
   char    archiveStatusPath[MAXPGPATH];
   struct stat stat_buf;
 
   StatusFilePath(archiveStatusPath, xlog, ".ready");
 
-  if (stat(archiveStatusPath, &stat_buf) == 0)
+  if (stat(archiveStatusPath, &stat_buf) == 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 

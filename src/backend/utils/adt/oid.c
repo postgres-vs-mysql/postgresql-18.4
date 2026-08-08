@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -36,6 +37,7 @@
 Datum
 oidin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *s = PG_GETARG_CSTRING(0);
   Oid     result;
 
@@ -46,6 +48,7 @@ oidin(PG_FUNCTION_ARGS)
 Datum
 oidout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     o = PG_GETARG_OID(0);
   char     *result = (char *) palloc(12);
 
@@ -59,6 +62,7 @@ oidout(PG_FUNCTION_ARGS)
 Datum
 oidrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_OID((Oid) pq_getmsgint(buf, sizeof(Oid)));
@@ -70,6 +74,7 @@ oidrecv(PG_FUNCTION_ARGS)
 Datum
 oidsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   StringInfoData buf;
 
@@ -86,6 +91,7 @@ oidsend(PG_FUNCTION_ARGS)
 oidvector *
 buildoidvector(const Oid *oids, int n)
 {
+  DBUG_TRACE;
   oidvector  *result;
 
   result = (oidvector *) palloc0(OidVectorSize(n));
@@ -137,6 +143,7 @@ check_valid_oidvector(const oidvector *oidArray)
 Datum
 oidvectorin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *oidString = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   oidvector  *result;
@@ -181,6 +188,7 @@ oidvectorin(PG_FUNCTION_ARGS)
 Datum
 oidvectorout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   oidvector  *oidArray = (oidvector *) PG_GETARG_POINTER(0);
   int     num,
           nnums;
@@ -214,6 +222,7 @@ oidvectorout(PG_FUNCTION_ARGS)
 Datum
 oidvectorrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(locfcinfo, 3);
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   oidvector  *result;
@@ -256,6 +265,7 @@ oidvectorrecv(PG_FUNCTION_ARGS)
 Datum
 oidvectorsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* We don't do check_valid_oidvector, since array_send won't care */
   return array_send(fcinfo);
 }
@@ -266,6 +276,8 @@ oidvectorsend(PG_FUNCTION_ARGS)
 Oid
 oidparse(Node *node)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(node)) {
     case T_Integer:
       return intVal(node);
@@ -305,8 +317,15 @@ oid_cmp(const void *p1, const void *p2)
 Datum
 oideq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 == arg2) {
+    DBUG_PRINT("info", "oid1:%u, oid2:%u and oideq returns true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "oid1:%u, oid2:%u and oideq returns false", arg1, arg2);
+  }
 
   PG_RETURN_BOOL(arg1 == arg2);
 }
@@ -314,8 +333,15 @@ oideq(PG_FUNCTION_ARGS)
 Datum
 oidne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 != arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 != arg2);
 }
@@ -323,8 +349,16 @@ oidne(PG_FUNCTION_ARGS)
 Datum
 oidlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 < arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
 
   PG_RETURN_BOOL(arg1 < arg2);
 }
@@ -332,8 +366,16 @@ oidlt(PG_FUNCTION_ARGS)
 Datum
 oidle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 <= arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
 
   PG_RETURN_BOOL(arg1 <= arg2);
 }
@@ -341,8 +383,16 @@ oidle(PG_FUNCTION_ARGS)
 Datum
 oidge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 >= arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
 
   PG_RETURN_BOOL(arg1 >= arg2);
 }
@@ -350,8 +400,15 @@ oidge(PG_FUNCTION_ARGS)
 Datum
 oidgt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
+
+  if (arg1 > arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 > arg2);
 }
@@ -359,6 +416,7 @@ oidgt(PG_FUNCTION_ARGS)
 Datum
 oidlarger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
 
@@ -368,6 +426,7 @@ oidlarger(PG_FUNCTION_ARGS)
 Datum
 oidsmaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     arg1 = PG_GETARG_OID(0);
   Oid     arg2 = PG_GETARG_OID(1);
 
@@ -377,7 +436,14 @@ oidsmaller(PG_FUNCTION_ARGS)
 Datum
 oidvectoreq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp ==  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp == 0);
 }
@@ -385,7 +451,14 @@ oidvectoreq(PG_FUNCTION_ARGS)
 Datum
 oidvectorne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp !=  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp != 0);
 }
@@ -393,7 +466,14 @@ oidvectorne(PG_FUNCTION_ARGS)
 Datum
 oidvectorlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp <  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp < 0);
 }
@@ -401,7 +481,14 @@ oidvectorlt(PG_FUNCTION_ARGS)
 Datum
 oidvectorle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp <=  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp <= 0);
 }
@@ -409,7 +496,14 @@ oidvectorle(PG_FUNCTION_ARGS)
 Datum
 oidvectorge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp >=  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp >= 0);
 }
@@ -417,7 +511,14 @@ oidvectorge(PG_FUNCTION_ARGS)
 Datum
 oidvectorgt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   cmp = DatumGetInt32(btoidvectorcmp(fcinfo));
+
+  if (cmp >  0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(cmp > 0);
 }

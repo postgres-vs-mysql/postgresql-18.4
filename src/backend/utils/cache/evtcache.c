@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -60,6 +61,7 @@ static Bitmapset *DecodeTextArrayToBitmapset(Datum array);
 List *
 EventCacheLookup(EventTriggerEvent event)
 {
+  DBUG_TRACE;
   EventTriggerCacheEntry *entry;
 
   if (EventTriggerCacheState != ETCS_VALID)
@@ -75,6 +77,7 @@ EventCacheLookup(EventTriggerEvent event)
 static void
 BuildEventTriggerCache(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
   HTAB     *cache;
   MemoryContext oldcontext;
@@ -222,6 +225,7 @@ BuildEventTriggerCache(void)
 static Bitmapset *
 DecodeTextArrayToBitmapset(Datum array)
 {
+  DBUG_TRACE;
   ArrayType  *arr = DatumGetArrayTypeP(array);
   Datum    *elems;
   Bitmapset  *bms;
@@ -255,6 +259,8 @@ DecodeTextArrayToBitmapset(Datum array)
 static void
 InvalidateEventCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
+
   /*
    * If the cache isn't valid, then there might be a rebuild in progress, so
    * we can't immediately blow it away.  But it's advantageous to do this

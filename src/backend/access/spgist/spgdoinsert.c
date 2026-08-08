@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/spgist_private.h"
@@ -51,6 +52,7 @@ void
 spgUpdateNodeLink(SpGistInnerTuple tup, int nodeN,
                   BlockNumber blkno, OffsetNumber offset)
 {
+  DBUG_TRACE;
   int     i;
   SpGistNodeTuple node;
 
@@ -76,6 +78,7 @@ spgUpdateNodeLink(SpGistInnerTuple tup, int nodeN,
 static SpGistInnerTuple
 addNode(SpGistState *state, SpGistInnerTuple tuple, Datum label, int offset)
 {
+  DBUG_TRACE;
   SpGistNodeTuple node,
                   *nodes;
   int     i;
@@ -129,6 +132,7 @@ spgPageIndexMultiDelete(SpGistState *state, Page page,
                         int firststate, int reststate,
                         BlockNumber blkno, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   OffsetNumber firstItem;
   OffsetNumber sortednos[MaxIndexTuplesPerPage];
   SpGistDeadTuple tuple = NULL;
@@ -183,6 +187,7 @@ static void
 saveNodeLink(Relation index, SPPageDesc *parent,
              BlockNumber blkno, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   SpGistInnerTuple innerTuple;
 
   innerTuple = (SpGistInnerTuple) PageGetItem(parent->page,
@@ -200,6 +205,7 @@ static void
 addLeafTuple(Relation index, SpGistState *state, SpGistLeafTuple leafTuple,
              SPPageDesc *current, SPPageDesc *parent, bool isNulls, bool isNew)
 {
+  DBUG_TRACE;
   spgxlogAddLeaf xlrec;
 
   xlrec.newPage = isNew;
@@ -325,6 +331,7 @@ static int
 checkSplitConditions(Relation index, SpGistState *state,
                      SPPageDesc *current, int *nToSplit)
 {
+  DBUG_TRACE;
   int     i,
           n = 0,
           totalSize = 0;
@@ -376,6 +383,7 @@ moveLeafs(Relation index, SpGistState *state,
           SPPageDesc *current, SPPageDesc *parent,
           SpGistLeafTuple newLeafTuple, bool isNulls)
 {
+  DBUG_TRACE;
   int     i,
           nDelete,
           nInsert,
@@ -550,6 +558,7 @@ static void
 setRedirectionTuple(SPPageDesc *current, OffsetNumber position,
                     BlockNumber blkno, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   SpGistDeadTuple dt;
 
   dt = (SpGistDeadTuple) PageGetItem(current->page,
@@ -581,6 +590,7 @@ static bool
 checkAllTheSame(spgPickSplitIn *in, spgPickSplitOut *out, bool tooBig,
                 bool *includeNew)
 {
+  DBUG_TRACE;
   int     theNode;
   int     limit;
   int     i;
@@ -661,6 +671,7 @@ doPickSplit(Relation index, SpGistState *state,
             SpGistLeafTuple newLeafTuple,
             int level, bool isNulls, bool isNew)
 {
+  DBUG_TRACE;
   bool    insertedNew = false;
   spgPickSplitIn in;
   spgPickSplitOut out;
@@ -801,6 +812,7 @@ doPickSplit(Relation index, SpGistState *state,
      * Perform split using user-defined method.
      */
     procinfo = index_getprocinfo(index, 1, SPGIST_PICKSPLIT_PROC);
+    DBUG_PRINT("info", "perform split using user-defined method");
     FunctionCall2Coll(procinfo,
                       index->rd_indcollation[0],
                       PointerGetDatum(&in),
@@ -809,6 +821,7 @@ doPickSplit(Relation index, SpGistState *state,
     /*
      * Form new leaf tuples and count up the total space needed.
      */
+    DBUG_PRINT("info", "form new leaf tuples and count up the total space needed");
     totalLeafSizes = 0;
 
     for (i = 0; i < in.nTuples; i++) {
@@ -832,11 +845,13 @@ doPickSplit(Relation index, SpGistState *state,
      * Perform dummy split that puts all tuples into one node.
      * checkAllTheSame will override this and force allTheSame mode.
      */
+    DBUG_PRINT("info", "perform dummy split that puts all tuples into one node");
     out.hasPrefix = false;
     out.nNodes = 1;
     out.nodeLabels = NULL;
     out.mapTuplesToNodes = palloc0(sizeof(int) * in.nTuples);
 
+    DBUG_PRINT("info", "form new leaf tuples and count up the total space needed");
     /*
      * Form new leaf tuples and count up the total space needed.
      */
@@ -1398,6 +1413,7 @@ spgMatchNodeAction(Relation index, SpGistState *state,
                    SpGistInnerTuple innerTuple,
                    SPPageDesc *current, SPPageDesc *parent, int nodeN)
 {
+  DBUG_TRACE;
   int     i;
   SpGistNodeTuple node;
 
@@ -1448,6 +1464,7 @@ spgAddNodeAction(Relation index, SpGistState *state,
                  SPPageDesc *current, SPPageDesc *parent,
                  int nodeN, Datum nodeLabel)
 {
+  DBUG_TRACE;
   SpGistInnerTuple newInnerTuple;
   spgxlogAddNode xlrec;
 
@@ -1649,6 +1666,7 @@ spgSplitNodeAction(Relation index, SpGistState *state,
                    SpGistInnerTuple innerTuple,
                    SPPageDesc *current, spgChooseOut *out)
 {
+  DBUG_TRACE;
   SpGistInnerTuple prefixTuple,
                    postfixTuple;
   SpGistNodeTuple node,
@@ -1844,6 +1862,7 @@ bool
 spgdoinsert(Relation index, SpGistState *state,
             ItemPointer heapPtr, Datum *datums, bool *isnulls)
 {
+  DBUG_TRACE;
   bool    result = true;
   TupleDesc leafDescriptor = state->leafTupDesc;
   bool    isnull = isnulls[spgKeyColumn];
@@ -1855,6 +1874,8 @@ spgdoinsert(Relation index, SpGistState *state,
   SPPageDesc  current,
               parent;
   FmgrInfo   *procinfo = NULL;
+
+  DBUG_PRINT("info", "insert one item into the index");
 
   /*
    * Look up FmgrInfo of the user-defined choose function once, to save
@@ -2096,6 +2117,7 @@ process_inner_tuple:
 
       if (!isnull) {
         /* use user-defined choose method */
+        DBUG_PRINT("info", "use user-defined choose method");
         FunctionCall2Coll(procinfo,
                           index->rd_indcollation[0],
                           PointerGetDatum(&in),

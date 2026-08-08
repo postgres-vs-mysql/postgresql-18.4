@@ -848,8 +848,7 @@ RT_ALLOC_NODE(RT_RADIX_TREE * tree, const uint8 kind, const RT_SIZE_CLASS size_c
 
   /* initialize contents */
 
-  switch (kind)
-  {
+  switch (kind) {
     case RT_NODE_KIND_4:
       memset(node, 0, offsetof(RT_NODE_4, children));
       break;
@@ -858,8 +857,7 @@ RT_ALLOC_NODE(RT_RADIX_TREE * tree, const uint8 kind, const RT_SIZE_CLASS size_c
       memset(node, 0, offsetof(RT_NODE_16, children));
       break;
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) node;
 
       memset(n48, 0, offsetof(RT_NODE_48, slot_idxs));
@@ -932,8 +930,7 @@ RT_FREE_NODE(RT_RADIX_TREE * tree, RT_CHILD_PTR node)
 
   /* update the statistics */
 
-  for (i = 0; i < RT_NUM_SIZE_CLASSES; i++)
-  {
+  for (i = 0; i < RT_NUM_SIZE_CLASSES; i++) {
     if ((node.local)->fanout == RT_SIZE_CLASS_INFO[i].fanout)
       break;
   }
@@ -997,10 +994,8 @@ RT_NODE_16_SEARCH_EQ(RT_NODE_16 * node, uint8 chunk)
 #if defined(USE_NO_SIMD) || defined(USE_ASSERT_CHECKING)
   RT_PTR_ALLOC *slot = NULL;
 
-  for (int i = 0; i < count; i++)
-  {
-    if (node->chunks[i] == chunk)
-    {
+  for (int i = 0; i < count; i++) {
+    if (node->chunks[i] == chunk) {
       slot = &node->children[i];
       break;
     }
@@ -1046,14 +1041,11 @@ RT_NODE_SEARCH(RT_NODE * node, uint8 chunk)
   /* Make sure we already converted to local pointer */
   Assert(node != NULL);
 
-  switch (node->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch (node->kind) {
+    case RT_NODE_KIND_4: {
       RT_NODE_4  *n4 = (RT_NODE_4 *) node;
 
-      for (int i = 0; i < n4->base.count; i++)
-      {
+      for (int i = 0; i < n4->base.count; i++) {
         if (n4->chunks[i] == chunk)
           return &n4->children[i];
       }
@@ -1064,8 +1056,7 @@ RT_NODE_SEARCH(RT_NODE * node, uint8 chunk)
     case RT_NODE_KIND_16:
       return RT_NODE_16_SEARCH_EQ((RT_NODE_16 *) node, chunk);
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) node;
       int     slotpos = n48->slot_idxs[chunk];
 
@@ -1075,8 +1066,7 @@ RT_NODE_SEARCH(RT_NODE * node, uint8 chunk)
       return RT_NODE_48_GET_CHILD(n48, chunk);
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_NODE_256 *n256 = (RT_NODE_256 *) node;
 
       if (!RT_NODE_256_IS_CHUNK_USED(n256, chunk))
@@ -1116,8 +1106,7 @@ RT_FIND(RT_RADIX_TREE * tree, uint64 key)
   shift = tree->ctl->start_shift;
 
   /* Descend the tree */
-  while (shift >= 0)
-  {
+  while (shift >= 0) {
     RT_PTR_SET_LOCAL(tree, &node);
     slot = RT_NODE_SEARCH(node.local, RT_GET_KEY_CHUNK(key, shift));
 
@@ -1130,8 +1119,7 @@ RT_FIND(RT_RADIX_TREE * tree, uint64 key)
 
   if (RT_CHILDPTR_IS_VALUE(*slot))
     return (RT_VALUE_TYPE *) slot;
-  else
-  {
+  else {
     RT_PTR_SET_LOCAL(tree, &node);
     return (RT_VALUE_TYPE *) node.local;
   }
@@ -1151,8 +1139,7 @@ RT_NODE_4_GET_INSERTPOS(RT_NODE_4 * node, uint8 chunk, int count)
 {
   int     idx;
 
-  for (idx = 0; idx < count; idx++)
-  {
+  for (idx = 0; idx < count; idx++) {
     if (node->chunks[idx] >= chunk)
       break;
   }
@@ -1202,8 +1189,7 @@ RT_NODE_16_GET_INSERTPOS(RT_NODE_16 * node, uint8 chunk)
 
 #if defined(USE_NO_SIMD) || defined(USE_ASSERT_CHECKING)
 
-  for (index = 0; index < count; index++)
-  {
+  for (index = 0; index < count; index++) {
     if (node->chunks[index] > chunk)
       break;
   }
@@ -1246,8 +1232,7 @@ RT_SHIFT_ARRAYS_FOR_INSERT(uint8 *chunks, RT_PTR_ALLOC * children, int count, in
    * This is basically a memmove, but written in a simple loop for speed on
    * small inputs.
    */
-  for (int i = count - 1; i >= insertpos; i--)
-  {
+  for (int i = count - 1; i >= insertpos; i--) {
     /* workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101481 */
 #ifdef __GNUC__
     __asm__("");
@@ -1266,8 +1251,7 @@ RT_COPY_ARRAYS_FOR_INSERT(uint8 *dst_chunks, RT_PTR_ALLOC * dst_children,
                           uint8 *src_chunks, RT_PTR_ALLOC * src_children,
                           int count, int insertpos)
 {
-  for (int i = 0; i < count; i++)
-  {
+  for (int i = 0; i < count; i++) {
     int     sourceidx = i;
 
     /* use a branch-free computation to skip the index of the new element */
@@ -1310,8 +1294,7 @@ RT_GROW_NODE_48(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR n
   /* copy over the entries */
   RT_COPY_COMMON(newnode, node);
 
-  for (int word_num = 0; word_num < RT_BM_IDX(RT_NODE_MAX_SLOTS); word_num++)
-  {
+  for (int word_num = 0; word_num < RT_BM_IDX(RT_NODE_MAX_SLOTS); word_num++) {
     bitmapword  bitmap = 0;
 
     /*
@@ -1319,12 +1302,10 @@ RT_GROW_NODE_48(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR n
      * the naive implementation. Doing stores word-at-a-time removes a lot
      * of that overhead.
      */
-    for (int bit = 0; bit < BITS_PER_BITMAPWORD; bit++)
-    {
+    for (int bit = 0; bit < BITS_PER_BITMAPWORD; bit++) {
       uint8   offset = n48->slot_idxs[i];
 
-      if (offset != RT_INVALID_SLOT_IDX)
-      {
+      if (offset != RT_INVALID_SLOT_IDX) {
         bitmap |= ((bitmapword) 1 << bit);
         new256->children[i] = n48->children[offset];
       }
@@ -1352,12 +1333,10 @@ RT_ADD_CHILD_48(RT_RADIX_TREE * tree, RT_CHILD_PTR node, uint8 chunk)
               inverse;
 
   /* get the first word with at least one bit not set */
-  for (int i = 0; i < RT_BM_IDX(RT_FANOUT_48_MAX); i++)
-  {
+  for (int i = 0; i < RT_BM_IDX(RT_FANOUT_48_MAX); i++) {
     w = n48->isset[i];
 
-    if (w < ~((bitmapword) 0))
-    {
+    if (w < ~((bitmapword) 0)) {
       idx = i;
       break;
     }
@@ -1388,8 +1367,7 @@ RT_GROW_NODE_16(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR n
   RT_NODE_16 *n16 = (RT_NODE_16 *) node.local;
   int     insertpos;
 
-  if (n16->base.fanout < RT_FANOUT_16_HI)
-  {
+  if (n16->base.fanout < RT_FANOUT_16_HI) {
     RT_CHILD_PTR newnode;
     RT_NODE_16 *new16;
 
@@ -1418,9 +1396,7 @@ RT_GROW_NODE_16(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR n
     *parent_slot = newnode.alloc;
 
     return &new16->children[insertpos];
-  }
-  else
-  {
+  } else {
     RT_CHILD_PTR newnode;
     RT_NODE_48 *new48;
     int     idx,
@@ -1557,26 +1533,22 @@ RT_NODE_INSERT(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR no
 {
   RT_NODE    *n = node.local;
 
-  switch (n->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch (n->kind) {
+    case RT_NODE_KIND_4: {
       if (unlikely(RT_NODE_MUST_GROW(n)))
         return RT_GROW_NODE_4(tree, parent_slot, node, chunk);
 
       return RT_ADD_CHILD_4(tree, node, chunk);
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       if (unlikely(RT_NODE_MUST_GROW(n)))
         return RT_GROW_NODE_16(tree, parent_slot, node, chunk);
 
       return RT_ADD_CHILD_16(tree, node, chunk);
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       if (unlikely(RT_NODE_MUST_GROW(n)))
         return RT_GROW_NODE_48(tree, parent_slot, node, chunk);
 
@@ -1604,8 +1576,7 @@ RT_EXTEND_UP(RT_RADIX_TREE * tree, uint64 key)
   Assert(shift < target_shift);
 
   /* Grow tree upwards until start shift can accommodate the key */
-  while (shift < target_shift)
-  {
+  while (shift < target_shift) {
     RT_CHILD_PTR node;
     RT_NODE_4  *n4;
 
@@ -1647,8 +1618,7 @@ RT_EXTEND_DOWN(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, uint64 key, int
   node = child;
   shift -= RT_SPAN;
 
-  while (shift > 0)
-  {
+  while (shift > 0) {
     child = RT_ALLOC_NODE(tree, RT_NODE_KIND_4, RT_CLASS_4);
 
     /* We open-code the insertion ourselves, for speed. */
@@ -1689,8 +1659,7 @@ RT_GET_SLOT_RECURSIVE(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, uint64 k
   RT_PTR_SET_LOCAL(tree, &node);
   slot = RT_NODE_SEARCH(node.local, chunk);
 
-  if (slot == NULL)
-  {
+  if (slot == NULL) {
     *found = false;
 
     /* reserve slot for the caller to populate */
@@ -1701,15 +1670,11 @@ RT_GET_SLOT_RECURSIVE(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, uint64 k
       return slot;
     else
       return RT_EXTEND_DOWN(tree, slot, key, shift);
-  }
-  else
-  {
-    if (shift == 0)
-    {
+  } else {
+    if (shift == 0) {
       *found = true;
       return slot;
-    }
-    else
+    } else
       return RT_GET_SLOT_RECURSIVE(tree, slot, key, shift - RT_SPAN, found);
   }
 }
@@ -1734,10 +1699,8 @@ RT_SET(RT_RADIX_TREE * tree, uint64 key, RT_VALUE_TYPE * value_p)
   Assert(RT_PTR_ALLOC_IS_VALID(tree->ctl->root));
 
   /* Extend the tree if necessary */
-  if (unlikely(key > tree->ctl->max_val))
-  {
-    if (tree->ctl->num_keys == 0)
-    {
+  if (unlikely(key > tree->ctl->max_val)) {
+    if (tree->ctl->num_keys == 0) {
       RT_CHILD_PTR node;
       RT_NODE_4  *n4;
       int     start_shift = RT_KEY_GET_SHIFT(key);
@@ -1759,8 +1722,7 @@ RT_SET(RT_RADIX_TREE * tree, uint64 key, RT_VALUE_TYPE * value_p)
       tree->ctl->start_shift = start_shift;
       tree->ctl->max_val = RT_SHIFT_GET_MAX_VAL(start_shift);
       goto have_slot;
-    }
-    else
+    } else
       RT_EXTEND_UP(tree, key);
   }
 
@@ -1770,8 +1732,7 @@ RT_SET(RT_RADIX_TREE * tree, uint64 key, RT_VALUE_TYPE * value_p)
 have_slot:
   Assert(slot != NULL);
 
-  if (RT_VALUE_IS_EMBEDDABLE(value_p))
-  {
+  if (RT_VALUE_IS_EMBEDDABLE(value_p)) {
     /* free the existing leaf */
     if (found && !RT_CHILDPTR_IS_VALUE(*slot))
       RT_FREE_LEAF(tree, *slot);
@@ -1787,19 +1748,15 @@ have_slot:
     *((uintptr_t *) slot) |= 1;
 #endif
 #endif
-  }
-  else
-  {
+  } else {
     RT_CHILD_PTR leaf;
 
-    if (found && !RT_CHILDPTR_IS_VALUE(*slot))
-    {
+    if (found && !RT_CHILDPTR_IS_VALUE(*slot)) {
       Assert(RT_PTR_ALLOC_IS_VALID(*slot));
       leaf.alloc = *slot;
       RT_PTR_SET_LOCAL(tree, &leaf);
 
-      if (RT_GET_VALUE_SIZE((RT_VALUE_TYPE *) leaf.local) != value_sz)
-      {
+      if (RT_GET_VALUE_SIZE((RT_VALUE_TYPE *) leaf.local) != value_sz) {
         /*
          * different sizes, so first free the existing leaf before
          * allocating a new one
@@ -1808,9 +1765,7 @@ have_slot:
         leaf = RT_ALLOC_LEAF(tree, value_sz);
         *slot = leaf.alloc;
       }
-    }
-    else
-    {
+    } else {
       /* allocate new leaf and store it in the child array */
       leaf = RT_ALLOC_LEAF(tree, value_sz);
       *slot = leaf.alloc;
@@ -1841,6 +1796,7 @@ RT_CREATE(dsa_area *dsa, int tranche_id)
 RT_CREATE(MemoryContext ctx)
 #endif
 {
+  DBUG_TRACE;
   RT_RADIX_TREE *tree;
   RT_CHILD_PTR rootnode;
 #ifdef RT_SHMEM
@@ -1855,13 +1811,12 @@ RT_CREATE(MemoryContext ctx)
   tree->ctl = (RT_RADIX_TREE_CONTROL *) dsa_get_address(dsa, dp);
   tree->ctl->handle = dp;
   tree->ctl->magic = RT_RADIX_TREE_MAGIC;
-  LWLockInitialize(&tree->ctl->lock, tranche_id);
+  LWLockInitialize(&tree->ctl->lock, tranche_id, 0);
 #else
   tree->ctl = (RT_RADIX_TREE_CONTROL *) palloc0(sizeof(RT_RADIX_TREE_CONTROL));
 
   /* Create a slab context for each size class */
-  for (int i = 0; i < RT_NUM_SIZE_CLASSES; i++)
-  {
+  for (int i = 0; i < RT_NUM_SIZE_CLASSES; i++) {
     RT_SIZE_CLASS_ELEM size_class = RT_SIZE_CLASS_INFO[i];
     size_t    inner_blocksize = RT_SLAB_BLOCK_SIZE(size_class.allocsize);
 
@@ -1950,14 +1905,11 @@ RT_FREE_RECURSE(RT_RADIX_TREE * tree, RT_PTR_ALLOC ptr, int shift)
   node.alloc = ptr;
   RT_PTR_SET_LOCAL(tree, &node);
 
-  switch (node.local->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch (node.local->kind) {
+    case RT_NODE_KIND_4: {
       RT_NODE_4  *n4 = (RT_NODE_4 *) node.local;
 
-      for (int i = 0; i < n4->base.count; i++)
-      {
+      for (int i = 0; i < n4->base.count; i++) {
         RT_PTR_ALLOC child = n4->children[i];
 
         if (shift > 0)
@@ -1969,12 +1921,10 @@ RT_FREE_RECURSE(RT_RADIX_TREE * tree, RT_PTR_ALLOC ptr, int shift)
       break;
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       RT_NODE_16 *n16 = (RT_NODE_16 *) node.local;
 
-      for (int i = 0; i < n16->base.count; i++)
-      {
+      for (int i = 0; i < n16->base.count; i++) {
         RT_PTR_ALLOC child = n16->children[i];
 
         if (shift > 0)
@@ -1986,12 +1936,10 @@ RT_FREE_RECURSE(RT_RADIX_TREE * tree, RT_PTR_ALLOC ptr, int shift)
       break;
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) node.local;
 
-      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++)
-      {
+      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++) {
         RT_PTR_ALLOC child;
 
         if (!RT_NODE_48_IS_CHUNK_USED(n48, i))
@@ -2008,12 +1956,10 @@ RT_FREE_RECURSE(RT_RADIX_TREE * tree, RT_PTR_ALLOC ptr, int shift)
       break;
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_NODE_256 *n256 = (RT_NODE_256 *) node.local;
 
-      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++)
-      {
+      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++) {
         RT_PTR_ALLOC child;
 
         if (!RT_NODE_256_IS_CHUNK_USED(n256, i))
@@ -2120,10 +2066,8 @@ RT_NODE_ITERATE_NEXT(RT_ITER * iter, int level)
 
   Assert(node.local != NULL);
 
-  switch ((node.local)->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch ((node.local)->kind) {
+    case RT_NODE_KIND_4: {
       RT_NODE_4  *n4 = (RT_NODE_4 *) (node.local);
 
       if (node_iter->idx >= n4->base.count)
@@ -2135,8 +2079,7 @@ RT_NODE_ITERATE_NEXT(RT_ITER * iter, int level)
       break;
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       RT_NODE_16 *n16 = (RT_NODE_16 *) (node.local);
 
       if (node_iter->idx >= n16->base.count)
@@ -2148,13 +2091,11 @@ RT_NODE_ITERATE_NEXT(RT_ITER * iter, int level)
       break;
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) (node.local);
       int     chunk;
 
-      for (chunk = node_iter->idx; chunk < RT_NODE_MAX_SLOTS; chunk++)
-      {
+      for (chunk = node_iter->idx; chunk < RT_NODE_MAX_SLOTS; chunk++) {
         if (RT_NODE_48_IS_CHUNK_USED(n48, chunk))
           break;
       }
@@ -2169,13 +2110,11 @@ RT_NODE_ITERATE_NEXT(RT_ITER * iter, int level)
       break;
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_NODE_256 *n256 = (RT_NODE_256 *) (node.local);
       int     chunk;
 
-      for (chunk = node_iter->idx; chunk < RT_NODE_MAX_SLOTS; chunk++)
-      {
+      for (chunk = node_iter->idx; chunk < RT_NODE_MAX_SLOTS; chunk++) {
         if (RT_NODE_256_IS_CHUNK_USED(n256, chunk))
           break;
       }
@@ -2207,29 +2146,25 @@ RT_ITERATE_NEXT(RT_ITER * iter, uint64 *key_p)
 {
   RT_PTR_ALLOC *slot = NULL;
 
-  while (iter->cur_level <= iter->top_level)
-  {
+  while (iter->cur_level <= iter->top_level) {
     RT_CHILD_PTR node;
 
     slot = RT_NODE_ITERATE_NEXT(iter, iter->cur_level);
 
-    if (iter->cur_level == 0 && slot != NULL)
-    {
+    if (iter->cur_level == 0 && slot != NULL) {
       /* Found a value at the leaf node */
       *key_p = iter->key;
       node.alloc = *slot;
 
       if (RT_CHILDPTR_IS_VALUE(*slot))
         return (RT_VALUE_TYPE *) slot;
-      else
-      {
+      else {
         RT_PTR_SET_LOCAL(iter->tree, &node);
         return (RT_VALUE_TYPE *) node.local;
       }
     }
 
-    if (slot != NULL)
-    {
+    if (slot != NULL) {
       /* Found the child slot, move down the tree */
       node.alloc = *slot;
       RT_PTR_SET_LOCAL(iter->tree, &node);
@@ -2237,9 +2172,7 @@ RT_ITERATE_NEXT(RT_ITER * iter, uint64 *key_p)
       iter->cur_level--;
       iter->node_iters[iter->cur_level].node = node;
       iter->node_iters[iter->cur_level].idx = 0;
-    }
-    else
-    {
+    } else {
       /* Not found the child slot, move up the tree */
       iter->cur_level++;
     }
@@ -2270,8 +2203,7 @@ RT_SHIFT_ARRAYS_AND_DELETE(uint8 *chunks, RT_PTR_ALLOC * children, int count, in
    * This is basically a memmove, but written in a simple loop for speed on
    * small inputs.
    */
-  for (int i = deletepos; i < count - 1; i++)
-  {
+  for (int i = deletepos; i < count - 1; i++) {
     /* workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101481 */
 #ifdef __GNUC__
     __asm__("");
@@ -2290,8 +2222,7 @@ RT_COPY_ARRAYS_AND_DELETE(uint8 *dst_chunks, RT_PTR_ALLOC * dst_children,
                           uint8 *src_chunks, RT_PTR_ALLOC * src_children,
                           int count, int deletepos)
 {
-  for (int i = 0; i < count - 1; i++)
-  {
+  for (int i = 0; i < count - 1; i++) {
     /*
      * use a branch-free computation to skip the index of the deleted
      * element
@@ -2335,10 +2266,8 @@ RT_SHRINK_NODE_256(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PT
   /* copy over the entries */
   RT_COPY_COMMON(newnode, node);
 
-  for (int i = 0; i < RT_NODE_MAX_SLOTS; i++)
-  {
-    if (RT_NODE_256_IS_CHUNK_USED(n256, i))
-    {
+  for (int i = 0; i < RT_NODE_MAX_SLOTS; i++) {
+    if (RT_NODE_256_IS_CHUNK_USED(n256, i)) {
       new48->slot_idxs[i] = slot_idx;
       new48->children[slot_idx] = n256->children[i];
       slot_idx++;
@@ -2407,10 +2336,8 @@ RT_SHRINK_NODE_48(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR
   /* copy over all existing entries */
   RT_COPY_COMMON(newnode, node);
 
-  for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++)
-  {
-    if (n48->slot_idxs[chunk] != RT_INVALID_SLOT_IDX)
-    {
+  for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++) {
+    if (n48->slot_idxs[chunk] != RT_INVALID_SLOT_IDX) {
       new16->chunks[destidx] = chunk;
       new16->children[destidx] = n48->children[n48->slot_idxs[chunk]];
       destidx++;
@@ -2495,8 +2422,7 @@ RT_REMOVE_CHILD_16(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PT
    * will end up with 3 elements and 3 is the largest count where linear
    * search is faster than SIMD, at least on x86-64.
    */
-  if (n16->base.count <= 4)
-  {
+  if (n16->base.count <= 4) {
     RT_SHRINK_NODE_16(tree, parent_slot, node, deletepos);
     return;
   }
@@ -2514,8 +2440,7 @@ RT_REMOVE_CHILD_4(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR
 {
   RT_NODE_4  *n4 = (RT_NODE_4 *) node.local;
 
-  if (n4->base.count == 1)
-  {
+  if (n4->base.count == 1) {
     Assert(n4->chunks[0] == chunk);
 
     /*
@@ -2523,14 +2448,11 @@ RT_REMOVE_CHILD_4(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR
      * free it, but mark both the tree and the root child node empty. That
      * way, RT_SET can assume it exists.
      */
-    if (parent_slot == &tree->ctl->root)
-    {
+    if (parent_slot == &tree->ctl->root) {
       n4->base.count = 0;
       tree->ctl->start_shift = 0;
       tree->ctl->max_val = RT_SHIFT_GET_MAX_VAL(0);
-    }
-    else
-    {
+    } else {
       /*
        * Deleting last entry, so just free the entire node.
        * RT_DELETE_RECURSIVE has already freed the value and lower-level
@@ -2544,9 +2466,7 @@ RT_REMOVE_CHILD_4(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR
        */
       *parent_slot = RT_INVALID_PTR_ALLOC;
     }
-  }
-  else
-  {
+  } else {
     int     deletepos = slot - n4->children;
 
     Assert(deletepos >= 0);
@@ -2565,28 +2485,23 @@ RT_REMOVE_CHILD_4(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR
 static inline void
 RT_NODE_DELETE(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, RT_CHILD_PTR node, uint8 chunk, RT_PTR_ALLOC * slot)
 {
-  switch ((node.local)->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch ((node.local)->kind) {
+    case RT_NODE_KIND_4: {
       RT_REMOVE_CHILD_4(tree, parent_slot, node, chunk, slot);
       return;
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       RT_REMOVE_CHILD_16(tree, parent_slot, node, chunk, slot);
       return;
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_REMOVE_CHILD_48(tree, parent_slot, node, chunk);
       return;
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_REMOVE_CHILD_256(tree, parent_slot, node, chunk);
       return;
     }
@@ -2611,23 +2526,19 @@ RT_DELETE_RECURSIVE(RT_RADIX_TREE * tree, RT_PTR_ALLOC * parent_slot, uint64 key
   if (slot == NULL)
     return false;
 
-  if (shift == 0)
-  {
+  if (shift == 0) {
     if (!RT_CHILDPTR_IS_VALUE(*slot))
       RT_FREE_LEAF(tree, *slot);
 
     RT_NODE_DELETE(tree, parent_slot, node, chunk, slot);
     return true;
-  }
-  else
-  {
+  } else {
     bool    deleted;
 
     deleted = RT_DELETE_RECURSIVE(tree, slot, key, shift - RT_SPAN);
 
     /* Child node was freed, so delete its slot now */
-    if (*slot == RT_INVALID_PTR_ALLOC)
-    {
+    if (*slot == RT_INVALID_PTR_ALLOC) {
       Assert(deleted);
       RT_NODE_DELETE(tree, parent_slot, node, chunk, slot);
     }
@@ -2659,8 +2570,7 @@ RT_DELETE(RT_RADIX_TREE * tree, uint64 key)
                                 key, tree->ctl->start_shift);
 
   /* Found the key to delete. Update the statistics */
-  if (deleted)
-  {
+  if (deleted) {
     tree->ctl->num_keys--;
     Assert(tree->ctl->num_keys >= 0);
   }
@@ -2701,10 +2611,8 @@ RT_VERIFY_NODE(RT_NODE * node)
 {
 #ifdef USE_ASSERT_CHECKING
 
-  switch (node->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch (node->kind) {
+    case RT_NODE_KIND_4: {
       RT_NODE_4  *n4 = (RT_NODE_4 *) node;
 
       /* RT_DUMP_NODE(node); */
@@ -2715,8 +2623,7 @@ RT_VERIFY_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       RT_NODE_16 *n16 = (RT_NODE_16 *) node;
 
       /* RT_DUMP_NODE(node); */
@@ -2727,15 +2634,13 @@ RT_VERIFY_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) node;
       int     cnt = 0;
 
       /* RT_DUMP_NODE(node); */
 
-      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++)
-      {
+      for (int i = 0; i < RT_NODE_MAX_SLOTS; i++) {
         uint8   slot = n48->slot_idxs[i];
         int     idx = RT_BM_IDX(slot);
         int     bitnum = RT_BM_BIT(slot);
@@ -2755,8 +2660,7 @@ RT_VERIFY_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_NODE_256 *n256 = (RT_NODE_256 *) node;
       int     cnt = 0;
 
@@ -2800,8 +2704,7 @@ RT_STATS(RT_RADIX_TREE * tree)
 
   fprintf(stderr, "height = %d", tree->ctl->start_shift / RT_SPAN);
 
-  for (int i = 0; i < RT_NUM_SIZE_CLASSES; i++)
-  {
+  for (int i = 0; i < RT_NUM_SIZE_CLASSES; i++) {
     RT_SIZE_CLASS_ELEM size_class = RT_SIZE_CLASS_INFO[i];
 
     fprintf(stderr, ", n%d = %" PRId64, size_class.fanout, tree->ctl->num_nodes[i]);
@@ -2832,16 +2735,13 @@ RT_DUMP_NODE(RT_NODE * node)
           node->fanout == 0 ? 256 : node->fanout,
           node->count == 0 ? 256 : node->count);
 
-  switch (node->kind)
-  {
-    case RT_NODE_KIND_4:
-    {
+  switch (node->kind) {
+    case RT_NODE_KIND_4: {
       RT_NODE_4  *n4 = (RT_NODE_4 *) node;
 
       fprintf(stderr, "chunks and slots:\n");
 
-      for (int i = 0; i < n4->base.count; i++)
-      {
+      for (int i = 0; i < n4->base.count; i++) {
         fprintf(stderr, "  [%d] chunk %x slot " RT_CHILD_PTR_FORMAT "\n",
                 i, n4->chunks[i], n4->children[i]);
       }
@@ -2849,14 +2749,12 @@ RT_DUMP_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_16:
-    {
+    case RT_NODE_KIND_16: {
       RT_NODE_16 *n16 = (RT_NODE_16 *) node;
 
       fprintf(stderr, "chunks and slots:\n");
 
-      for (int i = 0; i < n16->base.count; i++)
-      {
+      for (int i = 0; i < n16->base.count; i++) {
         fprintf(stderr, "  [%d] chunk %x slot " RT_CHILD_PTR_FORMAT "\n",
                 i, n16->chunks[i], n16->children[i]);
       }
@@ -2864,15 +2762,13 @@ RT_DUMP_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_48:
-    {
+    case RT_NODE_KIND_48: {
       RT_NODE_48 *n48 = (RT_NODE_48 *) node;
       char     *sep = "";
 
       fprintf(stderr, "slot_idxs: \n");
 
-      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++)
-      {
+      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++) {
         if (!RT_NODE_48_IS_CHUNK_USED(n48, chunk))
           continue;
 
@@ -2882,8 +2778,7 @@ RT_DUMP_NODE(RT_NODE * node)
 
       fprintf(stderr, "isset-bitmap: ");
 
-      for (int i = 0; i < (RT_FANOUT_48_MAX / BITS_PER_BYTE); i++)
-      {
+      for (int i = 0; i < (RT_FANOUT_48_MAX / BITS_PER_BYTE); i++) {
         fprintf(stderr, "%s%x", sep, ((uint8 *) n48->isset)[i]);
         sep = " ";
       }
@@ -2892,8 +2787,7 @@ RT_DUMP_NODE(RT_NODE * node)
 
       fprintf(stderr, "chunks and slots:\n");
 
-      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++)
-      {
+      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++) {
         if (!RT_NODE_48_IS_CHUNK_USED(n48, chunk))
           continue;
 
@@ -2905,15 +2799,13 @@ RT_DUMP_NODE(RT_NODE * node)
       break;
     }
 
-    case RT_NODE_KIND_256:
-    {
+    case RT_NODE_KIND_256: {
       RT_NODE_256 *n256 = (RT_NODE_256 *) node;
       char     *sep = "";
 
       fprintf(stderr, "isset-bitmap: ");
 
-      for (int i = 0; i < (RT_FANOUT_256 / BITS_PER_BYTE); i++)
-      {
+      for (int i = 0; i < (RT_FANOUT_256 / BITS_PER_BYTE); i++) {
         fprintf(stderr, "%s%x", sep, ((uint8 *) n256->isset)[i]);
         sep = " ";
       }
@@ -2922,8 +2814,7 @@ RT_DUMP_NODE(RT_NODE * node)
 
       fprintf(stderr, "chunks and slots:\n");
 
-      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++)
-      {
+      for (int chunk = 0; chunk < RT_NODE_MAX_SLOTS; chunk++) {
         if (!RT_NODE_256_IS_CHUNK_USED(n256, chunk))
           continue;
 

@@ -83,8 +83,7 @@ typedef struct
   uint16    len;
   uint16    nvariant;
   uint16    alen;
-  union
-  {
+  union {
     uint16    pos;
 
     /*

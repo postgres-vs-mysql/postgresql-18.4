@@ -94,19 +94,16 @@ log10Pow5(const int32 e)
 static inline int
 copy_special_str(char *const result, const bool sign, const bool exponent, const bool mantissa)
 {
-  if (mantissa)
-  {
+  if (mantissa) {
     memcpy(result, "NaN", 3);
     return 3;
   }
 
-  if (sign)
-  {
+  if (sign) {
     result[0] = '-';
   }
 
-  if (exponent)
-  {
+  if (exponent) {
     memcpy(result + sign, "Infinity", 8);
     return sign + 8;
   }

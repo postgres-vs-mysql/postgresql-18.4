@@ -21,6 +21,7 @@
  *    ExecReScanTableFuncScan rescans the function
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeTableFuncscan.h"
@@ -53,6 +54,7 @@ static void tfuncLoadRows(TableFuncScanState *tstate, ExprContext *econtext);
 static TupleTableSlot *
 TableFuncNext(TableFuncScanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *scanslot;
 
   scanslot = node->ss.ss_ScanTupleSlot;
@@ -96,6 +98,7 @@ TableFuncRecheck(TableFuncScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecTableFuncScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   TableFuncScanState *node = castNode(TableFuncScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -110,6 +113,7 @@ ExecTableFuncScan(PlanState *pstate)
 TableFuncScanState *
 ExecInitTableFuncScan(TableFuncScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   TableFuncScanState *scanstate;
   TableFunc  *tf = node->tablefunc;
   TupleDesc tupdesc;
@@ -218,6 +222,8 @@ ExecInitTableFuncScan(TableFuncScan *node, EState *estate, int eflags)
 void
 ExecEndTableFuncScan(TableFuncScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * Release tuplestore resources
    */
@@ -236,6 +242,7 @@ ExecEndTableFuncScan(TableFuncScanState *node)
 void
 ExecReScanTableFuncScan(TableFuncScanState *node)
 {
+  DBUG_TRACE;
   Bitmapset  *chgparam = node->ss.ps.chgParam;
 
   if (node->ss.ps.ps_ResultTupleSlot)
@@ -266,6 +273,7 @@ ExecReScanTableFuncScan(TableFuncScanState *node)
 static void
 tfuncFetchRows(TableFuncScanState *tstate, ExprContext *econtext)
 {
+  DBUG_TRACE;
   const TableFuncRoutine *routine = tstate->routine;
   MemoryContext oldcxt;
   Datum   value;
@@ -337,6 +345,7 @@ tfuncFetchRows(TableFuncScanState *tstate, ExprContext *econtext)
 static void
 tfuncInitialize(TableFuncScanState *tstate, ExprContext *econtext, Datum doc)
 {
+  DBUG_TRACE;
   const TableFuncRoutine *routine = tstate->routine;
   TupleDesc tupdesc;
   ListCell   *lc1,
@@ -432,6 +441,7 @@ tfuncInitialize(TableFuncScanState *tstate, ExprContext *econtext, Datum doc)
 static void
 tfuncLoadRows(TableFuncScanState *tstate, ExprContext *econtext)
 {
+  DBUG_TRACE;
   const TableFuncRoutine *routine = tstate->routine;
   TupleTableSlot *slot = tstate->ss.ss_ScanTupleSlot;
   TupleDesc tupdesc = slot->tts_tupleDescriptor;

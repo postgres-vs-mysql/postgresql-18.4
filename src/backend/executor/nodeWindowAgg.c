@@ -32,6 +32,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/objectaccess.h"
@@ -206,6 +207,7 @@ initialize_windowaggregate(WindowAggState *winstate,
                            WindowStatePerFunc perfuncstate,
                            WindowStatePerAgg peraggstate)
 {
+  DBUG_TRACE;
   MemoryContext oldContext;
 
   /*
@@ -241,6 +243,7 @@ advance_windowaggregate(WindowAggState *winstate,
                         WindowStatePerFunc perfuncstate,
                         WindowStatePerAgg peraggstate)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   WindowFuncExprState *wfuncstate = perfuncstate->wfuncstate;
   int     numArguments = perfuncstate->numArguments;
@@ -410,6 +413,7 @@ advance_windowaggregate_base(WindowAggState *winstate,
                              WindowStatePerFunc perfuncstate,
                              WindowStatePerAgg peraggstate)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   WindowFuncExprState *wfuncstate = perfuncstate->wfuncstate;
   int     numArguments = perfuncstate->numArguments;
@@ -566,6 +570,7 @@ finalize_windowaggregate(WindowAggState *winstate,
                          WindowStatePerAgg peraggstate,
                          Datum *result, bool *isnull)
 {
+  DBUG_TRACE;
   MemoryContext oldContext;
 
   oldContext = MemoryContextSwitchTo(winstate->ss.ps.ps_ExprContext->ecxt_per_tuple_memory);
@@ -637,6 +642,7 @@ finalize_windowaggregate(WindowAggState *winstate,
 static void
 eval_windowaggregates(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   WindowStatePerAgg peraggstate;
   int     wfuncno,
           numaggs,
@@ -1001,6 +1007,7 @@ static void
 eval_windowfunction(WindowAggState *winstate, WindowStatePerFunc perfuncstate,
                     Datum *result, bool *isnull)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   MemoryContext oldContext;
 
@@ -1054,6 +1061,7 @@ eval_windowfunction(WindowAggState *winstate, WindowStatePerFunc perfuncstate,
 static pg_noinline void
 prepare_tuplestore(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   int     frameOptions = winstate->frameOptions;
   int     numfuncs = winstate->numfuncs;
@@ -1243,6 +1251,7 @@ begin_partition(WindowAggState *winstate)
 static void
 spool_tuples(WindowAggState *winstate, int64 pos)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   PlanState  *outerPlan;
   TupleTableSlot *outerslot;
@@ -1333,6 +1342,7 @@ spool_tuples(WindowAggState *winstate, int64 pos)
 static void
 release_partition(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < winstate->numfuncs; i++) {
@@ -1383,6 +1393,7 @@ release_partition(WindowAggState *winstate)
 static int
 row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   int     frameOptions = winstate->frameOptions;
 
   Assert(pos >= 0);     /* else caller error */
@@ -1481,6 +1492,7 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 static void
 update_frameheadpos(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   int     frameOptions = winstate->frameOptions;
   MemoryContext oldcontext;
@@ -1735,6 +1747,7 @@ update_frameheadpos(WindowAggState *winstate)
 static void
 update_frametailpos(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   int     frameOptions = winstate->frameOptions;
   MemoryContext oldcontext;
@@ -1991,6 +2004,7 @@ update_frametailpos(WindowAggState *winstate)
 static void
 update_grouptailpos(WindowAggState *winstate)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   MemoryContext oldcontext;
 
@@ -2133,6 +2147,7 @@ calculate_frame_offsets(PlanState *pstate)
 static TupleTableSlot *
 ExecWindowAgg(PlanState *pstate)
 {
+  DBUG_TRACE;
   WindowAggState *winstate = castNode(WindowAggState, pstate);
   TupleTableSlot *slot;
   ExprContext *econtext;
@@ -2143,6 +2158,8 @@ ExecWindowAgg(PlanState *pstate)
 
   if (winstate->status == WINDOWAGG_DONE)
     return NULL;
+
+  DBUG_PRINT("info", "receive tuples from its outer subplan and store them into a tuplestore, then processes window functions");
 
   /*
    * Compute frame offset values, if any, during first call (or after a
@@ -2386,6 +2403,7 @@ ExecWindowAgg(PlanState *pstate)
 WindowAggState *
 ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
   Plan     *outerPlan;
   ExprContext *econtext;
@@ -2694,6 +2712,7 @@ ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 void
 ExecEndWindowAgg(WindowAggState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
   int     i;
 
@@ -2728,6 +2747,7 @@ ExecEndWindowAgg(WindowAggState *node)
 void
 ExecReScanWindowAgg(WindowAggState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
   ExprContext *econtext = node->ss.ps.ps_ExprContext;
 
@@ -2771,6 +2791,7 @@ static WindowStatePerAggData *
 initialize_peragg(WindowAggState *winstate, WindowFunc *wfunc,
                   WindowStatePerAgg peraggstate)
 {
+  DBUG_TRACE;
   Oid     inputTypes[FUNC_MAX_ARGS];
   int     numArguments;
   HeapTuple aggTuple;
@@ -3046,6 +3067,7 @@ initialize_peragg(WindowAggState *winstate, WindowFunc *wfunc,
 static Datum
 GetAggInitVal(Datum textInitVal, Oid transtype)
 {
+  DBUG_TRACE;
   Oid     typinput,
           typioparam;
   char     *strInitVal;
@@ -3069,6 +3091,7 @@ static bool
 are_peers(WindowAggState *winstate, TupleTableSlot *slot1,
           TupleTableSlot *slot2)
 {
+  DBUG_TRACE;
   WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
   ExprContext *econtext = winstate->tmpcontext;
 
@@ -3091,6 +3114,7 @@ are_peers(WindowAggState *winstate, TupleTableSlot *slot1,
 static bool
 window_gettupleslot(WindowObject winobj, int64 pos, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   WindowAggState *winstate = winobj->winstate;
   MemoryContext oldcontext;
 
@@ -3241,6 +3265,7 @@ WinGetPartitionRowCount(WindowObject winobj)
 void
 WinSetMarkPosition(WindowObject winobj, int64 markpos)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
 
   Assert(WindowObjectIsValid(winobj));
@@ -3278,6 +3303,7 @@ WinSetMarkPosition(WindowObject winobj, int64 markpos)
 bool
 WinRowsArePeers(WindowObject winobj, int64 pos1, int64 pos2)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
   WindowAgg  *node;
   TupleTableSlot *slot1;
@@ -3338,6 +3364,7 @@ WinGetFuncArgInPartition(WindowObject winobj, int argno,
                          int relpos, int seektype, bool set_mark,
                          bool *isnull, bool *isout)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
   ExprContext *econtext;
   TupleTableSlot *slot;
@@ -3428,6 +3455,7 @@ WinGetFuncArgInFrame(WindowObject winobj, int argno,
                      int relpos, int seektype, bool set_mark,
                      bool *isnull, bool *isout)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
   ExprContext *econtext;
   TupleTableSlot *slot;
@@ -3651,6 +3679,7 @@ out_of_frame:
 Datum
 WinGetFuncArgCurrent(WindowObject winobj, int argno, bool *isnull)
 {
+  DBUG_TRACE;
   WindowAggState *winstate;
   ExprContext *econtext;
 

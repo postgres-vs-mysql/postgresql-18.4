@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/detoast.h"
@@ -94,6 +95,7 @@ static int  countitem_compare_count(const void *e1, const void *e2, void *arg);
 Datum
 array_typanalyze(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
   Oid     element_typeid;
   TypeCacheEntry *typentry;
@@ -702,6 +704,7 @@ prune_element_hashtable(HTAB *elements_tab, int b_current)
 static uint32
 element_hash(const void *key, Size keysize)
 {
+  DBUG_TRACE;
   Datum   d = *((const Datum *) key);
   Datum   h;
 
@@ -732,6 +735,7 @@ element_match(const void *key1, const void *key2, Size keysize)
 static int
 element_compare(const void *key1, const void *key2)
 {
+  DBUG_TRACE;
   Datum   d1 = *((const Datum *) key1);
   Datum   d2 = *((const Datum *) key2);
   Datum   c;

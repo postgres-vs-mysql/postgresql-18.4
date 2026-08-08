@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/namespace.h"
 #include "catalog/pg_collation.h"
@@ -47,11 +48,14 @@
 Datum
 namein(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *s = PG_GETARG_CSTRING(0);
   Name    result;
   int     len;
 
   len = strlen(s);
+
+  DBUG_PRINT("info", "convert '%s' to internal representation", s);
 
   /* Truncate oversize input */
   if (len >= NAMEDATALEN)
@@ -70,6 +74,7 @@ namein(PG_FUNCTION_ARGS)
 Datum
 nameout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    s = PG_GETARG_NAME(0);
 
   PG_RETURN_CSTRING(pstrdup(NameStr(*s)));
@@ -81,6 +86,7 @@ nameout(PG_FUNCTION_ARGS)
 Datum
 namerecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   Name    result;
   char     *str;
@@ -107,6 +113,7 @@ namerecv(PG_FUNCTION_ARGS)
 Datum
 namesend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    s = PG_GETARG_NAME(0);
   StringInfoData buf;
 
@@ -149,15 +156,24 @@ namecmp(Name arg1, Name arg2, Oid collid)
 Datum
 nameeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
+  bool result = namecmp(arg1, arg2, PG_GET_COLLATION()) == 0;
 
-  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) == 0);
+  if (result) {
+    DBUG_PRINT("info", "'%s' == '%s' ? Yes", NameStr(*arg1), NameStr(*arg2));
+  } else {
+    DBUG_PRINT("info", "'%s' == '%s' ? No", NameStr(*arg1), NameStr(*arg2));
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 namene(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
 
@@ -167,6 +183,7 @@ namene(PG_FUNCTION_ARGS)
 Datum
 namelt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
 
@@ -176,6 +193,7 @@ namelt(PG_FUNCTION_ARGS)
 Datum
 namele(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
 
@@ -185,6 +203,7 @@ namele(PG_FUNCTION_ARGS)
 Datum
 namegt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
 
@@ -194,6 +213,7 @@ namegt(PG_FUNCTION_ARGS)
 Datum
 namege(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
 
@@ -203,15 +223,26 @@ namege(PG_FUNCTION_ARGS)
 Datum
 btnamecmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    arg1 = PG_GETARG_NAME(0);
   Name    arg2 = PG_GETARG_NAME(1);
+  int32 result = namecmp(arg1, arg2, PG_GET_COLLATION());
 
-  PG_RETURN_INT32(namecmp(arg1, arg2, PG_GET_COLLATION()));
+  if (result == 0) {
+    DBUG_PRINT("info", "return '%s' == '%s'", NameStr(*arg1), NameStr(*arg2));
+  } else if (result > 0) {
+    DBUG_PRINT("info", "return '%s' > '%s'", NameStr(*arg1), NameStr(*arg2));
+  } else {
+    DBUG_PRINT("info", "return '%s' < '%s'", NameStr(*arg1), NameStr(*arg2));
+  }
+
+  PG_RETURN_INT32(result);
 }
 
 Datum
 btnamesortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   Oid     collid = ssup->ssup_collation;
   MemoryContext oldcontext;
@@ -267,12 +298,14 @@ namestrcmp(Name name, const char *str)
 Datum
 current_user(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetUserId(), false))));
 }
 
 Datum
 session_user(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetSessionUserId(), false))));
 }
 
@@ -283,6 +316,7 @@ session_user(PG_FUNCTION_ARGS)
 Datum
 current_schema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *search_path = fetch_search_path(false);
   char     *nspname;
 
@@ -301,6 +335,7 @@ current_schema(PG_FUNCTION_ARGS)
 Datum
 current_schemas(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *search_path = fetch_search_path(PG_GETARG_BOOL(0));
   ListCell   *l;
   Datum    *names;
@@ -341,6 +376,7 @@ current_schemas(PG_FUNCTION_ARGS)
 Datum
 nameconcatoid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    nam = PG_GETARG_NAME(0);
   Oid     oid = PG_GETARG_OID(1);
   Name    result;

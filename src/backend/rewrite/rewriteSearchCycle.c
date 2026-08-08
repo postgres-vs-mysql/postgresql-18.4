@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_operator_d.h"
@@ -116,6 +117,7 @@
 static RowExpr *
 make_path_rowexpr(const CommonTableExpr *cte, const List *col_list)
 {
+  DBUG_TRACE;
   RowExpr    *rowexpr;
   ListCell   *lc;
 
@@ -155,6 +157,7 @@ make_path_rowexpr(const CommonTableExpr *cte, const List *col_list)
 static Expr *
 make_path_initial_array(RowExpr *rowexpr)
 {
+  DBUG_TRACE;
   ArrayExpr  *arr;
 
   arr = makeNode(ArrayExpr);
@@ -176,6 +179,7 @@ make_path_initial_array(RowExpr *rowexpr)
 static Expr *
 make_path_cat_expr(RowExpr *rowexpr, AttrNumber path_varattno)
 {
+  DBUG_TRACE;
   ArrayExpr  *arr;
   FuncExpr   *fexpr;
 
@@ -199,6 +203,7 @@ make_path_cat_expr(RowExpr *rowexpr, AttrNumber path_varattno)
 CommonTableExpr *
 rewriteSearchAndCycle(CommonTableExpr *cte)
 {
+  DBUG_TRACE;
   Query    *ctequery;
   SetOperationStmt *sos;
   int     rti1,

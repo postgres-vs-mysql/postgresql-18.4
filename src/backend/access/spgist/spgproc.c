@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -30,6 +31,8 @@
 static double
 point_box_distance(Point *point, BOX *box)
 {
+  DBUG_TRACE;
+  double result;
   double    dx,
             dy;
 
@@ -51,7 +54,10 @@ point_box_distance(Point *point, BOX *box)
   else
     dy = 0.0;
 
-  return HYPOT(dx, dy);
+  result = HYPOT(dx, dy);
+
+  DBUG_PRINT("info", "point-box distance in the assumption that box is aligned by axis:%g", result);
+  return result;
 }
 
 /*
@@ -63,15 +69,25 @@ double *
 spg_key_orderbys_distances(Datum key, bool isLeaf,
                            ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   int     sk_num;
+  double result;
   double     *distances = (double *) palloc(norderbys * sizeof(double)),
               *distance = distances;
+
+  if (isLeaf) {
+    DBUG_PRINT("info", "return distances from given key to array of ordering scan keys(norderbys:%d, isLeaf:true)", norderbys);
+  } else {
+    DBUG_PRINT("info", "return distances from given key to array of ordering scan keys(norderbys:%d, isLeaf:false)", norderbys);
+  }
 
   for (sk_num = 0; sk_num < norderbys; ++sk_num, ++orderbys, ++distance) {
     Point    *point = DatumGetPointP(orderbys->sk_argument);
 
-    *distance = isLeaf ? point_point_distance(point, DatumGetPointP(key))
-                : point_box_distance(point, DatumGetBoxP(key));
+    result = isLeaf ? point_point_distance(point, DatumGetPointP(key))
+             : point_box_distance(point, DatumGetBoxP(key));
+    DBUG_PRINT("info", "distance:%g for sk_num:%d", result, sk_num);
+    *distance = result;
   }
 
   return distances;

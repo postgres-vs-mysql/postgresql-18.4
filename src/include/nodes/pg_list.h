@@ -42,8 +42,7 @@
 #include "nodes/nodes.h"
 
 
-typedef union ListCell
-{
+typedef union ListCell {
   void     *ptr_value;
   int     int_value;
   Oid     oid_value;

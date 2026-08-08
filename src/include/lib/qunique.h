@@ -28,8 +28,7 @@ qunique(void *array, size_t elements, size_t width,
   if (elements <= 1)
     return elements;
 
-  for (i = 1, j = 0; i < elements; ++i)
-  {
+  for (i = 1, j = 0; i < elements; ++i) {
     if (compare(bytes + i * width, bytes + j * width) != 0 &&
         ++j != i)
       memcpy(bytes + j * width, bytes + i * width, width);
@@ -54,8 +53,7 @@ qunique_arg(void *array, size_t elements, size_t width,
   if (elements <= 1)
     return elements;
 
-  for (i = 1, j = 0; i < elements; ++i)
-  {
+  for (i = 1, j = 0; i < elements; ++i) {
     if (compare(bytes + i * width, bytes + j * width, arg) != 0 &&
         ++j != i)
       memcpy(bytes + j * width, bytes + i * width, width);

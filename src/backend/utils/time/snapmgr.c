@@ -103,6 +103,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -266,6 +267,9 @@ typedef struct SerializedSnapshotData {
 Snapshot
 GetTransactionSnapshot(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "get the appropriate snapshot for a new query in a transaction");
+
   /*
    * Return historic snapshot if doing logical decoding.
    *
@@ -286,6 +290,7 @@ GetTransactionSnapshot(void)
 
   /* First call in transaction? */
   if (!FirstSnapshotSet) {
+    DBUG_PRINT("info", "first call in transaction");
     /*
      * Don't allow catalog snapshot to be older than xact snapshot.  Must
      * do this first to allow the empty-heap Assert to succeed.
@@ -345,6 +350,8 @@ GetTransactionSnapshot(void)
 Snapshot
 GetLatestSnapshot(void)
 {
+  DBUG_TRACE;
+
   /*
    * We might be able to relax this, but nothing that could otherwise work
    * needs it.
@@ -376,6 +383,8 @@ GetLatestSnapshot(void)
 Snapshot
 GetCatalogSnapshot(Oid relid)
 {
+  DBUG_TRACE;
+
   /*
    * Return historic snapshot while we're doing logical decoding, so we can
    * see the appropriate state of the catalog.
@@ -398,6 +407,8 @@ GetCatalogSnapshot(Oid relid)
 Snapshot
 GetNonHistoricCatalogSnapshot(Oid relid)
 {
+  DBUG_TRACE;
+
   /*
    * If the caller is trying to scan a relation that has no syscache, no
    * catcache invalidations will be sent when it is updated.  For a few key
@@ -445,6 +456,8 @@ GetNonHistoricCatalogSnapshot(Oid relid)
 void
 InvalidateCatalogSnapshot(void)
 {
+  DBUG_TRACE;
+
   if (CatalogSnapshot) {
     pairingheap_remove(&RegisteredSnapshots, &CatalogSnapshot->ph_node);
     CatalogSnapshot = NULL;
@@ -465,6 +478,8 @@ InvalidateCatalogSnapshot(void)
 void
 InvalidateCatalogSnapshotConditionally(void)
 {
+  DBUG_TRACE;
+
   if (CatalogSnapshot &&
       ActiveSnapshot == NULL &&
       pairingheap_is_singular(&RegisteredSnapshots))
@@ -478,6 +493,8 @@ InvalidateCatalogSnapshotConditionally(void)
 void
 SnapshotSetCommandId(CommandId curcid)
 {
+  DBUG_TRACE;
+
   if (!FirstSnapshotSet)
     return;
 
@@ -502,9 +519,11 @@ static void
 SetTransactionSnapshot(Snapshot sourcesnap, VirtualTransactionId *sourcevxid,
                        int sourcepid, PGPROC *sourceproc)
 {
+  DBUG_TRACE;
   /* Caller should have checked this already */
   Assert(!FirstSnapshotSet);
 
+  DBUG_PRINT("info", "set the transaction's snapshot from an imported MVCC snapshot");
   /* Better do this to ensure following Assert succeeds. */
   InvalidateCatalogSnapshot();
 
@@ -557,17 +576,21 @@ SetTransactionSnapshot(Snapshot sourcesnap, VirtualTransactionId *sourcevxid,
    * especially since it's not clear that predicate.c *must* do this.
    */
   if (sourceproc != NULL) {
-    if (!ProcArrayInstallRestoredXmin(CurrentSnapshot->xmin, sourceproc))
+    if (!ProcArrayInstallRestoredXmin(CurrentSnapshot->xmin, sourceproc)) {
+      DBUG_INSTANT_PRINT("info", "could not import the requested snapshot");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("could not import the requested snapshot"),
                errdetail("The source transaction is not running anymore.")));
-  } else if (!ProcArrayInstallImportedXmin(CurrentSnapshot->xmin, sourcevxid))
+    }
+  } else if (!ProcArrayInstallImportedXmin(CurrentSnapshot->xmin, sourcevxid)) {
+    DBUG_INSTANT_PRINT("info", "could not import the requested snapshot");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("could not import the requested snapshot"),
              errdetail("The source process with PID %d is not running anymore.",
                        sourcepid)));
+  }
 
   /*
    * In transaction-snapshot mode, the first snapshot must live until end of
@@ -600,12 +623,15 @@ SetTransactionSnapshot(Snapshot sourcesnap, VirtualTransactionId *sourcevxid,
 static Snapshot
 CopySnapshot(Snapshot snapshot)
 {
+  DBUG_TRACE;
   Snapshot  newsnap;
   Size    subxipoff;
   Size    size;
 
   Assert(snapshot != InvalidSnapshot);
 
+  DBUG_PRINT("info", "copy the given snapshot");
+  DBUG_PRINT("info", "snapshot cnt:%u, xmin:%u, xmax:%u", snapshot->xcnt, snapshot->xmin, snapshot->xmax);
   /* We allocate any XID arrays needed in the same palloc block. */
   size = subxipoff = sizeof(SnapshotData) +
                      snapshot->xcnt * sizeof(TransactionId);
@@ -766,6 +792,7 @@ UpdateActiveSnapshotCommandId(void)
 void
 PopActiveSnapshot(void)
 {
+  DBUG_TRACE;
   ActiveSnapshotElt *newstack;
 
   newstack = ActiveSnapshot->as_next;
@@ -928,12 +955,16 @@ xmin_cmp(const pairingheap_node *a, const pairingheap_node *b, void *arg)
 static void
 SnapshotResetXmin(void)
 {
+  DBUG_TRACE;
   Snapshot  minSnapshot;
 
-  if (ActiveSnapshot != NULL)
+  if (ActiveSnapshot != NULL) {
+    DBUG_PRINT("info", "ActiveSnapshot is not null, returning");
     return;
+  }
 
   if (pairingheap_is_empty(&RegisteredSnapshots)) {
+    DBUG_PRINT("info", "reset our MyProc->xmin and TransactionXmin to InvalidTransactionId");
     MyProc->xmin = TransactionXmin = InvalidTransactionId;
     return;
   }
@@ -941,8 +972,10 @@ SnapshotResetXmin(void)
   minSnapshot = pairingheap_container(SnapshotData, ph_node,
                                       pairingheap_first(&RegisteredSnapshots));
 
-  if (TransactionIdPrecedes(MyProc->xmin, minSnapshot->xmin))
+  if (TransactionIdPrecedes(MyProc->xmin, minSnapshot->xmin)) {
     MyProc->xmin = TransactionXmin = minSnapshot->xmin;
+    DBUG_PRINT("info", "reset our MyProc->xmin and TransactionXmin to minSnapshot->xmin:%u", MyProc->xmin);
+  }
 }
 
 /*
@@ -951,6 +984,7 @@ SnapshotResetXmin(void)
 void
 AtSubCommit_Snapshot(int level)
 {
+  DBUG_TRACE;
   ActiveSnapshotElt *active;
 
   /*
@@ -972,6 +1006,9 @@ AtSubCommit_Snapshot(int level)
 void
 AtSubAbort_Snapshot(int level)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "clean up snapshots after a subtransaction abort");
+
   /* Forget the active snapshots set by this subtransaction */
   while (ActiveSnapshot && ActiveSnapshot->as_level >= level) {
     ActiveSnapshotElt *next;
@@ -1005,6 +1042,8 @@ AtSubAbort_Snapshot(int level)
 void
 AtEOXact_Snapshot(bool isCommit, bool resetXmin)
 {
+  DBUG_TRACE;
+
   /*
    * In transaction-snapshot mode we must release our privately-managed
    * reference to the transaction snapshot.  We must remove it from
@@ -1101,6 +1140,7 @@ AtEOXact_Snapshot(bool isCommit, bool resetXmin)
 char *
 ExportSnapshot(Snapshot snapshot)
 {
+  DBUG_TRACE;
   TransactionId topXid;
   TransactionId *children;
   ExportedSnapshot *esnap;
@@ -1137,10 +1177,12 @@ ExportSnapshot(Snapshot snapshot)
    * easy way for importers to verify that the same subtransaction is still
    * running.
    */
-  if (IsSubTransaction())
+  if (IsSubTransaction()) {
+    DBUG_INSTANT_PRINT("info", "cannot export a snapshot from a subtransaction");
     ereport(ERROR,
             (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
              errmsg("cannot export a snapshot from a subtransaction")));
+  }
 
   /*
    * We do however allow previous committed subtransactions to exist.
@@ -1240,32 +1282,40 @@ ExportSnapshot(Snapshot snapshot)
    */
   snprintf(pathtmp, sizeof(pathtmp), "%s.tmp", path);
 
-  if (!(f = AllocateFile(pathtmp, PG_BINARY_W)))
+  if (!(f = AllocateFile(pathtmp, PG_BINARY_W))) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", pathtmp);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m", pathtmp)));
+  }
 
-  if (fwrite(buf.data, buf.len, 1, f) != 1)
+  if (fwrite(buf.data, buf.len, 1, f) != 1) {
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", pathtmp);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", pathtmp)));
+  }
 
   /* no fsync() since file need not survive a system crash */
 
-  if (FreeFile(f))
+  if (FreeFile(f)) {
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", pathtmp);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", pathtmp)));
+  }
 
   /*
    * Now that we have written everything into a .tmp file, rename the file
    * to remove the .tmp suffix.
    */
-  if (rename(pathtmp, path) < 0)
+  if (rename(pathtmp, path) < 0) {
+    DBUG_INSTANT_PRINT("info", "could not rename file \"%s\" to \"%s\"", pathtmp, path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not rename file \"%s\" to \"%s\": %m",
                     pathtmp, path)));
+  }
 
   /*
    * The basename of the file is what we return from pg_export_snapshot().
@@ -1283,6 +1333,7 @@ ExportSnapshot(Snapshot snapshot)
 Datum
 pg_export_snapshot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *snapshotName;
 
   snapshotName = ExportSnapshot(GetActiveSnapshot());
@@ -1298,28 +1349,35 @@ pg_export_snapshot(PG_FUNCTION_ARGS)
 static int
 parseIntFromText(const char *prefix, char **s, const char *filename)
 {
+  DBUG_TRACE;
   char     *ptr = *s;
   int     prefixlen = strlen(prefix);
   int     val;
 
-  if (strncmp(ptr, prefix, prefixlen) != 0)
+  if (strncmp(ptr, prefix, prefixlen) != 0) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr += prefixlen;
 
-  if (sscanf(ptr, "%d", &val) != 1)
+  if (sscanf(ptr, "%d", &val) != 1) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr = strchr(ptr, '\n');
 
-  if (!ptr)
+  if (!ptr) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   *s = ptr + 1;
   return val;
@@ -1332,24 +1390,30 @@ parseXidFromText(const char *prefix, char **s, const char *filename)
   int     prefixlen = strlen(prefix);
   TransactionId val;
 
-  if (strncmp(ptr, prefix, prefixlen) != 0)
+  if (strncmp(ptr, prefix, prefixlen) != 0) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr += prefixlen;
 
-  if (sscanf(ptr, "%u", &val) != 1)
+  if (sscanf(ptr, "%u", &val) != 1) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr = strchr(ptr, '\n');
 
-  if (!ptr)
+  if (!ptr) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   *s = ptr + 1;
   return val;
@@ -1362,24 +1426,30 @@ parseVxidFromText(const char *prefix, char **s, const char *filename,
   char     *ptr = *s;
   int     prefixlen = strlen(prefix);
 
-  if (strncmp(ptr, prefix, prefixlen) != 0)
+  if (strncmp(ptr, prefix, prefixlen) != 0) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr += prefixlen;
 
-  if (sscanf(ptr, "%d/%u", &vxid->procNumber, &vxid->localTransactionId) != 2)
+  if (sscanf(ptr, "%d/%u", &vxid->procNumber, &vxid->localTransactionId) != 2) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   ptr = strchr(ptr, '\n');
 
-  if (!ptr)
+  if (!ptr) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", filename);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", filename)));
+  }
 
   *s = ptr + 1;
 }
@@ -1393,6 +1463,7 @@ parseVxidFromText(const char *prefix, char **s, const char *filename,
 void
 ImportSnapshot(const char *idstr)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   FILE     *f;
   struct stat stat_buf;
@@ -1414,28 +1485,34 @@ ImportSnapshot(const char *idstr)
    */
   if (FirstSnapshotSet ||
       GetTopTransactionIdIfAny() != InvalidTransactionId ||
-      IsSubTransaction())
+      IsSubTransaction()) {
+    DBUG_INSTANT_PRINT("info", "SET TRANSACTION SNAPSHOT must be called before any query");
     ereport(ERROR,
             (errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
              errmsg("SET TRANSACTION SNAPSHOT must be called before any query")));
+  }
 
   /*
    * If we are in read committed mode then the next query would execute with
    * a new snapshot thus making this function call quite useless.
    */
-  if (!IsolationUsesXactSnapshot())
+  if (!IsolationUsesXactSnapshot()) {
+    DBUG_INSTANT_PRINT("info", "a snapshot-importing transaction must have isolation level SERIALIZABLE or REPEATABLE READ");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("a snapshot-importing transaction must have isolation level SERIALIZABLE or REPEATABLE READ")));
+  }
 
   /*
    * Verify the identifier: only 0-9, A-F and hyphens are allowed.  We do
    * this mainly to prevent reading arbitrary files.
    */
-  if (strspn(idstr, "0123456789ABCDEF-") != strlen(idstr))
+  if (strspn(idstr, "0123456789ABCDEF-") != strlen(idstr)) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot identifier: \"%s\"", idstr);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid snapshot identifier: \"%s\"", idstr)));
+  }
 
   /* OK, read the file */
   snprintf(path, MAXPGPATH, SNAPSHOT_EXPORT_DIR "/%s", idstr);
@@ -1447,26 +1524,33 @@ ImportSnapshot(const char *idstr)
      * If file is missing while identifier has a correct format, avoid
      * system errors.
      */
-    if (errno == ENOENT)
+    if (errno == ENOENT) {
+      DBUG_INSTANT_PRINT("info", "snapshot \"%s\" does not exist", idstr);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("snapshot \"%s\" does not exist", idstr)));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "could not open file \"%s\" for reading", path);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not open file \"%s\" for reading: %m",
                       path)));
+    }
   }
 
   /* get the size of the file so that we know how much memory we need */
-  if (fstat(fileno(f), &stat_buf))
+  if (fstat(fileno(f), &stat_buf)) {
+    DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", path);
     elog(ERROR, "could not stat file \"%s\": %m", path);
+  }
 
   /* and read the file into a palloc'd string */
   filebuf = (char *) palloc(stat_buf.st_size + 1);
 
-  if (fread(filebuf, stat_buf.st_size, 1, f) != 1)
+  if (fread(filebuf, stat_buf.st_size, 1, f) != 1) {
+    DBUG_INSTANT_PRINT("info", "could not read file \"%s\"", path);
     elog(ERROR, "could not read file \"%s\": %m", path);
+  }
 
   filebuf[stat_buf.st_size] = '\0';
 
@@ -1492,10 +1576,12 @@ ImportSnapshot(const char *idstr)
   snapshot.xcnt = xcnt = parseIntFromText("xcnt:", &filebuf, path);
 
   /* sanity-check the xid count before palloc */
-  if (xcnt < 0 || xcnt > GetMaxSnapshotXidCount())
+  if (xcnt < 0 || xcnt > GetMaxSnapshotXidCount()) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", path);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", path)));
+  }
 
   snapshot.xip = (TransactionId *) palloc(xcnt * sizeof(TransactionId));
 
@@ -1508,10 +1594,12 @@ ImportSnapshot(const char *idstr)
     snapshot.subxcnt = xcnt = parseIntFromText("sxcnt:", &filebuf, path);
 
     /* sanity-check the xid count before palloc */
-    if (xcnt < 0 || xcnt > GetMaxSnapshotSubxidCount())
+    if (xcnt < 0 || xcnt > GetMaxSnapshotSubxidCount()) {
+      DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", path);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
                errmsg("invalid snapshot data in file \"%s\"", path)));
+    }
 
     snapshot.subxip = (TransactionId *) palloc(xcnt * sizeof(TransactionId));
 
@@ -1532,10 +1620,12 @@ ImportSnapshot(const char *idstr)
   if (!VirtualTransactionIdIsValid(src_vxid) ||
       !OidIsValid(src_dbid) ||
       !TransactionIdIsNormal(snapshot.xmin) ||
-      !TransactionIdIsNormal(snapshot.xmax))
+      !TransactionIdIsNormal(snapshot.xmax)) {
+    DBUG_INSTANT_PRINT("info", "invalid snapshot data in file \"%s\"", path);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
              errmsg("invalid snapshot data in file \"%s\"", path)));
+  }
 
   /*
    * If we're serializable, the source transaction must be too, otherwise
@@ -1544,15 +1634,19 @@ ImportSnapshot(const char *idstr)
    * transaction, as predicate.c handles the cases very differently.
    */
   if (IsolationIsSerializable()) {
-    if (src_isolevel != XACT_SERIALIZABLE)
+    if (src_isolevel != XACT_SERIALIZABLE) {
+      DBUG_INSTANT_PRINT("info", "a serializable transaction cannot import a snapshot from a non-serializable transaction");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("a serializable transaction cannot import a snapshot from a non-serializable transaction")));
+    }
 
-    if (src_readonly && !XactReadOnly)
+    if (src_readonly && !XactReadOnly) {
+      DBUG_INSTANT_PRINT("info", "a non-read-only serializable transaction cannot import a snapshot from a read-only transaction");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("a non-read-only serializable transaction cannot import a snapshot from a read-only transaction")));
+    }
   }
 
   /*
@@ -1564,12 +1658,15 @@ ImportSnapshot(const char *idstr)
    * additional syntax, since that has to be known when the snapshot is
    * initially taken.  (See pgsql-hackers discussion of 2011-10-21.)
    */
-  if (src_dbid != MyDatabaseId)
+  if (src_dbid != MyDatabaseId) {
+    DBUG_INSTANT_PRINT("info", "cannot import a snapshot from a different database");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot import a snapshot from a different database")));
+  }
 
   /* OK, install the snapshot */
+  DBUG_PRINT("info", "OK, install the snapshot");
   SetTransactionSnapshot(&snapshot, &src_vxid, src_pid, NULL);
 }
 
@@ -1593,6 +1690,7 @@ XactHasExportedSnapshots(void)
 void
 DeleteAllExportedSnapshotFiles(void)
 {
+  DBUG_TRACE;
   char    buf[MAXPGPATH + sizeof(SNAPSHOT_EXPORT_DIR)];
   DIR      *s_dir;
   struct dirent *s_de;
@@ -1611,10 +1709,12 @@ DeleteAllExportedSnapshotFiles(void)
 
     snprintf(buf, sizeof(buf), SNAPSHOT_EXPORT_DIR "/%s", s_de->d_name);
 
-    if (unlink(buf) != 0)
+    if (unlink(buf) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not remove file \"%s\"", buf);
       ereport(LOG,
               (errcode_for_file_access(),
                errmsg("could not remove file \"%s\": %m", buf)));
+    }
   }
 
   FreeDir(s_dir);
@@ -1717,6 +1817,7 @@ HistoricSnapshotGetTupleCids(void)
 Size
 EstimateSnapshotSpace(Snapshot snapshot)
 {
+  DBUG_TRACE;
   Size    size;
 
   Assert(snapshot != InvalidSnapshot);
@@ -1742,8 +1843,10 @@ EstimateSnapshotSpace(Snapshot snapshot)
 void
 SerializeSnapshot(Snapshot snapshot, char *start_address)
 {
+  DBUG_TRACE;
   SerializedSnapshotData serialized_snapshot;
 
+  DBUG_PRINT("info", "dump the serialized snapshot onto the memory location at start_address");
   Assert(snapshot->subxcnt >= 0);
 
   /* Copy all required fields */
@@ -1768,6 +1871,8 @@ SerializeSnapshot(Snapshot snapshot, char *start_address)
          &serialized_snapshot, sizeof(SerializedSnapshotData));
 
   /* Copy XID array */
+  DBUG_PRINT("info", "copy XID array");
+
   if (snapshot->xcnt > 0)
     memcpy((TransactionId *) (start_address +
                               sizeof(SerializedSnapshotData)),
@@ -1783,6 +1888,7 @@ SerializeSnapshot(Snapshot snapshot, char *start_address)
     Size    subxipoff = sizeof(SerializedSnapshotData) +
                         snapshot->xcnt * sizeof(TransactionId);
 
+    DBUG_PRINT("info", "copy SubXID array");
     memcpy((TransactionId *) (start_address + subxipoff),
            snapshot->subxip, snapshot->subxcnt * sizeof(TransactionId));
   }
@@ -1798,11 +1904,13 @@ SerializeSnapshot(Snapshot snapshot, char *start_address)
 Snapshot
 RestoreSnapshot(char *start_address)
 {
+  DBUG_TRACE;
   SerializedSnapshotData serialized_snapshot;
   Size    size;
   Snapshot  snapshot;
   TransactionId *serialized_xids;
 
+  DBUG_PRINT("info", "restore a serialized snapshot from the specified address");
   memcpy(&serialized_snapshot, start_address,
          sizeof(SerializedSnapshotData));
   serialized_xids = (TransactionId *)
@@ -1829,6 +1937,7 @@ RestoreSnapshot(char *start_address)
 
   /* Copy XIDs, if present. */
   if (serialized_snapshot.xcnt > 0) {
+    DBUG_PRINT("info", "copy XIDs");
     snapshot->xip = (TransactionId *) (snapshot + 1);
     memcpy(snapshot->xip, serialized_xids,
            serialized_snapshot.xcnt * sizeof(TransactionId));
@@ -1836,6 +1945,7 @@ RestoreSnapshot(char *start_address)
 
   /* Copy SubXIDs, if present. */
   if (serialized_snapshot.subxcnt > 0) {
+    DBUG_PRINT("info", "copy SubXIDs");
     snapshot->subxip = ((TransactionId *) (snapshot + 1)) +
                        serialized_snapshot.xcnt;
     memcpy(snapshot->subxip, serialized_xids + serialized_snapshot.xcnt,
@@ -1859,6 +1969,7 @@ RestoreSnapshot(char *start_address)
 void
 RestoreTransactionSnapshot(Snapshot snapshot, void *source_pgproc)
 {
+  DBUG_TRACE;
   SetTransactionSnapshot(snapshot, NULL, InvalidPid, source_pgproc);
 }
 
@@ -1875,6 +1986,7 @@ RestoreTransactionSnapshot(Snapshot snapshot, void *source_pgproc)
 bool
 XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
 {
+  DBUG_TRACE;
   /*
    * Make a quick range check to eliminate most XIDs without looking at the
    * xip arrays.  Note that this is OK even if we convert a subxact XID to
@@ -1884,12 +1996,16 @@ XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
    */
 
   /* Any xid < xmin is not in-progress */
-  if (TransactionIdPrecedes(xid, snapshot->xmin))
+  if (TransactionIdPrecedes(xid, snapshot->xmin)) {
+    DBUG_PRINT("info", "xid(%u) < xmin(%u) is not in-progress, return false", xid, snapshot->xmin);
     return false;
+  }
 
   /* Any xid >= xmax is in-progress */
-  if (TransactionIdFollowsOrEquals(xid, snapshot->xmax))
+  if (TransactionIdFollowsOrEquals(xid, snapshot->xmax)) {
+    DBUG_PRINT("info", "xid(%u) >= xmax(%u) is in-progress, return true", xid, snapshot->xmax);
     return true;
+  }
 
   /*
    * Snapshot information is stored slightly differently in snapshots taken
@@ -1905,8 +2021,10 @@ XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
      */
     if (!snapshot->suboverflowed) {
       /* we have full data, so search subxip */
-      if (pg_lfind32(xid, snapshot->subxip, snapshot->subxcnt))
+      if (pg_lfind32(xid, snapshot->subxip, snapshot->subxcnt)) {
+        DBUG_PRINT("info", "we have full data, so search subxip(xid:%u), return true", xid);
         return true;
+      }
 
       /* not there, fall through to search xip[] */
     } else {
@@ -1921,12 +2039,16 @@ XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
        * so recheck to avoid an array scan.  No point in rechecking
        * xmax.
        */
-      if (TransactionIdPrecedes(xid, snapshot->xmin))
+      if (TransactionIdPrecedes(xid, snapshot->xmin)) {
+        DBUG_PRINT("info", "we might now have an xid(%u) < xmin(%u), return false", xid, snapshot->xmin);
         return false;
+      }
     }
 
-    if (pg_lfind32(xid, snapshot->xip, snapshot->xcnt))
+    if (pg_lfind32(xid, snapshot->xip, snapshot->xcnt)) {
+      DBUG_PRINT("info", "we have full data, so search xip(xid:%u), return true", xid);
       return true;
+    }
   } else {
     /*
      * In recovery we store all xids in the subxip array because it is by
@@ -1947,8 +2069,10 @@ XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
        * so recheck to avoid an array scan.  No point in rechecking
        * xmax.
        */
-      if (TransactionIdPrecedes(xid, snapshot->xmin))
+      if (TransactionIdPrecedes(xid, snapshot->xmin)) {
+        DBUG_PRINT("info", "we might now have an xid(%u) < xmin(%u), return false", xid, snapshot->xmin);
         return false;
+      }
     }
 
     /*
@@ -1956,10 +2080,13 @@ XidInMVCCSnapshot(TransactionId xid, Snapshot snapshot)
      * indeterminate xid. We don't know whether it's top level or subxact
      * but it doesn't matter. If it's present, the xid is visible.
      */
-    if (pg_lfind32(xid, snapshot->subxip, snapshot->subxcnt))
+    if (pg_lfind32(xid, snapshot->subxip, snapshot->subxcnt)) {
+      DBUG_PRINT("info", "We now have either a top-level xid(%u) higher than xmin or an indeterminate xid. return true", xid);
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "reach over, return false");
   return false;
 }
 

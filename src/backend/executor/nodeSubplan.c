@@ -25,6 +25,7 @@
  *    ExecInitSubPlan - initialize a subselect
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -63,6 +64,7 @@ ExecSubPlan(SubPlanState *node,
             ExprContext *econtext,
             bool *isNull)
 {
+  DBUG_TRACE;
   SubPlan    *subplan = node->subplan;
   EState     *estate = node->planstate->state;
   ScanDirection dir = estate->es_direction;
@@ -206,6 +208,7 @@ ExecScanSubPlan(SubPlanState *node,
                 ExprContext *econtext,
                 bool *isNull)
 {
+  DBUG_TRACE;
   SubPlan    *subplan = node->subplan;
   PlanState  *planstate = node->planstate;
   SubLinkType subLinkType = subplan->subLinkType;
@@ -461,6 +464,7 @@ ExecScanSubPlan(SubPlanState *node,
 static void
 buildSubPlanHash(SubPlanState *node, ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubPlan    *subplan = node->subplan;
   PlanState  *planstate = node->planstate;
   int     ncols = node->numCols;
@@ -643,6 +647,7 @@ execTuplesUnequal(TupleTableSlot *slot1,
                   const Oid *collations,
                   MemoryContext evalContext)
 {
+  DBUG_TRACE;
   MemoryContext oldContext;
   bool    result;
   int     i;
@@ -705,6 +710,7 @@ static bool
 findPartialMatch(TupleHashTable hashtable, TupleTableSlot *slot,
                  FmgrInfo *eqfunctions)
 {
+  DBUG_TRACE;
   int     numCols = hashtable->numCols;
   AttrNumber *keyColIdx = hashtable->keyColIdx;
   TupleHashIterator hashiter;
@@ -788,6 +794,7 @@ slotNoNulls(TupleTableSlot *slot)
 SubPlanState *
 ExecInitSubPlan(SubPlan *subplan, PlanState *parent)
 {
+  DBUG_TRACE;
   SubPlanState *sstate = makeNode(SubPlanState);
   EState     *estate = parent->state;
 
@@ -1057,6 +1064,7 @@ ExecInitSubPlan(SubPlan *subplan, PlanState *parent)
 void
 ExecSetParamPlan(SubPlanState *node, ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubPlan    *subplan = node->subplan;
   PlanState  *planstate = node->planstate;
   SubLinkType subLinkType = subplan->subLinkType;
@@ -1226,6 +1234,7 @@ ExecSetParamPlan(SubPlanState *node, ExprContext *econtext)
 void
 ExecSetParamPlanMulti(const Bitmapset *params, ExprContext *econtext)
 {
+  DBUG_TRACE;
   int     paramid;
 
   paramid = -1;
@@ -1248,6 +1257,7 @@ ExecSetParamPlanMulti(const Bitmapset *params, ExprContext *econtext)
 void
 ExecReScanSetParamPlan(SubPlanState *node, PlanState *parent)
 {
+  DBUG_TRACE;
   PlanState  *planstate = node->planstate;
   SubPlan    *subplan = node->subplan;
   EState     *estate = parent->state;

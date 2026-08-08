@@ -22,6 +22,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/transam.h"
 #include "catalog/dependency.h"
@@ -88,6 +89,7 @@ InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 InitializeShippableCache(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   /* Create the hash table. */
@@ -96,6 +98,7 @@ InitializeShippableCache(void)
   ShippableCacheHash =
     hash_create("Shippability cache", 256, &ctl, HASH_ELEM | HASH_BLOBS);
 
+  DBUG_PRINT("fdw", "set up invalidation callback on pg_foreign_server");
   /* Set up invalidation callback on pg_foreign_server. */
   CacheRegisterSyscacheCallback(FOREIGNSERVEROID,
                                 InvalidateShippableCacheCallback,
@@ -113,6 +116,7 @@ InitializeShippableCache(void)
 static bool
 lookup_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 {
+  DBUG_TRACE;
   Oid     extensionOid;
 
   /*
@@ -123,9 +127,12 @@ lookup_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 
   /* If so, is that extension in fpinfo->shippable_extensions? */
   if (OidIsValid(extensionOid) &&
-      list_member_oid(fpinfo->shippable_extensions, extensionOid))
+      list_member_oid(fpinfo->shippable_extensions, extensionOid)) {
+    DBUG_PRINT("fdw", "given object (operator/function/type) is shippable according to the server options");
     return true;
+  }
 
+  DBUG_PRINT("fdw", "it is not shippable");
   return false;
 }
 
@@ -159,16 +166,22 @@ is_builtin(Oid objectId)
 bool
 is_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 {
+  DBUG_TRACE;
   ShippableCacheKey key;
   ShippableCacheEntry *entry;
 
   /* Built-in objects are presumed shippable. */
-  if (is_builtin(objectId))
+  if (is_builtin(objectId)) {
+    DBUG_PRINT("fdw", "built-in objects are presumed shippable");
     return true;
+  }
 
   /* Otherwise, give up if user hasn't specified any shippable extensions. */
-  if (fpinfo->shippable_extensions == NIL)
+  if (fpinfo->shippable_extensions == NIL) {
+    DBUG_PRINT("fdw", "user hasn't specified any shippable extensions");
+    DBUG_PRINT("fdw", "give up");
     return false;
+  }
 
   /* Initialize cache if first time through. */
   if (!ShippableCacheHash)
@@ -196,6 +209,12 @@ is_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
             hash_search(ShippableCacheHash, &key, HASH_ENTER, NULL);
 
     entry->shippable = shippable;
+  }
+
+  if (entry->shippable) {
+    DBUG_PRINT("fdw", "it is shippable");
+  } else {
+    DBUG_PRINT("fdw", "it is not shippable");
   }
 
   return entry->shippable;

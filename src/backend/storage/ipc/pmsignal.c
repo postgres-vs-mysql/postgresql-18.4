@@ -143,6 +143,7 @@ PMSignalShmemSize(void)
 void
 PMSignalShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   PMSignalState = (PMSignalData *)
@@ -162,13 +163,18 @@ PMSignalShmemInit(void)
 void
 SendPostmasterSignal(PMSignalReason reason)
 {
+  DBUG_TRACE;
+
   /* If called in a standalone backend, do nothing */
-  if (!IsUnderPostmaster)
+  if (!IsUnderPostmaster) {
+    DBUG_PRINT("info", "if called in a standalone backend, do nothing");
     return;
+  }
 
   /* Atomically set the proper flag */
   PMSignalState->PMSignalFlags[reason] = true;
   /* Send signal to postmaster */
+  DBUG_PRINT("info", "send signal to postmaster");
   kill(PostmasterPid, SIGUSR1);
 }
 
@@ -180,6 +186,8 @@ SendPostmasterSignal(PMSignalReason reason)
 bool
 CheckPostmasterSignal(PMSignalReason reason)
 {
+  DBUG_TRACE;
+
   /* Careful here --- don't clear flag if we haven't seen it set */
   if (PMSignalState->PMSignalFlags[reason]) {
     PMSignalState->PMSignalFlags[reason] = false;
@@ -211,6 +219,8 @@ SetQuitSignalReason(QuitSignalReason reason)
 QuitSignalReason
 GetQuitSignalReason(void)
 {
+  DBUG_TRACE;
+
   /* This is called in signal handlers, so be extra paranoid. */
   if (!IsUnderPostmaster || PMSignalState == NULL)
     return PMQUIT_NOT_SENT;
@@ -248,6 +258,7 @@ MarkPostmasterChildSlotAssigned(int slot)
 bool
 MarkPostmasterChildSlotUnassigned(int slot)
 {
+  DBUG_TRACE;
   bool    result;
 
   Assert(slot > 0 && slot <= num_child_flags);
@@ -270,13 +281,17 @@ MarkPostmasterChildSlotUnassigned(int slot)
 bool
 IsPostmasterChildWalSender(int slot)
 {
+  DBUG_TRACE;
   Assert(slot > 0 && slot <= num_child_flags);
   slot--;
 
-  if (PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER)
+  if (PMSignalState->PMChildFlags[slot] == PM_CHILD_WALSENDER) {
+    DBUG_PRINT("info", "result: true");
     return true;
-  else
+  } else {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 }
 
 /*
@@ -406,6 +421,7 @@ PostmasterIsAliveInternal(void)
 void
 PostmasterDeathSignalInit(void)
 {
+  DBUG_TRACE;
 #ifdef USE_POSTMASTER_DEATH_SIGNAL
   int     signum = POSTMASTER_DEATH_SIGNAL;
 

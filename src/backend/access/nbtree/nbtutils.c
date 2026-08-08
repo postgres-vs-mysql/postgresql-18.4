@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <time.h>
 
@@ -92,6 +93,7 @@ static int  _bt_keep_natts(Relation rel, IndexTuple lastleft,
 BTScanInsert
 _bt_mkscankey(Relation rel, IndexTuple itup)
 {
+  DBUG_TRACE;
   BTScanInsert key;
   ScanKey   skey;
   TupleDesc itupdesc;
@@ -216,6 +218,7 @@ _bt_compare_array_skey(FmgrInfo *orderproc,
                        Datum tupdatum, bool tupnull,
                        Datum arrdatum, ScanKey cur)
 {
+  DBUG_TRACE;
   int32   result = 0;
 
   Assert(cur->sk_strategy == BTEqualStrategyNumber);
@@ -254,6 +257,7 @@ _bt_compare_array_skey(FmgrInfo *orderproc,
       INVERT_COMPARE_RESULT(result);
   }
 
+  DBUG_PRINT("info", "result:%d", result);
   return result;
 }
 
@@ -284,6 +288,7 @@ _bt_binsrch_array_skey(FmgrInfo *orderproc,
                        BTArrayKeyInfo *array, ScanKey cur,
                        int32 *set_elem_result)
 {
+  DBUG_TRACE;
   int     low_elem = 0,
           mid_elem = -1,
           high_elem = array->num_elems - 1,
@@ -429,6 +434,7 @@ _bt_binsrch_skiparray_skey(bool cur_elem_trig, ScanDirection dir,
                            BTArrayKeyInfo *array, ScanKey cur,
                            int32 *set_elem_result)
 {
+  DBUG_TRACE;
   Assert(cur->sk_flags & SK_BT_SKIP);
   Assert(cur->sk_flags & SK_SEARCHARRAY);
   Assert(cur->sk_flags & SK_BT_REQFWD);
@@ -532,6 +538,7 @@ static void
 _bt_skiparray_set_element(Relation rel, ScanKey skey, BTArrayKeyInfo *array,
                           int32 set_elem_result, Datum tupdatum, bool tupnull)
 {
+  DBUG_TRACE;
   Assert(skey->sk_flags & SK_BT_SKIP);
   Assert(skey->sk_flags & SK_SEARCHARRAY);
 
@@ -566,6 +573,7 @@ _bt_skiparray_set_element(Relation rel, ScanKey skey, BTArrayKeyInfo *array,
 static void
 _bt_skiparray_set_isnull(Relation rel, ScanKey skey, BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   Assert(skey->sk_flags & SK_BT_SKIP);
   Assert(skey->sk_flags & SK_SEARCHARRAY);
   Assert(array->null_elem && !array->low_compare && !array->high_compare);
@@ -590,6 +598,7 @@ _bt_skiparray_set_isnull(Relation rel, ScanKey skey, BTArrayKeyInfo *array)
 void
 _bt_start_array_keys(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
@@ -619,6 +628,7 @@ static void
 _bt_array_set_low_or_high(Relation rel, ScanKey skey, BTArrayKeyInfo *array,
                           bool low_not_high)
 {
+  DBUG_TRACE;
   Assert(skey->sk_flags & SK_SEARCHARRAY);
 
   if (array->num_elems != -1) {
@@ -676,6 +686,7 @@ _bt_array_set_low_or_high(Relation rel, ScanKey skey, BTArrayKeyInfo *array,
 static bool
 _bt_array_decrement(Relation rel, ScanKey skey, BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   bool    uflow = false;
   Datum   dec_sk_argument;
 
@@ -805,6 +816,7 @@ _bt_array_decrement(Relation rel, ScanKey skey, BTArrayKeyInfo *array)
 static bool
 _bt_array_increment(Relation rel, ScanKey skey, BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   bool    oflow = false;
   Datum   inc_sk_argument;
 
@@ -941,6 +953,7 @@ static bool
 _bt_advance_array_keys_increment(IndexScanDesc scan, ScanDirection dir,
                                  bool *skip_array_set)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
@@ -1043,6 +1056,7 @@ _bt_tuple_before_array_skeys(IndexScanDesc scan, ScanDirection dir,
                              IndexTuple tuple, TupleDesc tupdesc, int tupnatts,
                              bool readpagetup, int sktrig, bool *scanBehind)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   Assert(so->numArrayKeys);
@@ -1223,6 +1237,7 @@ _bt_tuple_before_array_skeys(IndexScanDesc scan, ScanDirection dir,
 bool
 _bt_start_prim_scan(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   Assert(so->numArrayKeys);
@@ -1343,6 +1358,7 @@ _bt_advance_array_keys(IndexScanDesc scan, BTReadPageState *pstate,
                        IndexTuple tuple, int tupnatts, TupleDesc tupdesc,
                        int sktrig, bool sktrig_required)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   ScanDirection dir = so->currPos.dir;
@@ -1994,6 +2010,7 @@ end_toplevel_scan:
 static bool
 _bt_verify_keys_with_arraykeys(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   int     last_sk_attno = InvalidAttrNumber,
           arrayidx = 0;
@@ -2073,6 +2090,7 @@ bool
 _bt_checkkeys(IndexScanDesc scan, BTReadPageState *pstate, bool arrayKeys,
               IndexTuple tuple, int tupnatts)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = RelationGetDescr(scan->indexRelation);
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   ScanDirection dir = so->currPos.dir;
@@ -2202,6 +2220,7 @@ bool
 _bt_scanbehind_checkkeys(IndexScanDesc scan, ScanDirection dir,
                          IndexTuple finaltup)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   TupleDesc tupdesc = RelationGetDescr(rel);
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
@@ -2257,6 +2276,7 @@ static bool
 _bt_oppodir_checkkeys(IndexScanDesc scan, ScanDirection dir,
                       IndexTuple finaltup)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   TupleDesc tupdesc = RelationGetDescr(rel);
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
@@ -2314,6 +2334,7 @@ _bt_oppodir_checkkeys(IndexScanDesc scan, ScanDirection dir,
 void
 _bt_set_startikey(IndexScanDesc scan, BTReadPageState *pstate)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   TupleDesc tupdesc = RelationGetDescr(rel);
@@ -2625,6 +2646,7 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
                   bool advancenonrequired, bool forcenonrequired,
                   bool *continuescan, int *ikey)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   *continuescan = true;   /* default assumption */
@@ -2676,11 +2698,21 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
        * treating the scan's keys as nonrequired, though.  Just handle
        * this like any other non-required equality-type array key.
        */
-      if (forcenonrequired)
-        return _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
-                                      tupdesc, *ikey, false);
+      if (forcenonrequired) {
+        bool result = _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
+                                             tupdesc, *ikey, false);
+
+        if (result) {
+          DBUG_PRINT("info", "the tuple passes all index quals");
+        } else {
+          DBUG_PRINT("info", "this tuple does match the qual");
+        }
+
+        return result;
+      }
 
       *continuescan = false;
+      DBUG_PRINT("info", "this indextuple doesn't match the qual");
       return false;
     }
 
@@ -2690,6 +2722,7 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
                                forcenonrequired, continuescan))
         continue;
 
+      DBUG_PRINT("info", "this indextuple doesn't match the qual");
       return false;
     }
 
@@ -2732,6 +2765,7 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
       /*
        * This indextuple doesn't match the qual.
        */
+      DBUG_PRINT("info", "this indextuple doesn't match the qual");
       return false;
     }
 
@@ -2743,9 +2777,18 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
        * skip array, then we must attempt to advance the array to NULL
        * (if we're successful then the tuple might match the qual).
        */
-      if (unlikely(forcenonrequired && key->sk_flags & SK_BT_SKIP))
-        return _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
-                                      tupdesc, *ikey, false);
+      if (unlikely(forcenonrequired && key->sk_flags & SK_BT_SKIP)) {
+        bool result = _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
+                                             tupdesc, *ikey, false);
+
+        if (result) {
+          DBUG_PRINT("info", "the tuple passes all index quals");
+        } else {
+          DBUG_PRINT("info", "this tuple does match the qual");
+        }
+
+        return result;
+      }
 
       if (key->sk_flags & SK_BT_NULLS_FIRST) {
         /*
@@ -2784,6 +2827,7 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
       /*
        * This indextuple doesn't match the qual.
        */
+      DBUG_PRINT("info", "this indextuple doesn't match the qual");
       return false;
     }
 
@@ -2805,17 +2849,28 @@ _bt_check_compare(IndexScanDesc scan, ScanDirection dir,
        */
       else if (advancenonrequired &&
                key->sk_strategy == BTEqualStrategyNumber &&
-               (key->sk_flags & SK_SEARCHARRAY))
-        return _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
-                                      tupdesc, *ikey, false);
+               (key->sk_flags & SK_SEARCHARRAY)) {
+        bool result = _bt_advance_array_keys(scan, NULL, tuple, tupnatts,
+                                             tupdesc, *ikey, false);
+
+        if (result) {
+          DBUG_PRINT("info", "the tuple passes all index quals");
+        } else {
+          DBUG_PRINT("info", "this tuple does match the qual");
+        }
+
+        return result;
+      }
 
       /*
        * This indextuple doesn't match the qual.
        */
+      DBUG_PRINT("info", "this indextuple doesn't match the qual");
       return false;
     }
   }
 
+  DBUG_PRINT("info", "if we get here, the tuple passes all index quals");
   /* If we get here, the tuple passes all index quals. */
   return true;
 }
@@ -2877,6 +2932,7 @@ _bt_check_rowcompare(ScanKey header, IndexTuple tuple, int tupnatts,
                      TupleDesc tupdesc, ScanDirection dir,
                      bool forcenonrequired, bool *continuescan)
 {
+  DBUG_TRACE;
   ScanKey   subkey = (ScanKey) DatumGetPointer(header->sk_argument);
   int32   cmpresult = 0;
   bool    result;
@@ -3104,6 +3160,7 @@ static void
 _bt_checkkeys_look_ahead(IndexScanDesc scan, BTReadPageState *pstate,
                          int tupnatts, TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   ScanDirection dir = so->currPos.dir;
   OffsetNumber aheadoffnum;
@@ -3201,6 +3258,7 @@ _bt_checkkeys_look_ahead(IndexScanDesc scan, BTReadPageState *pstate,
 void
 _bt_killitems(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Page    page;
@@ -3411,6 +3469,7 @@ static BTVacInfo *btvacinfo;
 BTCycleId
 _bt_vacuum_cycleid(Relation rel)
 {
+  DBUG_TRACE;
   BTCycleId result = 0;
   int     i;
 
@@ -3443,6 +3502,7 @@ _bt_vacuum_cycleid(Relation rel)
 BTCycleId
 _bt_start_vacuum(Relation rel)
 {
+  DBUG_TRACE;
   BTCycleId result;
   int     i;
   BTOneVacInfo *vac;
@@ -3500,6 +3560,7 @@ _bt_start_vacuum(Relation rel)
 void
 _bt_end_vacuum(Relation rel)
 {
+  DBUG_TRACE;
   int     i;
 
   LWLockAcquire(BtreeVacuumLock, LW_EXCLUSIVE);
@@ -3526,6 +3587,7 @@ _bt_end_vacuum(Relation rel)
 void
 _bt_end_vacuum_callback(int code, Datum arg)
 {
+  DBUG_TRACE;
   _bt_end_vacuum((Relation) DatumGetPointer(arg));
 }
 
@@ -3548,6 +3610,7 @@ BTreeShmemSize(void)
 void
 BTreeShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   btvacinfo = (BTVacInfo *) ShmemInitStruct("BTree Vacuum State",
@@ -3678,6 +3741,7 @@ IndexTuple
 _bt_truncate(Relation rel, IndexTuple lastleft, IndexTuple firstright,
              BTScanInsert itup_key)
 {
+  DBUG_TRACE;
   TupleDesc itupdesc = RelationGetDescr(rel);
   int16   nkeyatts = IndexRelationGetNumberOfKeyAttributes(rel);
   int     keepnatts;
@@ -3821,6 +3885,7 @@ static int
 _bt_keep_natts(Relation rel, IndexTuple lastleft, IndexTuple firstright,
                BTScanInsert itup_key)
 {
+  DBUG_TRACE;
   int     nkeyatts = IndexRelationGetNumberOfKeyAttributes(rel);
   TupleDesc itupdesc = RelationGetDescr(rel);
   int     keepnatts;
@@ -3894,6 +3959,7 @@ _bt_keep_natts(Relation rel, IndexTuple lastleft, IndexTuple firstright,
 int
 _bt_keep_natts_fast(Relation rel, IndexTuple lastleft, IndexTuple firstright)
 {
+  DBUG_TRACE;
   TupleDesc itupdesc = RelationGetDescr(rel);
   int     keysz = IndexRelationGetNumberOfKeyAttributes(rel);
   int     keepnatts;
@@ -3941,6 +4007,7 @@ _bt_keep_natts_fast(Relation rel, IndexTuple lastleft, IndexTuple firstright)
 bool
 _bt_check_natts(Relation rel, bool heapkeyspace, Page page, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   int16   natts = IndexRelationGetNumberOfAttributes(rel);
   int16   nkeyatts = IndexRelationGetNumberOfKeyAttributes(rel);
   BTPageOpaque opaque = BTPageGetOpaque(page);
@@ -4093,6 +4160,7 @@ void
 _bt_check_third_page(Relation rel, Relation heap, bool needheaptidspace,
                      Page page, IndexTuple newtup)
 {
+  DBUG_TRACE;
   Size    itemsz;
   BTPageOpaque opaque;
 
@@ -4109,6 +4177,9 @@ _bt_check_third_page(Relation rel, Relation heap, bool needheaptidspace,
    */
   if (!needheaptidspace && itemsz <= BTMaxItemSizeNoHeapTid)
     return;
+
+  DBUG_PRINT("info", "set LP_DEAD state for items an indexscan caller has told us were killed");
+
 
   /*
    * Internal page insertions cannot fail here, because that would mean that
@@ -4150,6 +4221,7 @@ _bt_check_third_page(Relation rel, Relation heap, bool needheaptidspace,
 bool
 _bt_allequalimage(Relation rel, bool debugmessage)
 {
+  DBUG_TRACE;
   bool    allequalimage = true;
 
   /* INCLUDE indexes can never support deduplication */

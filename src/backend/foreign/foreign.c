@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/reloptions.h"
@@ -49,6 +50,7 @@ GetForeignDataWrapper(Oid fdwid)
 ForeignDataWrapper *
 GetForeignDataWrapperExtended(Oid fdwid, bits16 flags)
 {
+  DBUG_TRACE;
   Form_pg_foreign_data_wrapper fdwform;
   ForeignDataWrapper *fdw;
   Datum   datum;
@@ -124,6 +126,7 @@ GetForeignServer(Oid serverid)
 ForeignServer *
 GetForeignServerExtended(Oid serverid, bits16 flags)
 {
+  DBUG_TRACE;
   Form_pg_foreign_server serverform;
   ForeignServer *server;
   HeapTuple tp;
@@ -255,6 +258,7 @@ GetUserMapping(Oid userid, Oid serverid)
 ForeignTable *
 GetForeignTable(Oid relid)
 {
+  DBUG_TRACE;
   Form_pg_foreign_table tableform;
   ForeignTable *ft;
   HeapTuple tp;
@@ -332,6 +336,7 @@ GetForeignColumnOptions(Oid relid, AttrNumber attnum)
 FdwRoutine *
 GetFdwRoutine(Oid fdwhandler)
 {
+  DBUG_TRACE;
   Datum   datum;
   FdwRoutine *routine;
 
@@ -532,6 +537,7 @@ IsImportableForeignTable(const char *tablename,
 Datum
 pg_options_to_table(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   array = PG_GETARG_DATUM(0);
   ListCell   *cell;
   List     *options;
@@ -633,6 +639,7 @@ is_conninfo_option(const char *option, Oid context)
 Datum
 postgresql_fdw_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
   Oid     catalog = PG_GETARG_OID(1);
 
@@ -750,6 +757,7 @@ get_foreign_server_oid(const char *servername, bool missing_ok)
 Path *
 GetExistingLocalJoinPath(RelOptInfo *joinrel)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(IS_JOIN_REL(joinrel));

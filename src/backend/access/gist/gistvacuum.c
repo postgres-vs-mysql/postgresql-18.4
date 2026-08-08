@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/gist_private.h"
@@ -58,6 +59,8 @@ IndexBulkDeleteResult *
 gistbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
+
   /* allocate stats if first time through, else re-use existing struct */
   if (stats == NULL)
     stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
@@ -73,6 +76,8 @@ gistbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 IndexBulkDeleteResult *
 gistvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
+
   /* No-op in ANALYZE ONLY mode */
   if (info->analyze_only)
     return stats;
@@ -122,6 +127,7 @@ static void
 gistvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   GistVacState vstate;
   BlockNumber num_pages;
@@ -306,6 +312,7 @@ gistvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 static void
 gistvacuumpage(GistVacState *vstate, Buffer buffer)
 {
+  DBUG_TRACE;
   IndexVacuumInfo *info = vstate->info;
   IndexBulkDeleteCallback callback = vstate->callback;
   void     *callback_state = vstate->callback_state;
@@ -486,6 +493,7 @@ restart:
 static void
 gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   BlockNumber empty_pages_remaining;
   uint64    blkno;
@@ -616,6 +624,7 @@ gistdeletepage(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                Buffer parentBuffer, OffsetNumber downlink,
                Buffer leafBuffer)
 {
+  DBUG_TRACE;
   Page    parentPage = BufferGetPage(parentBuffer);
   Page    leafPage = BufferGetPage(leafBuffer);
   ItemId    iid;

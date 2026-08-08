@@ -64,7 +64,7 @@ pgstat_archiver_init_shmem_cb(void *stats)
 {
   PgStatShared_Archiver *stats_shmem = (PgStatShared_Archiver *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 void

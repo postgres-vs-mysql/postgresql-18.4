@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -66,6 +67,7 @@ void
 setup_parse_fixed_parameters(ParseState *pstate,
                              const Oid *paramTypes, int numParams)
 {
+  DBUG_TRACE;
   FixedParamState *parstate = palloc(sizeof(FixedParamState));
 
   parstate->paramTypes = paramTypes;
@@ -82,8 +84,10 @@ void
 setup_parse_variable_parameters(ParseState *pstate,
                                 Oid **paramTypes, int *numParams)
 {
+  DBUG_TRACE;
   VarParamState *parstate = palloc(sizeof(VarParamState));
 
+  DBUG_PRINT("info", "set up to process a query containing references to variable parameters");
   parstate->paramTypes = paramTypes;
   parstate->numParams = numParams;
   pstate->p_ref_hook_state = parstate;
@@ -97,9 +101,12 @@ setup_parse_variable_parameters(ParseState *pstate,
 static Node *
 fixed_paramref_hook(ParseState *pstate, ParamRef *pref)
 {
+  DBUG_TRACE;
   FixedParamState *parstate = (FixedParamState *) pstate->p_ref_hook_state;
   int     paramno = pref->number;
   Param    *param;
+
+  DBUG_PRINT("info", "transform a ParamRef using fixed parameter types");
 
   /* Check parameter number is valid */
   if (paramno <= 0 || paramno > parstate->numParams ||
@@ -129,10 +136,13 @@ fixed_paramref_hook(ParseState *pstate, ParamRef *pref)
 static Node *
 variable_paramref_hook(ParseState *pstate, ParamRef *pref)
 {
+  DBUG_TRACE;
   VarParamState *parstate = (VarParamState *) pstate->p_ref_hook_state;
   int     paramno = pref->number;
   Oid      *pptype;
   Param    *param;
+
+  DBUG_PRINT("info", "transform a ParamRef using variable parameter types");
 
   /* Check parameter number is in range */
   if (paramno <= 0 || paramno > MaxAllocSize / sizeof(Oid))
@@ -187,6 +197,8 @@ variable_coerce_param_hook(ParseState *pstate, Param *param,
                            Oid targetTypeId, int32 targetTypeMod,
                            int location)
 {
+  DBUG_TRACE;
+
   if (param->paramkind == PARAM_EXTERN && param->paramtype == UNKNOWNOID) {
     /*
      * Input is a Param of previously undetermined type, and we want to
@@ -279,6 +291,8 @@ check_variable_parameters(ParseState *pstate, Query *query)
 static bool
 check_parameter_resolution_walker(Node *node, ParseState *pstate)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -308,6 +322,7 @@ check_parameter_resolution_walker(Node *node, ParseState *pstate)
   }
 
   if (IsA(node, Query)) {
+    DBUG_PRINT("info", "recurse into RTE subquery or not-yet-planned sublink subquery");
     /* Recurse into RTE subquery or not-yet-planned sublink subquery */
     return query_tree_walker((Query *) node,
                              check_parameter_resolution_walker,
@@ -332,6 +347,8 @@ query_contains_extern_params(Query *query)
 static bool
 query_contains_extern_params_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -345,6 +362,7 @@ query_contains_extern_params_walker(Node *node, void *context)
   }
 
   if (IsA(node, Query)) {
+    DBUG_PRINT("info", "recurse into RTE subquery or not-yet-planned sublink subquery");
     /* Recurse into RTE subquery or not-yet-planned sublink subquery */
     return query_tree_walker((Query *) node,
                              query_contains_extern_params_walker,

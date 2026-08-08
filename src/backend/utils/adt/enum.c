@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -109,6 +110,7 @@ check_safe_enum_use(HeapTuple enumval_tup)
 Datum
 enum_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name = PG_GETARG_CSTRING(0);
   Oid     enumtypoid = PG_GETARG_OID(1);
   Node     *escontext = fcinfo->context;
@@ -156,6 +158,7 @@ enum_in(PG_FUNCTION_ARGS)
 Datum
 enum_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumval = PG_GETARG_OID(0);
   char     *result;
   HeapTuple tup;
@@ -182,6 +185,7 @@ enum_out(PG_FUNCTION_ARGS)
 Datum
 enum_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   Oid     enumtypoid = PG_GETARG_OID(1);
   Oid     enumoid;
@@ -225,6 +229,7 @@ enum_recv(PG_FUNCTION_ARGS)
 Datum
 enum_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumval = PG_GETARG_OID(0);
   StringInfoData buf;
   HeapTuple tup;
@@ -258,6 +263,7 @@ enum_send(PG_FUNCTION_ARGS)
 static int
 enum_cmp_internal(Oid arg1, Oid arg2, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   TypeCacheEntry *tcache;
 
   /*
@@ -313,6 +319,7 @@ enum_cmp_internal(Oid arg1, Oid arg2, FunctionCallInfo fcinfo)
 Datum
 enum_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -322,6 +329,7 @@ enum_lt(PG_FUNCTION_ARGS)
 Datum
 enum_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -331,6 +339,7 @@ enum_le(PG_FUNCTION_ARGS)
 Datum
 enum_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -340,6 +349,7 @@ enum_eq(PG_FUNCTION_ARGS)
 Datum
 enum_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -349,6 +359,7 @@ enum_ne(PG_FUNCTION_ARGS)
 Datum
 enum_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -358,6 +369,7 @@ enum_ge(PG_FUNCTION_ARGS)
 Datum
 enum_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -367,6 +379,7 @@ enum_gt(PG_FUNCTION_ARGS)
 Datum
 enum_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -376,6 +389,7 @@ enum_smaller(PG_FUNCTION_ARGS)
 Datum
 enum_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -385,6 +399,7 @@ enum_larger(PG_FUNCTION_ARGS)
 Datum
 enum_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
 
@@ -442,6 +457,7 @@ enum_endpoint(Oid enumtypoid, ScanDirection direction)
 Datum
 enum_first(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumtypoid;
   Oid     min;
 
@@ -472,6 +488,7 @@ enum_first(PG_FUNCTION_ARGS)
 Datum
 enum_last(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumtypoid;
   Oid     max;
 
@@ -503,6 +520,7 @@ enum_last(PG_FUNCTION_ARGS)
 Datum
 enum_range_bounds(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     lower;
   Oid     upper;
   Oid     enumtypoid;
@@ -536,6 +554,7 @@ enum_range_bounds(PG_FUNCTION_ARGS)
 Datum
 enum_range_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     enumtypoid;
 
   /*

@@ -9,6 +9,7 @@
  *    src/backend/catalog/pg_db_role_setting.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -23,6 +24,7 @@
 void
 AlterSetting(Oid databaseid, Oid roleid, VariableSetStmt *setstmt)
 {
+  DBUG_TRACE;
   char     *valuestr;
   HeapTuple tuple;
   Relation  rel;
@@ -159,6 +161,7 @@ AlterSetting(Oid databaseid, Oid roleid, VariableSetStmt *setstmt)
 void
 DropSetting(Oid databaseid, Oid roleid)
 {
+  DBUG_TRACE;
   Relation  relsetting;
   TableScanDesc scan;
   ScanKeyData keys[2];
@@ -210,6 +213,7 @@ void
 ApplySetting(Snapshot snapshot, Oid databaseid, Oid roleid,
              Relation relsetting, GucSource source)
 {
+  DBUG_TRACE;
   SysScanDesc scan;
   ScanKeyData keys[2];
   HeapTuple tup;

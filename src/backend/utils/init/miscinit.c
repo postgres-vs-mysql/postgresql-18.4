@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 #include <utime.h>
 
+#include "debug_trace.h"
 #include "access/htup_details.h"
 #include "access/parallel.h"
 #include "catalog/pg_authid.h"
@@ -95,6 +96,8 @@ bool    IgnoreSystemIndexes = false;
 void
 InitPostmasterChild(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "initialize the basic environment for a postmaster child");
   IsUnderPostmaster = true; /* we are a postmaster subprocess now */
 
   /*
@@ -127,6 +130,7 @@ InitPostmasterChild(void)
 #endif
 
   /* Initialize process-local latch support */
+  DBUG_PRINT("info", "initialize process-local latch support");
   InitializeWaitEventSupport();
   InitProcessLocalLatch();
   InitializeLatchWaitSet();
@@ -178,6 +182,7 @@ InitPostmasterChild(void)
 void
 InitStandaloneProcess(const char *argv0)
 {
+  DBUG_TRACE;
   Assert(!IsPostmasterEnvironment);
 
   MyBackendType = B_STANDALONE_BACKEND;
@@ -217,6 +222,7 @@ InitStandaloneProcess(const char *argv0)
 void
 SwitchToSharedLatch(void)
 {
+  DBUG_TRACE;
   Assert(MyLatch == &LocalLatchData);
   Assert(MyProc != NULL);
 
@@ -237,6 +243,7 @@ SwitchToSharedLatch(void)
 void
 InitProcessLocalLatch(void)
 {
+  DBUG_TRACE;
   MyLatch = &LocalLatchData;
   InitLatch(MyLatch);
 }
@@ -244,6 +251,7 @@ InitProcessLocalLatch(void)
 void
 SwitchBackToLocalLatch(void)
 {
+  DBUG_TRACE;
   Assert(MyLatch != &LocalLatchData);
   Assert(MyProc != NULL && MyLatch == &MyProc->procLatch);
 
@@ -352,8 +360,10 @@ GetBackendTypeDesc(BackendType backendType)
 void
 SetDatabasePath(const char *path)
 {
+  DBUG_TRACE;
   /* This should happen only once per process */
   Assert(!DatabasePath);
+  DBUG_PRINT("info", "set database path:%s", path);
   DatabasePath = MemoryContextStrdup(TopMemoryContext, path);
 }
 
@@ -365,9 +375,11 @@ SetDatabasePath(const char *path)
 void
 checkDataDir(void)
 {
+  DBUG_TRACE;
   struct stat stat_buf;
 
   Assert(DataDir);
+  DBUG_PRINT("info", "validate the proposed data directory");
 
   if (stat(DataDir, &stat_buf) != 0) {
     if (errno == ENOENT)
@@ -461,6 +473,7 @@ checkDataDir(void)
 void
 SetDataDir(const char *dir)
 {
+  DBUG_TRACE;
   char     *new;
 
   Assert(dir);
@@ -468,6 +481,7 @@ SetDataDir(const char *dir)
   /* If presented path is relative, convert to absolute */
   new = make_absolute_path(dir);
 
+  DBUG_PRINT("info", "set data directory:%s", dir);
   free(DataDir);
   DataDir = new;
 }
@@ -481,13 +495,20 @@ SetDataDir(const char *dir)
 void
 ChangeToDataDir(void)
 {
+  DBUG_TRACE;
   Assert(DataDir);
 
-  if (chdir(DataDir) < 0)
+  DBUG_PRINT("info", "change working directory to DataDir");
+
+  if (chdir(DataDir) < 0) {
+    DBUG_INSTANT_PRINT("info", "could not change directory to \"%s\"", DataDir);
     ereport(FATAL,
             (errcode_for_file_access(),
              errmsg("could not change directory to \"%s\": %m",
                     DataDir)));
+  } else {
+    DBUG_PRINT("info", "change working directory to \"%s\"", DataDir);
+  }
 }
 
 
@@ -786,10 +807,13 @@ void
 InitializeSessionUserId(const char *rolename, Oid roleid,
                         bool bypass_login_check)
 {
+  DBUG_TRACE;
   HeapTuple roleTup;
   Form_pg_authid rform;
   char     *rname;
   bool    is_superuser;
+
+  DBUG_PRINT("info", "initialize user identity during normal backend startup");
 
   /*
    * In a parallel worker, we don't have to do anything here.
@@ -822,17 +846,21 @@ InitializeSessionUserId(const char *rolename, Oid roleid,
   if (rolename != NULL) {
     roleTup = SearchSysCache1(AUTHNAME, PointerGetDatum(rolename));
 
-    if (!HeapTupleIsValid(roleTup))
+    if (!HeapTupleIsValid(roleTup)) {
+      DBUG_INSTANT_PRINT("info", "role \"%s\" does not exist", rolename);
       ereport(FATAL,
               (errcode(ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION),
                errmsg("role \"%s\" does not exist", rolename)));
+    }
   } else {
     roleTup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 
-    if (!HeapTupleIsValid(roleTup))
+    if (!HeapTupleIsValid(roleTup)) {
+      DBUG_INSTANT_PRINT("info", "role with OID %u does not exist", roleid);
       ereport(FATAL,
               (errcode(ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION),
                errmsg("role with OID %u does not exist", roleid)));
+    }
   }
 
   rform = (Form_pg_authid) GETSTRUCT(roleTup);
@@ -895,11 +923,13 @@ InitializeSessionUserId(const char *rolename, Oid roleid,
     if (rform->rolconnlimit >= 0 &&
         AmRegularBackendProcess() &&
         !is_superuser &&
-        CountUserBackends(roleid) > rform->rolconnlimit)
+        CountUserBackends(roleid) > rform->rolconnlimit) {
+      DBUG_INSTANT_PRINT("info", "too many connections for role \"%s\"", rname);
       ereport(FATAL,
               (errcode(ERRCODE_TOO_MANY_CONNECTIONS),
                errmsg("too many connections for role \"%s\"",
                       rname)));
+    }
   }
 
   ReleaseSysCache(roleTup);
@@ -912,6 +942,7 @@ InitializeSessionUserId(const char *rolename, Oid roleid,
 void
 InitializeSessionUserIdStandalone(void)
 {
+  DBUG_TRACE;
   /*
    * This function should only be called in single-user mode, in autovacuum
    * workers, in slot sync worker and in background workers.
@@ -946,6 +977,7 @@ InitializeSessionUserIdStandalone(void)
 void
 InitializeSystemUser(const char *authn_id, const char *auth_method)
 {
+  DBUG_TRACE;
   char     *system_user;
 
   /* call only once */
@@ -970,6 +1002,7 @@ InitializeSystemUser(const char *authn_id, const char *auth_method)
 Datum
 system_user(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *sysuser = GetSystemUser();
 
   if (sysuser)
@@ -1028,6 +1061,8 @@ GetCurrentRoleId(void)
 void
 SetCurrentRoleId(Oid roleid, bool is_superuser)
 {
+  DBUG_TRACE;
+
   /*
    * Get correct info if it's SET ROLE NONE
    *
@@ -1104,6 +1139,7 @@ typedef struct SerializedClientConnectionInfo {
 Size
 EstimateClientConnectionInfoSpace(void)
 {
+  DBUG_TRACE;
   Size    size = 0;
 
   size = add_size(size, sizeof(SerializedClientConnectionInfo));
@@ -1191,6 +1227,7 @@ RestoreClientConnectionInfo(char *conninfo)
 static void
 UnlinkLockFiles(int status, Datum arg)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, lock_files) {
@@ -1211,6 +1248,7 @@ UnlinkLockFiles(int status, Datum arg)
    * proc_exit() to do it, but that seems uglier.  In a standalone backend,
    * use NOTICE elevel to be less chatty.
    */
+  DBUG_PRINT("info", "database system is shut down");
   ereport(IsPostmasterEnvironment ? LOG : NOTICE,
           (errmsg("database system is shut down")));
 }
@@ -1228,6 +1266,7 @@ CreateLockFile(const char *filename, bool amPostmaster,
                const char *socketDir,
                bool isDDLock, const char *refName)
 {
+  DBUG_TRACE;
   int     fd;
   char    buffer[MAXPGPATH * 2 + 256];
   int     ntries;
@@ -1313,6 +1352,7 @@ CreateLockFile(const char *filename, bool amPostmaster,
       if (errno == ENOENT)
         continue;   /* race condition; try again */
 
+      DBUG_INSTANT_PRINT("info", "could not open lock file \"%s\"", filename);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not open lock file \"%s\": %m",
@@ -1533,6 +1573,7 @@ CreateLockFile(const char *filename, bool amPostmaster,
 void
 CreateDataDirLockFile(bool amPostmaster)
 {
+  DBUG_TRACE;
   CreateLockFile(DIRECTORY_LOCK_FILE, amPostmaster, "", true, DataDir);
 }
 
@@ -1543,6 +1584,7 @@ void
 CreateSocketLockFile(const char *socketfile, bool amPostmaster,
                      const char *socketDir)
 {
+  DBUG_TRACE;
   char    lockfile[MAXPGPATH];
 
   snprintf(lockfile, sizeof(lockfile), "%s.lock", socketfile);
@@ -1560,6 +1602,7 @@ CreateSocketLockFile(const char *socketfile, bool amPostmaster,
 void
 TouchSocketLockFiles(void)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, lock_files) {
@@ -1588,6 +1631,7 @@ TouchSocketLockFiles(void)
 void
 AddToDataDirLockFile(int target_line, const char *str)
 {
+  DBUG_TRACE;
   int     fd;
   int     len;
   int     lineno;
@@ -1721,6 +1765,7 @@ AddToDataDirLockFile(int target_line, const char *str)
 bool
 RecheckDataDirLockFile(void)
 {
+  DBUG_TRACE;
   int     fd;
   int     len;
   long    file_pid;
@@ -1796,6 +1841,7 @@ RecheckDataDirLockFile(void)
 void
 ValidatePgVersion(const char *path)
 {
+  DBUG_TRACE;
   char    full_path[MAXPGPATH];
   FILE     *file;
   int     ret;
@@ -1877,6 +1923,7 @@ bool    process_shmem_requests_in_progress = false;
 static void
 load_libraries(const char *libraries, const char *gucname, bool restricted)
 {
+  DBUG_TRACE;
   char     *rawstring;
   List     *elemlist;
   ListCell   *l;
@@ -1928,6 +1975,8 @@ load_libraries(const char *libraries, const char *gucname, bool restricted)
 void
 process_shared_preload_libraries(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "process any libraries(%s) that should be preloaded at postmaster start", shared_preload_libraries_string);
   process_shared_preload_libraries_in_progress = true;
   load_libraries(shared_preload_libraries_string,
                  "shared_preload_libraries",
@@ -1942,6 +1991,8 @@ process_shared_preload_libraries(void)
 void
 process_session_preload_libraries(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "process any libraries(%s) that should be preloaded at backend start", session_preload_libraries_string);
   load_libraries(session_preload_libraries_string,
                  "session_preload_libraries",
                  false);
@@ -1956,6 +2007,8 @@ process_session_preload_libraries(void)
 void
 process_shmem_requests(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "process any shared memory requests from preloaded libraries");
   process_shmem_requests_in_progress = true;
 
   if (shmem_request_hook)

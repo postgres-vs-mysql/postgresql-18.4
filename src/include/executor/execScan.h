@@ -13,6 +13,7 @@
 #ifndef EXECSCAN_H
 #define EXECSCAN_H
 
+#include "debug_trace.h"
 #include "miscadmin.h"
 #include "executor/executor.h"
 #include "nodes/execnodes.h"
@@ -34,10 +35,10 @@ ExecScanFetch(ScanState *node,
               ExecScanAccessMtd accessMtd,
               ExecScanRecheckMtd recheckMtd)
 {
+  DBUG_TRACE;
   CHECK_FOR_INTERRUPTS();
 
-  if (epqstate != NULL)
-  {
+  if (epqstate != NULL) {
     /*
      * We are inside an EvalPlanQual recheck.  Return the test tuple if
      * one is available, after rechecking any access-method-specific
@@ -45,16 +46,14 @@ ExecScanFetch(ScanState *node,
      */
     Index   scanrelid = ((Scan *) node->ps.plan)->scanrelid;
 
-    if (scanrelid == 0)
-    {
+    if (scanrelid == 0) {
       /*
        * This is a ForeignScan or CustomScan which has pushed down a
        * join to the remote side.  If it is a descendant node in the EPQ
        * recheck plan tree, run the recheck method function.  Otherwise,
        * run the access method function below.
        */
-      if (bms_is_member(epqstate->epqParam, node->ps.plan->extParam))
-      {
+      if (bms_is_member(epqstate->epqParam, node->ps.plan->extParam)) {
         /*
          * The recheck method is responsible not only for rechecking
          * the scan/join quals but also for storing the correct tuple
@@ -68,9 +67,7 @@ ExecScanFetch(ScanState *node,
 
         return slot;
       }
-    }
-    else if (epqstate->relsubs_done[scanrelid - 1])
-    {
+    } else if (epqstate->relsubs_done[scanrelid - 1]) {
       /*
        * Return empty slot, as either there is no EPQ tuple for this rel
        * or we already returned it.
@@ -79,9 +76,7 @@ ExecScanFetch(ScanState *node,
       TupleTableSlot *slot = node->ss_ScanTupleSlot;
 
       return ExecClearTuple(slot);
-    }
-    else if (epqstate->relsubs_slot[scanrelid - 1] != NULL)
-    {
+    } else if (epqstate->relsubs_slot[scanrelid - 1] != NULL) {
       /*
        * Return replacement tuple provided by the EPQ caller.
        */
@@ -103,9 +98,7 @@ ExecScanFetch(ScanState *node,
 
                          * scan */
       return slot;
-    }
-    else if (epqstate->relsubs_rowmark[scanrelid - 1] != NULL)
-    {
+    } else if (epqstate->relsubs_rowmark[scanrelid - 1] != NULL) {
       /*
        * Fetch and return replacement tuple using a non-locking rowmark.
        */
@@ -167,6 +160,9 @@ ExecScanExtended(ScanState *node,
                  ExprState *qual,
                  ProjectionInfo *projInfo)
 {
+  DBUG_TRACE;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
   ExprContext *econtext = node->ps.ps_ExprContext;
 
   /* interrupt checks are in ExecScanFetch */
@@ -175,8 +171,7 @@ ExecScanExtended(ScanState *node,
    * If we have neither a qual to check nor a projection to do, just skip
    * all the overhead and return the raw scan tuple.
    */
-  if (!qual && !projInfo)
-  {
+  if (!qual && !projInfo) {
     ResetExprContext(econtext);
     return ExecScanFetch(node, epqstate, accessMtd, recheckMtd);
   }
@@ -191,24 +186,47 @@ ExecScanExtended(ScanState *node,
    * get a tuple from the access method.  Loop until we obtain a tuple that
    * passes the qualification.
    */
-  for (;;)
-  {
+  for (;;) {
     TupleTableSlot *slot;
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+       }
+      }
+    }
 
     slot = ExecScanFetch(node, epqstate, accessMtd, recheckMtd);
 
+    count++;
     /*
      * if the slot returned by the accessMtd contains NULL, then it means
      * there is nothing more to scan so we just return an empty slot,
      * being careful to use the projection result slot so it has correct
      * tupleDesc.
      */
-    if (TupIsNull(slot))
-    {
-      if (projInfo)
+    if (TupIsNull(slot)) {
+      if (projInfo) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
         return ExecClearTuple(projInfo->pi_state.resultslot);
-      else
+      } else {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
         return slot;
+      }
     }
 
     /*
@@ -223,33 +241,44 @@ ExecScanExtended(ScanState *node,
      * when the qual is null ... saves only a few cycles, but they add up
      * ...
      */
-    if (qual == NULL || ExecQual(qual, econtext))
-    {
+    if (qual == NULL || ExecQual(qual, econtext)) {
       /*
        * Found a satisfactory scan tuple.
        */
-      if (projInfo)
-      {
+      DBUG_PRINT("info", "found a satisfactory scan tuple");
+      if (projInfo) {
         /*
          * Form a projection tuple, store it in the result tuple slot
          * and return it.
          */
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
         return ExecProject(projInfo);
-      }
-      else
-      {
+      } else {
         /*
          * Here, we aren't projecting, so just return scan tuple.
          */
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
         return slot;
       }
-    }
-    else
+    } else
       InstrCountFiltered1(node, 1);
 
     /*
      * Tuple fails qual, so free per-tuple memory and try again.
      */
+    DBUG_PRINT("info", " tuple fails qual");
     ResetExprContext(econtext);
   }
 }

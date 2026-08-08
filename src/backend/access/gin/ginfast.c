@@ -17,6 +17,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/ginxlog.h"
@@ -58,6 +59,7 @@ static int32
 writeListPage(Relation index, Buffer buffer,
               IndexTuple *tuples, int32 ntuples, BlockNumber rightlink)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   int32   i,
           freesize,
@@ -139,6 +141,7 @@ static void
 makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
             GinMetaPageData *res)
 {
+  DBUG_TRACE;
   Buffer    curBuffer = InvalidBuffer;
   Buffer    prevBuffer = InvalidBuffer;
   int     i,
@@ -204,6 +207,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
 void
 ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 {
+  DBUG_TRACE;
   Relation  index = ginstate->index;
   Buffer    metabuffer;
   Page    metapage;
@@ -457,6 +461,7 @@ ginHeapTupleFastCollect(GinState *ginstate,
                         OffsetNumber attnum, Datum value, bool isNull,
                         ItemPointer ht_ctid)
 {
+  DBUG_TRACE;
   Datum    *entries;
   GinNullCategory *categories;
   int32   i,
@@ -522,6 +527,7 @@ static void
 shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
           bool fill_fsm, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Page    metapage;
   GinMetaPageData *metadata;
   BlockNumber blknoToDelete;
@@ -648,6 +654,8 @@ initKeyArray(KeyArray *keys, int32 maxvalues)
 static void
 addDatum(KeyArray *keys, Datum datum, GinNullCategory category)
 {
+  DBUG_TRACE;
+
   if (keys->nvalues >= keys->maxvalues) {
     keys->maxvalues *= 2;
     keys->keys = repalloc_array(keys->keys, Datum, keys->maxvalues);
@@ -672,6 +680,7 @@ static void
 processPendingPage(BuildAccumulator *accum, KeyArray *ka,
                    Page page, OffsetNumber startoff)
 {
+  DBUG_TRACE;
   ItemPointerData heapptr;
   OffsetNumber i,
                maxoff;
@@ -740,6 +749,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
                  bool fill_fsm, bool forceCleanup,
                  IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Relation  index = ginstate->index;
   Buffer    metabuffer,
             buffer;
@@ -982,6 +992,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 Datum
 gin_clean_pending_list(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexoid = PG_GETARG_OID(0);
   Relation  indexRel = index_open(indexoid, RowExclusiveLock);
   IndexBulkDeleteResult stats;

@@ -317,7 +317,8 @@ struct arc
 };
 
 struct arcbatch
-{ /* for bulk allocation of arcs */
+{
+  /* for bulk allocation of arcs */
   struct arcbatch *next;    /* chain link */
   size_t    narcs;      /* number of arcs allocated in this arcbatch */
   struct arc  a[FLEXIBLE_ARRAY_MEMBER];
@@ -343,7 +344,8 @@ struct state
 };
 
 struct statebatch
-{ /* for bulk allocation of states */
+{
+  /* for bulk allocation of states */
   struct statebatch *next;  /* chain link */
   size_t    nstates;    /* number of states allocated in this batch */
   struct state s[FLEXIBLE_ARRAY_MEMBER];

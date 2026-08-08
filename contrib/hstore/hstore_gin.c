@@ -2,6 +2,7 @@
  * contrib/hstore/hstore_gin.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin.h"
 #include "access/stratnum.h"
@@ -43,6 +44,7 @@ makeitem(char *str, int len, char flag)
 Datum
 gin_extract_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   Datum    *entries = NULL;
@@ -55,6 +57,8 @@ gin_extract_hstore(PG_FUNCTION_ARGS)
 
   if (count)
     entries = (Datum *) palloc(sizeof(Datum) * 2 * count);
+
+  DBUG_PRINT("hstore", "it decomposes an hstore object into individual keys and values for indexing(count:%d)", count);
 
   for (i = 0; i < count; ++i) {
     text     *item;
@@ -82,6 +86,7 @@ PG_FUNCTION_INFO_V1(gin_extract_hstore_query);
 Datum
 gin_extract_hstore_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
   int32    *searchMode = (int32 *) PG_GETARG_POINTER(6);
@@ -89,18 +94,23 @@ gin_extract_hstore_query(PG_FUNCTION_ARGS)
 
   if (strategy == HStoreContainsStrategyNumber) {
     /* Query is an hstore, so just apply gin_extract_hstore... */
+    DBUG_PRINT("hstore", "hstore contains strategy number");
+    DBUG_PRINT("hstore", "query is an hstore, so just apply gin_extract_hstore...");
     entries = (Datum *)
               DatumGetPointer(DirectFunctionCall2(gin_extract_hstore,
                               PG_GETARG_DATUM(0),
                               PointerGetDatum(nentries)));
 
     /* ... except that "contains {}" requires a full index scan */
-    if (entries == NULL)
+    if (entries == NULL) {
+      DBUG_PRINT("hstore", "require a full index scan");
       *searchMode = GIN_SEARCH_MODE_ALL;
+    }
   } else if (strategy == HStoreExistsStrategyNumber) {
     text     *query = PG_GETARG_TEXT_PP(0);
     text     *item;
 
+    DBUG_PRINT("hstore", "hstore exists strategy number");
     *nentries = 1;
     entries = (Datum *) palloc(sizeof(Datum));
     item = makeitem(VARDATA_ANY(query), VARSIZE_ANY_EXHDR(query), KEYFLAG);
@@ -116,6 +126,12 @@ gin_extract_hstore_query(PG_FUNCTION_ARGS)
     text     *item;
 
     deconstruct_array_builtin(query, TEXTOID, &key_datums, &key_nulls, &key_count);
+
+    if (strategy == HStoreExistsAnyStrategyNumber) {
+      DBUG_PRINT("hstore", "hstore exists any strategy number(key_count:%d)", key_count);
+    } else {
+      DBUG_PRINT("hstore", "hstore exists all strategy number(key_count:%d)", key_count);
+    }
 
     entries = (Datum *) palloc(sizeof(Datum) * key_count);
 
@@ -146,6 +162,7 @@ PG_FUNCTION_INFO_V1(gin_consistent_hstore);
 Datum
 gin_consistent_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -158,6 +175,7 @@ gin_consistent_hstore(PG_FUNCTION_ARGS)
   int32   i;
 
   if (strategy == HStoreContainsStrategyNumber) {
+    DBUG_PRINT("hstore", "hstore contains strategy number");
     /*
      * Index doesn't have information about correspondence of keys and
      * values, so we need recheck.  However, if not all the keys are
@@ -172,14 +190,17 @@ gin_consistent_hstore(PG_FUNCTION_ARGS)
       }
     }
   } else if (strategy == HStoreExistsStrategyNumber) {
+    DBUG_PRINT("hstore", "hstore exists strategy number");
     /* Existence of key is guaranteed in default search mode */
     *recheck = false;
     res = true;
   } else if (strategy == HStoreExistsAnyStrategyNumber) {
+    DBUG_PRINT("hstore", "hstore exists any strategy number");
     /* Existence of key is guaranteed in default search mode */
     *recheck = false;
     res = true;
   } else if (strategy == HStoreExistsAllStrategyNumber) {
+    DBUG_PRINT("hstore", "hstore exists all strategy number");
     /* Testing for all the keys being present gives an exact result */
     *recheck = false;
 
@@ -191,6 +212,20 @@ gin_consistent_hstore(PG_FUNCTION_ARGS)
     }
   } else
     elog(ERROR, "unrecognized strategy number: %d", strategy);
+
+  if (*recheck) {
+    if (res) {
+      DBUG_PRINT("hstore", "recheck is true and result is true");
+    } else {
+      DBUG_PRINT("hstore", "recheck is true and result is false");
+    }
+  } else {
+    if (res) {
+      DBUG_PRINT("hstore", "recheck is false and result is true");
+    } else {
+      DBUG_PRINT("hstore", "recheck is false and result is false");
+    }
+  }
 
   PG_RETURN_BOOL(res);
 }

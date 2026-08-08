@@ -127,8 +127,7 @@ pg_rightmost_one_pos32(uint32 word)
 
   Assert(word != 0);
 
-  while ((word & 255) == 0)
-  {
+  while ((word & 255) == 0) {
     word >>= 8;
     result += 8;
   }
@@ -169,8 +168,7 @@ pg_rightmost_one_pos64(uint64 word)
 
   Assert(word != 0);
 
-  while ((word & 255) == 0)
-  {
+  while ((word & 255) == 0) {
     word >>= 8;
     result += 8;
   }
@@ -374,8 +372,7 @@ pg_popcount(const char *buf, int bytes)
   int     threshold = 4;
 #endif
 
-  if (bytes < threshold)
-  {
+  if (bytes < threshold) {
     uint64    popcnt = 0;
 
     while (bytes--)
@@ -406,8 +403,7 @@ pg_popcount_masked(const char *buf, int bytes, bits8 mask)
   int     threshold = 4;
 #endif
 
-  if (bytes < threshold)
-  {
+  if (bytes < threshold) {
     uint64    popcnt = 0;
 
     while (bytes--)

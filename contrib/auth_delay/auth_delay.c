@@ -10,6 +10,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -33,6 +34,8 @@ static ClientAuthentication_hook_type original_client_auth_hook = NULL;
 static void
 auth_delay_checks(Port *port, int status)
 {
+  DBUG_TRACE;
+
   /*
    * Any other plugins which use ClientAuthentication_hook.
    */
@@ -53,6 +56,7 @@ auth_delay_checks(Port *port, int status)
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Define custom GUC variables */
   DefineCustomIntVariable("auth_delay.milliseconds",
                           "Milliseconds to delay before reporting authentication failure",

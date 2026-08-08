@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -140,6 +141,7 @@ parse_bool_with_len(const char *value, size_t len, bool *result)
 Datum
 boolin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *in_str = PG_GETARG_CSTRING(0);
   const char *str;
   size_t    len;
@@ -158,8 +160,15 @@ boolin(PG_FUNCTION_ARGS)
   while (len > 0 && isspace((unsigned char) str[len - 1]))
     len--;
 
-  if (parse_bool_with_len(str, len, &result))
+  if (parse_bool_with_len(str, len, &result)) {
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(result);
+  }
 
   ereturn(fcinfo->context, (Datum) 0,
           (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
@@ -173,11 +182,19 @@ boolin(PG_FUNCTION_ARGS)
 Datum
 boolout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    b = PG_GETARG_BOOL(0);
   char     *result = (char *) palloc(2);
 
   result[0] = (b) ? 't' : 'f';
   result[1] = '\0';
+
+  if (b) {
+    DBUG_PRINT("info", "convert 1 to 't'");
+  } else {
+    DBUG_PRINT("info", "convert 0 to 'f'");
+  }
+
   PG_RETURN_CSTRING(result);
 }
 
@@ -190,10 +207,18 @@ boolout(PG_FUNCTION_ARGS)
 Datum
 boolrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     ext;
 
   ext = pq_getmsgbyte(buf);
+
+  if (ext != 0) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(ext != 0);
 }
 
@@ -203,11 +228,19 @@ boolrecv(PG_FUNCTION_ARGS)
 Datum
 boolsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   StringInfoData buf;
 
   pq_begintypsend(&buf);
   pq_sendbyte(&buf, arg1 ? 1 : 0);
+
+  if (arg1) {
+    DBUG_PRINT("info", "convert bool(true) to binary format");
+  } else {
+    DBUG_PRINT("info", "convert bool(false) to binary format");
+  }
+
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -220,13 +253,17 @@ boolsend(PG_FUNCTION_ARGS)
 Datum
 booltext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   const char *str;
 
-  if (arg1)
+  if (arg1) {
     str = "true";
-  else
+    DBUG_PRINT("info", "cast function for bool(true) => text");
+  } else {
+    DBUG_PRINT("info", "cast function for bool(false) => text");
     str = "false";
+  }
 
   PG_RETURN_TEXT_P(cstring_to_text(str));
 }
@@ -239,8 +276,15 @@ booltext(PG_FUNCTION_ARGS)
 Datum
 booleq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 == arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 == arg2);
 }
@@ -248,8 +292,15 @@ booleq(PG_FUNCTION_ARGS)
 Datum
 boolne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 != arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 != arg2);
 }
@@ -257,8 +308,15 @@ boolne(PG_FUNCTION_ARGS)
 Datum
 boollt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 < arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 < arg2);
 }
@@ -266,8 +324,15 @@ boollt(PG_FUNCTION_ARGS)
 Datum
 boolgt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 > arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 > arg2);
 }
@@ -275,8 +340,15 @@ boolgt(PG_FUNCTION_ARGS)
 Datum
 boolle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 <= arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 <= arg2);
 }
@@ -284,8 +356,15 @@ boolle(PG_FUNCTION_ARGS)
 Datum
 boolge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    arg1 = PG_GETARG_BOOL(0);
   bool    arg2 = PG_GETARG_BOOL(1);
+
+  if (arg1 >= arg2) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_RETURN_BOOL(arg1 >= arg2);
 }
@@ -315,7 +394,16 @@ hashboolextended(PG_FUNCTION_ARGS)
 Datum
 booland_statefunc(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(PG_GETARG_BOOL(0) && PG_GETARG_BOOL(1));
+  DBUG_TRACE;
+  bool result = PG_GETARG_BOOL(0) && PG_GETARG_BOOL(1);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -327,7 +415,16 @@ booland_statefunc(PG_FUNCTION_ARGS)
 Datum
 boolor_statefunc(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(PG_GETARG_BOOL(0) || PG_GETARG_BOOL(1));
+  DBUG_TRACE;
+  bool result = (PG_GETARG_BOOL(0) || PG_GETARG_BOOL(1));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 typedef struct BoolAggState {
@@ -338,6 +435,7 @@ typedef struct BoolAggState {
 static BoolAggState *
 makeBoolAggState(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   BoolAggState *state;
   MemoryContext agg_context;
 
@@ -355,19 +453,27 @@ makeBoolAggState(FunctionCallInfo fcinfo)
 Datum
 bool_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BoolAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (BoolAggState *) PG_GETARG_POINTER(0);
 
   /* Create the state data on first call */
-  if (state == NULL)
+  if (state == NULL) {
+    DBUG_PRINT("info", "create the state data on first call");
     state = makeBoolAggState(fcinfo);
+  }
 
   if (!PG_ARGISNULL(1)) {
     state->aggcount++;
 
-    if (PG_GETARG_BOOL(1))
+    if (PG_GETARG_BOOL(1)) {
       state->aggtrue++;
+      DBUG_PRINT("info", "number of non-null values aggregated:%ld, number of values aggregated that are true:%ld",
+                 state->aggcount, state->aggtrue);
+    } else {
+      DBUG_PRINT("info", "number of non-null values aggregated:%ld", state->aggcount);
+    }
   }
 
   PG_RETURN_POINTER(state);
@@ -376,19 +482,28 @@ bool_accum(PG_FUNCTION_ARGS)
 Datum
 bool_accum_inv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BoolAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (BoolAggState *) PG_GETARG_POINTER(0);
 
   /* bool_accum should have created the state data */
-  if (state == NULL)
+  if (state == NULL) {
+    DBUG_INSTANT_PRINT("info", "bool_accum_inv called with NULL state");
     elog(ERROR, "bool_accum_inv called with NULL state");
+  }
 
   if (!PG_ARGISNULL(1)) {
     state->aggcount--;
 
-    if (PG_GETARG_BOOL(1))
+    if (PG_GETARG_BOOL(1)) {
       state->aggtrue--;
+      DBUG_PRINT("info", "number of non-null values aggregated:%ld, number of values aggregated that are true:%ld",
+                 state->aggcount, state->aggtrue);
+
+    } else {
+      DBUG_PRINT("info", "number of non-null values aggregated:%ld", state->aggcount);
+    }
   }
 
   PG_RETURN_POINTER(state);
@@ -397,29 +512,47 @@ bool_accum_inv(PG_FUNCTION_ARGS)
 Datum
 bool_alltrue(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BoolAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (BoolAggState *) PG_GETARG_POINTER(0);
 
   /* if there were no non-null values, return NULL */
-  if (state == NULL || state->aggcount == 0)
+  if (state == NULL || state->aggcount == 0) {
+    DBUG_PRINT("info", "if there were no non-null values, return NULL");
     PG_RETURN_NULL();
+  }
 
   /* true if all non-null values are true */
+  if (state->aggtrue == state->aggcount) {
+    DBUG_PRINT("info", "return true if all non-null values are true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(state->aggtrue == state->aggcount);
 }
 
 Datum
 bool_anytrue(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BoolAggState *state;
 
   state = PG_ARGISNULL(0) ? NULL : (BoolAggState *) PG_GETARG_POINTER(0);
 
   /* if there were no non-null values, return NULL */
-  if (state == NULL || state->aggcount == 0)
+  if (state == NULL || state->aggcount == 0) {
+    DBUG_PRINT("info", "if there were no non-null values, return NULL");
     PG_RETURN_NULL();
+  }
 
   /* true if any non-null value is true */
+  if (state->aggtrue > 0) {
+    DBUG_PRINT("info", "return true if any non-null value is true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(state->aggtrue > 0);
 }

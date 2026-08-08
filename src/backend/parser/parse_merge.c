@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "nodes/makefuncs.h"
@@ -52,6 +53,7 @@ static void
 setNamespaceForMergeWhen(ParseState *pstate, MergeWhenClause *mergeWhenClause,
                          Index targetRTI, Index sourceRTI)
 {
+  DBUG_TRACE;
   RangeTblEntry *targetRelRTE,
                 *sourceRelRTE;
 
@@ -101,6 +103,7 @@ setNamespaceForMergeWhen(ParseState *pstate, MergeWhenClause *mergeWhenClause,
 Query *
 transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
 {
+  DBUG_TRACE;
   Query    *qry = makeNode(Query);
   ListCell   *l;
   AclMode   targetPerms = ACL_NO_RIGHTS;
@@ -108,6 +111,8 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
   Index   sourceRTI;
   List     *mergeActionList;
   ParseNamespaceItem *nsitem;
+
+  DBUG_PRINT("info", "transform a MERGE statement");
 
   /* There can't be any outer WITH to worry about */
   Assert(pstate->p_ctenamespace == NIL);
@@ -117,10 +122,14 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
 
   /* process the WITH clause independently of all else */
   if (stmt->withClause) {
-    if (stmt->withClause->recursive)
+    DBUG_PRINT("info", "process the WITH clause independently of all else");
+
+    if (stmt->withClause->recursive) {
+      DBUG_INSTANT_PRINT("info", "WITH RECURSIVE is not supported for MERGE statement");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("WITH RECURSIVE is not supported for MERGE statement")));
+    }
 
     qry->cteList = transformWithClause(pstate, stmt->withClause);
     qry->hasModifyingCTE = pstate->p_hasModifyingCTE;
@@ -129,6 +138,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
   /*
    * Check WHEN clauses for permissions and sanity
    */
+  DBUG_PRINT("info", "check WHEN clauses for permissions and sanity");
   is_terminal[MERGE_WHEN_MATCHED] = false;
   is_terminal[MERGE_WHEN_NOT_MATCHED_BY_SOURCE] = false;
   is_terminal[MERGE_WHEN_NOT_MATCHED_BY_TARGET] = false;
@@ -167,10 +177,12 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
     /*
      * Check for unreachable WHEN clauses
      */
-    if (is_terminal[mergeWhenClause->matchKind])
+    if (is_terminal[mergeWhenClause->matchKind]) {
+      DBUG_INSTANT_PRINT("info", "unreachable WHEN clause specified after unconditional WHEN clause");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unreachable WHEN clause specified after unconditional WHEN clause")));
+    }
 
     if (mergeWhenClause->condition == NULL)
       is_terminal[mergeWhenClause->matchKind] = true;
@@ -187,6 +199,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
    * target data to be read from the expanded view query while updating the
    * original view relation.
    */
+  DBUG_PRINT("info", "set up the MERGE target table");
   qry->resultRelation = setTargetTable(pstate, stmt->relation,
                                        stmt->relation->inh,
                                        false, targetPerms);
@@ -195,13 +208,16 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
   /* The target relation must be a table or a view */
   if (pstate->p_target_relation->rd_rel->relkind != RELKIND_RELATION &&
       pstate->p_target_relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE &&
-      pstate->p_target_relation->rd_rel->relkind != RELKIND_VIEW)
+      pstate->p_target_relation->rd_rel->relkind != RELKIND_VIEW) {
+    DBUG_INSTANT_PRINT("info", "cannot execute MERGE on relation \"%s\"", RelationGetRelationName(pstate->p_target_relation));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot execute MERGE on relation \"%s\"",
                     RelationGetRelationName(pstate->p_target_relation)),
              errdetail_relkind_not_supported(pstate->p_target_relation->rd_rel->relkind)));
+  }
 
+  DBUG_PRINT("info", "now transform the source relation to produce the source RTE");
   /* Now transform the source relation to produce the source RTE. */
   transformFromClause(pstate,
                       list_make1(stmt->sourceRelation));
@@ -214,12 +230,14 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
    * more specific error message.
    */
   if (strcmp(pstate->p_target_nsitem->p_names->aliasname,
-             nsitem->p_names->aliasname) == 0)
+             nsitem->p_names->aliasname) == 0) {
+    DBUG_INSTANT_PRINT("info", "name \"%s\" specified more than once", pstate->p_target_nsitem->p_names->aliasname);
     ereport(ERROR,
             errcode(ERRCODE_DUPLICATE_ALIAS),
             errmsg("name \"%s\" specified more than once",
                    pstate->p_target_nsitem->p_names->aliasname),
             errdetail("The name is used both as MERGE target table and data source."));
+  }
 
   /*
    * There's no need for a targetlist here; it'll be set up by
@@ -233,6 +251,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
    * Transform the join condition.  This includes references to the target
    * side, so add that to the namespace.
    */
+  DBUG_PRINT("info", "transform the join condition");
   addNSItemToQuery(pstate, pstate->p_target_nsitem, false, true, true);
   qry->mergeJoinCondition = transformExpr(pstate, stmt->joinCondition,
                                           EXPR_KIND_JOIN_ON);
@@ -242,6 +261,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
    * just the source relation; the target relation is not included. The join
    * will be constructed fully by transform_MERGE_to_join.
    */
+  DBUG_PRINT("info", "create the temporary query's jointree");
   qry->jointree = makeFromExpr(pstate->p_joinlist, NULL);
 
   /* Transform the RETURNING list, if any */
@@ -263,6 +283,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
    * pseudo-relation for INSERT ON CONFLICT.
    */
   mergeActionList = NIL;
+  DBUG_PRINT("info", "look at the WHEN conditions and action targetlists");
 
   foreach(l, stmt->mergeWhenClauses) {
     MergeWhenClause *mergeWhenClause = lfirst_node(MergeWhenClause, l);
@@ -276,6 +297,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
      * Set namespace for the specific action. This must be done before
      * analyzing the WHEN quals and the action targetlist.
      */
+    DBUG_PRINT("info", "set namespace for the specific action");
     setNamespaceForMergeWhen(pstate, mergeWhenClause,
                              qry->resultRelation,
                              sourceRTI);
@@ -287,6 +309,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
      * are evaluated separately during execution to decide which of the
      * WHEN MATCHED or WHEN NOT MATCHED actions to execute.
      */
+    DBUG_PRINT("info", "transform the WHEN condition");
     action->qual = transformWhereClause(pstate, mergeWhenClause->condition,
                                         EXPR_KIND_MERGE_WHEN, "WHEN");
 
@@ -303,6 +326,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
         List     *icolumns;
         List     *attrnos;
 
+        DBUG_PRINT("info", "transform target lists for each INSERT action stmt");
         pstate->p_is_insert = true;
 
         icolumns = checkInsertTargets(pstate,
@@ -374,6 +398,7 @@ transformMergeStmt(ParseState *pstate, MergeStmt *stmt)
       break;
 
       case CMD_UPDATE: {
+        DBUG_PRINT("info", "transform target lists for each update action stmt");
         pstate->p_is_insert = false;
         action->targetList =
           transformUpdateTargetList(pstate,
@@ -410,6 +435,7 @@ setNamespaceVisibilityForRTE(List *namespace, RangeTblEntry *rte,
                              bool rel_visible,
                              bool cols_visible)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, namespace) {

@@ -16,6 +16,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/tupconvert.h"
@@ -60,6 +61,7 @@ convert_tuples_by_position(TupleDesc indesc,
                            TupleDesc outdesc,
                            const char *msg)
 {
+  DBUG_TRACE;
   TupleConversionMap *map;
   int     n;
   AttrMap    *attrMap;
@@ -101,6 +103,7 @@ TupleConversionMap *
 convert_tuples_by_name(TupleDesc indesc,
                        TupleDesc outdesc)
 {
+  DBUG_TRACE;
   AttrMap    *attrMap;
 
   /* Verify compatibility and prepare attribute-number map */
@@ -123,6 +126,7 @@ convert_tuples_by_name_attrmap(TupleDesc indesc,
                                TupleDesc outdesc,
                                AttrMap *attrMap)
 {
+  DBUG_TRACE;
   int     n = outdesc->natts;
   TupleConversionMap *map;
 
@@ -151,6 +155,7 @@ convert_tuples_by_name_attrmap(TupleDesc indesc,
 HeapTuple
 execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map)
 {
+  DBUG_TRACE;
   AttrMap    *attrMap = map->attrMap;
   Datum    *invalues = map->invalues;
   bool     *inisnull = map->inisnull;
@@ -191,6 +196,7 @@ execute_attr_map_slot(AttrMap *attrMap,
                       TupleTableSlot *in_slot,
                       TupleTableSlot *out_slot)
 {
+  DBUG_TRACE;
   Datum    *invalues;
   bool     *inisnull;
   Datum    *outvalues;
@@ -245,6 +251,7 @@ execute_attr_map_slot(AttrMap *attrMap,
 Bitmapset *
 execute_attr_map_cols(AttrMap *attrMap, Bitmapset *in_cols)
 {
+  DBUG_TRACE;
   Bitmapset  *out_cols;
   int     out_attnum;
 
@@ -288,6 +295,7 @@ execute_attr_map_cols(AttrMap *attrMap, Bitmapset *in_cols)
 void
 free_conversion_map(TupleConversionMap *map)
 {
+  DBUG_TRACE;
   /* indesc and outdesc are not ours to free */
   free_attrmap(map->attrMap);
   pfree(map->invalues);

@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "px.h"
 
@@ -51,6 +52,7 @@ hmac_block_size(PX_HMAC *h)
 static void
 hmac_init(PX_HMAC *h, const uint8 *key, unsigned klen)
 {
+  DBUG_TRACE;
   unsigned  bs,
             i;
   uint8    *keybuf;
@@ -80,6 +82,7 @@ hmac_init(PX_HMAC *h, const uint8 *key, unsigned klen)
 static void
 hmac_reset(PX_HMAC *h)
 {
+  DBUG_TRACE;
   PX_MD    *md = h->md;
   unsigned  bs = px_md_block_size(md);
 
@@ -90,12 +93,14 @@ hmac_reset(PX_HMAC *h)
 static void
 hmac_update(PX_HMAC *h, const uint8 *data, unsigned dlen)
 {
+  DBUG_TRACE;
   px_md_update(h->md, data, dlen);
 }
 
 static void
 hmac_finish(PX_HMAC *h, uint8 *dst)
 {
+  DBUG_TRACE;
   PX_MD    *md = h->md;
   unsigned  bs,
             hlen;
@@ -120,6 +125,7 @@ hmac_finish(PX_HMAC *h, uint8 *dst)
 static void
 hmac_free(PX_HMAC *h)
 {
+  DBUG_TRACE;
   unsigned  bs;
 
   bs = px_md_block_size(h->md);
@@ -138,6 +144,7 @@ hmac_free(PX_HMAC *h)
 int
 px_find_hmac(const char *name, PX_HMAC **res)
 {
+  DBUG_TRACE;
   int     err;
   PX_MD    *md;
   PX_HMAC    *h;

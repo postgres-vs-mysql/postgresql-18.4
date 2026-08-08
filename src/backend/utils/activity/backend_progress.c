@@ -8,6 +8,7 @@
  *  src/backend/utils/activity/backend_progress.c
  * ----------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/parallel.h"

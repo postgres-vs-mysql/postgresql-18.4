@@ -10,6 +10,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/amvalidate.h"
@@ -44,6 +45,7 @@ blvalidate(Oid opclassoid)
   int     i;
   ListCell   *lc;
 
+  DBUG_PRINT("bloom", "validator for a bloom opclass(%u)", opclassoid);
   /* Fetch opclass information */
   classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassoid));
 
@@ -209,6 +211,12 @@ blvalidate(Oid opclassoid)
   ReleaseCatCacheList(proclist);
   ReleaseCatCacheList(oprlist);
   ReleaseSysCache(classtup);
+
+  if (result) {
+    DBUG_PRINT("bloom", "return true");
+  } else {
+    DBUG_PRINT("bloom", "return false");
+  }
 
   return result;
 }

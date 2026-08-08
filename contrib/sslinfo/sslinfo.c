@@ -8,6 +8,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -44,6 +45,7 @@ PG_FUNCTION_INFO_V1(ssl_is_used);
 Datum
 ssl_is_used(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(MyProcPort->ssl_in_use);
 }
 
@@ -55,6 +57,7 @@ PG_FUNCTION_INFO_V1(ssl_version);
 Datum
 ssl_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *version;
 
   if (!MyProcPort->ssl_in_use)
@@ -76,6 +79,7 @@ PG_FUNCTION_INFO_V1(ssl_cipher);
 Datum
 ssl_cipher(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *cipher;
 
   if (!MyProcPort->ssl_in_use)
@@ -100,6 +104,7 @@ PG_FUNCTION_INFO_V1(ssl_client_cert_present);
 Datum
 ssl_client_cert_present(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(MyProcPort->peer_cert_valid);
 }
 
@@ -116,6 +121,7 @@ PG_FUNCTION_INFO_V1(ssl_client_serial);
 Datum
 ssl_client_serial(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char decimal[NAMEDATALEN];
   Datum   result;
 
@@ -151,6 +157,7 @@ ssl_client_serial(PG_FUNCTION_ARGS)
 static Datum
 ASN1_STRING_to_text(ASN1_STRING *str)
 {
+  DBUG_TRACE;
   BIO      *membuf;
   size_t    size;
   char    nullterm;
@@ -201,6 +208,7 @@ ASN1_STRING_to_text(ASN1_STRING *str)
 static Datum
 X509_NAME_field_to_text(X509_NAME *name, text *fieldName)
 {
+  DBUG_TRACE;
   char     *string_fieldname;
   int     nid,
           index;
@@ -246,6 +254,7 @@ PG_FUNCTION_INFO_V1(ssl_client_dn_field);
 Datum
 ssl_client_dn_field(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *fieldname = PG_GETARG_TEXT_PP(0);
   Datum   result;
 
@@ -281,6 +290,7 @@ PG_FUNCTION_INFO_V1(ssl_issuer_field);
 Datum
 ssl_issuer_field(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *fieldname = PG_GETARG_TEXT_PP(0);
   Datum   result;
 
@@ -309,6 +319,7 @@ PG_FUNCTION_INFO_V1(ssl_client_dn);
 Datum
 ssl_client_dn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    subject[NAMEDATALEN];
 
   if (!MyProcPort->ssl_in_use || !MyProcPort->peer_cert_valid)
@@ -336,6 +347,7 @@ PG_FUNCTION_INFO_V1(ssl_issuer_dn);
 Datum
 ssl_issuer_dn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    issuer[NAMEDATALEN];
 
   if (!MyProcPort->ssl_in_use || !MyProcPort->peer_cert_valid)
@@ -362,6 +374,7 @@ PG_FUNCTION_INFO_V1(ssl_extension_info);
 Datum
 ssl_extension_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   X509     *cert = MyProcPort->peer;
   FuncCallContext *funcctx;
   int     call_cntr;

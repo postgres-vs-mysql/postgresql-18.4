@@ -39,8 +39,7 @@ typedef enum pg_checksum_type
 /*
  * This is just a union of all applicable context types.
  */
-typedef union pg_checksum_raw_context
-{
+typedef union pg_checksum_raw_context {
   pg_crc32c c_crc32c;
   pg_cryptohash_ctx *c_sha2;
 } pg_checksum_raw_context;

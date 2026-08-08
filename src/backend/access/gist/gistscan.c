@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist_private.h"
 #include "access/gistscan.h"
@@ -68,11 +69,13 @@ pairingheap_GISTSearchItem_cmp(const pairingheap_node *a, const pairingheap_node
 IndexScanDesc
 gistbeginscan(Relation r, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   GISTSTATE  *giststate;
   GISTScanOpaque so;
   MemoryContext oldCxt;
 
+  DBUG_PRINT("info", "index AM API functions for scanning GiST indexes");
   scan = RelationGetIndexScan(r, nkeys, norderbys);
 
   /* First, set up a GISTSTATE with a scan-lifespan memory context */
@@ -122,6 +125,7 @@ void
 gistrescan(IndexScanDesc scan, ScanKey key, int nkeys,
            ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   /* nkeys and norderbys arguments are ignored */
   GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
   bool    first_time;
@@ -129,6 +133,7 @@ gistrescan(IndexScanDesc scan, ScanKey key, int nkeys,
   MemoryContext oldCxt;
 
   /* rescan an existing indexscan --- reset state */
+  DBUG_PRINT("info", "rescan an existing indexscan");
 
   /*
    * The first time through, we create the search queue in the scanCxt.
@@ -330,6 +335,7 @@ gistrescan(IndexScanDesc scan, ScanKey key, int nkeys,
 void
 gistendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
 
   /*

@@ -34,6 +34,7 @@
  *-------------------------------------------------------------------------
 */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/nbtree.h"
@@ -221,6 +222,7 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
                          List *subpaths,
                          List *prunequal)
 {
+  DBUG_TRACE;
   PartitionPruneInfo *pruneinfo;
   Bitmapset  *allmatchedsubplans = NULL;
   List     *allpartrelids;
@@ -392,6 +394,7 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 static List *
 add_part_relids(List *allpartrelids, Bitmapset *partrelids)
 {
+  DBUG_TRACE;
   Index   targetpart;
   ListCell   *lc;
 
@@ -441,6 +444,7 @@ make_partitionedrel_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
                               int *relid_subplan_map,
                               Bitmapset **matchedsubplans)
 {
+  DBUG_TRACE;
   RelOptInfo *targetpart = NULL;
   List     *pinfolist = NIL;
   bool    doruntimeprune = false;
@@ -723,6 +727,7 @@ static void
 gen_partprune_steps(RelOptInfo *rel, List *clauses, PartClauseTarget target,
                     GeneratePruningStepsContext *context)
 {
+  DBUG_TRACE;
   /* Initialize all output values to zero/false/NULL */
   memset(context, 0, sizeof(GeneratePruningStepsContext));
   context->rel = rel;
@@ -757,6 +762,7 @@ gen_partprune_steps(RelOptInfo *rel, List *clauses, PartClauseTarget target,
 Bitmapset *
 prune_append_rel_partitions(RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *clauses = rel->baserestrictinfo;
   List     *pruning_steps;
   GeneratePruningStepsContext gcontext;
@@ -765,15 +771,19 @@ prune_append_rel_partitions(RelOptInfo *rel)
   Assert(rel->part_scheme != NULL);
 
   /* If there are no partitions, return the empty set */
-  if (rel->nparts == 0)
+  if (rel->nparts == 0) {
+    DBUG_PRINT("info", "if there are no partitions, return the empty set");
     return NULL;
+  }
 
   /*
    * If pruning is disabled or if there are no clauses to prune with, return
    * all partitions.
    */
-  if (!enable_partition_pruning || clauses == NIL)
+  if (!enable_partition_pruning || clauses == NIL) {
+    DBUG_PRINT("info", "if pruning is disabled or if there are no clauses to prune with, return all partitions");
     return bms_add_range(NULL, 0, rel->nparts - 1);
+  }
 
   /*
    * Process clauses to extract pruning steps that are usable at plan time.
@@ -789,10 +799,13 @@ prune_append_rel_partitions(RelOptInfo *rel)
   pruning_steps = gcontext.steps;
 
   /* If there's nothing usable, return all partitions */
-  if (pruning_steps == NIL)
+  if (pruning_steps == NIL) {
+    DBUG_PRINT("info", "if there's nothing usable, return all partitions");
     return bms_add_range(NULL, 0, rel->nparts - 1);
+  }
 
   /* Set up PartitionPruneContext */
+  DBUG_PRINT("info", "set up PartitionPruneContext");
   context.strategy = rel->part_scheme->strategy;
   context.partnatts = rel->part_scheme->partnatts;
   context.nparts = rel->nparts;
@@ -826,6 +839,7 @@ prune_append_rel_partitions(RelOptInfo *rel)
 Bitmapset *
 get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
 {
+  DBUG_TRACE;
   Bitmapset  *result;
   int     num_steps = list_length(pruning_steps),
           i;
@@ -834,8 +848,11 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
   ListCell   *lc;
   bool    scan_default;
 
+  DBUG_PRINT("info", "determine partitions that survive partition pruning");
+
   /* If there are no pruning steps then all partitions match. */
   if (num_steps == 0) {
+    DBUG_PRINT("info", "if there are no pruning steps then all partitions match");
     Assert(context->nparts > 0);
     return bms_add_range(NULL, 0, context->nparts - 1);
   }
@@ -906,6 +923,7 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
       continue;
     }
 
+    DBUG_PRINT("info", "add a specified member to set:%d", partindex);
     result = bms_add_member(result, partindex);
   }
 
@@ -913,6 +931,7 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
   if (final_result->scan_null) {
     Assert(context->strategy == PARTITION_STRATEGY_LIST);
     Assert(partition_bound_accepts_nulls(context->boundinfo));
+    DBUG_PRINT("info", "add the null partition if needed and present:%d", context->boundinfo->null_index);
     result = bms_add_member(result, context->boundinfo->null_index);
   }
 
@@ -920,6 +939,7 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
     Assert(context->strategy == PARTITION_STRATEGY_LIST ||
            context->strategy == PARTITION_STRATEGY_RANGE);
     Assert(partition_bound_has_default(context->boundinfo));
+    DBUG_PRINT("info", "add the default partition if needed and present:%d", context->boundinfo->default_index);
     result = bms_add_member(result, context->boundinfo->default_index);
   }
 
@@ -967,6 +987,7 @@ static List *
 gen_partprune_steps_internal(GeneratePruningStepsContext *context,
                              List *clauses)
 {
+  DBUG_TRACE;
   PartitionScheme part_scheme = context->rel->part_scheme;
   List     *keyclauses[PARTITION_MAX_KEYS];
   Bitmapset  *nullkeys = NULL,
@@ -1297,6 +1318,7 @@ gen_prune_step_op(GeneratePruningStepsContext *context,
                   List *exprs, List *cmpfns,
                   Bitmapset *nullkeys)
 {
+  DBUG_TRACE;
   PartitionPruneStepOp *opstep = makeNode(PartitionPruneStepOp);
 
   opstep->step.step_id = context->next_step_id++;
@@ -1329,6 +1351,7 @@ gen_prune_step_combine(GeneratePruningStepsContext *context,
                        List *source_stepids,
                        PartitionPruneCombineOp combineOp)
 {
+  DBUG_TRACE;
   PartitionPruneStepCombine *cstep = makeNode(PartitionPruneStepCombine);
 
   cstep->step.step_id = context->next_step_id++;
@@ -1365,6 +1388,7 @@ static List *
 gen_prune_steps_from_opexps(GeneratePruningStepsContext *context,
                             List **keyclauses, Bitmapset *nullkeys)
 {
+  DBUG_TRACE;
   PartitionScheme part_scheme = context->rel->part_scheme;
   List     *opsteps = NIL;
   List     *btree_clauses[BTMaxStrategyNumber + 1],
@@ -1761,6 +1785,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
                               bool *clause_is_not_null, PartClauseInfo **pc,
                               List **clause_steps)
 {
+  DBUG_TRACE;
   PartClauseMatchStatus boolmatchstatus;
   PartitionScheme part_scheme = context->rel->part_scheme;
   Oid     partopfamily = part_scheme->partopfamily[partkeyidx],
@@ -2398,6 +2423,7 @@ get_steps_using_prefix(GeneratePruningStepsContext *context,
                        Bitmapset *step_nullkeys,
                        List *prefix)
 {
+  DBUG_TRACE;
   /* step_nullkeys must be empty for RANGE and LIST partitioned tables */
   Assert(step_nullkeys == NULL ||
          context->rel->part_scheme->strategy == PARTITION_STRATEGY_HASH);
@@ -2458,6 +2484,7 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
                                List *step_exprs,
                                List *step_cmpfns)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
   int     cur_keyno;
@@ -2610,6 +2637,7 @@ get_matching_hash_bounds(PartitionPruneContext *context,
                          StrategyNumber opstrategy, Datum *values, int nvalues,
                          FmgrInfo *partsupfunc, Bitmapset *nullkeys)
 {
+  DBUG_TRACE;
   PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
   PartitionBoundInfo boundinfo = context->boundinfo;
   int      *partindices = boundinfo->indexes;
@@ -2685,6 +2713,7 @@ get_matching_list_bounds(PartitionPruneContext *context,
                          StrategyNumber opstrategy, Datum value, int nvalues,
                          FmgrInfo *partsupfunc, Bitmapset *nullkeys)
 {
+  DBUG_TRACE;
   PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
   PartitionBoundInfo boundinfo = context->boundinfo;
   int     off,
@@ -2893,6 +2922,7 @@ get_matching_range_bounds(PartitionPruneContext *context,
                           StrategyNumber opstrategy, Datum *values, int nvalues,
                           FmgrInfo *partsupfunc, Bitmapset *nullkeys)
 {
+  DBUG_TRACE;
   PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
   PartitionBoundInfo boundinfo = context->boundinfo;
   Oid      *partcollation = context->partcollation;
@@ -3344,6 +3374,7 @@ static PruneStepResult *
 perform_pruning_base_step(PartitionPruneContext *context,
                           PartitionPruneStepOp *opstep)
 {
+  DBUG_TRACE;
   ListCell   *lc1,
              *lc2;
   int     keyno,
@@ -3489,6 +3520,7 @@ perform_pruning_combine_step(PartitionPruneContext *context,
                              PartitionPruneStepCombine *cstep,
                              PruneStepResult **step_results)
 {
+  DBUG_TRACE;
   PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
   bool    firststep;
   ListCell   *lc1;

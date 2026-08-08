@@ -78,8 +78,7 @@
 typedef struct HashJoinTupleData
 {
   /* link to next tuple in same bucket */
-  union
-  {
+  union {
     struct HashJoinTupleData *unshared;
     dsa_pointer shared;
   }     next;
@@ -132,8 +131,7 @@ typedef struct HashMemoryChunkData
   size_t    used;     /* number of buffer bytes already used */
 
   /* pointer to the next chunk (linked list) */
-  union
-  {
+  union {
     struct HashMemoryChunkData *unshared;
     dsa_pointer shared;
   }     next;
@@ -305,8 +303,7 @@ typedef struct HashJoinTableData
   int     log2_nbuckets_optimal;  /* log2(nbuckets_optimal) */
 
   /* buckets[i] is head of list of tuples in i'th in-memory bucket */
-  union
-  {
+  union {
     /* unshared array is per-batch storage, as are all the tuples */
     struct HashJoinTupleData **unshared;
     /* shared array is per-query DSA area, as are all the tuples */

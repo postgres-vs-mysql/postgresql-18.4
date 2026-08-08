@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist.h"
 #include "access/heaptoast.h"
@@ -86,6 +87,7 @@ static int32 sizebitvec(BITVECP sign, int siglen);
 Datum
 gtsvectorin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* There's no need to support input of gtsvectors */
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -97,6 +99,7 @@ gtsvectorin(PG_FUNCTION_ARGS)
 Datum
 gtsvectorout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SignTSVector *key = (SignTSVector *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   char     *outbuf;
 
@@ -159,6 +162,7 @@ gtsvector_alloc(int flag, int len, BITVECP sign)
 Datum
 gtsvector_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   int     siglen = GET_SIGLEN();
   GISTENTRY  *retval = entry;
@@ -236,6 +240,7 @@ gtsvector_compress(PG_FUNCTION_ARGS)
 Datum
 gtsvector_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * We need to detoast the stored value, because the other gtsvector
    * support functions don't cope with toasted values.
@@ -316,6 +321,8 @@ checkcondition_bit(void *checkval, QueryOperand *val, ExecPhraseData *data)
 Datum
 gtsvector_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  bool result;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
 
@@ -327,27 +334,48 @@ gtsvector_consistent(PG_FUNCTION_ARGS)
   /* All cases served by this function are inexact */
   *recheck = true;
 
-  if (!query->size)
+  if (!query->size) {
+    DBUG_PRINT("info", "return false");
     PG_RETURN_BOOL(false);
+  }
 
   if (ISSIGNKEY(key)) {
-    if (ISALLTRUE(key))
+    if (ISALLTRUE(key)) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true);
+    }
 
-    PG_RETURN_BOOL(TS_execute(GETQUERY(query),
-                              key,
-                              TS_EXEC_PHRASE_NO_POS,
-                              checkcondition_bit));
+    result = (TS_execute(GETQUERY(query),
+                         key,
+                         TS_EXEC_PHRASE_NO_POS,
+                         checkcondition_bit));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
   } else {
     /* only leaf pages */
     CHKVAL    chkval;
 
     chkval.arrb = GETARR(key);
     chkval.arre = chkval.arrb + ARRNELEM(key);
-    PG_RETURN_BOOL(TS_execute(GETQUERY(query),
-                              &chkval,
-                              TS_EXEC_PHRASE_NO_POS,
-                              checkcondition_arr));
+    result = (TS_execute(GETQUERY(query),
+                         &chkval,
+                         TS_EXEC_PHRASE_NO_POS,
+                         checkcondition_arr));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+
   }
 }
 
@@ -380,6 +408,7 @@ unionkey(BITVECP sbase, SignTSVector *add, int siglen)
 Datum
 gtsvector_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *size = (int *) PG_GETARG_POINTER(1);
   int     siglen = GET_SIGLEN();
@@ -405,6 +434,7 @@ gtsvector_union(PG_FUNCTION_ARGS)
 Datum
 gtsvector_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SignTSVector *a = (SignTSVector *) PG_GETARG_POINTER(0);
   SignTSVector *b = (SignTSVector *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -501,6 +531,7 @@ hemdist(SignTSVector *a, SignTSVector *b)
 Datum
 gtsvector_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0); /* always ISSIGNKEY */
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -529,6 +560,7 @@ gtsvector_penalty(PG_FUNCTION_ARGS)
   } else
     *penalty = hemdist(origval, newval);
 
+  DBUG_PRINT("info", "penalty:%g", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -583,6 +615,7 @@ hemdistcache(CACHESIGN *a, CACHESIGN *b, int siglen)
 Datum
 gtsvector_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   int     siglen = GET_SIGLEN();
@@ -749,12 +782,14 @@ gtsvector_picksplit(PG_FUNCTION_ARGS)
 Datum
 gtsvector_consistent_oldsig(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return gtsvector_consistent(fcinfo);
 }
 
 Datum
 gtsvector_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(GistTsVectorOptions));

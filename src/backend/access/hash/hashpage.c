@@ -27,6 +27,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/hash_xlog.h"
@@ -69,6 +70,7 @@ static void log_split_page(Relation rel, Buffer buf);
 Buffer
 _hash_getbuf(Relation rel, BlockNumber blkno, int access, int flags)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   if (blkno == P_NEW)
@@ -95,6 +97,7 @@ _hash_getbuf(Relation rel, BlockNumber blkno, int access, int flags)
 Buffer
 _hash_getbuf_with_condlock_cleanup(Relation rel, BlockNumber blkno, int flags)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   if (blkno == P_NEW)
@@ -133,6 +136,7 @@ _hash_getbuf_with_condlock_cleanup(Relation rel, BlockNumber blkno, int flags)
 Buffer
 _hash_getinitbuf(Relation rel, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   if (blkno == P_NEW)
@@ -156,6 +160,7 @@ void
 _hash_initbuf(Buffer buf, uint32 max_bucket, uint32 num_bucket, uint32 flag,
               bool initpage)
 {
+  DBUG_TRACE;
   HashPageOpaque pageopaque;
   Page    page;
 
@@ -196,6 +201,7 @@ _hash_initbuf(Buffer buf, uint32 max_bucket, uint32 num_bucket, uint32 flag,
 Buffer
 _hash_getnewbuf(Relation rel, BlockNumber blkno, ForkNumber forkNum)
 {
+  DBUG_TRACE;
   BlockNumber nblocks = RelationGetNumberOfBlocksInFork(rel, forkNum);
   Buffer    buf;
 
@@ -238,6 +244,7 @@ _hash_getbuf_with_strategy(Relation rel, BlockNumber blkno,
                            int access, int flags,
                            BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   if (blkno == P_NEW)
@@ -286,6 +293,8 @@ _hash_dropbuf(Relation rel, Buffer buf)
 void
 _hash_dropscanbuf(Relation rel, HashScanOpaque so)
 {
+  DBUG_TRACE;
+
   /* release pin we hold on primary bucket page */
   if (BufferIsValid(so->hashso_bucket_buf) &&
       so->hashso_bucket_buf != so->currPos.buf)
@@ -327,6 +336,7 @@ _hash_dropscanbuf(Relation rel, HashScanOpaque so)
 uint32
 _hash_init(Relation rel, double num_tuples, ForkNumber forkNum)
 {
+  DBUG_TRACE;
   Buffer    metabuf;
   Buffer    buf;
   Buffer    bitmapbuf;
@@ -498,6 +508,7 @@ void
 _hash_init_metabuffer(Buffer buf, double num_tuples, RegProcedure procid,
                       uint16 ffactor, bool initpage)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   HashPageOpaque pageopaque;
   Page    page;
@@ -615,6 +626,7 @@ _hash_pageinit(Page page, Size size)
 void
 _hash_expandtable(Relation rel, Buffer metabuf)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   Bucket    old_bucket;
   Bucket    new_bucket;
@@ -987,6 +999,7 @@ fail:
 static bool
 _hash_alloc_buckets(Relation rel, BlockNumber firstblock, uint32 nblocks)
 {
+  DBUG_TRACE;
   BlockNumber lastblock;
   PGIOAlignedBlock zerobuf;
   Page    page;
@@ -1077,6 +1090,7 @@ _hash_splitbucket(Relation rel,
                   uint32 highmask,
                   uint32 lowmask)
 {
+  DBUG_TRACE;
   Buffer    bucket_obuf;
   Buffer    bucket_nbuf;
   Page    opage;
@@ -1344,6 +1358,7 @@ void
 _hash_finish_split(Relation rel, Buffer metabuf, Buffer obuf, Bucket obucket,
                    uint32 maxbucket, uint32 highmask, uint32 lowmask)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
   HTAB     *tidhtab;
   Buffer    bucket_nbuf = InvalidBuffer;
@@ -1459,6 +1474,8 @@ _hash_finish_split(Relation rel, Buffer metabuf, Buffer obuf, Bucket obucket,
 static void
 log_split_page(Relation rel, Buffer buf)
 {
+  DBUG_TRACE;
+
   if (RelationNeedsWAL(rel)) {
     XLogRecPtr  recptr;
 
@@ -1485,6 +1502,7 @@ log_split_page(Relation rel, Buffer buf)
 HashMetaPage
 _hash_getcachedmetap(Relation rel, Buffer *metabuf, bool force_refresh)
 {
+  DBUG_TRACE;
   Page    page;
 
   Assert(metabuf);
@@ -1546,6 +1564,7 @@ Buffer
 _hash_getbucketbuf_from_hashkey(Relation rel, uint32 hashkey, int access,
                                 HashMetaPage *cachedmetap)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   Buffer    buf;
   Buffer    metabuf = InvalidBuffer;

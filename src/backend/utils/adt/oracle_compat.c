@@ -13,6 +13,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "common/int.h"
@@ -48,6 +49,7 @@ static bytea *dobyteatrim(bytea *string, bytea *set,
 Datum
 lower(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in_string = PG_GETARG_TEXT_PP(0);
   char     *out_string;
   text     *result;
@@ -79,6 +81,7 @@ lower(PG_FUNCTION_ARGS)
 Datum
 upper(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in_string = PG_GETARG_TEXT_PP(0);
   char     *out_string;
   text     *result;
@@ -113,6 +116,7 @@ upper(PG_FUNCTION_ARGS)
 Datum
 initcap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in_string = PG_GETARG_TEXT_PP(0);
   char     *out_string;
   text     *result;
@@ -162,6 +166,7 @@ casefold(PG_FUNCTION_ARGS)
 Datum
 lpad(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string1 = PG_GETARG_TEXT_PP(0);
   int32   len = PG_GETARG_INT32(1);
   text     *string2 = PG_GETARG_TEXT_PP(2);
@@ -261,6 +266,7 @@ lpad(PG_FUNCTION_ARGS)
 Datum
 rpad(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string1 = PG_GETARG_TEXT_PP(0);
   int32   len = PG_GETARG_INT32(1);
   text     *string2 = PG_GETARG_TEXT_PP(2);
@@ -360,6 +366,7 @@ rpad(PG_FUNCTION_ARGS)
 Datum
 btrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *set = PG_GETARG_TEXT_PP(1);
   text     *ret;
@@ -380,6 +387,7 @@ btrim(PG_FUNCTION_ARGS)
 Datum
 btrim1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *ret;
 
@@ -635,6 +643,7 @@ dobyteatrim(bytea *string, bytea *set, bool doltrim, bool dortrim)
 Datum
 byteatrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *string = PG_GETARG_BYTEA_PP(0);
   bytea    *set = PG_GETARG_BYTEA_PP(1);
   bytea    *ret;
@@ -662,6 +671,7 @@ byteatrim(PG_FUNCTION_ARGS)
 Datum
 bytealtrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *string = PG_GETARG_BYTEA_PP(0);
   bytea    *set = PG_GETARG_BYTEA_PP(1);
   bytea    *ret;
@@ -689,6 +699,7 @@ bytealtrim(PG_FUNCTION_ARGS)
 Datum
 byteartrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *string = PG_GETARG_BYTEA_PP(0);
   bytea    *set = PG_GETARG_BYTEA_PP(1);
   bytea    *ret;
@@ -716,6 +727,7 @@ byteartrim(PG_FUNCTION_ARGS)
 Datum
 ltrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *set = PG_GETARG_TEXT_PP(1);
   text     *ret;
@@ -736,6 +748,7 @@ ltrim(PG_FUNCTION_ARGS)
 Datum
 ltrim1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *ret;
 
@@ -764,6 +777,7 @@ ltrim1(PG_FUNCTION_ARGS)
 Datum
 rtrim(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *set = PG_GETARG_TEXT_PP(1);
   text     *ret;
@@ -784,6 +798,7 @@ rtrim(PG_FUNCTION_ARGS)
 Datum
 rtrim1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *ret;
 
@@ -815,6 +830,7 @@ rtrim1(PG_FUNCTION_ARGS)
 Datum
 translate(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   text     *from = PG_GETARG_TEXT_PP(1);
   text     *to = PG_GETARG_TEXT_PP(2);
@@ -946,6 +962,7 @@ translate(PG_FUNCTION_ARGS)
 Datum
 ascii(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   int     encoding = GetDatabaseEncoding();
   unsigned char *data;
@@ -1018,6 +1035,7 @@ ascii(PG_FUNCTION_ARGS)
 Datum
 chr     (PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg = PG_GETARG_INT32(0);
   uint32    cvalue;
   text     *result;
@@ -1125,6 +1143,7 @@ chr     (PG_FUNCTION_ARGS)
 Datum
 repeat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *string = PG_GETARG_TEXT_PP(0);
   int32   count = PG_GETARG_INT32(1);
   text     *result;

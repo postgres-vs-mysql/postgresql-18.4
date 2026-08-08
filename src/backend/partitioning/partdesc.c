@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -68,6 +69,7 @@ static PartitionDesc RelationBuildPartitionDesc(Relation rel,
 PartitionDesc
 RelationGetPartitionDesc(Relation rel, bool omit_detached)
 {
+  DBUG_TRACE;
   Assert(rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE);
 
   /*
@@ -130,6 +132,7 @@ RelationGetPartitionDesc(Relation rel, bool omit_detached)
 static PartitionDesc
 RelationBuildPartitionDesc(Relation rel, bool omit_detached)
 {
+  DBUG_TRACE;
   PartitionDesc partdesc;
   PartitionBoundInfo boundinfo = NULL;
   List     *inhoids;
@@ -420,6 +423,7 @@ retry:
 PartitionDirectory
 CreatePartitionDirectory(MemoryContext mcxt, bool omit_detached)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = MemoryContextSwitchTo(mcxt);
   PartitionDirectory pdir;
   HASHCTL   ctl;
@@ -453,6 +457,7 @@ CreatePartitionDirectory(MemoryContext mcxt, bool omit_detached)
 PartitionDesc
 PartitionDirectoryLookup(PartitionDirectory pdir, Relation rel)
 {
+  DBUG_TRACE;
   PartitionDirectoryEntry *pde;
   Oid     relid = RelationGetRelid(rel);
   bool    found;
@@ -482,6 +487,7 @@ PartitionDirectoryLookup(PartitionDirectory pdir, Relation rel)
 void
 DestroyPartitionDirectory(PartitionDirectory pdir)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   PartitionDirectoryEntry *pde;
 
@@ -500,6 +506,8 @@ DestroyPartitionDirectory(PartitionDirectory pdir)
 Oid
 get_default_oid_from_partdesc(PartitionDesc partdesc)
 {
+  DBUG_TRACE;
+
   if (partdesc && partdesc->boundinfo &&
       partition_bound_has_default(partdesc->boundinfo))
     return partdesc->oids[partdesc->boundinfo->default_index];

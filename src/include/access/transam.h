@@ -409,8 +409,7 @@ FullTransactionIdFromAllowableAt(FullTransactionId nextFullXid,
    */
   epoch = EpochFromFullTransactionId(nextFullXid);
 
-  if (unlikely(xid > XidFromFullTransactionId(nextFullXid)))
-  {
+  if (unlikely(xid > XidFromFullTransactionId(nextFullXid))) {
     Assert(epoch != 0);
     epoch--;
   }

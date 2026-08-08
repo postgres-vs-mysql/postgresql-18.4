@@ -37,6 +37,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -245,6 +246,7 @@ static int  tbm_shared_comparator(const void *left, const void *right,
 TIDBitmap *
 tbm_create(Size maxbytes, dsa_area *dsa)
 {
+  DBUG_TRACE;
   TIDBitmap  *tbm;
 
   /* Create the TIDBitmap struct and zero all its fields */
@@ -271,6 +273,7 @@ tbm_create(Size maxbytes, dsa_area *dsa)
 static void
 tbm_create_pagetable(TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   Assert(tbm->status != TBM_HASH);
   Assert(tbm->pagetable == NULL);
 
@@ -282,6 +285,7 @@ tbm_create_pagetable(TIDBitmap *tbm)
     bool    found;
     char    oldstatus;
 
+    DBUG_PRINT("info", "entry1 is valid and push it into the hashtable");
     page = pagetable_insert(tbm->pagetable,
                             tbm->entry1.blockno,
                             &found);
@@ -300,6 +304,8 @@ tbm_create_pagetable(TIDBitmap *tbm)
 void
 tbm_free(TIDBitmap *tbm)
 {
+  DBUG_TRACE;
+
   if (tbm->pagetable)
     pagetable_destroy(tbm->pagetable);
 
@@ -361,10 +367,12 @@ void
 tbm_add_tuples(TIDBitmap *tbm, const ItemPointer tids, int ntids,
                bool recheck)
 {
+  DBUG_TRACE;
   BlockNumber currblk = InvalidBlockNumber;
   PagetableEntry *page = NULL;  /* only valid when currblk is valid */
   int     i;
 
+  DBUG_PRINT("info", "add some tuple IDs to a TIDBitmap(ntids:%d)", ntids);
   Assert(tbm->iterating == TBM_NOT_ITERATING);
 
   for (i = 0; i < ntids; i++) {
@@ -372,6 +380,8 @@ tbm_add_tuples(TIDBitmap *tbm, const ItemPointer tids, int ntids,
     OffsetNumber off = ItemPointerGetOffsetNumber(tids + i);
     int     wordnum,
             bitnum;
+
+    DBUG_PRINT("info", "add tuple ID(blk:%u, off:%u)", blk, off);
 
     /* safety check to ensure we don't overrun bit array bounds */
     if (off < 1 || off > TBM_MAX_TUPLES_PER_PAGE)
@@ -389,6 +399,7 @@ tbm_add_tuples(TIDBitmap *tbm, const ItemPointer tids, int ntids,
         page = tbm_get_pageentry(tbm, blk);
 
       currblk = blk;
+      DBUG_PRINT("info", "set current blk:%u", blk);
     }
 
     if (page == NULL)
@@ -423,6 +434,8 @@ tbm_add_tuples(TIDBitmap *tbm, const ItemPointer tids, int ntids,
 void
 tbm_add_page(TIDBitmap *tbm, BlockNumber pageno)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "add a whole page(%u) to a TIDBitmap", pageno);
   /* Enter the page in the bitmap, or mark it lossy if already present */
   tbm_mark_page_lossy(tbm, pageno);
 
@@ -439,11 +452,14 @@ tbm_add_page(TIDBitmap *tbm, BlockNumber pageno)
 void
 tbm_union(TIDBitmap *a, const TIDBitmap *b)
 {
+  DBUG_TRACE;
   Assert(!a->iterating);
 
   /* Nothing to do if b is empty */
   if (b->nentries == 0)
     return;
+
+  DBUG_PRINT("info", "set union");
 
   /* Scan through chunks and pages in b, merge into a */
   if (b->status == TBM_ONE_PAGE)
@@ -464,8 +480,11 @@ tbm_union(TIDBitmap *a, const TIDBitmap *b)
 static void
 tbm_union_page(TIDBitmap *a, const PagetableEntry *bpage)
 {
+  DBUG_TRACE;
   PagetableEntry *apage;
   int     wordnum;
+
+  DBUG_PRINT("info", "process one page of b during a union op");
 
   if (bpage->ischunk) {
     /* Scan b's chunk, mark each indicated page lossy in a */
@@ -494,9 +513,12 @@ tbm_union_page(TIDBitmap *a, const PagetableEntry *bpage)
 
     if (apage->ischunk) {
       /* The page is a lossy chunk header, set bit for itself */
+      DBUG_PRINT("info", "the page is a lossy chunk header, set bit for itself");
       apage->words[0] |= ((bitmapword) 1 << 0);
     } else {
       /* Both pages are exact, merge at the bit level */
+      DBUG_PRINT("info", "both pages are exact, merge at the bit level");
+
       for (wordnum = 0; wordnum < WORDS_PER_PAGE; wordnum++)
         apage->words[wordnum] |= bpage->words[wordnum];
 
@@ -516,6 +538,8 @@ tbm_union_page(TIDBitmap *a, const PagetableEntry *bpage)
 void
 tbm_intersect(TIDBitmap *a, const TIDBitmap *b)
 {
+  DBUG_TRACE;
+  int count = 0;
   Assert(!a->iterating);
 
   /* Nothing to do if a is empty */
@@ -524,6 +548,8 @@ tbm_intersect(TIDBitmap *a, const TIDBitmap *b)
 
   /* Scan through chunks and pages in a, try to match to b */
   if (a->status == TBM_ONE_PAGE) {
+    count++;
+
     if (tbm_intersect_page(a, &a->entry1, b)) {
       /* Page is now empty, remove it from a */
       Assert(!a->entry1.ischunk);
@@ -540,6 +566,8 @@ tbm_intersect(TIDBitmap *a, const TIDBitmap *b)
     pagetable_start_iterate(a->pagetable, &i);
 
     while ((apage = pagetable_iterate(a->pagetable, &i)) != NULL) {
+      count++;
+
       if (tbm_intersect_page(a, apage, b)) {
         /* Page or chunk is now empty, remove it from a */
         if (apage->ischunk)
@@ -554,6 +582,8 @@ tbm_intersect(TIDBitmap *a, const TIDBitmap *b)
       }
     }
   }
+
+  DBUG_PRINT("info", "set intersection for pages:%d", count);
 }
 
 /*
@@ -564,6 +594,7 @@ tbm_intersect(TIDBitmap *a, const TIDBitmap *b)
 static bool
 tbm_intersect_page(TIDBitmap *a, PagetableEntry *apage, const TIDBitmap *b)
 {
+  DBUG_TRACE;
   const PagetableEntry *bpage;
   int     wordnum;
 
@@ -662,6 +693,7 @@ tbm_is_empty(const TIDBitmap *tbm)
 TBMPrivateIterator *
 tbm_begin_private_iterate(TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   TBMPrivateIterator *iterator;
 
   Assert(tbm->iterating != TBM_ITERATING_SHARED);
@@ -722,6 +754,8 @@ tbm_begin_private_iterate(TIDBitmap *tbm)
     if (nchunks > 1)
       qsort(tbm->schunks, nchunks, sizeof(PagetableEntry *),
             tbm_comparator);
+
+    DBUG_PRINT("info", "prepare to iterate through a TIDBitmap and npages:%d, nchunks:%d", npages, nchunks);
   }
 
   tbm->iterating = TBM_ITERATING_PRIVATE;
@@ -741,11 +775,13 @@ tbm_begin_private_iterate(TIDBitmap *tbm)
 dsa_pointer
 tbm_prepare_shared_iterate(TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   dsa_pointer dp;
   TBMSharedIteratorState *istate;
   PTEntryArray *ptbase = NULL;
   PTIterationArray *ptpages = NULL;
   PTIterationArray *ptchunks = NULL;
+
 
   Assert(tbm->dsa != NULL);
   Assert(tbm->iterating != TBM_ITERATING_PRIVATE);
@@ -834,6 +870,8 @@ tbm_prepare_shared_iterate(TIDBitmap *tbm)
     if (nchunks > 1)
       qsort_arg(ptchunks->index, nchunks, sizeof(int),
                 tbm_shared_comparator, ptbase->ptentry);
+
+    DBUG_PRINT("info", "prepare shared iteration state for a TIDBitmap and npages:%d, nchunks:%d", npages, nchunks);
   }
 
   /*
@@ -867,7 +905,7 @@ tbm_prepare_shared_iterate(TIDBitmap *tbm)
     pg_atomic_add_fetch_u32(&ptchunks->refcount, 1);
 
   /* Initialize the iterator lock */
-  LWLockInitialize(&istate->lock, LWTRANCHE_SHARED_TIDBITMAP);
+  LWLockInitialize(&istate->lock, LWTRANCHE_SHARED_TIDBITMAP, 0);
 
   /* Initialize the shared iterator state */
   istate->schunkbit = 0;
@@ -891,9 +929,12 @@ tbm_extract_page_tuple(TBMIterateResult *iteritem,
                        OffsetNumber *offsets,
                        uint32 max_offsets)
 {
+  DBUG_TRACE;
   PagetableEntry *page = iteritem->internal_page;
   int     wordnum;
   int     ntuples = 0;
+
+  DBUG_PRINT("info", "extract the tuple offsets from a page");
 
   for (wordnum = 0; wordnum < WORDS_PER_PAGE; wordnum++) {
     bitmapword  w = page->words[wordnum];
@@ -963,6 +1004,7 @@ tbm_advance_schunkbit(PagetableEntry *chunk, int *schunkbitp)
 bool
 tbm_private_iterate(TBMPrivateIterator *iterator, TBMIterateResult *tbmres)
 {
+  DBUG_TRACE;
   TIDBitmap  *tbm = iterator->tbm;
 
   Assert(tbm->iterating == TBM_ITERATING_PRIVATE);
@@ -1041,6 +1083,7 @@ tbm_private_iterate(TBMPrivateIterator *iterator, TBMIterateResult *tbmres)
 bool
 tbm_shared_iterate(TBMSharedIterator *iterator, TBMIterateResult *tbmres)
 {
+  DBUG_TRACE;
   TBMSharedIteratorState *istate = iterator->state;
   PagetableEntry *ptbase = NULL;
   int      *idxpages = NULL;
@@ -1242,8 +1285,9 @@ tbm_page_is_lossy(const TIDBitmap *tbm, BlockNumber pageno)
   int     bitno;
 
   /* we can skip the lookup if there are no lossy chunks */
-  if (tbm->nchunks == 0)
+  if (tbm->nchunks == 0) {
     return false;
+  }
 
   Assert(tbm->status == TBM_HASH);
 
@@ -1256,8 +1300,10 @@ tbm_page_is_lossy(const TIDBitmap *tbm, BlockNumber pageno)
     int     wordnum = WORDNUM(bitno);
     int     bitnum = BITNUM(bitno);
 
-    if ((page->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0)
+    if ((page->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0) {
+      DBUG_PRINT("info", "the page is marked as lossily stored");
       return true;
+    }
   }
 
   return false;
@@ -1278,6 +1324,8 @@ tbm_mark_page_lossy(TIDBitmap *tbm, BlockNumber pageno)
   int     bitno;
   int     wordnum;
   int     bitnum;
+
+  DBUG_PRINT("info", "mark the page number:%u as lossily stored", pageno);
 
   /* We force the bitmap into hashtable mode whenever it's lossy */
   if (tbm->status != TBM_HASH)
@@ -1525,6 +1573,7 @@ pagetable_free(pagetable_hash *pagetable, void *pointer)
 int
 tbm_calculate_entries(Size maxbytes)
 {
+  DBUG_TRACE;
   Size    nbuckets;
 
   /*
@@ -1554,6 +1603,7 @@ tbm_calculate_entries(Size maxbytes)
 TBMIterator
 tbm_begin_iterate(TIDBitmap *tbm, dsa_area *dsa, dsa_pointer dsp)
 {
+  DBUG_TRACE;
   TBMIterator iterator = {0};
 
   /* Allocate a private iterator and attach the shared state to it */
@@ -1574,6 +1624,7 @@ tbm_begin_iterate(TIDBitmap *tbm, dsa_area *dsa, dsa_pointer dsp)
 void
 tbm_end_iterate(TBMIterator *iterator)
 {
+  DBUG_TRACE;
   Assert(iterator && !tbm_exhausted(iterator));
 
   if (iterator->shared)
@@ -1593,6 +1644,7 @@ tbm_end_iterate(TBMIterator *iterator)
 bool
 tbm_iterate(TBMIterator *iterator, TBMIterateResult *tbmres)
 {
+  DBUG_TRACE;
   Assert(iterator);
   Assert(tbmres);
 

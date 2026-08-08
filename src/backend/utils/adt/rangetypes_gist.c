@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist.h"
 #include "access/stratnum.h"
@@ -185,6 +186,7 @@ static float8 call_subtype_diff(TypeCacheEntry *typcache,
 Datum
 range_gist_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -194,6 +196,7 @@ range_gist_consistent(PG_FUNCTION_ARGS)
   RangeType  *key = DatumGetRangeTypeP(entry->key);
   TypeCacheEntry *typcache;
 
+  DBUG_PRINT("info", "GiST query consistency check");
   /* All operators served by this function are exact */
   *recheck = false;
 
@@ -206,6 +209,8 @@ range_gist_consistent(PG_FUNCTION_ARGS)
    * (range).
    */
   if (GIST_LEAF(entry)) {
+    DBUG_PRINT("info", "perform consistent checking using function corresponding to key type(leaf)");
+
     if (!OidIsValid(subtype) || subtype == ANYRANGEOID)
       result = range_gist_consistent_leaf_range(typcache, strategy, key,
                DatumGetRangeTypeP(query));
@@ -216,6 +221,8 @@ range_gist_consistent(PG_FUNCTION_ARGS)
       result = range_gist_consistent_leaf_element(typcache, strategy,
                key, query);
   } else {
+    DBUG_PRINT("info", "perform consistent checking using function corresponding to key type(internal)");
+
     if (!OidIsValid(subtype) || subtype == ANYRANGEOID)
       result = range_gist_consistent_int_range(typcache, strategy, key,
                DatumGetRangeTypeP(query));
@@ -225,6 +232,13 @@ range_gist_consistent(PG_FUNCTION_ARGS)
     else
       result = range_gist_consistent_int_element(typcache, strategy,
                key, query);
+  }
+
+
+  if (result) {
+    DBUG_PRINT("info", "range_gist_consistent returns true");
+  } else {
+    DBUG_PRINT("info", "range_gist_consistent returns false");
   }
 
   PG_RETURN_BOOL(result);
@@ -237,7 +251,10 @@ range_gist_consistent(PG_FUNCTION_ARGS)
 Datum
 multirange_gist_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+
+  DBUG_PRINT("info", "GiST compress method for multiranges: multirange is approximated as union range with no gaps");
 
   if (entry->leafkey) {
     MultirangeType *mr = DatumGetMultirangeTypeP(entry->key);
@@ -261,6 +278,7 @@ multirange_gist_compress(PG_FUNCTION_ARGS)
 Datum
 multirange_gist_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   Datum   query = PG_GETARG_DATUM(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -270,6 +288,7 @@ multirange_gist_consistent(PG_FUNCTION_ARGS)
   RangeType  *key = DatumGetRangeTypeP(entry->key);
   TypeCacheEntry *typcache;
 
+  DBUG_PRINT("info", "GiST query consistency check for multiranges");
   /*
    * All operators served by this function are inexact because multirange is
    * approximated by union range with no gaps.
@@ -306,6 +325,12 @@ multirange_gist_consistent(PG_FUNCTION_ARGS)
                key, query);
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -313,12 +338,14 @@ multirange_gist_consistent(PG_FUNCTION_ARGS)
 Datum
 range_gist_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GISTENTRY  *ent = entryvec->vector;
   RangeType  *result_range;
   TypeCacheEntry *typcache;
   int     i;
 
+  DBUG_PRINT("info", "form union range");
   result_range = DatumGetRangeTypeP(ent[0].key);
 
   typcache = range_get_typcache(fcinfo, RangeTypeGetOid(result_range));
@@ -350,6 +377,7 @@ range_gist_union(PG_FUNCTION_ARGS)
 Datum
 range_gist_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -367,6 +395,7 @@ range_gist_penalty(PG_FUNCTION_ARGS)
   if (RangeTypeGetOid(orig) != RangeTypeGetOid(new))
     elog(ERROR, "range types do not match");
 
+  DBUG_PRINT("info", "GiST page split penalty function");
   typcache = range_get_typcache(fcinfo, RangeTypeGetOid(orig));
 
   has_subtype_diff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
@@ -387,6 +416,7 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * Insertion here means no broadening of original range. Also
        * original range is the most narrow.
        */
+      DBUG_PRINT("info", "the best case is to insert it to empty original range");
       *penalty = 0.0;
     } else if (RangeIsOrContainsEmpty(orig)) {
       /*
@@ -396,30 +426,37 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * narrow as possible.
        */
       *penalty = CONTAIN_EMPTY_PENALTY;
+      DBUG_PRINT("info", "the second case is to insert empty range into range which contains at least one underlying empty range");
     } else if (orig_lower.infinite && orig_upper.infinite) {
       /*
        * Original range requires broadening.  (-inf; +inf) is most far
        * from normal range in this case.
        */
       *penalty = 2 * CONTAIN_EMPTY_PENALTY;
+      DBUG_PRINT("info", "orriginal range requires broadening");
     } else if (orig_lower.infinite || orig_upper.infinite) {
       /*
        * (-inf, x) or (x, +inf) original ranges are closer to normal
        * ranges, so it's worse to mix it with empty ranges.
        */
+      DBUG_PRINT("info", "(-inf, x) or (x, +inf) original ranges are closer to normal ranges, so it's worse to mix it with empty ranges");
       *penalty = 3 * CONTAIN_EMPTY_PENALTY;
     } else {
       /*
        * The least preferred case is broadening of normal range.
        */
       *penalty = 4 * CONTAIN_EMPTY_PENALTY;
+      DBUG_PRINT("info", "the least preferred case is broadening of normal range");
     }
   } else if (new_lower.infinite && new_upper.infinite) {
     /* Handle insertion of (-inf, +inf) range */
+    DBUG_PRINT("info", "handle insertion of (-inf, +inf) range");
+
     if (orig_lower.infinite && orig_upper.infinite) {
       /*
        * Best case is inserting to (-inf, +inf) original range.
        */
+      DBUG_PRINT("info", "best case is inserting to (-inf, +inf) original range");
       *penalty = 0.0;
     } else if (orig_lower.infinite || orig_upper.infinite) {
       /*
@@ -427,11 +464,13 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * broadening of original range (extension of one bound to
        * infinity).
        */
+      DBUG_PRINT("info", "when original range is (-inf, x) or (x, +inf) it requires broadening of original range");
       *penalty = INFINITE_BOUND_PENALTY;
     } else {
       /*
        * Insertion to normal original range is least preferred.
        */
+      DBUG_PRINT("info", "insertion to normal original range is least preferred");
       *penalty = 2 * INFINITE_BOUND_PENALTY;
     }
 
@@ -440,10 +479,13 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * Original range is narrower when it doesn't contain empty
        * ranges. Add additional penalty otherwise.
        */
+      DBUG_PRINT("info", "add additional penalty otherwise");
       *penalty += CONTAIN_EMPTY_PENALTY;
     }
   } else if (new_lower.infinite) {
     /* Handle insertion of (-inf, x) range */
+    DBUG_PRINT("info", "handle insertion of (-inf, x) range");
+
     if (!orig_empty && orig_lower.infinite) {
       if (orig_upper.infinite) {
         /*
@@ -453,6 +495,7 @@ range_gist_penalty(PG_FUNCTION_ARGS)
          * case original range is narrower. But we can't express that
          * in single float value.
          */
+        DBUG_PRINT("info", "(-inf, +inf) range won't be extended by insertion of (-inf, x) range");
         *penalty = 0.0;
       } else {
         if (range_cmp_bounds(typcache, &new_upper, &orig_upper) > 0) {
@@ -460,14 +503,18 @@ range_gist_penalty(PG_FUNCTION_ARGS)
            * Get extension of original range using subtype_diff. Use
            * constant if subtype_diff unavailable.
            */
-          if (has_subtype_diff)
+          if (has_subtype_diff) {
             *penalty = call_subtype_diff(typcache,
                                          new_upper.val,
                                          orig_upper.val);
-          else
+            DBUG_PRINT("info", "get extension of original range using subtype_diff");
+          } else {
             *penalty = DEFAULT_SUBTYPE_DIFF_PENALTY;
+            DBUG_PRINT("info", "use constant if subtype_diff unavailable");
+          }
         } else {
           /* No extension of original range */
+          DBUG_PRINT("info", "no extension of original range");
           *penalty = 0.0;
         }
       }
@@ -477,9 +524,12 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * it is infinity.
        */
       *penalty = get_float4_infinity();
+      DBUG_PRINT("info", "if lower bound of original range is not -inf, then extension of it is infinity");
     }
   } else if (new_upper.infinite) {
     /* Handle insertion of (x, +inf) range */
+    DBUG_PRINT("info", "handle insertion of (x, +inf) range");
+
     if (!orig_empty && orig_upper.infinite) {
       if (orig_lower.infinite) {
         /*
@@ -489,6 +539,7 @@ range_gist_penalty(PG_FUNCTION_ARGS)
          * case original range is narrower. But we can't express that
          * in single float value.
          */
+        DBUG_PRINT("info", "(-inf, +inf) range won't be extended by insertion of (x, +inf) range");
         *penalty = 0.0;
       } else {
         if (range_cmp_bounds(typcache, &new_lower, &orig_lower) < 0) {
@@ -496,15 +547,19 @@ range_gist_penalty(PG_FUNCTION_ARGS)
            * Get extension of original range using subtype_diff. Use
            * constant if subtype_diff unavailable.
            */
-          if (has_subtype_diff)
+          if (has_subtype_diff) {
             *penalty = call_subtype_diff(typcache,
                                          orig_lower.val,
                                          new_lower.val);
-          else
+            DBUG_PRINT("info", "get extension of original range using subtype_diff");
+          } else {
             *penalty = DEFAULT_SUBTYPE_DIFF_PENALTY;
+            DBUG_PRINT("info", "use constant if subtype_diff unavailable");
+          }
         } else {
           /* No extension of original range */
           *penalty = 0.0;
+          DBUG_PRINT("info", "no extension of original range");
         }
       }
     } else {
@@ -512,14 +567,18 @@ range_gist_penalty(PG_FUNCTION_ARGS)
        * If upper bound of original range is not +inf, then extension of
        * it is infinity.
        */
+      DBUG_PRINT("info", "if upper bound of original range is not +inf, then extension of it is infinity");
       *penalty = get_float4_infinity();
     }
   } else {
     /* Handle insertion of normal (non-empty, non-infinite) range */
+    DBUG_PRINT("info", "handle insertion of normal (non-empty, non-infinite) range");
+
     if (orig_empty || orig_lower.infinite || orig_upper.infinite) {
       /*
        * Avoid mixing normal ranges with infinite and empty ranges.
        */
+      DBUG_PRINT("info", "avoid mixing normal ranges with infinite and empty ranges");
       *penalty = get_float4_infinity();
     } else {
       /*
@@ -529,27 +588,34 @@ range_gist_penalty(PG_FUNCTION_ARGS)
       float8    diff = 0.0;
 
       if (range_cmp_bounds(typcache, &new_lower, &orig_lower) < 0) {
-        if (has_subtype_diff)
+        if (has_subtype_diff) {
           diff += call_subtype_diff(typcache,
                                     orig_lower.val,
                                     new_lower.val);
-        else
+          DBUG_PRINT("info", "calculate extension of original range by calling subtype_diff");
+        } else {
           diff += DEFAULT_SUBTYPE_DIFF_PENALTY;
+          DBUG_PRINT("info", "use constant if subtype_diff unavailable");
+        }
       }
 
       if (range_cmp_bounds(typcache, &new_upper, &orig_upper) > 0) {
-        if (has_subtype_diff)
+        if (has_subtype_diff) {
           diff += call_subtype_diff(typcache,
                                     new_upper.val,
                                     orig_upper.val);
-        else
+          DBUG_PRINT("info", "calculate extension of original range by calling subtype_diff");
+        } else {
           diff += DEFAULT_SUBTYPE_DIFF_PENALTY;
+          DBUG_PRINT("info", "use constant if subtype_diff unavailable");
+        }
       }
 
       *penalty = diff;
     }
   }
 
+  DBUG_PRINT("info", "penalty:%g", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -562,6 +628,7 @@ range_gist_penalty(PG_FUNCTION_ARGS)
 Datum
 range_gist_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   TypeCacheEntry *typcache;
@@ -576,6 +643,7 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
   int     biggest_class_count = 0;
   int     total_count;
 
+  DBUG_PRINT("info", "the GiST PickSplit method for ranges");
   /* use first item to look up range type's info */
   pred_left = DatumGetRangeTypeP(entryvec->vector[FirstOffsetNumber].key);
   typcache = range_get_typcache(fcinfo, RangeTypeGetOid(pred_left));
@@ -588,6 +656,7 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
   /*
    * Get count distribution of range classes.
    */
+  DBUG_PRINT("info", "get count distribution of range classes");
   memset(count_in_classes, 0, sizeof(count_in_classes));
 
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
@@ -612,20 +681,25 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("info", "count non-empty classes:%d and find biggest class:%d", biggest_class_count, biggest_class);
   Assert(non_empty_classes_count > 0);
 
   if (non_empty_classes_count == 1) {
     /* One non-empty class, so split inside class */
     if ((biggest_class & ~CLS_CONTAIN_EMPTY) == CLS_NORMAL) {
+      DBUG_PRINT("info", "double sorting split for normal ranges");
       /* double sorting split for normal ranges */
       range_gist_double_sorting_split(typcache, entryvec, v);
     } else if ((biggest_class & ~CLS_CONTAIN_EMPTY) == CLS_LOWER_INF) {
+      DBUG_PRINT("info", "upper bound sorting split for (-inf, x) ranges");
       /* upper bound sorting split for (-inf, x) ranges */
       range_gist_single_sorting_split(typcache, entryvec, v, true);
     } else if ((biggest_class & ~CLS_CONTAIN_EMPTY) == CLS_UPPER_INF) {
+      DBUG_PRINT("info", "lower bound sorting split for (x, +inf) ranges");
       /* lower bound sorting split for (x, +inf) ranges */
       range_gist_single_sorting_split(typcache, entryvec, v, false);
     } else {
+      DBUG_PRINT("info", "trivial split for all (-inf, +inf) or all empty ranges");
       /* trivial split for all (-inf, +inf) or all empty ranges */
       range_gist_fallback_split(typcache, entryvec, v);
     }
@@ -638,6 +712,7 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
      */
     SplitLR   classes_groups[CLS_COUNT];
 
+    DBUG_PRINT("info", "class based split");
     memset(classes_groups, 0, sizeof(classes_groups));
 
     if (count_in_classes[CLS_NORMAL] > 0) {
@@ -659,6 +734,8 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
       int     emptyCount,
               nonEmptyCount;
 
+      DBUG_PRINT("info", "try to split classes in one of two ways:");
+      DBUG_PRINT("info", "1) containing infinities - not containing infinities 2) containing empty - not containing empty");
       nonInfCount =
         count_in_classes[CLS_NORMAL] +
         count_in_classes[CLS_CONTAIN_EMPTY] +
@@ -702,6 +779,7 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
 Datum
 range_gist_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r1 = PG_GETARG_RANGE_P(0);
   RangeType  *r2 = PG_GETARG_RANGE_P(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -744,6 +822,7 @@ range_gist_same(PG_FUNCTION_ARGS)
 static RangeType *
 range_super_union(TypeCacheEntry *typcache, RangeType *r1, RangeType *r2)
 {
+  DBUG_TRACE;
   RangeType  *result;
   RangeBound  lower1,
               lower2;
@@ -761,25 +840,33 @@ range_super_union(TypeCacheEntry *typcache, RangeType *r1, RangeType *r2)
   flags1 = range_get_flags(r1);
   flags2 = range_get_flags(r2);
 
+  DBUG_PRINT("info", "return the smallest range that contains r1 and r2");
+
   if (empty1) {
     /* We can return r2 as-is if it already is or contains empty */
-    if (flags2 & (RANGE_EMPTY | RANGE_CONTAIN_EMPTY))
+    if (flags2 & (RANGE_EMPTY | RANGE_CONTAIN_EMPTY)) {
+      DBUG_PRINT("info", "we can return r2 as-is if it already is or contains empty");
       return r2;
+    }
 
     /* Else we'd better copy it (modify-in-place isn't safe) */
     r2 = rangeCopy(r2);
     range_set_contain_empty(r2);
+    DBUG_PRINT("info", "we'd better copy it (modify-in-place isn't safe)");
     return r2;
   }
 
   if (empty2) {
     /* We can return r1 as-is if it already is or contains empty */
-    if (flags1 & (RANGE_EMPTY | RANGE_CONTAIN_EMPTY))
+    if (flags1 & (RANGE_EMPTY | RANGE_CONTAIN_EMPTY)) {
+      DBUG_PRINT("info", "we can return r1 as-is if it already is or contains empty");
       return r1;
+    }
 
     /* Else we'd better copy it (modify-in-place isn't safe) */
     r1 = rangeCopy(r1);
     range_set_contain_empty(r1);
+    DBUG_PRINT("info", "we'd better copy it (modify-in-place isn't safe)");
     return r1;
   }
 
@@ -843,45 +930,117 @@ range_gist_consistent_int_range(TypeCacheEntry *typcache,
                                 const RangeType *key,
                                 const RangeType *query)
 {
+  DBUG_TRACE;
+  bool result;
+  DBUG_PRINT("info", "GiST consistent test on an index internal page with range query");
+
   switch (strategy) {
     case RANGESTRAT_BEFORE:
-      if (RangeIsEmpty(key) || RangeIsEmpty(query))
+      if (RangeIsEmpty(key) || RangeIsEmpty(query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_BEFORE and return false");
         return false;
+      }
 
-      return (!range_overright_internal(typcache, key, query));
+      result = (!range_overright_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_BEFORE and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_BEFORE and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLEFT:
-      if (RangeIsEmpty(key) || RangeIsEmpty(query))
+      if (RangeIsEmpty(key) || RangeIsEmpty(query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERLEFT and return false");
         return false;
+      }
 
-      return (!range_after_internal(typcache, key, query));
+      result = (!range_after_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERLEFT and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERLEFT and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLAPS:
-      return range_overlaps_internal(typcache, key, query);
+      result = range_overlaps_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERLAPS and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERLAPS and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERRIGHT:
-      if (RangeIsEmpty(key) || RangeIsEmpty(query))
+      if (RangeIsEmpty(key) || RangeIsEmpty(query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERRIGHT and return false");
         return false;
+      }
 
-      return (!range_before_internal(typcache, key, query));
+      result = (!range_before_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERRIGHT and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_OVERRIGHT and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_AFTER:
-      if (RangeIsEmpty(key) || RangeIsEmpty(query))
+      if (RangeIsEmpty(key) || RangeIsEmpty(query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_AFTER and return false");
         return false;
+      }
 
-      return (!range_overleft_internal(typcache, key, query));
+      result = (!range_overleft_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_AFTER and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_AFTER and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_ADJACENT:
-      if (RangeIsEmpty(key) || RangeIsEmpty(query))
+      if (RangeIsEmpty(key) || RangeIsEmpty(query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_ADJACENT and return false");
         return false;
+      }
 
-      if (range_adjacent_internal(typcache, key, query))
+      if (range_adjacent_internal(typcache, key, query)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_ADJACENT and return true");
         return true;
+      }
 
-      return range_overlaps_internal(typcache, key, query);
+      result = range_overlaps_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_ADJACENT and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_ADJACENT and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINS:
-      return range_contains_internal(typcache, key, query);
+      result = range_contains_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_CONTAINS and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_CONTAINS and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINED_BY:
 
@@ -890,10 +1049,20 @@ range_gist_consistent_int_range(TypeCacheEntry *typcache,
        * contains any empty ranges, we must descend into it.  Otherwise,
        * descend only if key overlaps the query.
        */
-      if (RangeIsOrContainsEmpty(key))
+      if (RangeIsOrContainsEmpty(key)) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_CONTAINED_BY and return true");
         return true;
+      }
 
-      return range_overlaps_internal(typcache, key, query);
+      result = range_overlaps_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_CONTAINED_BY and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_CONTAINED_BY and return false");
+      }
+
+      return result;
 
     case RANGESTRAT_EQ:
 
@@ -901,10 +1070,27 @@ range_gist_consistent_int_range(TypeCacheEntry *typcache,
        * If query is empty, descend only if the key is or contains any
        * empty ranges.  Otherwise, descend if key contains query.
        */
-      if (RangeIsEmpty(query))
-        return RangeIsOrContainsEmpty(key);
+      if (RangeIsEmpty(query)) {
+        result = RangeIsOrContainsEmpty(key);
 
-      return range_contains_internal(typcache, key, query);
+        if (result) {
+          DBUG_PRINT("info", "strategy: RANGESTRAT_EQ and return true");
+        } else {
+          DBUG_PRINT("info", "strategy: RANGESTRAT_EQ and return false");
+        }
+
+        return result;
+      }
+
+      result = range_contains_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_EQ and return true");
+      } else {
+        DBUG_PRINT("info", "strategy: RANGESTRAT_EQ and return false");
+      }
+
+      return result;
 
     default:
       elog(ERROR, "unrecognized range strategy: %d", strategy);
@@ -921,45 +1107,118 @@ range_gist_consistent_int_multirange(TypeCacheEntry *typcache,
                                      const RangeType *key,
                                      const MultirangeType *query)
 {
+  DBUG_TRACE;
+  bool result;
+
+  DBUG_PRINT("info", "GiST consistent test on an index internal page with multirange query");
+
   switch (strategy) {
     case RANGESTRAT_BEFORE:
-      if (RangeIsEmpty(key) || MultirangeIsEmpty(query))
+      if (RangeIsEmpty(key) || MultirangeIsEmpty(query)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      return (!range_overright_multirange_internal(typcache, key, query));
+      result = (!range_overright_multirange_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLEFT:
-      if (RangeIsEmpty(key) || MultirangeIsEmpty(query))
+      if (RangeIsEmpty(key) || MultirangeIsEmpty(query)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      return (!range_after_multirange_internal(typcache, key, query));
+      result = (!range_after_multirange_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLAPS:
-      return range_overlaps_multirange_internal(typcache, key, query);
+      result = range_overlaps_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERRIGHT:
-      if (RangeIsEmpty(key) || MultirangeIsEmpty(query))
+      if (RangeIsEmpty(key) || MultirangeIsEmpty(query)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      return (!range_before_multirange_internal(typcache, key, query));
+      result = (!range_before_multirange_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_AFTER:
-      if (RangeIsEmpty(key) || MultirangeIsEmpty(query))
+      if (RangeIsEmpty(key) || MultirangeIsEmpty(query)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      return (!range_overleft_multirange_internal(typcache, key, query));
+      result = (!range_overleft_multirange_internal(typcache, key, query));
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_ADJACENT:
-      if (RangeIsEmpty(key) || MultirangeIsEmpty(query))
+      if (RangeIsEmpty(key) || MultirangeIsEmpty(query)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      if (range_adjacent_multirange_internal(typcache, key, query))
+      if (range_adjacent_multirange_internal(typcache, key, query)) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
 
-      return range_overlaps_multirange_internal(typcache, key, query);
+      result = range_overlaps_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINS:
-      return range_contains_multirange_internal(typcache, key, query);
+      result = range_contains_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINED_BY:
 
@@ -968,10 +1227,21 @@ range_gist_consistent_int_multirange(TypeCacheEntry *typcache,
        * contains any empty ranges, we must descend into it.  Otherwise,
        * descend only if key overlaps the query.
        */
-      if (RangeIsOrContainsEmpty(key))
-        return true;
 
-      return range_overlaps_multirange_internal(typcache, key, query);
+      if (RangeIsOrContainsEmpty(key)) {
+        DBUG_PRINT("info", "return true");
+        return true;
+      }
+
+      result = range_overlaps_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_EQ:
 
@@ -979,10 +1249,27 @@ range_gist_consistent_int_multirange(TypeCacheEntry *typcache,
        * If query is empty, descend only if the key is or contains any
        * empty ranges.  Otherwise, descend if key contains query.
        */
-      if (MultirangeIsEmpty(query))
-        return RangeIsOrContainsEmpty(key);
+      if (MultirangeIsEmpty(query)) {
+        result = RangeIsOrContainsEmpty(key);
 
-      return range_contains_multirange_internal(typcache, key, query);
+        if (result) {
+          DBUG_PRINT("info", "return true");
+        } else {
+          DBUG_PRINT("info", "return false");
+        }
+
+        return result;
+      }
+
+      result = range_contains_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     default:
       elog(ERROR, "unrecognized range strategy: %d", strategy);
@@ -1018,33 +1305,109 @@ range_gist_consistent_leaf_range(TypeCacheEntry *typcache,
                                  const RangeType *key,
                                  const RangeType *query)
 {
+  DBUG_TRACE;
+  bool result;
+  DBUG_PRINT("info", "GiST consistent test on an index leaf page with range query");
+
   switch (strategy) {
     case RANGESTRAT_BEFORE:
-      return range_before_internal(typcache, key, query);
+      result = range_before_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLEFT:
-      return range_overleft_internal(typcache, key, query);
+      result = range_overleft_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLAPS:
-      return range_overlaps_internal(typcache, key, query);
+      result = range_overlaps_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERRIGHT:
-      return range_overright_internal(typcache, key, query);
+      result = range_overright_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_AFTER:
-      return range_after_internal(typcache, key, query);
+      result = range_after_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_ADJACENT:
-      return range_adjacent_internal(typcache, key, query);
+      result = range_adjacent_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINS:
-      return range_contains_internal(typcache, key, query);
+      result = range_contains_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINED_BY:
-      return range_contained_by_internal(typcache, key, query);
+      result = range_contained_by_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_EQ:
-      return range_eq_internal(typcache, key, query);
+      result = range_eq_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     default:
       elog(ERROR, "unrecognized range strategy: %d", strategy);
@@ -1061,33 +1424,109 @@ range_gist_consistent_leaf_multirange(TypeCacheEntry *typcache,
                                       const RangeType *key,
                                       const MultirangeType *query)
 {
+  DBUG_TRACE;
+  bool result;
+  DBUG_PRINT("info", "GiST consistent test on an index leaf page with multirange query");
+
   switch (strategy) {
     case RANGESTRAT_BEFORE:
-      return range_before_multirange_internal(typcache, key, query);
+      result = range_before_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLEFT:
-      return range_overleft_multirange_internal(typcache, key, query);
+      result = range_overleft_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERLAPS:
-      return range_overlaps_multirange_internal(typcache, key, query);
+      result = range_overlaps_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_OVERRIGHT:
-      return range_overright_multirange_internal(typcache, key, query);
+      result = range_overright_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_AFTER:
-      return range_after_multirange_internal(typcache, key, query);
+      result = range_after_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_ADJACENT:
-      return range_adjacent_multirange_internal(typcache, key, query);
+      result = range_adjacent_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINS:
-      return range_contains_multirange_internal(typcache, key, query);
+      result = range_contains_multirange_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_CONTAINED_BY:
-      return multirange_contains_range_internal(typcache, query, key);
+      result = multirange_contains_range_internal(typcache, query, key);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     case RANGESTRAT_EQ:
-      return multirange_union_range_equal(typcache, key, query);
+      result = multirange_union_range_equal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     default:
       elog(ERROR, "unrecognized range strategy: %d", strategy);
@@ -1104,9 +1543,21 @@ range_gist_consistent_leaf_element(TypeCacheEntry *typcache,
                                    const RangeType *key,
                                    Datum query)
 {
+  DBUG_TRACE;
+  bool result;
+  DBUG_PRINT("info", "GiST consistent test on an index leaf page with element query");
+
   switch (strategy) {
     case RANGESTRAT_CONTAINS_ELEM:
-      return range_contains_elem_internal(typcache, key, query);
+      result = range_contains_elem_internal(typcache, key, query);
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
 
     default:
       elog(ERROR, "unrecognized range strategy: %d", strategy);
@@ -1123,15 +1574,18 @@ range_gist_fallback_split(TypeCacheEntry *typcache,
                           GistEntryVector *entryvec,
                           GIST_SPLITVEC *v)
 {
+  DBUG_TRACE;
   RangeType  *left_range = NULL;
   RangeType  *right_range = NULL;
   OffsetNumber i,
                maxoff,
                split_idx;
 
+  DBUG_PRINT("info", "trivial split: half of entries will be placed on one page and the other half on the other page");
   maxoff = entryvec->n - 1;
   /* Split entries before this to left page, after to right: */
   split_idx = (maxoff - FirstOffsetNumber) / 2 + FirstOffsetNumber;
+  DBUG_PRINT("info", "split entries before this to left page, after to right:%u", split_idx);
 
   v->spl_nleft = 0;
   v->spl_nright = 0;
@@ -1162,11 +1616,13 @@ range_gist_class_split(TypeCacheEntry *typcache,
                        GIST_SPLITVEC *v,
                        SplitLR *classes_groups)
 {
+  DBUG_TRACE;
   RangeType  *left_range = NULL;
   RangeType  *right_range = NULL;
   OffsetNumber i,
                maxoff;
 
+  DBUG_PRINT("info", "split based on classes of ranges");
   maxoff = entryvec->n - 1;
 
   v->spl_nleft = 0;
@@ -1188,6 +1644,7 @@ range_gist_class_split(TypeCacheEntry *typcache,
     }
   }
 
+  DBUG_PRINT("info", "spl_nleft:%d, spl_nright:%d", v->spl_nleft, v->spl_nright);
   v->spl_ldatum = RangeTypePGetDatum(left_range);
   v->spl_rdatum = RangeTypePGetDatum(right_range);
 }
@@ -1204,6 +1661,7 @@ range_gist_single_sorting_split(TypeCacheEntry *typcache,
                                 GIST_SPLITVEC *v,
                                 bool use_upper_bound)
 {
+  DBUG_TRACE;
   SingleBoundSortItem *sortItems;
   RangeType  *left_range = NULL;
   RangeType  *right_range = NULL;
@@ -1211,6 +1669,7 @@ range_gist_single_sorting_split(TypeCacheEntry *typcache,
                maxoff,
                split_idx;
 
+  DBUG_PRINT("info", "sorting based split");
   maxoff = entryvec->n - 1;
 
   sortItems = (SingleBoundSortItem *)
@@ -1255,6 +1714,7 @@ range_gist_single_sorting_split(TypeCacheEntry *typcache,
       PLACE_RIGHT(range, idx);
   }
 
+  DBUG_PRINT("info", "split_idx:%u, spl_nleft:%d, spl_nright:%d", split_idx, v->spl_nleft, v->spl_nright);
   v->spl_ldatum = RangeTypePGetDatum(left_range);
   v->spl_rdatum = RangeTypePGetDatum(right_range);
 }
@@ -1292,6 +1752,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
                                 GistEntryVector *entryvec,
                                 GIST_SPLITVEC *v)
 {
+  DBUG_TRACE;
   ConsiderSplitContext context;
   OffsetNumber i,
                maxoff;
@@ -1307,6 +1768,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
   RangeBound *right_lower,
              *left_upper;
 
+  DBUG_PRINT("info", "double sorting split algorithm");
   memset(&context, 0, sizeof(ConsiderSplitContext));
   context.typcache = typcache;
   context.has_subtype_diff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
@@ -1335,6 +1797,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
    * Make two arrays of range bounds: one sorted by lower bound and another
    * sorted by upper bound.
    */
+  DBUG_PRINT("info", "nentries:%d", nentries);
   memcpy(by_upper, by_lower, nentries * sizeof(NonEmptyRange));
   qsort_arg(by_lower, nentries, sizeof(NonEmptyRange),
             interval_cmp_lower, typcache);
@@ -1380,6 +1843,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
   i2 = 0;
   right_lower = &by_lower[i1].lower;
   left_upper = &by_upper[i2].lower;
+  DBUG_PRINT("info", "iterate over lower bound of right group, finding smallest possible upper bound of left group");
 
   while (true) {
     /*
@@ -1423,6 +1887,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
   i2 = nentries - 1;
   right_lower = &by_lower[i1].upper;
   left_upper = &by_upper[i2].upper;
+  DBUG_PRINT("info", "iterate over upper bound of left group, finding greatest possible lower bound of right group");
 
   while (true) {
     /*
@@ -1463,6 +1928,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
    * If we failed to find any acceptable splits, use trivial split.
    */
   if (context.first) {
+    DBUG_PRINT("info", "if we failed to find any acceptable splits, use trivial split");
     range_gist_fallback_split(typcache, entryvec, v);
     return;
   }
@@ -1490,6 +1956,8 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
    * Distribute entries which can be distributed unambiguously, and collect
    * common entries.
    */
+  DBUG_PRINT("info", "distribute entries which can be distributed unambiguously, and collect common entries");
+
   for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     RangeType  *range;
     RangeBound  lower,
@@ -1547,6 +2015,7 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
    * Distribute "common entries", if any.
    */
   if (common_entries_count > 0) {
+    DBUG_PRINT("info", "distribute common entries:%d", common_entries_count);
     /*
      * Sort "common entries" by calculated deltas in order to distribute
      * the most ambiguous entries first.
@@ -1557,6 +2026,8 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
     /*
      * Distribute "common entries" between groups according to sorting.
      */
+    DBUG_PRINT("info", "distribute 'common entries' between groups according to sorting");
+
     for (i = 0; i < common_entries_count; i++) {
       RangeType  *range;
       int     idx = common_entries[i].index;
@@ -1587,10 +2058,14 @@ range_gist_consider_split(ConsiderSplitContext *context,
                           RangeBound *right_lower, int min_left_count,
                           RangeBound *left_upper, int max_left_count)
 {
+  DBUG_TRACE;
   int     left_count,
           right_count;
   float4    ratio,
             overlap;
+
+  DBUG_PRINT("info", "consider replacement of currently selected split with a better one(min_left_count:%d, max_left_count:%d)",
+             min_left_count, max_left_count);
 
   /*
    * Calculate entries distribution ratio assuming most uniform distribution
@@ -1613,6 +2088,8 @@ range_gist_consider_split(ConsiderSplitContext *context,
   ratio = ((float4) Min(left_count, right_count)) /
           ((float4) context->entries_count);
 
+  DBUG_PRINT("info", "left_count:%d, right_count:%d and ratio of split:%g", left_count, right_count, ratio);
+
   if (ratio > LIMIT_RATIO) {
     bool    selectthis = false;
 
@@ -1631,16 +2108,19 @@ range_gist_consider_split(ConsiderSplitContext *context,
       overlap = max_left_count - min_left_count;
 
     /* If there is no previous selection, select this split */
-    if (context->first)
+    if (context->first) {
       selectthis = true;
-    else {
+      DBUG_PRINT("info", "if there is no previous selection, select this split");
+    } else {
       /*
        * Choose the new split if it has a smaller overlap, or same
        * overlap but better ratio.
        */
       if (overlap < context->overlap ||
-          (overlap == context->overlap && ratio > context->ratio))
+          (overlap == context->overlap && ratio > context->ratio)) {
+        DBUG_PRINT("info", "choose the new split if it has a smaller overlap, or same overlap but better ratio");
         selectthis = true;
+      }
     }
 
     if (selectthis) {
@@ -1652,6 +2132,9 @@ range_gist_consider_split(ConsiderSplitContext *context,
       context->left_upper = left_upper;
       context->common_left = max_left_count - left_count;
       context->common_right = left_count - min_left_count;
+      DBUG_PRINT("info", "save information about selected split");
+      DBUG_PRINT("info", "ratio:%g, overlap:%g, common_left:%d, common_right:%d",
+                 ratio, overlap, context->common_left, context->common_right);
     }
   }
 }
@@ -1666,6 +2149,7 @@ range_gist_consider_split(ConsiderSplitContext *context,
 static int
 get_gist_range_class(RangeType *range)
 {
+  DBUG_TRACE;
   int     classNumber;
   char    flags;
 
@@ -1686,6 +2170,7 @@ get_gist_range_class(RangeType *range)
       classNumber |= CLS_CONTAIN_EMPTY;
   }
 
+  DBUG_PRINT("info", "find class number for range:%d", classNumber);
   return classNumber;
 }
 
@@ -1752,6 +2237,7 @@ common_entry_cmp(const void *i1, const void *i2)
 static float8
 call_subtype_diff(TypeCacheEntry *typcache, Datum val1, Datum val2)
 {
+  DBUG_TRACE;
   float8    value;
 
   value = DatumGetFloat8(FunctionCall2Coll(&typcache->rng_subdiff_finfo,

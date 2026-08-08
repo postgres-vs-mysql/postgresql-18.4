@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -69,6 +70,7 @@ typedef struct RecordCompareData {
 Datum
 record_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *string = PG_GETARG_CSTRING(0);
   Oid     tupType = PG_GETARG_OID(1);
   int32   tupTypmod = PG_GETARG_INT32(2);
@@ -311,6 +313,7 @@ fail:
 Datum
 record_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
   Oid     tupType;
   int32   tupTypmod;
@@ -460,6 +463,7 @@ record_out(PG_FUNCTION_ARGS)
 Datum
 record_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   Oid     tupType = PG_GETARG_OID(1);
   int32   tupTypmod = PG_GETARG_INT32(2);
@@ -661,6 +665,7 @@ record_recv(PG_FUNCTION_ARGS)
 Datum
 record_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
   Oid     tupType;
   int32   tupTypmod;
@@ -1034,6 +1039,7 @@ record_cmp(FunctionCallInfo fcinfo)
 Datum
 record_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader record1 = PG_GETARG_HEAPTUPLEHEADER(0);
   HeapTupleHeader record2 = PG_GETARG_HEAPTUPLEHEADER(1);
   bool    result = true;
@@ -1249,36 +1255,42 @@ record_eq(PG_FUNCTION_ARGS)
 Datum
 record_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(!DatumGetBool(record_eq(fcinfo)));
 }
 
 Datum
 record_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_cmp(fcinfo) < 0);
 }
 
 Datum
 record_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_cmp(fcinfo) > 0);
 }
 
 Datum
 record_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_cmp(fcinfo) <= 0);
 }
 
 Datum
 record_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_cmp(fcinfo) >= 0);
 }
 
 Datum
 btrecordcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_INT32(record_cmp(fcinfo));
 }
 
@@ -1315,6 +1327,7 @@ record_smaller(PG_FUNCTION_ARGS)
 static int
 record_image_cmp(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   HeapTupleHeader record1 = PG_GETARG_HEAPTUPLEHEADER(0);
   HeapTupleHeader record2 = PG_GETARG_HEAPTUPLEHEADER(1);
   int     result = 0;
@@ -1550,6 +1563,7 @@ record_image_cmp(FunctionCallInfo fcinfo)
 Datum
 record_image_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader record1 = PG_GETARG_HEAPTUPLEHEADER(0);
   HeapTupleHeader record2 = PG_GETARG_HEAPTUPLEHEADER(1);
   bool    result = true;
@@ -1723,36 +1737,42 @@ record_image_eq(PG_FUNCTION_ARGS)
 Datum
 record_image_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(!DatumGetBool(record_image_eq(fcinfo)));
 }
 
 Datum
 record_image_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_image_cmp(fcinfo) < 0);
 }
 
 Datum
 record_image_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_image_cmp(fcinfo) > 0);
 }
 
 Datum
 record_image_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_image_cmp(fcinfo) <= 0);
 }
 
 Datum
 record_image_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(record_image_cmp(fcinfo) >= 0);
 }
 
 Datum
 btrecordimagecmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_INT32(record_image_cmp(fcinfo));
 }
 
@@ -1764,6 +1784,7 @@ btrecordimagecmp(PG_FUNCTION_ARGS)
 Datum
 hash_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader record = PG_GETARG_HEAPTUPLEHEADER(0);
   uint32    result = 0;
   Oid     tupType;
@@ -1881,6 +1902,7 @@ hash_record(PG_FUNCTION_ARGS)
 Datum
 hash_record_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader record = PG_GETARG_HEAPTUPLEHEADER(0);
   uint64    seed = PG_GETARG_INT64(1);
   uint64    result = 0;

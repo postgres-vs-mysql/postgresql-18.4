@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "miscadmin.h"
@@ -55,6 +56,7 @@ ConditionVariableInit(ConditionVariable *cv)
 void
 ConditionVariablePrepareToSleep(ConditionVariable *cv)
 {
+  DBUG_TRACE;
   int     pgprocno = MyProcNumber;
 
   /*
@@ -95,6 +97,7 @@ ConditionVariablePrepareToSleep(ConditionVariable *cv)
 void
 ConditionVariableSleep(ConditionVariable *cv, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   (void) ConditionVariableTimedSleep(cv, -1 /* no timeout */,
                                      wait_event_info);
 }
@@ -112,6 +115,7 @@ bool
 ConditionVariableTimedSleep(ConditionVariable *cv, long timeout,
                             uint32 wait_event_info)
 {
+  DBUG_TRACE;
   long    cur_timeout = -1;
   instr_time  start_time;
   instr_time  cur_time;
@@ -226,6 +230,7 @@ ConditionVariableTimedSleep(ConditionVariable *cv, long timeout,
 bool
 ConditionVariableCancelSleep(void)
 {
+  DBUG_TRACE;
   ConditionVariable *cv = cv_sleep_target;
   bool    signaled = false;
 
@@ -257,6 +262,7 @@ ConditionVariableCancelSleep(void)
 void
 ConditionVariableSignal(ConditionVariable *cv)
 {
+  DBUG_TRACE;
   PGPROC     *proc = NULL;
 
   /* Remove the first process from the wakeup queue (if any). */
@@ -282,6 +288,7 @@ ConditionVariableSignal(ConditionVariable *cv)
 void
 ConditionVariableBroadcast(ConditionVariable *cv)
 {
+  DBUG_TRACE;
   int     pgprocno = MyProcNumber;
   PGPROC     *proc = NULL;
   bool    have_sentinel = false;

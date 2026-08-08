@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -113,6 +114,7 @@ anytime_typmodout(bool istz, int32 typmod)
 Datum
 date_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   DateADT   date;
@@ -184,6 +186,7 @@ date_in(PG_FUNCTION_ARGS)
 Datum
 date_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   date = PG_GETARG_DATEADT(0);
   char     *result;
   struct pg_tm tt,
@@ -208,6 +211,7 @@ date_out(PG_FUNCTION_ARGS)
 Datum
 date_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   DateADT   result;
 
@@ -230,6 +234,7 @@ date_recv(PG_FUNCTION_ARGS)
 Datum
 date_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   date = PG_GETARG_DATEADT(0);
   StringInfoData buf;
 
@@ -244,6 +249,7 @@ date_send(PG_FUNCTION_ARGS)
 Datum
 make_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   struct pg_tm tm;
   DateADT   date;
   int     dterr;
@@ -389,8 +395,16 @@ GetSQLLocalTime(int32 typmod)
 Datum
 date_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
+  bool result = dateVal1 == dateVal2;
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
 
   PG_RETURN_BOOL(dateVal1 == dateVal2);
 }
@@ -398,65 +412,115 @@ date_eq(PG_FUNCTION_ARGS)
 Datum
 date_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(dateVal1 != dateVal2);
+  bool result = (dateVal1 != dateVal2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(dateVal1 < dateVal2);
+  bool result = (dateVal1 < dateVal2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(dateVal1 <= dateVal2);
+  bool result = (dateVal1 <= dateVal2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(dateVal1 > dateVal2);
+  bool result = (dateVal1 > dateVal2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
+  bool result = (dateVal1 >= dateVal2);
 
-  PG_RETURN_BOOL(dateVal1 >= dateVal2);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
-  if (dateVal1 < dateVal2)
+  if (dateVal1 < dateVal2) {
+    DBUG_PRINT("info", "result: -1");
     PG_RETURN_INT32(-1);
-  else if (dateVal1 > dateVal2)
+  } else if (dateVal1 > dateVal2) {
+    DBUG_PRINT("info", "result: 1");
     PG_RETURN_INT32(1);
+  }
 
+  DBUG_PRINT("info", "result: 0");
   PG_RETURN_INT32(0);
 }
 
 Datum
 date_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = ssup_datum_int32_cmp;
@@ -521,6 +585,7 @@ hashdateextended(PG_FUNCTION_ARGS)
 Datum
 date_finite(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   date = PG_GETARG_DATEADT(0);
 
   PG_RETURN_BOOL(!DATE_NOT_FINITE(date));
@@ -529,6 +594,7 @@ date_finite(PG_FUNCTION_ARGS)
 Datum
 date_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
@@ -538,6 +604,7 @@ date_larger(PG_FUNCTION_ARGS)
 Datum
 date_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
@@ -549,6 +616,7 @@ date_smaller(PG_FUNCTION_ARGS)
 Datum
 date_mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
 
@@ -566,6 +634,7 @@ date_mi(PG_FUNCTION_ARGS)
 Datum
 date_pli(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   int32   days = PG_GETARG_INT32(1);
   DateADT   result;
@@ -590,6 +659,7 @@ date_pli(PG_FUNCTION_ARGS)
 Datum
 date_mii(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   int32   days = PG_GETARG_INT32(1);
   DateADT   result;
@@ -805,64 +875,127 @@ date_cmp_timestamp_internal(DateADT dateVal, Timestamp dt2)
 Datum
 date_eq_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) == 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) == 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_ne_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) != 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_lt_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) < 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_gt_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) > 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_le_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) <= 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) <= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_ge_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt2) >= 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt2) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_cmp_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp dt2 = PG_GETARG_TIMESTAMP(1);
+  int32 result = date_cmp_timestamp_internal(dateVal, dt2);
 
-  PG_RETURN_INT32(date_cmp_timestamp_internal(dateVal, dt2));
+  DBUG_PRINT("info", "result: %d", result);
+
+  PG_RETURN_INT32(result);
 }
 
 int32
@@ -889,190 +1022,361 @@ date_cmp_timestamptz_internal(DateADT dateVal, TimestampTz dt2)
 Datum
 date_eq_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) == 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) == 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_ne_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) != 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_lt_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) < 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) < 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_gt_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) > 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_le_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) <= 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) <= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 date_ge_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt2) >= 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt2) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 date_cmp_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz dt2 = PG_GETARG_TIMESTAMPTZ(1);
 
-  PG_RETURN_INT32(date_cmp_timestamptz_internal(dateVal, dt2));
+  int32 result = (date_cmp_timestamptz_internal(dateVal, dt2));
+
+  DBUG_PRINT("info", "result: %d", result);
+  PG_RETURN_INT32(result);
 }
 
 Datum
 timestamp_eq_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) == 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) == 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_ne_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) != 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_lt_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) > 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_gt_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) < 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_le_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) >= 0);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_ge_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamp_internal(dateVal, dt1) <= 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamp_internal(dateVal, dt1) <= 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamp_cmp_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_INT32(-date_cmp_timestamp_internal(dateVal, dt1));
+  int32 result = (-date_cmp_timestamp_internal(dateVal, dt1));
+
+  DBUG_PRINT("info", "result: %d", result);
+
+  PG_RETURN_INT32(result);
 }
 
 Datum
 timestamptz_eq_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) == 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) == 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamptz_ne_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) != 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) != 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timestamptz_lt_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) > 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) > 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamptz_gt_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) < 0);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamptz_le_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) >= 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) >= 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamptz_ge_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
+  bool result = (date_cmp_timestamptz_internal(dateVal, dt1) <= 0);
 
-  PG_RETURN_BOOL(date_cmp_timestamptz_internal(dateVal, dt1) <= 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 timestamptz_cmp_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz dt1 = PG_GETARG_TIMESTAMPTZ(0);
   DateADT   dateVal = PG_GETARG_DATEADT(1);
 
-  PG_RETURN_INT32(-date_cmp_timestamptz_internal(dateVal, dt1));
+  int32 result = (-date_cmp_timestamptz_internal(dateVal, dt1));
+
+  DBUG_PRINT("info", "result: %d", result);
+
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -1084,6 +1388,7 @@ timestamptz_cmp_date(PG_FUNCTION_ARGS)
 Datum
 in_range_date_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   val = PG_GETARG_DATEADT(0);
   DateADT   base = PG_GETARG_DATEADT(1);
   Interval   *offset = PG_GETARG_INTERVAL_P(2);
@@ -1111,6 +1416,7 @@ in_range_date_interval(PG_FUNCTION_ARGS)
 Datum
 extract_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *units = PG_GETARG_TEXT_PP(0);
   DateADT   date = PG_GETARG_DATEADT(1);
   int64   intresult;
@@ -1294,6 +1600,7 @@ extract_date(PG_FUNCTION_ARGS)
 Datum
 date_pl_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   Timestamp dateStamp;
@@ -1314,6 +1621,7 @@ date_pl_interval(PG_FUNCTION_ARGS)
 Datum
 date_mi_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   Timestamp dateStamp;
@@ -1331,6 +1639,7 @@ date_mi_interval(PG_FUNCTION_ARGS)
 Datum
 date_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   Timestamp result;
 
@@ -1345,6 +1654,7 @@ date_timestamp(PG_FUNCTION_ARGS)
 Datum
 timestamp_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp timestamp = PG_GETARG_TIMESTAMP(0);
   DateADT   result;
   struct pg_tm tt,
@@ -1374,6 +1684,7 @@ timestamp_date(PG_FUNCTION_ARGS)
 Datum
 date_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   dateVal = PG_GETARG_DATEADT(0);
   TimestampTz result;
 
@@ -1389,6 +1700,7 @@ date_timestamptz(PG_FUNCTION_ARGS)
 Datum
 timestamptz_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz timestamp = PG_GETARG_TIMESTAMP(0);
   DateADT   result;
   struct pg_tm tt,
@@ -1420,6 +1732,7 @@ timestamptz_date(PG_FUNCTION_ARGS)
 Datum
 time_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -1439,6 +1752,7 @@ time_in(PG_FUNCTION_ARGS)
   int     ftype[MAXDATEFIELDS];
   DateTimeErrorExtra extra;
 
+  DBUG_PRINT("info", "orig:'%s'", str);
   dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
                         field, ftype, MAXDATEFIELDS, &nf);
 
@@ -1550,6 +1864,7 @@ time2tm(TimeADT time, struct pg_tm *tm, fsec_t *fsec)
 Datum
 time_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   char     *result;
   struct pg_tm tt,
@@ -1561,6 +1876,7 @@ time_out(PG_FUNCTION_ARGS)
   EncodeTimeOnly(tm, fsec, false, 0, DateStyle, buf);
 
   result = pstrdup(buf);
+  DBUG_PRINT("info", "result: '%s'", result);
   PG_RETURN_CSTRING(result);
 }
 
@@ -1570,6 +1886,7 @@ time_out(PG_FUNCTION_ARGS)
 Datum
 time_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -1596,6 +1913,7 @@ time_recv(PG_FUNCTION_ARGS)
 Datum
 time_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   StringInfoData buf;
 
@@ -1607,6 +1925,7 @@ time_send(PG_FUNCTION_ARGS)
 Datum
 timetypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anytime_typmodin(false, ta));
@@ -1615,6 +1934,7 @@ timetypmodin(PG_FUNCTION_ARGS)
 Datum
 timetypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anytime_typmodout(false, typmod));
@@ -1626,6 +1946,7 @@ timetypmodout(PG_FUNCTION_ARGS)
 Datum
 make_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     tm_hour = PG_GETARG_INT32(0);
   int     tm_min = PG_GETARG_INT32(1);
   double    sec = PG_GETARG_FLOAT8(2);
@@ -1654,6 +1975,7 @@ make_time(PG_FUNCTION_ARGS)
 Datum
 time_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 
@@ -1673,6 +1995,7 @@ time_support(PG_FUNCTION_ARGS)
 Datum
 time_scale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   int32   typmod = PG_GETARG_INT32(1);
   TimeADT   result;
@@ -1727,87 +2050,155 @@ AdjustTimeForTypmod(TimeADT *time, int32 typmod)
 Datum
 time_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  PG_RETURN_BOOL(time1 == time2);
+  bool result = (time1 == time2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  PG_RETURN_BOOL(time1 != time2);
+  bool result = (time1 != time2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  PG_RETURN_BOOL(time1 < time2);
+  bool result = (time1 < time2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  PG_RETURN_BOOL(time1 <= time2);
+  bool result = (time1 <= time2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
+  bool result = (time1 > time2);
 
-  PG_RETURN_BOOL(time1 > time2);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  PG_RETURN_BOOL(time1 >= time2);
+  bool result = (time1 >= time2);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 time_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
-  if (time1 < time2)
+  if (time1 < time2) {
+    DBUG_PRINT("info", "result: -1");
     PG_RETURN_INT32(-1);
+  }
 
-  if (time1 > time2)
+  if (time1 > time2) {
+    DBUG_PRINT("info", "result: 1");
     PG_RETURN_INT32(1);
+  }
 
+  DBUG_PRINT("info", "result: 0");
   PG_RETURN_INT32(0);
 }
 
 Datum
 time_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hashint8(fcinfo);
 }
 
 Datum
 time_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hashint8extended(fcinfo);
 }
 
 Datum
 time_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
@@ -1817,6 +2208,7 @@ time_larger(PG_FUNCTION_ARGS)
 Datum
 time_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
 
@@ -1832,6 +2224,7 @@ time_smaller(PG_FUNCTION_ARGS)
 Datum
 overlaps_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * The arguments are TimeADT, but we leave them as generic Datums to avoid
    * dereferencing nulls (TimeADT is pass-by-reference!)
@@ -1948,6 +2341,7 @@ overlaps_time(PG_FUNCTION_ARGS)
 Datum
 timestamp_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Timestamp timestamp = PG_GETARG_TIMESTAMP(0);
   TimeADT   result;
   struct pg_tm tt,
@@ -1978,6 +2372,7 @@ timestamp_time(PG_FUNCTION_ARGS)
 Datum
 timestamptz_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz timestamp = PG_GETARG_TIMESTAMP(0);
   TimeADT   result;
   struct pg_tm tt,
@@ -2009,6 +2404,7 @@ timestamptz_time(PG_FUNCTION_ARGS)
 Datum
 datetime_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   date = PG_GETARG_DATEADT(0);
   TimeADT   time = PG_GETARG_TIMEADT(1);
   Timestamp result;
@@ -2033,6 +2429,7 @@ datetime_timestamp(PG_FUNCTION_ARGS)
 Datum
 time_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   Interval   *result;
 
@@ -2056,6 +2453,7 @@ time_interval(PG_FUNCTION_ARGS)
 Datum
 interval_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Interval   *span = PG_GETARG_INTERVAL_P(0);
   TimeADT   result;
 
@@ -2078,6 +2476,7 @@ interval_time(PG_FUNCTION_ARGS)
 Datum
 time_mi_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time1 = PG_GETARG_TIMEADT(0);
   TimeADT   time2 = PG_GETARG_TIMEADT(1);
   Interval   *result;
@@ -2097,6 +2496,7 @@ time_mi_time(PG_FUNCTION_ARGS)
 Datum
 time_pl_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   TimeADT   result;
@@ -2121,6 +2521,7 @@ time_pl_interval(PG_FUNCTION_ARGS)
 Datum
 time_mi_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   TimeADT   result;
@@ -2145,6 +2546,7 @@ time_mi_interval(PG_FUNCTION_ARGS)
 Datum
 in_range_time_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   val = PG_GETARG_TIMEADT(0);
   TimeADT   base = PG_GETARG_TIMEADT(1);
   Interval   *offset = PG_GETARG_INTERVAL_P(2);
@@ -2187,6 +2589,7 @@ in_range_time_interval(PG_FUNCTION_ARGS)
 static Datum
 time_part_common(PG_FUNCTION_ARGS, bool retnumeric)
 {
+  DBUG_TRACE;
   text     *units = PG_GETARG_TEXT_PP(0);
   TimeADT   time = PG_GETARG_TIMEADT(1);
   int64   intresult;
@@ -2287,12 +2690,14 @@ time_part_common(PG_FUNCTION_ARGS, bool retnumeric)
 Datum
 time_part(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return time_part_common(fcinfo, false);
 }
 
 Datum
 extract_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return time_part_common(fcinfo, true);
 }
 
@@ -2317,6 +2722,7 @@ tm2timetz(struct pg_tm *tm, fsec_t fsec, int tz, TimeTzADT *result)
 Datum
 timetz_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -2336,6 +2742,7 @@ timetz_in(PG_FUNCTION_ARGS)
   int     ftype[MAXDATEFIELDS];
   DateTimeErrorExtra extra;
 
+  DBUG_PRINT("info", "orig: '%s'", str);
   dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
                         field, ftype, MAXDATEFIELDS, &nf);
 
@@ -2359,6 +2766,7 @@ timetz_in(PG_FUNCTION_ARGS)
 Datum
 timetz_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
   char     *result;
   struct pg_tm tt,
@@ -2371,6 +2779,7 @@ timetz_out(PG_FUNCTION_ARGS)
   EncodeTimeOnly(tm, fsec, true, tz, DateStyle, buf);
 
   result = pstrdup(buf);
+  DBUG_PRINT("info", "result: '%s'", result);
   PG_RETURN_CSTRING(result);
 }
 
@@ -2380,6 +2789,7 @@ timetz_out(PG_FUNCTION_ARGS)
 Datum
 timetz_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -2416,6 +2826,7 @@ timetz_recv(PG_FUNCTION_ARGS)
 Datum
 timetz_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
   StringInfoData buf;
 
@@ -2428,6 +2839,7 @@ timetz_send(PG_FUNCTION_ARGS)
 Datum
 timetztypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anytime_typmodin(true, ta));
@@ -2436,6 +2848,7 @@ timetztypmodin(PG_FUNCTION_ARGS)
 Datum
 timetztypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anytime_typmodout(true, typmod));
@@ -2470,6 +2883,7 @@ timetz2tm(TimeTzADT *time, struct pg_tm *tm, fsec_t *fsec, int *tzp)
 Datum
 timetz_scale(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
   int32   typmod = PG_GETARG_INT32(1);
   TimeTzADT  *result;
@@ -2517,69 +2931,134 @@ timetz_cmp_internal(TimeTzADT *time1, TimeTzADT *time2)
 Datum
 timetz_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) == 0);
+  bool result = (timetz_cmp_internal(time1, time2) == 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) != 0);
+  bool result = (timetz_cmp_internal(time1, time2) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) < 0);
+  bool result = (timetz_cmp_internal(time1, time2) < 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) <= 0);
+  bool result = (timetz_cmp_internal(time1, time2) <= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) > 0);
+  bool result = (timetz_cmp_internal(time1, time2) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_BOOL(timetz_cmp_internal(time1, time2) >= 0);
+  bool result = (timetz_cmp_internal(time1, time2) >= 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 timetz_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
 
-  PG_RETURN_INT32(timetz_cmp_internal(time1, time2));
+  int32 result = (timetz_cmp_internal(time1, time2));
+  DBUG_PRINT("info", "result: %d", result);
+
+  PG_RETURN_INT32(result);
 }
 
 Datum
 timetz_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *key = PG_GETARG_TIMETZADT_P(0);
   uint32    thash;
 
@@ -2596,6 +3075,7 @@ timetz_hash(PG_FUNCTION_ARGS)
 Datum
 timetz_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *key = PG_GETARG_TIMETZADT_P(0);
   Datum   seed = PG_GETARG_DATUM(1);
   uint64    thash;
@@ -2612,6 +3092,7 @@ timetz_hash_extended(PG_FUNCTION_ARGS)
 Datum
 timetz_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
   TimeTzADT  *result;
@@ -2627,6 +3108,7 @@ timetz_larger(PG_FUNCTION_ARGS)
 Datum
 timetz_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time1 = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *time2 = PG_GETARG_TIMETZADT_P(1);
   TimeTzADT  *result;
@@ -2645,6 +3127,7 @@ timetz_smaller(PG_FUNCTION_ARGS)
 Datum
 timetz_pl_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   TimeTzADT  *result;
@@ -2673,6 +3156,7 @@ timetz_pl_interval(PG_FUNCTION_ARGS)
 Datum
 timetz_mi_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
   Interval   *span = PG_GETARG_INTERVAL_P(1);
   TimeTzADT  *result;
@@ -2701,6 +3185,7 @@ timetz_mi_interval(PG_FUNCTION_ARGS)
 Datum
 in_range_timetz_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *val = PG_GETARG_TIMETZADT_P(0);
   TimeTzADT  *base = PG_GETARG_TIMETZADT_P(1);
   Interval   *offset = PG_GETARG_INTERVAL_P(2);
@@ -2747,6 +3232,7 @@ in_range_timetz_interval(PG_FUNCTION_ARGS)
 Datum
 overlaps_timetz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * The arguments are TimeTzADT *, but we leave them as generic Datums for
    * convenience of notation --- and to avoid dereferencing nulls.
@@ -2861,6 +3347,7 @@ overlaps_timetz(PG_FUNCTION_ARGS)
 Datum
 timetz_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeTzADT  *timetz = PG_GETARG_TIMETZADT_P(0);
   TimeADT   result;
 
@@ -2874,6 +3361,7 @@ timetz_time(PG_FUNCTION_ARGS)
 Datum
 time_timetz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimeADT   time = PG_GETARG_TIMEADT(0);
   TimeTzADT  *result;
   struct pg_tm tt,
@@ -2900,6 +3388,7 @@ time_timetz(PG_FUNCTION_ARGS)
 Datum
 timestamptz_timetz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TimestampTz timestamp = PG_GETARG_TIMESTAMP(0);
   TimeTzADT  *result;
   struct pg_tm tt,
@@ -2932,6 +3421,7 @@ timestamptz_timetz(PG_FUNCTION_ARGS)
 Datum
 datetimetz_timestamptz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DateADT   date = PG_GETARG_DATEADT(0);
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(1);
   TimestampTz result;
@@ -2973,6 +3463,7 @@ datetimetz_timestamptz(PG_FUNCTION_ARGS)
 static Datum
 timetz_part_common(PG_FUNCTION_ARGS, bool retnumeric)
 {
+  DBUG_TRACE;
   text     *units = PG_GETARG_TEXT_PP(0);
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(1);
   int64   intresult;
@@ -3087,12 +3578,14 @@ timetz_part_common(PG_FUNCTION_ARGS, bool retnumeric)
 Datum
 timetz_part(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return timetz_part_common(fcinfo, false);
 }
 
 Datum
 extract_timetz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return timetz_part_common(fcinfo, true);
 }
 
@@ -3103,6 +3596,7 @@ extract_timetz(PG_FUNCTION_ARGS)
 Datum
 timetz_zone(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *zone = PG_GETARG_TEXT_PP(0);
   TimeTzADT  *t = PG_GETARG_TIMETZADT_P(1);
   TimeTzADT  *result;
@@ -3162,6 +3656,7 @@ timetz_zone(PG_FUNCTION_ARGS)
 Datum
 timetz_izone(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Interval   *zone = PG_GETARG_INTERVAL_P(0);
   TimeTzADT  *time = PG_GETARG_TIMETZADT_P(1);
   TimeTzADT  *result;
@@ -3207,6 +3702,7 @@ timetz_izone(PG_FUNCTION_ARGS)
 Datum
 timetz_at_local(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   time = PG_GETARG_DATUM(0);
   const char *tzn = pg_get_timezone_name(session_timezone);
   Datum   zone = PointerGetDatum(cstring_to_text(tzn));

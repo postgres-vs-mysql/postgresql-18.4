@@ -254,37 +254,36 @@ struct JsonbValue
 {
   enum jbvType type;      /* Influences sort order */
 
-  union
-  {
+  union {
     Numeric numeric;
     bool    boolean;
-    struct
-    {
+struct
+{
       int     len;
       char     *val;  /* Not necessarily null-terminated */
     }     string;   /* String primitive type */
 
-    struct
-    {
+struct
+{
       int     nElems;
       JsonbValue *elems;
       bool    rawScalar;  /* Top-level "raw scalar" array? */
     }     array;    /* Array container type */
 
-    struct
-    {
+struct
+{
       int     nPairs; /* 1 pair, 2 elements */
       JsonbPair  *pairs;
     }     object;   /* Associative container type */
 
-    struct
-    {
+struct
+{
       int     len;
       JsonbContainer *data;
     }     binary;   /* Array or object, in on-disk format */
 
-    struct
-    {
+struct
+{
       Datum   value;
       Oid     typid;
       int32   typmod;

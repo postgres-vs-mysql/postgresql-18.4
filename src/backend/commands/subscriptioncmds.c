@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -123,6 +124,7 @@ static void
 parse_subscription_options(ParseState *pstate, List *stmt_options,
                            bits32 supported_opts, SubOpts *opts)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Start out with cleared opts. */
@@ -323,6 +325,7 @@ parse_subscription_options(ParseState *pstate, List *stmt_options,
         lsn = InvalidXLogRecPtr;
       else {
         /* Parse the argument as LSN */
+        DBUG_PRINT("info", "parse the argument as LSN");
         lsn = DatumGetLSN(DirectFunctionCall1(pg_lsn_in,
                                               CStringGetDatum(lsn_str)));
 
@@ -418,6 +421,7 @@ parse_subscription_options(ParseState *pstate, List *stmt_options,
 static void
 check_publications(WalReceiverConn *wrconn, List *publications)
 {
+  DBUG_TRACE;
   WalRcvExecResult *res;
   StringInfo  cmd;
   TupleTableSlot *slot;
@@ -480,6 +484,7 @@ check_publications(WalReceiverConn *wrconn, List *publications)
 static Datum
 publicationListToArray(List *publist)
 {
+  DBUG_TRACE;
   ArrayType  *arr;
   Datum    *datums;
   MemoryContext memcxt;
@@ -511,6 +516,7 @@ ObjectAddress
 CreateSubscription(ParseState *pstate, CreateSubscriptionStmt *stmt,
                    bool isTopLevel)
 {
+  DBUG_TRACE;
   Relation  rel;
   ObjectAddress myself;
   Oid     subid;
@@ -795,6 +801,7 @@ static void
 AlterSubscription_refresh(Subscription *sub, bool copy_data,
                           List *validate_publications)
 {
+  DBUG_TRACE;
   char     *err;
   List     *pubrel_names;
   List     *subrel_states;
@@ -1016,6 +1023,7 @@ static void
 CheckAlterSubOption(Subscription *sub, const char *option,
                     bool slot_needs_update, bool isTopLevel)
 {
+  DBUG_TRACE;
   /*
    * The checks in this function are required only for failover and
    * two_phase options.
@@ -1069,6 +1077,7 @@ ObjectAddress
 AlterSubscription(ParseState *pstate, AlterSubscriptionStmt *stmt,
                   bool isTopLevel)
 {
+  DBUG_TRACE;
   Relation  rel;
   ObjectAddress myself;
   bool    nulls[Natts_pg_subscription];
@@ -1574,6 +1583,7 @@ AlterSubscription(ParseState *pstate, AlterSubscriptionStmt *stmt,
 void
 DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   Relation  rel;
   ObjectAddress myself;
   HeapTuple tup;
@@ -1858,6 +1868,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 void
 ReplicationSlotDropAtPubNode(WalReceiverConn *wrconn, char *slotname, bool missing_ok)
 {
+  DBUG_TRACE;
   StringInfoData cmd;
 
   Assert(wrconn);
@@ -1908,6 +1919,7 @@ ReplicationSlotDropAtPubNode(WalReceiverConn *wrconn, char *slotname, bool missi
 static void
 AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_subscription form;
   AclResult aclresult;
 
@@ -1969,6 +1981,7 @@ AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     subid;
   HeapTuple tup;
   Relation  rel;
@@ -2005,6 +2018,7 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 void
 AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
@@ -2044,6 +2058,7 @@ check_publications_origin(WalReceiverConn *wrconn, List *publications,
                           bool copydata, char *origin, Oid *subrel_local_oids,
                           int subrel_count, char *subname)
 {
+  DBUG_TRACE;
   WalRcvExecResult *res;
   StringInfoData cmd;
   TupleTableSlot *slot;
@@ -2153,6 +2168,7 @@ check_publications_origin(WalReceiverConn *wrconn, List *publications,
 static List *
 fetch_table_list(WalReceiverConn *wrconn, List *publications)
 {
+  DBUG_TRACE;
   WalRcvExecResult *res;
   StringInfoData cmd;
   TupleTableSlot *slot;
@@ -2258,6 +2274,7 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 static void
 ReportSlotConnectionError(List *rstates, Oid subid, char *slotname, char *err)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, rstates) {
@@ -2338,6 +2355,7 @@ check_duplicates_in_publist(List *publist, Datum *datums)
 static List *
 merge_publications(List *oldpublist, List *newpublist, bool addpub, const char *subname)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   oldpublist = list_copy(oldpublist);
@@ -2395,6 +2413,8 @@ merge_publications(List *oldpublist, List *newpublist, bool addpub, const char *
 char
 defGetStreamingMode(DefElem *def)
 {
+  DBUG_TRACE;
+
   /*
    * If no parameter value given, assume "true" is meant.
    */

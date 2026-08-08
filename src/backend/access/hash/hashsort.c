@@ -24,6 +24,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "commands/progress.h"
@@ -58,6 +59,7 @@ struct HSpool {
 HSpool *
 _h_spoolinit(Relation heap, Relation index, uint32 num_buckets)
 {
+  DBUG_TRACE;
   HSpool     *hspool = (HSpool *) palloc0(sizeof(HSpool));
 
   hspool->index = index;
@@ -118,6 +120,7 @@ _h_spool(HSpool *hspool, ItemPointer self, const Datum *values, const bool *isnu
 void
 _h_indexbuild(HSpool *hspool, Relation heapRel)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
   int64   tups_done = 0;
 #ifdef USE_ASSERT_CHECKING

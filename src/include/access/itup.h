@@ -136,27 +136,20 @@ index_getattr(IndexTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 
   *isnull = false;
 
-  if (!IndexTupleHasNulls(tup))
-  {
+  if (!IndexTupleHasNulls(tup)) {
     CompactAttribute *attr = TupleDescCompactAttr(tupleDesc, attnum - 1);
 
-    if (attr->attcacheoff >= 0)
-    {
+    if (attr->attcacheoff >= 0) {
       return fetchatt(attr,
                       (char *) tup + IndexInfoFindDataOffset(tup->t_info) +
                       attr->attcacheoff);
-    }
-    else
+    } else
       return nocache_index_getattr(tup, attnum, tupleDesc);
-  }
-  else
-  {
-    if (att_isnull(attnum - 1, (bits8 *) tup + sizeof(IndexTupleData)))
-    {
+  } else {
+    if (att_isnull(attnum - 1, (bits8 *) tup + sizeof(IndexTupleData))) {
       *isnull = true;
       return (Datum) NULL;
-    }
-    else
+    } else
       return nocache_index_getattr(tup, attnum, tupleDesc);
   }
 }

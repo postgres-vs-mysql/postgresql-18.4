@@ -2,6 +2,7 @@
  * contrib/pg_trgm/trgm_op.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -141,6 +142,7 @@ enlarge_trgm_array(growable_trgm_array *arr, int needed)
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Define custom GUC variables. */
   DefineCustomRealVariable("pg_trgm.similarity_threshold",
                            "Sets the threshold used by the % operator.",
@@ -230,6 +232,7 @@ CMPTRGM_CHOOSE(const void *a, const void *b)
 Datum
 set_limit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    nlimit = PG_GETARG_FLOAT4(0);
   char     *nlimit_str;
   Oid     func_out_oid;
@@ -242,6 +245,7 @@ set_limit(PG_FUNCTION_ARGS)
   SetConfigOption("pg_trgm.similarity_threshold", nlimit_str,
                   PGC_USERSET, PGC_S_SESSION);
 
+  DBUG_PRINT("trgm", "similarity_threshold:%g", similarity_threshold);
   PG_RETURN_FLOAT4(similarity_threshold);
 }
 
@@ -252,14 +256,19 @@ set_limit(PG_FUNCTION_ARGS)
 double
 index_strategy_get_limit(StrategyNumber strategy)
 {
+  DBUG_TRACE;
+
   switch (strategy) {
     case SimilarityStrategyNumber:
+      DBUG_PRINT("trgm", "return similarity_threshold:%g", similarity_threshold);
       return similarity_threshold;
 
     case WordSimilarityStrategyNumber:
+      DBUG_PRINT("trgm", "return word_similarity_threshold:%g", word_similarity_threshold);
       return word_similarity_threshold;
 
     case StrictWordSimilarityStrategyNumber:
+      DBUG_PRINT("trgm", "return strict_word_similarity_threshold:%g", strict_word_similarity_threshold);
       return strict_word_similarity_threshold;
 
     default:
@@ -267,6 +276,7 @@ index_strategy_get_limit(StrategyNumber strategy)
       break;
   }
 
+  DBUG_PRINT("trgm", "return 0.0");
   return 0.0;         /* keep compiler quiet */
 }
 
@@ -277,6 +287,9 @@ index_strategy_get_limit(StrategyNumber strategy)
 Datum
 show_limit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
+  DBUG_PRINT("trgm", "return similarity_threshold:%g", similarity_threshold);
   PG_RETURN_FLOAT4(similarity_threshold);
 }
 
@@ -330,6 +343,9 @@ find_word(char *str, int lenstr, char **endword)
 void
 compact_trigram(trgm *tptr, char *str, int bytelen)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("trgm", "reduce  a trigram to a trgm");
+
   if (bytelen == 3) {
     CPTRGM(tptr, str);
   } else {
@@ -352,6 +368,7 @@ compact_trigram(trgm *tptr, char *str, int bytelen)
 static void
 make_trigrams(growable_trgm_array *dst, char *str, int bytelen)
 {
+  DBUG_TRACE;
   trgm     *tptr;
   char     *ptr = str;
 
@@ -410,6 +427,7 @@ make_trigrams(growable_trgm_array *dst, char *str, int bytelen)
      * As we go, 'ptr' points to the beginning of the current
      * three-character string and 'endptr' points to just past it.
      */
+    DBUG_PRINT("trgm", "slow path to handle any remaining multibyte characters");
     endptr = ptr + lenfirst + lenmiddle + lenlast;
 
     while (endptr <= str + bytelen) {
@@ -549,9 +567,19 @@ generate_trgm_only(growable_trgm_array *dst, char *str, int slen, TrgmBound **bo
 TRGM *
 generate_trgm(char *str, int slen)
 {
+  DBUG_TRACE;
   TRGM     *trg;
   growable_trgm_array arr;
   int     len;
+  char buffer[256];
+
+  if (slen < 256) {
+    strncpy(buffer, str, slen);
+    buffer[slen] = '\0';
+    DBUG_PRINT("trgm", "make array of trigrams with sorting and removing duplicate items");
+    DBUG_PRINT("trgm", "source string:%s, slen:%d", buffer, slen);
+  }
+
 
   generate_trgm_only(&arr, str, slen, NULL);
   len = arr.length;
@@ -562,12 +590,14 @@ generate_trgm(char *str, int slen)
    * Make trigrams unique.
    */
   if (len > 1) {
+    DBUG_PRINT("trgm", "make trigrams unique");
     qsort(GETARR(trg), len, sizeof(trgm), comp_trgm);
     len = qunique(GETARR(trg), len, sizeof(trgm), comp_trgm);
   }
 
   SET_VARSIZE(trg, CALCGTSIZE(ARRKEY, len));
 
+  DBUG_PRINT("trgm", "return the sorted array(len:%d) of unique trigrams", len);
   return trg;
 }
 
@@ -584,6 +614,7 @@ generate_trgm(char *str, int slen)
 static pos_trgm *
 make_positional_trgm(trgm *trg1, int len1, trgm *trg2, int len2)
 {
+  DBUG_TRACE;
   pos_trgm   *result;
   int     i,
           len = len1 + len2;
@@ -645,6 +676,7 @@ iterate_word_similarity(int *trg2indexes,
                         uint8 flags,
                         TrgmBound *bounds)
 {
+  DBUG_TRACE;
   int      *lastpos,
            i,
            ulen2 = 0,
@@ -661,6 +693,7 @@ iterate_word_similarity(int *trg2indexes,
   threshold = (flags & WORD_SIMILARITY_STRICT) ?
               strict_word_similarity_threshold :
               word_similarity_threshold;
+  DBUG_PRINT("trgm", "select appropriate threshold:%g", threshold);
 
   /*
    * Consider first trigram as initial lower bound for strict word
@@ -781,6 +814,7 @@ iterate_word_similarity(int *trg2indexes,
 
   pfree(lastpos);
 
+  DBUG_PRINT("trgm", "return word similarity:%g", smlr_max);
   return smlr_max;
 }
 
@@ -806,6 +840,7 @@ static float4
 calc_word_similarity(char *str1, int slen1, char *str2, int slen2,
                      uint8 flags)
 {
+  DBUG_TRACE;
   bool     *found;
   pos_trgm   *ptrg;
   growable_trgm_array trg1;
@@ -874,6 +909,7 @@ calc_word_similarity(char *str1, int slen1, char *str2, int slen2,
   pfree(found);
   pfree(ptrg);
 
+  DBUG_PRINT("trgm", "calculate word similarity:%g", result);
   return result;
 }
 
@@ -896,6 +932,7 @@ static const char *
 get_wildcard_part(const char *str, int lenstr,
                   char *buf, int *bytelen)
 {
+  DBUG_TRACE;
   const char *beginword = str;
   const char *endword;
   const char *endstr = str + lenstr;
@@ -1021,12 +1058,21 @@ get_wildcard_part(const char *str, int lenstr,
 TRGM *
 generate_wildcard_trgm(const char *str, int slen)
 {
+  DBUG_TRACE;
   TRGM     *trg;
   growable_trgm_array arr;
   char     *buf;
   int     len,
           bytelen;
   const char *eword;
+  char buffer[256];
+
+  if (slen < 256) {
+    strncpy(buffer, str, slen);
+    buffer[slen] = '\0';
+    DBUG_PRINT("trgm", "generate trigrams for wildcard search string");
+    DBUG_PRINT("trgm", "source string:%s, slen:%d", buffer, slen);
+  }
 
   if (slen + LPADDING + RPADDING < 3 || slen == 0) {
     trg = (TRGM *) palloc(TRGMHDRSIZE);
@@ -1043,6 +1089,7 @@ generate_wildcard_trgm(const char *str, int slen)
   /*
    * Extract trigrams from each substring extracted by get_wildcard_part.
    */
+  DBUG_PRINT("trgm", "extract trigrams from each substring extracted by get_wildcard_part");
   eword = str;
 
   while ((eword = get_wildcard_part(eword, slen - (eword - str),
@@ -1075,6 +1122,7 @@ generate_wildcard_trgm(const char *str, int slen)
   len = arr.length;
 
   if (len > 1) {
+    DBUG_PRINT("trgm", "make trigrams unique(len:%d)", len);
     qsort(GETARR(trg), len, sizeof(trgm), comp_trgm);
     len = qunique(GETARR(trg), len, sizeof(trgm), comp_trgm);
   }
@@ -1102,6 +1150,7 @@ trgm2int(trgm *ptr)
 Datum
 show_trgm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in = PG_GETARG_TEXT_PP(0);
   TRGM     *trg;
   Datum    *d;
@@ -1141,6 +1190,7 @@ show_trgm(PG_FUNCTION_ARGS)
 float4
 cnt_sml(TRGM *trg1, TRGM *trg2, bool inexact)
 {
+  DBUG_TRACE;
   trgm     *ptr1,
            *ptr2;
   int     count = 0;
@@ -1187,6 +1237,7 @@ cnt_sml(TRGM *trg1, TRGM *trg2, bool inexact)
 bool
 trgm_contained_by(TRGM *trg1, TRGM *trg2)
 {
+  DBUG_TRACE;
   trgm     *ptr1,
            *ptr2;
   int     len1,
@@ -1201,9 +1252,10 @@ trgm_contained_by(TRGM *trg1, TRGM *trg2)
   while (ptr1 - GETARR(trg1) < len1 && ptr2 - GETARR(trg2) < len2) {
     int     res = CMPTRGM(ptr1, ptr2);
 
-    if (res < 0)
+    if (res < 0) {
+      DBUG_PRINT("trgm", "return whether trg2 contains all trigrams in trg1? No");
       return false;
-    else if (res > 0)
+    } else if (res > 0)
       ptr2++;
     else {
       ptr1++;
@@ -1211,10 +1263,13 @@ trgm_contained_by(TRGM *trg1, TRGM *trg2)
     }
   }
 
-  if (ptr1 - GETARR(trg1) < len1)
+  if (ptr1 - GETARR(trg1) < len1) {
+    DBUG_PRINT("trgm", "return whether trg2 contains all trigrams in trg1? No");
     return false;
-  else
+  } else {
+    DBUG_PRINT("trgm", "return whether trg2 contains all trigrams in trg1? Yes");
     return true;
+  }
 }
 
 /*
@@ -1225,6 +1280,7 @@ trgm_contained_by(TRGM *trg1, TRGM *trg2)
 bool *
 trgm_presence_map(TRGM *query, TRGM *key)
 {
+  DBUG_TRACE;
   bool     *result;
   trgm     *ptrq = GETARR(query),
             *ptrk = GETARR(key);
@@ -1256,12 +1312,19 @@ trgm_presence_map(TRGM *query, TRGM *key)
     ptrq++;
   }
 
+  if (*result) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   return result;
 }
 
 Datum
 similarity(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   TRGM     *trg1,
@@ -1278,12 +1341,15 @@ similarity(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
 
+  DBUG_PRINT("trgm", "the similarity between %s and %s is %g", VARDATA_ANY(in1), VARDATA_ANY(in2), res);
+
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 word_similarity(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1294,12 +1360,15 @@ word_similarity(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+
+  DBUG_PRINT("trgm", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 strict_word_similarity(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1310,25 +1379,35 @@ strict_word_similarity(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+  DBUG_PRINT("trgm", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 similarity_dist(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    res = DatumGetFloat4(DirectFunctionCall2(similarity,
                                  PG_GETARG_DATUM(0),
                                  PG_GETARG_DATUM(1)));
 
+  DBUG_PRINT("trgm", "result:%g", 1.0 - res);
   PG_RETURN_FLOAT4(1.0 - res);
 }
 
 Datum
 similarity_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    res = DatumGetFloat4(DirectFunctionCall2(similarity,
                                  PG_GETARG_DATUM(0),
                                  PG_GETARG_DATUM(1)));
+
+  if (res >= similarity_threshold) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
 
   PG_RETURN_BOOL(res >= similarity_threshold);
 }
@@ -1336,6 +1415,7 @@ similarity_op(PG_FUNCTION_ARGS)
 Datum
 word_similarity_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1346,12 +1426,20 @@ word_similarity_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+
+  if (res >= word_similarity_threshold) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   PG_RETURN_BOOL(res >= word_similarity_threshold);
 }
 
 Datum
 word_similarity_commutator_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1362,12 +1450,20 @@ word_similarity_commutator_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+
+  if (res >= word_similarity_threshold) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   PG_RETURN_BOOL(res >= word_similarity_threshold);
 }
 
 Datum
 word_similarity_dist_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1378,12 +1474,14 @@ word_similarity_dist_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+  DBUG_PRINT("trgm", "result:%g", 1.0 - res);
   PG_RETURN_FLOAT4(1.0 - res);
 }
 
 Datum
 word_similarity_dist_commutator_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1394,12 +1492,14 @@ word_similarity_dist_commutator_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+  DBUG_PRINT("trgm", "result:%g", 1.0 - res);
   PG_RETURN_FLOAT4(1.0 - res);
 }
 
 Datum
 strict_word_similarity_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1410,12 +1510,20 @@ strict_word_similarity_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+
+  if (res >= strict_word_similarity_threshold) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   PG_RETURN_BOOL(res >= strict_word_similarity_threshold);
 }
 
 Datum
 strict_word_similarity_commutator_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1426,12 +1534,21 @@ strict_word_similarity_commutator_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+
+  if (res >= strict_word_similarity_threshold) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
+
   PG_RETURN_BOOL(res >= strict_word_similarity_threshold);
 }
 
 Datum
 strict_word_similarity_dist_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1442,12 +1559,14 @@ strict_word_similarity_dist_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+  DBUG_PRINT("trgm", "result:%g", 1.0 - res);
   PG_RETURN_FLOAT4(1.0 - res);
 }
 
 Datum
 strict_word_similarity_dist_commutator_op(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *in1 = PG_GETARG_TEXT_PP(0);
   text     *in2 = PG_GETARG_TEXT_PP(1);
   float4    res;
@@ -1458,5 +1577,6 @@ strict_word_similarity_dist_commutator_op(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in1, 0);
   PG_FREE_IF_COPY(in2, 1);
+  DBUG_PRINT("trgm", "result:%g", 1.0 - res);
   PG_RETURN_FLOAT4(1.0 - res);
 }

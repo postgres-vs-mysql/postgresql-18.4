@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "gramparse.h"
 #include "mb/pg_wchar.h"
@@ -41,11 +42,13 @@ static char *str_udeescape(const char *str, char escape,
 List *
 raw_parser(const char *str, RawParseMode mode)
 {
+  DBUG_TRACE;
   core_yyscan_t yyscanner;
   base_yy_extra_type yyextra;
   int     yyresult;
 
   /* initialize the flex scanner */
+  DBUG_PRINT("info", "initialize the flex scanner");
   yyscanner = scanner_init(str, &yyextra.core_yy_extra,
                            &ScanKeywords, ScanKeywordTokens);
 
@@ -69,18 +72,24 @@ raw_parser(const char *str, RawParseMode mode)
     yyextra.lookahead_end = NULL;
   }
 
+  DBUG_PRINT("info", "initialize the bison parser");
   /* initialize the bison parser */
   parser_init(&yyextra);
 
   /* Parse! */
+  DBUG_PRINT("info", "parse!");
   yyresult = base_yyparse(yyscanner);
 
+  DBUG_PRINT("info", "clean up!");
   /* Clean up (release memory) */
   scanner_finish(yyscanner);
 
-  if (yyresult)       /* error */
+  if (yyresult) {     /* error */
+    DBUG_PRINT("info", "parse error");
     return NIL;
+  }
 
+  DBUG_PRINT("info", "return a parse tree!");
   return yyextra.parsetree;
 }
 
@@ -349,10 +358,12 @@ hexval(unsigned char c)
 static void
 check_unicode_value(pg_wchar c)
 {
-  if (!is_valid_unicode_codepoint(c))
+  if (!is_valid_unicode_codepoint(c)) {
+    DBUG_INSTANT_PRINT("info", "invalid Unicode escape value");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("invalid Unicode escape value")));
+  }
 }
 
 /* is 'escape' acceptable as Unicode escape character (UESCAPE syntax) ? */
@@ -413,7 +424,7 @@ str_udeescape(const char *str, char escape,
        * have an error cursor pointing at the escape.
        */
       setup_scanner_errposition_callback(&scbstate, yyscanner,
-                                         in - str + position + 3);  /* 3 for U&" */
+                                         in - str + position + 3); /* 3 for U&" */
 
       if (in[1] == escape) {
         if (pair_first)
@@ -484,11 +495,13 @@ str_udeescape(const char *str, char escape,
         }
 
         in += 8;
-      } else
+      } else {
+        DBUG_INSTANT_PRINT("info", "invalid Unicode escape");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("invalid Unicode escape"),
                  errhint("Unicode escapes must be \\XXXX or \\+XXXXXX.")));
+      }
 
       cancel_scanner_errposition_callback(&scbstate);
     } else {
@@ -512,6 +525,7 @@ str_udeescape(const char *str, char escape,
    * callback is active, this is duplicative but harmless.
    */
 invalid_pair:
+  DBUG_INSTANT_PRINT("info", "invalid Unicode surrogate pair");
   ereport(ERROR,
           (errcode(ERRCODE_SYNTAX_ERROR),
            errmsg("invalid Unicode surrogate pair"),

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "miscadmin.h"
@@ -24,6 +25,7 @@
 QTNode *
 QT2QTN(QueryItem *in, char *operand)
 {
+  DBUG_TRACE;
   QTNode     *node = (QTNode *) palloc0(sizeof(QTNode));
 
   /* since this function recurses, it could be driven to stack overflow. */
@@ -60,6 +62,8 @@ QT2QTN(QueryItem *in, char *operand)
 void
 QTNFree(QTNode *in)
 {
+  DBUG_TRACE;
+
   if (!in)
     return;
 
@@ -153,6 +157,7 @@ cmpQTN(const void *a, const void *b)
 void
 QTNSort(QTNode *in)
 {
+  DBUG_TRACE;
   int     i;
 
   /* since this function recurses, it could be driven to stack overflow. */
@@ -192,6 +197,7 @@ QTNEq(QTNode *a, QTNode *b)
 void
 QTNTernary(QTNode *in)
 {
+  DBUG_TRACE;
   int     i;
 
   /* since this function recurses, it could be driven to stack overflow. */
@@ -240,6 +246,7 @@ QTNTernary(QTNode *in)
 void
 QTNBinary(QTNode *in)
 {
+  DBUG_TRACE;
   int     i;
 
   /* since this function recurses, it could be driven to stack overflow. */
@@ -281,6 +288,7 @@ QTNBinary(QTNode *in)
 static void
 cntsize(QTNode *in, int *sumlen, int *nnode)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -294,6 +302,8 @@ cntsize(QTNode *in, int *sumlen, int *nnode)
   } else {
     *sumlen += in->valnode->qoperand.length + 1;
   }
+
+  DBUG_PRINT("info", "sumlen:%d, nnode:%d", *sumlen, *nnode);
 }
 
 typedef struct {
@@ -309,6 +319,7 @@ typedef struct {
 static void
 fillQT(QTN2QTState *state, QTNode *in)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -345,6 +356,7 @@ fillQT(QTN2QTState *state, QTNode *in)
 TSQuery
 QTN2QT(QTNode *in)
 {
+  DBUG_TRACE;
   TSQuery   out;
   int     len;
   int     sumlen = 0,

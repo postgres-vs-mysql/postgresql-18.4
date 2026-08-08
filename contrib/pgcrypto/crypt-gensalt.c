@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "px-crypt.h"
 
@@ -25,6 +26,8 @@ char *
 _crypt_gensalt_traditional_rn(unsigned long count,
                               const char *input, int size, char *output, int output_size)
 {
+  DBUG_TRACE;
+
   if (size < 2 || output_size < 2 + 1 || (count && count != 25)) {
     if (output_size > 0)
       output[0] = '\0';
@@ -43,6 +46,7 @@ char *
 _crypt_gensalt_extended_rn(unsigned long count,
                            const char *input, int size, char *output, int output_size)
 {
+  DBUG_TRACE;
   unsigned long value;
 
   /* Even iteration counts make it easier to detect weak DES keys from a look
@@ -79,6 +83,7 @@ char *
 _crypt_gensalt_md5_rn(unsigned long count,
                       const char *input, int size, char *output, int output_size)
 {
+  DBUG_TRACE;
   unsigned long value;
 
   if (size < 3 || output_size < 3 + 4 + 1 || (count && count != 1000)) {
@@ -122,6 +127,7 @@ static unsigned char BF_itoa64[64 + 1] =
 static void
 BF_encode(char *dst, const BF_word *src, int size)
 {
+  DBUG_TRACE;
   const unsigned char *sptr = (const unsigned char *) src;
   const unsigned char *end = sptr + size;
   unsigned char *dptr = (unsigned char *) dst;
@@ -159,6 +165,8 @@ char *
 _crypt_gensalt_blowfish_rn(unsigned long count,
                            const char *input, int size, char *output, int output_size)
 {
+  DBUG_TRACE;
+
   if (size < 16 || output_size < 7 + 22 + 1 ||
       (count && (count < 4 || count > 31))) {
     if (output_size > 0)

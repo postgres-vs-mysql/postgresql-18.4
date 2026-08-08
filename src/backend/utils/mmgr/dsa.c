@@ -1282,11 +1282,11 @@ create_internal(void *place, size_t size,
   memset(area->segment_maps, 0, sizeof(dsa_segment_map) * DSA_MAX_SEGMENTS);
   area->high_segment_index = 0;
   area->freed_segment_counter = 0;
-  LWLockInitialize(&control->lock, control->lwlock_tranche_id);
+  LWLockInitialize(&control->lock, control->lwlock_tranche_id, 0);
 
   for (i = 0; i < DSA_NUM_SIZE_CLASSES; ++i)
     LWLockInitialize(DSA_SCLASS_LOCK(area, i),
-                     control->lwlock_tranche_id);
+                     control->lwlock_tranche_id, i);
 
   /* Set up the segment map for this process's mapping. */
   segment_map = &area->segment_maps[0];

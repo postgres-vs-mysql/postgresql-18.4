@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeNamedtuplestorescan.h"
@@ -30,6 +31,7 @@ static TupleTableSlot *NamedTuplestoreScanNext(NamedTuplestoreScanState *node);
 static TupleTableSlot *
 NamedTuplestoreScanNext(NamedTuplestoreScanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
 
   /* We intentionally do not support backward scan. */
@@ -66,6 +68,7 @@ NamedTuplestoreScanRecheck(NamedTuplestoreScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecNamedTuplestoreScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   NamedTuplestoreScanState *node = castNode(NamedTuplestoreScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -81,6 +84,7 @@ ExecNamedTuplestoreScan(PlanState *pstate)
 NamedTuplestoreScanState *
 ExecInitNamedTuplestoreScan(NamedTuplestoreScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   NamedTuplestoreScanState *scanstate;
   EphemeralNamedRelation enr;
 
@@ -164,6 +168,7 @@ ExecInitNamedTuplestoreScan(NamedTuplestoreScan *node, EState *estate, int eflag
 void
 ExecReScanNamedTuplestoreScan(NamedTuplestoreScanState *node)
 {
+  DBUG_TRACE;
   Tuplestorestate *tuplestorestate = node->relation;
 
   if (node->ss.ps.ps_ResultTupleSlot)

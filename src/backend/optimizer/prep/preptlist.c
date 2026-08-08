@@ -35,6 +35,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "nodes/makefuncs.h"
@@ -63,6 +64,7 @@ static List *expand_insert_targetlist(PlannerInfo *root, List *tlist,
 void
 preprocess_targetlist(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   int     result_relation = parse->resultRelation;
   List     *range_table = parse->rtable;
@@ -71,6 +73,8 @@ preprocess_targetlist(PlannerInfo *root)
   Relation  target_relation = NULL;
   List     *tlist;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "driver for preprocessing the parse tree targetlist");
 
   /*
    * If there is a result relation, open it so we can look for missing
@@ -341,6 +345,7 @@ preprocess_targetlist(PlannerInfo *root)
 List *
 extract_update_targetlist_colnos(List *tlist)
 {
+  DBUG_TRACE;
   List     *update_colnos = NIL;
   AttrNumber  nextresno = 1;
   ListCell   *lc;
@@ -376,6 +381,7 @@ extract_update_targetlist_colnos(List *tlist)
 static List *
 expand_insert_targetlist(PlannerInfo *root, List *tlist, Relation rel)
 {
+  DBUG_TRACE;
   List     *new_tlist = NIL;
   ListCell   *tlist_item;
   int     attrno,

@@ -9,6 +9,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/objectaccess.h"
 #include "catalog/pg_class.h"
@@ -32,7 +33,14 @@ void
 RunObjectPostCreateHook(Oid classId, Oid objectId, int subId,
                         bool is_internal)
 {
+  DBUG_TRACE;
   ObjectAccessPostCreate pc_arg;
+
+  if (is_internal) {
+    DBUG_PRINT("info", "classId:%u, objectId:%u, subId:%d, is_internal:true", classId, objectId, subId);
+  } else {
+    DBUG_PRINT("info", "classId:%u, objectId:%u, subId:%d, is_internal:false", classId, objectId, subId);
+  }
 
   /* caller should check, but just in case... */
   Assert(object_access_hook != NULL);
@@ -54,8 +62,10 @@ void
 RunObjectDropHook(Oid classId, Oid objectId, int subId,
                   int dropflags)
 {
+  DBUG_TRACE;
   ObjectAccessDrop drop_arg;
 
+  DBUG_PRINT("info", "classId:%u, objectId:%u, subId:%d, dropflags:%d", classId, objectId, subId, dropflags);
   /* caller should check, but just in case... */
   Assert(object_access_hook != NULL);
 
@@ -75,9 +85,11 @@ RunObjectDropHook(Oid classId, Oid objectId, int subId,
 void
 RunObjectTruncateHook(Oid objectId)
 {
+  DBUG_TRACE;
   /* caller should check, but just in case... */
   Assert(object_access_hook != NULL);
 
+  DBUG_PRINT("info", "objectId:%u", objectId);
   (*object_access_hook) (OAT_TRUNCATE,
                          RelationRelationId, objectId, 0,
                          NULL);
@@ -92,10 +104,17 @@ void
 RunObjectPostAlterHook(Oid classId, Oid objectId, int subId,
                        Oid auxiliaryId, bool is_internal)
 {
+  DBUG_TRACE;
   ObjectAccessPostAlter pa_arg;
 
   /* caller should check, but just in case... */
   Assert(object_access_hook != NULL);
+
+  if (is_internal) {
+    DBUG_PRINT("info", "classId:%u, objectId:%u, subId:%d, auxiliaryId:%d, is_internal:true", classId, objectId, auxiliaryId, subId);
+  } else {
+    DBUG_PRINT("info", "classId:%u, objectId:%u, subId:%d, auxiliaryId:%d, is_internal:false", classId, objectId, auxiliaryId, subId);
+  }
 
   memset(&pa_arg, 0, sizeof(ObjectAccessPostAlter));
   pa_arg.auxiliary_id = auxiliaryId;
@@ -114,6 +133,7 @@ RunObjectPostAlterHook(Oid classId, Oid objectId, int subId,
 bool
 RunNamespaceSearchHook(Oid objectId, bool ereport_on_violation)
 {
+  DBUG_TRACE;
   ObjectAccessNamespaceSearch ns_arg;
 
   /* caller should check, but just in case... */
@@ -123,6 +143,7 @@ RunNamespaceSearchHook(Oid objectId, bool ereport_on_violation)
   ns_arg.ereport_on_violation = ereport_on_violation;
   ns_arg.result = true;
 
+  DBUG_PRINT("info", "invoke object_access_hook (objectId:%u)", objectId);
   (*object_access_hook) (OAT_NAMESPACE_SEARCH,
                          NamespaceRelationId, objectId, 0,
                          &ns_arg);
@@ -138,9 +159,11 @@ RunNamespaceSearchHook(Oid objectId, bool ereport_on_violation)
 void
 RunFunctionExecuteHook(Oid objectId)
 {
+  DBUG_TRACE;
   /* caller should check, but just in case... */
   Assert(object_access_hook != NULL);
 
+  DBUG_PRINT("info", "invoke object_access_hook (objectId:%u)", objectId);
   (*object_access_hook) (OAT_FUNCTION_EXECUTE,
                          ProcedureRelationId, objectId, 0,
                          NULL);
@@ -158,10 +181,17 @@ void
 RunObjectPostCreateHookStr(Oid classId, const char *objectName, int subId,
                            bool is_internal)
 {
+  DBUG_TRACE;
   ObjectAccessPostCreate pc_arg;
 
   /* caller should check, but just in case... */
   Assert(object_access_hook_str != NULL);
+
+  if (is_internal) {
+    DBUG_PRINT("info", "classId:%u, objectName:'%s', subId:%d, is_internal:true", classId, objectName, subId);
+  } else {
+    DBUG_PRINT("info", "classId:%u, objectName:'%s', subId:%d, is_internal:false", classId, objectName, subId);
+  }
 
   memset(&pc_arg, 0, sizeof(ObjectAccessPostCreate));
   pc_arg.is_internal = is_internal;
@@ -180,6 +210,7 @@ void
 RunObjectDropHookStr(Oid classId, const char *objectName, int subId,
                      int dropflags)
 {
+  DBUG_TRACE;
   ObjectAccessDrop drop_arg;
 
   /* caller should check, but just in case... */
@@ -188,6 +219,7 @@ RunObjectDropHookStr(Oid classId, const char *objectName, int subId,
   memset(&drop_arg, 0, sizeof(ObjectAccessDrop));
   drop_arg.dropflags = dropflags;
 
+  DBUG_PRINT("info", "classId:%u, objectName:'%s', subId:%d, dropflags:%d", classId, objectName, subId, dropflags);
   (*object_access_hook_str) (OAT_DROP,
                              classId, objectName, subId,
                              &drop_arg);
@@ -201,9 +233,11 @@ RunObjectDropHookStr(Oid classId, const char *objectName, int subId,
 void
 RunObjectTruncateHookStr(const char *objectName)
 {
+  DBUG_TRACE;
   /* caller should check, but just in case... */
   Assert(object_access_hook_str != NULL);
 
+  DBUG_PRINT("info", "objectName:'%s'", objectName);
   (*object_access_hook_str) (OAT_TRUNCATE,
                              RelationRelationId, objectName, 0,
                              NULL);
@@ -218,6 +252,7 @@ void
 RunObjectPostAlterHookStr(Oid classId, const char *objectName, int subId,
                           Oid auxiliaryId, bool is_internal)
 {
+  DBUG_TRACE;
   ObjectAccessPostAlter pa_arg;
 
   /* caller should check, but just in case... */
@@ -226,6 +261,12 @@ RunObjectPostAlterHookStr(Oid classId, const char *objectName, int subId,
   memset(&pa_arg, 0, sizeof(ObjectAccessPostAlter));
   pa_arg.auxiliary_id = auxiliaryId;
   pa_arg.is_internal = is_internal;
+
+  if (is_internal) {
+    DBUG_PRINT("info", "classId:%u, objectName:'%s', subId:%d, auxiliaryId:%u, is_internal:true", classId, objectName, subId, auxiliaryId);
+  } else {
+    DBUG_PRINT("info", "classId:%u, objectName:'%s', subId:%d, auxiliaryId:%u, is_internal:false", classId, objectName, subId, auxiliaryId);
+  }
 
   (*object_access_hook_str) (OAT_POST_ALTER,
                              classId, objectName, subId,
@@ -240,6 +281,7 @@ RunObjectPostAlterHookStr(Oid classId, const char *objectName, int subId,
 bool
 RunNamespaceSearchHookStr(const char *objectName, bool ereport_on_violation)
 {
+  DBUG_TRACE;
   ObjectAccessNamespaceSearch ns_arg;
 
   /* caller should check, but just in case... */
@@ -249,6 +291,7 @@ RunNamespaceSearchHookStr(const char *objectName, bool ereport_on_violation)
   ns_arg.ereport_on_violation = ereport_on_violation;
   ns_arg.result = true;
 
+  DBUG_PRINT("info", "objectName:'%s'", objectName);
   (*object_access_hook_str) (OAT_NAMESPACE_SEARCH,
                              NamespaceRelationId, objectName, 0,
                              &ns_arg);
@@ -264,9 +307,11 @@ RunNamespaceSearchHookStr(const char *objectName, bool ereport_on_violation)
 void
 RunFunctionExecuteHookStr(const char *objectName)
 {
+  DBUG_TRACE;
   /* caller should check, but just in case... */
   Assert(object_access_hook_str != NULL);
 
+  DBUG_PRINT("info", "objectName:'%s'", objectName);
   (*object_access_hook_str) (OAT_FUNCTION_EXECUTE,
                              ProcedureRelationId, objectName, 0,
                              NULL);

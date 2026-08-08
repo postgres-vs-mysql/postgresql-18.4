@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -75,6 +76,7 @@ static bool
 count_nulls(FunctionCallInfo fcinfo,
             int32 *nargs, int32 *nulls)
 {
+  DBUG_TRACE;
   int32   count = 0;
   int     i;
 
@@ -155,6 +157,7 @@ count_nulls(FunctionCallInfo fcinfo,
 Datum
 pg_num_nulls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   nargs,
           nulls;
 
@@ -171,6 +174,7 @@ pg_num_nulls(PG_FUNCTION_ARGS)
 Datum
 pg_num_nonnulls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   nargs,
           nulls;
 
@@ -188,6 +192,7 @@ pg_num_nonnulls(PG_FUNCTION_ARGS)
 Datum
 current_database(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    db;
 
   db = (Name) palloc(NAMEDATALEN);
@@ -205,6 +210,8 @@ current_database(PG_FUNCTION_ARGS)
 Datum
 current_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   /* there is no easy way to access the more concise 'query_string' */
   if (debug_query_string)
     PG_RETURN_TEXT_P(cstring_to_text(debug_query_string));
@@ -217,6 +224,7 @@ current_query(PG_FUNCTION_ARGS)
 Datum
 pg_tablespace_databases(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tablespaceOid = PG_GETARG_OID(0);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   char     *location;
@@ -226,6 +234,7 @@ pg_tablespace_databases(PG_FUNCTION_ARGS)
   InitMaterializedSRF(fcinfo, MAT_SRF_USE_EXPECTED_DESC);
 
   if (tablespaceOid == GLOBALTABLESPACE_OID) {
+    DBUG_INSTANT_PRINT("info", "global tablespace never has databases");
     ereport(WARNING,
             (errmsg("global tablespace never has databases")));
     /* return empty tuplestore */
@@ -242,12 +251,15 @@ pg_tablespace_databases(PG_FUNCTION_ARGS)
 
   if (!dirdesc) {
     /* the only expected error is ENOENT */
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not open directory \"%s\"", location);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not open directory \"%s\": %m",
                       location)));
+    }
 
+    DBUG_INSTANT_PRINT("info", "%u is not a tablespace OID", tablespaceOid);
     ereport(WARNING,
             (errmsg("%u is not a tablespace OID", tablespaceOid)));
     /* return empty tuplestore */
@@ -292,6 +304,7 @@ pg_tablespace_databases(PG_FUNCTION_ARGS)
 Datum
 pg_tablespace_location(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tablespaceOid = PG_GETARG_OID(0);
   char    sourcepath[MAXPGPATH];
   char    targetpath[MAXPGPATH];
@@ -326,6 +339,7 @@ pg_tablespace_location(PG_FUNCTION_ARGS)
    * found, a relative path to the data directory is returned.
    */
   if (lstat(sourcepath, &st) < 0) {
+    DBUG_INSTANT_PRINT("info", "could not stat file \"%s\"", sourcepath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not stat file \"%s\": %m",
@@ -340,17 +354,21 @@ pg_tablespace_location(PG_FUNCTION_ARGS)
    */
   rllen = readlink(sourcepath, targetpath, sizeof(targetpath));
 
-  if (rllen < 0)
+  if (rllen < 0) {
+    DBUG_INSTANT_PRINT("info", "could not read symbolic link \"%s\"", sourcepath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not read symbolic link \"%s\": %m",
                     sourcepath)));
+  }
 
-  if (rllen >= sizeof(targetpath))
+  if (rllen >= sizeof(targetpath)) {
+    DBUG_INSTANT_PRINT("info", "symbolic link \"%s\" target is too long", sourcepath);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("symbolic link \"%s\" target is too long",
                     sourcepath)));
+  }
 
   targetpath[rllen] = '\0';
 
@@ -363,6 +381,7 @@ pg_tablespace_location(PG_FUNCTION_ARGS)
 Datum
 pg_sleep(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    secs = PG_GETARG_FLOAT8(0);
   float8    endtime;
 
@@ -411,6 +430,7 @@ pg_sleep(PG_FUNCTION_ARGS)
 Datum
 pg_get_keywords(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
 
   if (SRF_IS_FIRSTCALL()) {
@@ -488,6 +508,7 @@ pg_get_keywords(PG_FUNCTION_ARGS)
 Datum
 pg_get_catalog_foreign_keys(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   FmgrInfo   *arrayinp;
 
@@ -555,6 +576,7 @@ pg_get_catalog_foreign_keys(PG_FUNCTION_ARGS)
 Datum
 pg_typeof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_OID(get_fn_expr_argtype(fcinfo->flinfo, 0));
 }
 
@@ -574,6 +596,7 @@ pg_typeof(PG_FUNCTION_ARGS)
 Datum
 pg_basetype(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typid = PG_GETARG_OID(0);
 
   /*
@@ -611,6 +634,7 @@ pg_basetype(PG_FUNCTION_ARGS)
 Datum
 pg_collation_for(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typeid;
   Oid     collid;
 
@@ -619,11 +643,13 @@ pg_collation_for(PG_FUNCTION_ARGS)
   if (!typeid)
     PG_RETURN_NULL();
 
-  if (!type_is_collatable(typeid) && typeid != UNKNOWNOID)
+  if (!type_is_collatable(typeid) && typeid != UNKNOWNOID) {
+    char *format1 = format_type_be(typeid);
+    DBUG_INSTANT_PRINT("info", "collations are not supported by type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
-             errmsg("collations are not supported by type %s",
-                    format_type_be(typeid))));
+             errmsg("collations are not supported by type %s", format1)));
+  }
 
   collid = PG_GET_COLLATION();
 
@@ -644,6 +670,7 @@ pg_collation_for(PG_FUNCTION_ARGS)
 Datum
 pg_relation_is_updatable(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
   bool    include_triggers = PG_GETARG_BOOL(1);
 
@@ -661,6 +688,7 @@ pg_relation_is_updatable(PG_FUNCTION_ARGS)
 Datum
 pg_column_is_updatable(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
   AttrNumber  attnum = PG_GETARG_INT16(1);
   AttrNumber  col = attnum - FirstLowInvalidHeapAttributeNumber;
@@ -692,6 +720,7 @@ pg_column_is_updatable(PG_FUNCTION_ARGS)
 Datum
 pg_input_is_valid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *txt = PG_GETARG_TEXT_PP(0);
   text     *typname = PG_GETARG_TEXT_PP(1);
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -712,6 +741,7 @@ pg_input_is_valid(PG_FUNCTION_ARGS)
 Datum
 pg_input_error_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *txt = PG_GETARG_TEXT_PP(0);
   text     *typname = PG_GETARG_TEXT_PP(1);
   ErrorSaveContext escontext = {T_ErrorSaveContext};
@@ -762,6 +792,7 @@ pg_input_is_valid_common(FunctionCallInfo fcinfo,
                          text *txt, text *typname,
                          ErrorSaveContext *escontext)
 {
+  DBUG_TRACE;
   char     *str = text_to_cstring(txt);
   ValidIOData *my_extra;
   Datum   converted;
@@ -858,6 +889,7 @@ is_ident_cont(unsigned char c)
 Datum
 parse_ident(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *qualname = PG_GETARG_TEXT_PP(0);
   bool    strict = PG_GETARG_BOOL(1);
   char     *qualname_str = text_to_cstring(qualname);
@@ -888,12 +920,14 @@ parse_ident(PG_FUNCTION_ARGS)
       for (;;) {
         endp = strchr(nextp + 1, '"');
 
-        if (endp == NULL)
+        if (endp == NULL) {
+          DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                    errmsg("string is not a valid identifier: \"%s\"",
                           text_to_cstring(qualname)),
                    errdetail("String has unclosed double quotes.")));
+        }
 
         if (endp[1] != '"')
           break;
@@ -905,12 +939,14 @@ parse_ident(PG_FUNCTION_ARGS)
       nextp = endp + 1;
       *endp = '\0';
 
-      if (endp - curname == 0)
+      if (endp - curname == 0) {
+        DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("string is not a valid identifier: \"%s\"",
                         text_to_cstring(qualname)),
                  errdetail("Quoted identifier must not be empty.")));
+      }
 
       astate = accumArrayResult(astate, CStringGetTextDatum(curname),
                                 false, TEXTOID, CurrentMemoryContext);
@@ -942,23 +978,28 @@ parse_ident(PG_FUNCTION_ARGS)
 
     if (missing_ident) {
       /* Different error messages based on where we failed. */
-      if (*nextp == '.')
+      if (*nextp == '.') {
+        DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("string is not a valid identifier: \"%s\"",
                         text_to_cstring(qualname)),
                  errdetail("No valid identifier before \".\".")));
-      else if (after_dot)
+      }
+      else if (after_dot) {
+        DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("string is not a valid identifier: \"%s\"",
                         text_to_cstring(qualname)),
                  errdetail("No valid identifier after \".\".")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("string is not a valid identifier: \"%s\"",
                         text_to_cstring(qualname))));
+      }
     }
 
     while (scanner_isspace(*nextp))
@@ -973,11 +1014,13 @@ parse_ident(PG_FUNCTION_ARGS)
     } else if (*nextp == '\0') {
       break;
     } else {
-      if (strict)
+      if (strict) {
+        DBUG_INSTANT_PRINT("info", "string is not a valid identifier: \"%s\"", text_to_cstring(qualname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("string is not a valid identifier: \"%s\"",
                         text_to_cstring(qualname))));
+      }
 
       break;
     }
@@ -994,6 +1037,7 @@ parse_ident(PG_FUNCTION_ARGS)
 Datum
 pg_current_logfile(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FILE     *fd;
   char    lbuffer[MAXPGPATH];
   char     *logfmt;
@@ -1006,21 +1050,25 @@ pg_current_logfile(PG_FUNCTION_ARGS)
 
     if (strcmp(logfmt, "stderr") != 0 &&
         strcmp(logfmt, "csvlog") != 0 &&
-        strcmp(logfmt, "jsonlog") != 0)
+        strcmp(logfmt, "jsonlog") != 0) {
+      DBUG_INSTANT_PRINT("info", "log format \"%s\" is not supported", logfmt);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("log format \"%s\" is not supported", logfmt),
                errhint("The supported log formats are \"stderr\", \"csvlog\", and \"jsonlog\".")));
+    }
   }
 
   fd = AllocateFile(LOG_METAINFO_DATAFILE, "r");
 
   if (fd == NULL) {
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not read file \"%s\"", LOG_METAINFO_DATAFILE);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not read file \"%s\": %m",
                       LOG_METAINFO_DATAFILE)));
+    }
 
     PG_RETURN_NULL();
   }
@@ -1085,6 +1133,7 @@ pg_current_logfile(PG_FUNCTION_ARGS)
 Datum
 pg_current_logfile_1arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_current_logfile(fcinfo);
 }
 
@@ -1094,6 +1143,7 @@ pg_current_logfile_1arg(PG_FUNCTION_ARGS)
 Datum
 pg_get_replica_identity_index(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reloid = PG_GETARG_OID(0);
   Oid     idxoid;
   Relation  rel;
@@ -1114,5 +1164,6 @@ pg_get_replica_identity_index(PG_FUNCTION_ARGS)
 Datum
 any_value_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(PG_GETARG_DATUM(0));
 }

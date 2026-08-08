@@ -27,6 +27,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeBitmapOr.h"
@@ -55,6 +56,7 @@ ExecBitmapOr(PlanState *pstate)
 BitmapOrState *
 ExecInitBitmapOr(BitmapOr *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   BitmapOrState *bitmaporstate = makeNode(BitmapOrState);
   PlanState **bitmapplanstates;
   int     nplans;
@@ -110,6 +112,7 @@ ExecInitBitmapOr(BitmapOr *node, EState *estate, int eflags)
 Node *
 MultiExecBitmapOr(BitmapOrState *node)
 {
+  DBUG_TRACE;
   PlanState **bitmapplans;
   int     nplans;
   int     i;
@@ -189,6 +192,7 @@ MultiExecBitmapOr(BitmapOrState *node)
 void
 ExecEndBitmapOr(BitmapOrState *node)
 {
+  DBUG_TRACE;
   PlanState **bitmapplans;
   int     nplans;
   int     i;
@@ -211,6 +215,7 @@ ExecEndBitmapOr(BitmapOrState *node)
 void
 ExecReScanBitmapOr(BitmapOrState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < node->nplans; i++) {

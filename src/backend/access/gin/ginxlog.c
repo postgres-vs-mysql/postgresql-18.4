@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/gin_private.h"
@@ -24,6 +25,7 @@ static MemoryContext opCtx;   /* working memory for operations */
 static void
 ginRedoClearIncompleteSplit(XLogReaderState *record, uint8 block_id)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buffer;
   Page    page;
@@ -43,6 +45,7 @@ ginRedoClearIncompleteSplit(XLogReaderState *record, uint8 block_id)
 static void
 ginRedoCreatePTree(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogCreatePostingTree *data = (ginxlogCreatePostingTree *) XLogRecGetData(record);
   char     *ptr;
@@ -70,6 +73,7 @@ ginRedoCreatePTree(XLogReaderState *record)
 static void
 ginRedoInsertEntry(Buffer buffer, bool isLeaf, BlockNumber rightblkno, void *rdata)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   ginxlogInsertEntry *data = (ginxlogInsertEntry *) rdata;
   OffsetNumber offset = data->offset;
@@ -113,6 +117,7 @@ ginRedoInsertEntry(Buffer buffer, bool isLeaf, BlockNumber rightblkno, void *rda
 static void
 ginRedoRecompress(Page page, ginxlogRecompressDataLeaf *data)
 {
+  DBUG_TRACE;
   int     actionno;
   int     segno;
   GinPostingList *oldseg;
@@ -308,6 +313,7 @@ ginRedoRecompress(Page page, ginxlogRecompressDataLeaf *data)
 static void
 ginRedoInsertData(Buffer buffer, bool isLeaf, BlockNumber rightblkno, void *rdata)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
 
   if (isLeaf) {
@@ -333,6 +339,7 @@ ginRedoInsertData(Buffer buffer, bool isLeaf, BlockNumber rightblkno, void *rdat
 static void
 ginRedoInsert(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogInsert *data = (ginxlogInsert *) XLogRecGetData(record);
   Buffer    buffer;
@@ -384,6 +391,7 @@ ginRedoInsert(XLogReaderState *record)
 static void
 ginRedoSplit(XLogReaderState *record)
 {
+  DBUG_TRACE;
   ginxlogSplit *data = (ginxlogSplit *) XLogRecGetData(record);
   Buffer    lbuffer,
             rbuffer,
@@ -422,6 +430,7 @@ ginRedoSplit(XLogReaderState *record)
 static void
 ginRedoVacuumPage(XLogReaderState *record)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   if (XLogReadBufferForRedo(record, 0, &buffer) != BLK_RESTORED) {
@@ -434,6 +443,7 @@ ginRedoVacuumPage(XLogReaderState *record)
 static void
 ginRedoVacuumDataLeafPage(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buffer;
 
@@ -459,6 +469,7 @@ ginRedoVacuumDataLeafPage(XLogReaderState *record)
 static void
 ginRedoDeletePage(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogDeletePage *data = (ginxlogDeletePage *) XLogRecGetData(record);
   Buffer    dbuffer;
@@ -509,6 +520,7 @@ ginRedoDeletePage(XLogReaderState *record)
 static void
 ginRedoUpdateMetapage(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogUpdateMeta *data = (ginxlogUpdateMeta *) XLogRecGetData(record);
   Buffer    metabuffer;
@@ -598,6 +610,7 @@ ginRedoUpdateMetapage(XLogReaderState *record)
 static void
 ginRedoInsertListPage(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogInsertListPage *data = (ginxlogInsertListPage *) XLogRecGetData(record);
   Buffer    buffer;
@@ -652,6 +665,7 @@ ginRedoInsertListPage(XLogReaderState *record)
 static void
 ginRedoDeleteListPages(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   ginxlogDeleteListPages *data = (ginxlogDeleteListPages *) XLogRecGetData(record);
   Buffer    metabuffer;
@@ -703,6 +717,7 @@ ginRedoDeleteListPages(XLogReaderState *record)
 void
 gin_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
   MemoryContext oldCtx;
 
@@ -716,38 +731,47 @@ gin_redo(XLogReaderState *record)
 
   switch (info) {
     case XLOG_GIN_CREATE_PTREE:
+      DBUG_PRINT("info", "XLOG_GIN_CREATE_PTREE");
       ginRedoCreatePTree(record);
       break;
 
     case XLOG_GIN_INSERT:
+      DBUG_PRINT("info", "XLOG_GIN_INSERT");
       ginRedoInsert(record);
       break;
 
     case XLOG_GIN_SPLIT:
+      DBUG_PRINT("info", "XLOG_GIN_SPLIT");
       ginRedoSplit(record);
       break;
 
     case XLOG_GIN_VACUUM_PAGE:
+      DBUG_PRINT("info", "XLOG_GIN_VACUUM_PAGE");
       ginRedoVacuumPage(record);
       break;
 
     case XLOG_GIN_VACUUM_DATA_LEAF_PAGE:
+      DBUG_PRINT("info", "XLOG_GIN_VACUUM_DATA_LEAF_PAGE");
       ginRedoVacuumDataLeafPage(record);
       break;
 
     case XLOG_GIN_DELETE_PAGE:
+      DBUG_PRINT("info", "XLOG_GIN_DELETE_PAGE");
       ginRedoDeletePage(record);
       break;
 
     case XLOG_GIN_UPDATE_META_PAGE:
+      DBUG_PRINT("info", "XLOG_GIN_UPDATE_META_PAGE");
       ginRedoUpdateMetapage(record);
       break;
 
     case XLOG_GIN_INSERT_LISTPAGE:
+      DBUG_PRINT("info", "XLOG_GIN_INSERT_LISTPAGE");
       ginRedoInsertListPage(record);
       break;
 
     case XLOG_GIN_DELETE_LISTPAGE:
+      DBUG_PRINT("info", "XLOG_GIN_DELETE_LISTPAGE");
       ginRedoDeleteListPages(record);
       break;
 
@@ -762,6 +786,7 @@ gin_redo(XLogReaderState *record)
 void
 gin_xlog_startup(void)
 {
+  DBUG_TRACE;
   opCtx = AllocSetContextCreate(CurrentMemoryContext,
                                 "GIN recovery temporary context",
                                 ALLOCSET_DEFAULT_SIZES);
@@ -770,6 +795,7 @@ gin_xlog_startup(void)
 void
 gin_xlog_cleanup(void)
 {
+  DBUG_TRACE;
   MemoryContextDelete(opCtx);
   opCtx = NULL;
 }
@@ -780,6 +806,7 @@ gin_xlog_cleanup(void)
 void
 gin_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
   PageHeader  pagehdr = (PageHeader) page;
   GinPageOpaque opaque;

@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -129,6 +130,7 @@ have_createrole_privilege(void)
 Oid
 CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_authid_rel;
   TupleDesc pg_authid_dsc;
   HeapTuple tuple;
@@ -283,10 +285,12 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
   if (dconnlimit) {
     connlimit = intVal(dconnlimit->arg);
 
-    if (connlimit < -1)
+    if (connlimit < -1) {
+      DBUG_INSTANT_PRINT("info", "invalid connection limit: %d", connlimit);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid connection limit: %d", connlimit)));
+    }
   }
 
   if (daddroleto)
@@ -306,52 +310,64 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
 
   /* Check some permissions first */
   if (!superuser_arg(currentUserId)) {
-    if (!has_createrole_privilege(currentUserId))
+    if (!has_createrole_privilege(currentUserId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create role"),
                errdetail("Only roles with the %s attribute may create roles.",
                          "CREATEROLE")));
+    }
 
-    if (issuper)
+    if (issuper) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create role"),
                errdetail("Only roles with the %s attribute may create roles with the %s attribute.",
                          "SUPERUSER", "SUPERUSER")));
+    }
 
-    if (createdb && !have_createdb_privilege())
+    if (createdb && !have_createdb_privilege()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create role"),
                errdetail("Only roles with the %s attribute may create roles with the %s attribute.",
                          "CREATEDB", "CREATEDB")));
+    }
 
-    if (isreplication && !has_rolreplication(currentUserId))
+    if (isreplication && !has_rolreplication(currentUserId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create role"),
                errdetail("Only roles with the %s attribute may create roles with the %s attribute.",
                          "REPLICATION", "REPLICATION")));
+    }
 
-    if (bypassrls && !has_bypassrls_privilege(currentUserId))
+    if (bypassrls && !has_bypassrls_privilege(currentUserId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to create role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to create role"),
                errdetail("Only roles with the %s attribute may create roles with the %s attribute.",
                          "BYPASSRLS", "BYPASSRLS")));
+    }
   }
 
   /*
    * Check that the user is not trying to create a role in the reserved
    * "pg_" namespace.
    */
-  if (IsReservedName(stmt->role))
+  if (IsReservedName(stmt->role)) {
+    DBUG_INSTANT_PRINT("info", "role name \"%s\" is reserved", stmt->role);
     ereport(ERROR,
             (errcode(ERRCODE_RESERVED_NAME),
              errmsg("role name \"%s\" is reserved",
                     stmt->role),
              errdetail("Role names starting with \"pg_\" are reserved.")));
+  }
 
   /*
    * If built with appropriate switch, whine when regression-testing
@@ -371,14 +387,17 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
   pg_authid_rel = table_open(AuthIdRelationId, RowExclusiveLock);
   pg_authid_dsc = RelationGetDescr(pg_authid_rel);
 
-  if (OidIsValid(get_role_oid(stmt->role, true)))
+  if (OidIsValid(get_role_oid(stmt->role, true))) {
+    DBUG_INSTANT_PRINT("info", "role \"%s\" already exists", stmt->role);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("role \"%s\" already exists",
                     stmt->role)));
+  }
 
   /* Convert validuntil to internal form */
   if (validUntil) {
+    DBUG_PRINT("info", "convert validuntil to internal form");
     validUntil_datum = DirectFunctionCall3(timestamptz_in,
                                            CStringGetDatum(validUntil),
                                            ObjectIdGetDatum(InvalidOid),
@@ -402,6 +421,7 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
   /*
    * Build a tuple to insert
    */
+  DBUG_PRINT("info", "build a tuple to insert");
   new_record[Anum_pg_authid_rolname - 1] =
     DirectFunctionCall1(namein, CStringGetDatum(stmt->role));
   new_record[Anum_pg_authid_rolsuper - 1] = BoolGetDatum(issuper);
@@ -453,10 +473,12 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
    * binary-upgrade override.
    */
   if (IsBinaryUpgrade) {
-    if (!OidIsValid(binary_upgrade_next_pg_authid_oid))
+    if (!OidIsValid(binary_upgrade_next_pg_authid_oid)) {
+      DBUG_INSTANT_PRINT("info", "pg_authid OID value not set when in binary upgrade mode");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("pg_authid OID value not set when in binary upgrade mode")));
+    }
 
     roleid = binary_upgrade_next_pg_authid_oid;
     binary_upgrade_next_pg_authid_oid = InvalidOid;
@@ -604,6 +626,7 @@ CreateRole(ParseState *pstate, CreateRoleStmt *stmt)
 Oid
 AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
 {
+  DBUG_TRACE;
   Datum   new_record[Natts_pg_authid] = {0};
   bool    new_record_nulls[Natts_pg_authid] = {0};
   bool    new_record_repl[Natts_pg_authid] = {0};
@@ -708,10 +731,12 @@ AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
   if (dconnlimit) {
     connlimit = intVal(dconnlimit->arg);
 
-    if (connlimit < -1)
+    if (connlimit < -1) {
+      DBUG_INSTANT_PRINT("info", "invalid connection limit: %d", connlimit);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("invalid connection limit: %d", connlimit)));
+    }
   }
 
   if (dvalidUntil)
@@ -729,19 +754,23 @@ AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
   roleid = authform->oid;
 
   /* To mess with a superuser in any way you gotta be superuser. */
-  if (!superuser() && authform->rolsuper)
+  if (!superuser() && authform->rolsuper) {
+    DBUG_INSTANT_PRINT("info", "permission denied to alter role");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to alter role"),
              errdetail("Only roles with the %s attribute may alter roles with the %s attribute.",
                        "SUPERUSER", "SUPERUSER")));
+  }
 
-  if (!superuser() && dissuper)
+  if (!superuser() && dissuper) {
+    DBUG_INSTANT_PRINT("info", "permission denied to alter role");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to alter role"),
              errdetail("Only roles with the %s attribute may change the %s attribute.",
                        "SUPERUSER", "SUPERUSER")));
+  }
 
   /*
    * Most changes to a role require that you both have CREATEROLE privileges
@@ -751,55 +780,67 @@ AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
       !is_admin_of_role(GetUserId(), roleid)) {
     /* things an unprivileged user certainly can't do */
     if (dinherit || dcreaterole || dcreatedb || dcanlogin || dconnlimit ||
-        dvalidUntil || disreplication || dbypassRLS)
+        dvalidUntil || disreplication || dbypassRLS) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter role"),
                errdetail("Only roles with the %s attribute and the %s option on role \"%s\" may alter this role.",
                          "CREATEROLE", "ADMIN", rolename)));
+    }
 
     /* an unprivileged user can change their own password */
-    if (dpassword && roleid != currentUserId)
+    if (dpassword && roleid != currentUserId) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter role"),
                errdetail("To change another role's password, the current user must have the %s attribute and the %s option on the role.",
                          "CREATEROLE", "ADMIN")));
+    }
   } else if (!superuser()) {
     /*
      * Even if you have both CREATEROLE and ADMIN OPTION on a role, you
      * can only change the CREATEDB, REPLICATION, or BYPASSRLS attributes
      * if they are set for your own role (or you are the superuser).
      */
-    if (dcreatedb && !have_createdb_privilege())
+    if (dcreatedb && !have_createdb_privilege()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter role"),
                errdetail("Only roles with the %s attribute may change the %s attribute.",
                          "CREATEDB", "CREATEDB")));
+    }
 
-    if (disreplication && !has_rolreplication(currentUserId))
+    if (disreplication && !has_rolreplication(currentUserId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter role"),
                errdetail("Only roles with the %s attribute may change the %s attribute.",
                          "REPLICATION", "REPLICATION")));
+    }
 
-    if (dbypassRLS && !has_bypassrls_privilege(currentUserId))
+    if (dbypassRLS && !has_bypassrls_privilege(currentUserId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter role"),
                errdetail("Only roles with the %s attribute may change the %s attribute.",
                          "BYPASSRLS", "BYPASSRLS")));
+    }
   }
 
   /* To add or drop members, you need ADMIN OPTION. */
-  if (drolemembers && !is_admin_of_role(currentUserId, roleid))
+  if (drolemembers && !is_admin_of_role(currentUserId, roleid)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to alter role");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to alter role"),
              errdetail("Only roles with the %s option on role \"%s\" may add or drop members.",
                        "ADMIN", rolename)));
+  }
 
   /* Convert validuntil to internal form */
   if (dvalidUntil) {
@@ -835,12 +876,14 @@ AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
   if (dissuper) {
     bool    should_be_super = boolVal(dissuper->arg);
 
-    if (!should_be_super && roleid == BOOTSTRAP_SUPERUSERID)
+    if (!should_be_super && roleid == BOOTSTRAP_SUPERUSERID) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter role");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("permission denied to alter role"),
                errdetail("The bootstrap superuser must have the %s attribute.",
                          "SUPERUSER")));
+    }
 
     new_record[Anum_pg_authid_rolsuper - 1] = BoolGetDatum(should_be_super);
     new_record_repl[Anum_pg_authid_rolsuper - 1] = true;
@@ -959,6 +1002,7 @@ AlterRole(ParseState *pstate, AlterRoleStmt *stmt)
 Oid
 AlterRoleSet(AlterRoleSetStmt *stmt)
 {
+  DBUG_TRACE;
   HeapTuple roletuple;
   Form_pg_authid roleform;
   Oid     databaseid = InvalidOid;
@@ -984,21 +1028,25 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
      * trying to change your own settings
      */
     if (roleform->rolsuper) {
-      if (!superuser())
+      if (!superuser()) {
+        DBUG_INSTANT_PRINT("info", "permission denied to alter role");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to alter role"),
                  errdetail("Only roles with the %s attribute may alter roles with the %s attribute.",
                            "SUPERUSER", "SUPERUSER")));
+      }
     } else {
       if ((!have_createrole_privilege() ||
            !is_admin_of_role(GetUserId(), roleid))
-          && roleid != GetUserId())
+          && roleid != GetUserId()) {
+        DBUG_INSTANT_PRINT("info", "permission denied to alter role");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to alter role"),
                  errdetail("Only roles with the %s attribute and the %s option on role \"%s\" may alter this role.",
                            "CREATEROLE", "ADMIN", NameStr(roleform->rolname))));
+      }
     }
 
     ReleaseSysCache(roletuple);
@@ -1022,12 +1070,14 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 
   if (!stmt->role && !stmt->database) {
     /* Must be superuser to alter settings globally. */
-    if (!superuser())
+    if (!superuser()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to alter setting");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to alter setting"),
                errdetail("Only roles with the %s attribute may alter settings globally.",
                          "SUPERUSER")));
+    }
   }
 
   AlterSetting(databaseid, roleid, stmt->setstmt);
@@ -1042,17 +1092,20 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 void
 DropRole(DropRoleStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_authid_rel,
             pg_auth_members_rel;
   ListCell   *item;
   List     *role_oids = NIL;
 
-  if (!have_createrole_privilege())
+  if (!have_createrole_privilege()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to drop role");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to drop role"),
              errdetail("Only roles with the %s attribute and the %s option on the target roles may drop roles.",
                        "CREATEROLE", "ADMIN")));
+  }
 
   /*
    * Scan the pg_authid relation to find the Oid of the role(s) to be
@@ -1071,10 +1124,12 @@ DropRole(DropRoleStmt *stmt)
     SysScanDesc sscan;
     Oid     roleid;
 
-    if (rolspec->roletype != ROLESPEC_CSTRING)
+    if (rolspec->roletype != ROLESPEC_CSTRING) {
+      DBUG_INSTANT_PRINT("info", "cannot use special role specifier in DROP ROLE");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("cannot use special role specifier in DROP ROLE")));
+    }
 
     role = rolspec->rolename;
 
@@ -1082,6 +1137,7 @@ DropRole(DropRoleStmt *stmt)
 
     if (!HeapTupleIsValid(tuple)) {
       if (!stmt->missing_ok) {
+        DBUG_INSTANT_PRINT("info", "role \"%s\" does not exist", role);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("role \"%s\" does not exist", role)));
@@ -1097,39 +1153,49 @@ DropRole(DropRoleStmt *stmt)
     roleform = (Form_pg_authid) GETSTRUCT(tuple);
     roleid = roleform->oid;
 
-    if (roleid == GetUserId())
+    if (roleid == GetUserId()) {
+      DBUG_INSTANT_PRINT("info", "current user cannot be dropped");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_IN_USE),
                errmsg("current user cannot be dropped")));
+    }
 
-    if (roleid == GetOuterUserId())
+    if (roleid == GetOuterUserId()) {
+      DBUG_INSTANT_PRINT("info", "current user cannot be dropped");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_IN_USE),
                errmsg("current user cannot be dropped")));
+    }
 
-    if (roleid == GetSessionUserId())
+    if (roleid == GetSessionUserId()) {
+      DBUG_INSTANT_PRINT("info", "session user cannot be dropped");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_IN_USE),
                errmsg("session user cannot be dropped")));
+    }
 
     /*
      * For safety's sake, we allow createrole holders to drop ordinary
      * roles but not superuser roles, and only if they also have ADMIN
      * OPTION.
      */
-    if (roleform->rolsuper && !superuser())
+    if (roleform->rolsuper && !superuser()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to drop role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to drop role"),
                errdetail("Only roles with the %s attribute may drop roles with the %s attribute.",
                          "SUPERUSER", "SUPERUSER")));
+    }
 
-    if (!is_admin_of_role(GetUserId(), roleid))
+    if (!is_admin_of_role(GetUserId(), roleid)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to drop role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to drop role"),
                errdetail("Only roles with the %s attribute and the %s option on role \"%s\" may drop this role.",
                          "CREATEROLE", "ADMIN", NameStr(roleform->rolname))));
+    }
 
     /* DROP hook for the role being removed */
     InvokeObjectDropHook(AuthIdRelationId, roleid, 0);
@@ -1245,13 +1311,16 @@ DropRole(DropRoleStmt *stmt)
      * avoid spurious failures. See notes above for more details.
      */
     if (checkSharedDependencies(AuthIdRelationId, roleid,
-                                &detail, &detail_log))
+                                &detail, &detail_log)) {
+      DBUG_INSTANT_PRINT("info", "role \"%s\" cannot be dropped because some objects depend on it",
+                         NameStr(roleform->rolname));
       ereport(ERROR,
               (errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
                errmsg("role \"%s\" cannot be dropped because some objects depend on it",
                       NameStr(roleform->rolname)),
                errdetail_internal("%s", detail),
                errdetail_log("%s", detail_log)));
+    }
 
     /*
      * Remove the role from the pg_authid table
@@ -1285,6 +1354,7 @@ DropRole(DropRoleStmt *stmt)
 ObjectAddress
 RenameRole(const char *oldname, const char *newname)
 {
+  DBUG_TRACE;
   HeapTuple oldtuple,
             newtuple;
   TupleDesc dsc;
@@ -1304,10 +1374,12 @@ RenameRole(const char *oldname, const char *newname)
 
   oldtuple = SearchSysCache1(AUTHNAME, CStringGetDatum(oldname));
 
-  if (!HeapTupleIsValid(oldtuple))
+  if (!HeapTupleIsValid(oldtuple)) {
+    DBUG_INSTANT_PRINT("info", "role \"%s\" does not exist", oldname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("role \"%s\" does not exist", oldname)));
+  }
 
   /*
    * XXX Client applications probably store the session user somewhere, so
@@ -1320,33 +1392,41 @@ RenameRole(const char *oldname, const char *newname)
   authform = (Form_pg_authid) GETSTRUCT(oldtuple);
   roleid = authform->oid;
 
-  if (roleid == GetSessionUserId())
+  if (roleid == GetSessionUserId()) {
+    DBUG_INSTANT_PRINT("info", "session user cannot be renamed");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("session user cannot be renamed")));
+  }
 
-  if (roleid == GetOuterUserId())
+  if (roleid == GetOuterUserId()) {
+    DBUG_INSTANT_PRINT("info", "current user cannot be renamed");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("current user cannot be renamed")));
+  }
 
   /*
    * Check that the user is not trying to rename a system role and not
    * trying to rename a role into the reserved "pg_" namespace.
    */
-  if (IsReservedName(NameStr(authform->rolname)))
+  if (IsReservedName(NameStr(authform->rolname))) {
+    DBUG_INSTANT_PRINT("info", "role name \"%s\" is reserved", NameStr(authform->rolname));
     ereport(ERROR,
             (errcode(ERRCODE_RESERVED_NAME),
              errmsg("role name \"%s\" is reserved",
                     NameStr(authform->rolname)),
              errdetail("Role names starting with \"pg_\" are reserved.")));
+  }
 
-  if (IsReservedName(newname))
+  if (IsReservedName(newname)) {
+    DBUG_INSTANT_PRINT("info", "role name \"%s\" is reserved", newname);
     ereport(ERROR,
             (errcode(ERRCODE_RESERVED_NAME),
              errmsg("role name \"%s\" is reserved",
                     newname),
              errdetail("Role names starting with \"pg_\" are reserved.")));
+  }
 
   /*
    * If built with appropriate switch, whine when regression-testing
@@ -1360,33 +1440,41 @@ RenameRole(const char *oldname, const char *newname)
 #endif
 
   /* make sure the new name doesn't exist */
-  if (SearchSysCacheExists1(AUTHNAME, CStringGetDatum(newname)))
+  if (SearchSysCacheExists1(AUTHNAME, CStringGetDatum(newname))) {
+    DBUG_INSTANT_PRINT("info", "role \"%s\" already exists", newname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("role \"%s\" already exists", newname)));
+  }
 
   /*
    * Only superusers can mess with superusers. Otherwise, a user with
    * CREATEROLE can rename a role for which they have ADMIN OPTION.
    */
   if (authform->rolsuper) {
-    if (!superuser())
+    if (!superuser()) {
+      DBUG_INSTANT_PRINT("info", "permission denied to rename role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to rename role"),
                errdetail("Only roles with the %s attribute may rename roles with the %s attribute.",
                          "SUPERUSER", "SUPERUSER")));
+    }
   } else {
     if (!have_createrole_privilege() ||
-        !is_admin_of_role(GetUserId(), roleid))
+        !is_admin_of_role(GetUserId(), roleid)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to rename role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to rename role"),
                errdetail("Only roles with the %s attribute and the %s option on role \"%s\" may rename this role.",
                          "CREATEROLE", "ADMIN", NameStr(authform->rolname))));
+    }
   }
 
   /* OK, construct the modified tuple */
+  DBUG_PRINT("info", "ok, construct the modified tuple");
+
   for (i = 0; i < Natts_pg_authid; i++)
     repl_repl[i] = false;
 
@@ -1431,6 +1519,7 @@ RenameRole(const char *oldname, const char *newname)
 void
 GrantRole(ParseState *pstate, GrantRoleStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_authid_rel;
   Oid     grantor;
   List     *grantee_ids;
@@ -1460,12 +1549,15 @@ GrantRole(ParseState *pstate, GrantRoleStmt *stmt)
 
       if (parse_bool(optval, &popt.set))
         continue;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized role option \"%s\"", opt->defname);
       ereport(ERROR,
               errcode(ERRCODE_SYNTAX_ERROR),
               errmsg("unrecognized role option \"%s\"", opt->defname),
               parser_errposition(pstate, opt->location));
+    }
 
+    DBUG_INSTANT_PRINT("info", "unrecognized value for role option \"%s\": \"%s\"", opt->defname, optval);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("unrecognized value for role option \"%s\": \"%s\"",
@@ -1497,10 +1589,12 @@ GrantRole(ParseState *pstate, GrantRoleStmt *stmt)
     Oid     roleid;
 
     /* Must reject priv(columns) and ALL PRIVILEGES(columns) */
-    if (rolename == NULL || priv->cols != NIL)
+    if (rolename == NULL || priv->cols != NIL) {
+      DBUG_INSTANT_PRINT("info", "column names cannot be included in GRANT/REVOKE ROLE");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_GRANT_OPERATION),
                errmsg("column names cannot be included in GRANT/REVOKE ROLE")));
+    }
 
     roleid = get_role_oid(rolename, false);
     check_role_membership_authorization(currentUserId,
@@ -1530,6 +1624,7 @@ GrantRole(ParseState *pstate, GrantRoleStmt *stmt)
 void
 DropOwnedObjects(DropOwnedStmt *stmt)
 {
+  DBUG_TRACE;
   List     *role_ids = roleSpecsToIds(stmt->roles);
   ListCell   *cell;
 
@@ -1537,12 +1632,14 @@ DropOwnedObjects(DropOwnedStmt *stmt)
   foreach(cell, role_ids) {
     Oid     roleid = lfirst_oid(cell);
 
-    if (!has_privs_of_role(GetUserId(), roleid))
+    if (!has_privs_of_role(GetUserId(), roleid)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to drop role");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to drop objects"),
                errdetail("Only roles with privileges of role \"%s\" may drop objects owned by it.",
                          GetUserNameFromId(roleid, false))));
+    }
   }
 
   /* Ok, do it */
@@ -1557,6 +1654,7 @@ DropOwnedObjects(DropOwnedStmt *stmt)
 void
 ReassignOwnedObjects(ReassignOwnedStmt *stmt)
 {
+  DBUG_TRACE;
   List     *role_ids = roleSpecsToIds(stmt->roles);
   ListCell   *cell;
   Oid     newrole;
@@ -1565,23 +1663,27 @@ ReassignOwnedObjects(ReassignOwnedStmt *stmt)
   foreach(cell, role_ids) {
     Oid     roleid = lfirst_oid(cell);
 
-    if (!has_privs_of_role(GetUserId(), roleid))
+    if (!has_privs_of_role(GetUserId(), roleid)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to reassign objects");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to reassign objects"),
                errdetail("Only roles with privileges of role \"%s\" may reassign objects owned by it.",
                          GetUserNameFromId(roleid, false))));
+    }
   }
 
   /* Must have privileges on the receiving side too */
   newrole = get_rolespec_oid(stmt->newrole, false);
 
-  if (!has_privs_of_role(GetUserId(), newrole))
+  if (!has_privs_of_role(GetUserId(), newrole)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to reassign objects");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to reassign objects"),
              errdetail("Only roles with privileges of role \"%s\" may reassign objects to it.",
                        GetUserNameFromId(newrole, false))));
+  }
 
   /* Ok, do it */
   shdepReassignOwned(role_ids, newrole);
@@ -1597,6 +1699,7 @@ ReassignOwnedObjects(ReassignOwnedStmt *stmt)
 List *
 roleSpecsToIds(List *memberNames)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *l;
 
@@ -1628,6 +1731,7 @@ AddRoleMems(Oid currentUserId, const char *rolename, Oid roleid,
             List *memberSpecs, List *memberIds,
             Oid grantorId, GrantRoleOptions *popt)
 {
+  DBUG_TRACE;
   Relation  pg_authmem_rel;
   TupleDesc pg_authmem_dsc;
   ListCell   *specitem;
@@ -1686,11 +1790,14 @@ AddRoleMems(Oid currentUserId, const char *rolename, Oid roleid,
      * role.  We have to ignore possible superuserness, however, else we
      * could never grant membership in a superuser-privileged role.
      */
-    if (is_member_of_role_nosuper(roleid, memberid))
+    if (is_member_of_role_nosuper(roleid, memberid)) {
+      char *rolspec_name = get_rolespec_name(memberRole);
+      DBUG_INSTANT_PRINT("info", "role \"%s\" is a member of role \"%s\"", rolename, rolspec_name);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_GRANT_OPERATION),
                errmsg("role \"%s\" is a member of role \"%s\"",
-                      rolename, get_rolespec_name(memberRole))));
+                      rolename, rolspec_name)));
+    }
   }
 
   /*
@@ -1725,11 +1832,13 @@ AddRoleMems(Oid currentUserId, const char *rolename, Oid roleid,
     foreach(iditem, memberIds) {
       Oid     memberid = lfirst_oid(iditem);
 
-      if (memberid == BOOTSTRAP_SUPERUSERID)
+      if (memberid == BOOTSTRAP_SUPERUSERID) {
+        DBUG_INSTANT_PRINT("info", "%s option cannot be granted back to your own grantor", "ADMIN");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_GRANT_OPERATION),
                  errmsg("%s option cannot be granted back to your own grantor",
                         "ADMIN")));
+      }
 
       plan_member_revoke(memlist, actions, memberid);
     }
@@ -1752,11 +1861,13 @@ AddRoleMems(Oid currentUserId, const char *rolename, Oid roleid,
         break;
     }
 
-    if (i >= memlist->n_members)
+    if (i >= memlist->n_members) {
+      DBUG_INSTANT_PRINT("info", "%s option cannot be granted back to your own grantor", "ADMIN");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_GRANT_OPERATION),
                errmsg("%s option cannot be granted back to your own grantor",
                       "ADMIN")));
+    }
 
     ReleaseSysCacheList(memlist);
   }
@@ -1918,6 +2029,7 @@ DelRoleMems(Oid currentUserId, const char *rolename, Oid roleid,
             List *memberSpecs, List *memberIds,
             Oid grantorId, GrantRoleOptions *popt, DropBehavior behavior)
 {
+  DBUG_TRACE;
   Relation  pg_authmem_rel;
   TupleDesc pg_authmem_dsc;
   ListCell   *specitem;
@@ -2037,6 +2149,8 @@ static void
 check_role_membership_authorization(Oid currentUserId, Oid roleid,
                                     bool is_grant)
 {
+  DBUG_TRACE;
+
   /*
    * The charter of pg_database_owner is to have exactly one, implicit,
    * situation-dependent member.  There's no technical need for this
@@ -2046,49 +2160,57 @@ check_role_membership_authorization(Oid currentUserId, Oid roleid,
    * explicit, situation-independent members could act as the owner of any
    * database.)
    */
-  if (is_grant && roleid == ROLE_PG_DATABASE_OWNER)
+  if (is_grant && roleid == ROLE_PG_DATABASE_OWNER) {
+    DBUG_INSTANT_PRINT("info", "role \"%s\" cannot have explicit members", GetUserNameFromId(roleid, false));
     ereport(ERROR,
             errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
             errmsg("role \"%s\" cannot have explicit members",
                    GetUserNameFromId(roleid, false)));
+  }
 
   /* To mess with a superuser role, you gotta be superuser. */
   if (superuser_arg(roleid)) {
     if (!superuser_arg(currentUserId)) {
-      if (is_grant)
+      if (is_grant) {
+        DBUG_INSTANT_PRINT("info", "permission denied to grant role \"%s\"", GetUserNameFromId(roleid, false));
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to grant role \"%s\"",
                         GetUserNameFromId(roleid, false)),
                  errdetail("Only roles with the %s attribute may grant roles with the %s attribute.",
                            "SUPERUSER", "SUPERUSER")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "permission denied to revoke role \"%s\"", GetUserNameFromId(roleid, false));
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to revoke role \"%s\"",
                         GetUserNameFromId(roleid, false)),
                  errdetail("Only roles with the %s attribute may revoke roles with the %s attribute.",
                            "SUPERUSER", "SUPERUSER")));
+      }
     }
   } else {
     /*
      * Otherwise, must have admin option on the role to be changed.
      */
     if (!is_admin_of_role(currentUserId, roleid)) {
-      if (is_grant)
+      if (is_grant) {
+        DBUG_INSTANT_PRINT("info", "permission denied to grant role \"%s\"", GetUserNameFromId(roleid, false));
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to grant role \"%s\"",
                         GetUserNameFromId(roleid, false)),
                  errdetail("Only roles with the %s option on role \"%s\" may grant this role.",
                            "ADMIN", GetUserNameFromId(roleid, false))));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "permission denied to revoke role \"%s\"", GetUserNameFromId(roleid, false));
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to revoke role \"%s\"",
                         GetUserNameFromId(roleid, false)),
                  errdetail("Only roles with the %s option on role \"%s\" may revoke this role.",
                            "ADMIN", GetUserNameFromId(roleid, false))));
+      }
     }
   }
 }
@@ -2125,6 +2247,8 @@ check_role_membership_authorization(Oid currentUserId, Oid roleid,
 static Oid
 check_role_grantor(Oid currentUserId, Oid roleid, Oid grantorId, bool is_grant)
 {
+  DBUG_TRACE;
+
   /* If the grantor ID was not specified, pick one to use. */
   if (!OidIsValid(grantorId)) {
     /*
@@ -2164,30 +2288,36 @@ check_role_grantor(Oid currentUserId, Oid roleid, Oid grantorId, bool is_grant)
    * of it.
    */
   if (is_grant) {
-    if (!has_privs_of_role(currentUserId, grantorId))
+    if (!has_privs_of_role(currentUserId, grantorId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to grant privileges as role \"%s\"", GetUserNameFromId(grantorId, false));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to grant privileges as role \"%s\"",
                       GetUserNameFromId(grantorId, false)),
                errdetail("Only roles with privileges of role \"%s\" may grant privileges as this role.",
                          GetUserNameFromId(grantorId, false))));
+    }
 
     if (grantorId != BOOTSTRAP_SUPERUSERID &&
-        select_best_admin(grantorId, roleid) != grantorId)
+        select_best_admin(grantorId, roleid) != grantorId) {
+      DBUG_INSTANT_PRINT("info", "permission denied to grant privileges as role \"%s\"", GetUserNameFromId(grantorId, false));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to grant privileges as role \"%s\"",
                       GetUserNameFromId(grantorId, false)),
                errdetail("The grantor must have the %s option on role \"%s\".",
                          "ADMIN", GetUserNameFromId(roleid, false))));
+    }
   } else {
-    if (!has_privs_of_role(currentUserId, grantorId))
+    if (!has_privs_of_role(currentUserId, grantorId)) {
+      DBUG_INSTANT_PRINT("info", "permission denied to revoke privileges as role \"%s\"", GetUserNameFromId(grantorId, false));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to revoke privileges granted by role \"%s\"",
                       GetUserNameFromId(grantorId, false)),
                errdetail("Only roles with privileges of role \"%s\" may revoke privileges granted by this role.",
                          GetUserNameFromId(grantorId, false))));
+    }
   }
 
   /*
@@ -2208,6 +2338,7 @@ check_role_grantor(Oid currentUserId, Oid roleid, Oid grantorId, bool is_grant)
 static RevokeRoleGrantAction *
 initialize_revoke_actions(CatCList *memlist)
 {
+  DBUG_TRACE;
   RevokeRoleGrantAction *result;
   int     i;
 
@@ -2243,6 +2374,7 @@ plan_single_revoke(CatCList *memlist, RevokeRoleGrantAction *actions,
                    Oid member, Oid grantor, GrantRoleOptions *popt,
                    DropBehavior behavior)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -2306,6 +2438,7 @@ static void
 plan_member_revoke(CatCList *memlist, RevokeRoleGrantAction *actions,
                    Oid member)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < memlist->n_members; ++i) {
@@ -2330,6 +2463,7 @@ plan_recursive_revoke(CatCList *memlist, RevokeRoleGrantAction *actions,
                       int index,
                       bool revoke_admin_option_only, DropBehavior behavior)
 {
+  DBUG_TRACE;
   bool    would_still_have_admin_option = false;
   HeapTuple authmem_tuple;
   Form_pg_auth_members authmem_form;
@@ -2397,11 +2531,13 @@ plan_recursive_revoke(CatCList *memlist, RevokeRoleGrantAction *actions,
 
     if (am_cascade_form->grantor == authmem_form->member &&
         actions[i] != RRG_DELETE_GRANT) {
-      if (behavior == DROP_RESTRICT)
+      if (behavior == DROP_RESTRICT) {
+        DBUG_INSTANT_PRINT("info", "dependent privileges exist");
         ereport(ERROR,
                 (errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
                  errmsg("dependent privileges exist"),
                  errhint("Use CASCADE to revoke them too.")));
+      }
 
       plan_recursive_revoke(memlist, actions, i, false, behavior);
     }
@@ -2426,6 +2562,7 @@ InitGrantRoleOptions(GrantRoleOptions *popt)
 bool
 check_createrole_self_grant(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   char     *rawstring;
   List     *elemlist;
   ListCell   *l;

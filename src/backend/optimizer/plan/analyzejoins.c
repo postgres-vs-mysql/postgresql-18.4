@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_class.h"
 #include "nodes/nodeFuncs.h"
@@ -103,6 +104,7 @@ static bool replace_relid_callback(Node *node,
 List *
 remove_useless_joins(PlannerInfo *root, List *joinlist)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*
@@ -169,6 +171,7 @@ restart:
 static bool
 join_is_removable(PlannerInfo *root, SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   int     innerrelid;
   RelOptInfo *innerrel;
   Relids    inputrelids;
@@ -554,6 +557,7 @@ static void
 remove_leftjoinrel_from_query(PlannerInfo *root, int relid,
                               SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = find_base_rel(root, relid);
   int     ojrelid = sjinfo->ojrelid;
   Relids    joinrelids;
@@ -666,6 +670,7 @@ remove_leftjoinrel_from_query(PlannerInfo *root, int relid,
 static void
 remove_rel_from_restrictinfo(RestrictInfo *rinfo, int relid, int ojrelid)
 {
+  DBUG_TRACE;
   /*
    * initsplan.c is fairly cavalier about allowing RestrictInfos to share
    * relid sets with other RestrictInfos, and SpecialJoinInfos too.  Make
@@ -739,6 +744,7 @@ static void
 remove_rel_from_eclass(EquivalenceClass *ec, SpecialJoinInfo *sjinfo,
                        int relid, int subst)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Fix up the EC's overall relids */
@@ -809,6 +815,7 @@ remove_rel_from_eclass(EquivalenceClass *ec, SpecialJoinInfo *sjinfo,
 static List *
 remove_rel_from_joinlist(List *joinlist, int relid, int *nremoved)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *jl;
 
@@ -858,6 +865,7 @@ remove_rel_from_joinlist(List *joinlist, int relid, int *nremoved)
 void
 reduce_unique_semijoins(PlannerInfo *root)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*
@@ -933,6 +941,8 @@ reduce_unique_semijoins(PlannerInfo *root)
 static bool
 rel_supports_distinctness(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
+
   /* We only know about baserels ... */
   if (rel->reloptkind != RELOPT_BASEREL)
     return false;
@@ -992,6 +1002,8 @@ static bool
 rel_is_distinct_for(PlannerInfo *root, RelOptInfo *rel, List *clause_list,
                     List **extra_clauses)
 {
+  DBUG_TRACE;
+
   /*
    * We could skip a couple of tests here if we assume all callers checked
    * rel_supports_distinctness first, but it doesn't seem worth taking any
@@ -1093,6 +1105,8 @@ rel_is_distinct_for(PlannerInfo *root, RelOptInfo *rel, List *clause_list,
 bool
 query_supports_distinctness(Query *query)
 {
+  DBUG_TRACE;
+
   /* SRFs break distinctness except with DISTINCT, see below */
   if (query->hasTargetSRFs && query->distinctClause == NIL)
     return false;
@@ -1171,6 +1185,7 @@ query_is_distinct_for(Query *query, List *colnos, List *opids)
 static bool
 query_is_distinct_for_with_collations(Query *query, List *distinct_cols)
 {
+  DBUG_TRACE;
   ListCell   *l;
   DistinctColInfo *dcinfo;
 
@@ -1321,6 +1336,7 @@ query_is_distinct_for_with_collations(Query *query, List *distinct_cols)
 static DistinctColInfo *
 distinct_col_search(int colno, List *distinct_cols)
 {
+  DBUG_TRACE;
   foreach_ptr(DistinctColInfo, dcinfo, distinct_cols) {
     if (dcinfo->colno == colno)
       return dcinfo;
@@ -1387,6 +1403,7 @@ innerrel_is_unique_ext(PlannerInfo *root,
                        bool force_cache,
                        List **extra_clauses)
 {
+  DBUG_TRACE;
   MemoryContext old_context;
   ListCell   *lc;
   UniqueRelInfo *uniqueRelInfo;
@@ -1511,6 +1528,7 @@ is_innerrel_unique_for(PlannerInfo *root,
                        List *restrictlist,
                        List **extra_clauses)
 {
+  DBUG_TRACE;
   List     *clause_list = NIL;
   ListCell   *lc;
 

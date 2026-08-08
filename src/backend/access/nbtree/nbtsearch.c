@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/relscan.h"
@@ -106,12 +107,19 @@ BTStack
 _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
            int access)
 {
+  DBUG_TRACE;
   BTStack   stack_in = NULL;
   int     page_access = BT_READ;
 
   /* heaprel must be set whenever _bt_allocbuf is reachable */
   Assert(access == BT_READ || access == BT_WRITE);
   Assert(access == BT_READ || heaprel != NULL);
+
+  if (access == BT_READ) {
+    DBUG_PRINT("info", "access mode:BT_READ");
+  } else {
+    DBUG_PRINT("info", "access mode:BT_WRITE");
+  }
 
   /* Get the root page to start with */
   *bufP = _bt_getroot(rel, heaprel, access);
@@ -149,8 +157,10 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
     page = BufferGetPage(*bufP);
     opaque = BTPageGetOpaque(page);
 
-    if (P_ISLEAF(opaque))
+    if (P_ISLEAF(opaque)) {
+      DBUG_PRINT("info", "this is a leaf page, we're done");
       break;
+    }
 
     /*
      * Find the appropriate pivot tuple on this page.  Its downlink points
@@ -184,6 +194,7 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
     /* drop the read lock on the page, then acquire one on its child */
     *bufP = _bt_relandgetbuf(rel, *bufP, child, page_access);
 
+    DBUG_PRINT("info", "okay, all set to move down a level, child blkno:%u", child);
     /* okay, all set to move down a level */
     stack_in = new_stack;
   }
@@ -197,6 +208,7 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
     /* trade in our read lock for a write lock */
     _bt_unlockbuf(rel, *bufP);
     _bt_lockbuf(rel, *bufP, BT_WRITE);
+    DBUG_PRINT("info", "trade in our read lock for a write lock");
 
     /*
      * Race -- the leaf page may have split after we dropped the read lock
@@ -342,12 +354,14 @@ _bt_binsrch(Relation rel,
             BTScanInsert key,
             Buffer buf)
 {
+  DBUG_TRACE;
   Page    page;
   BTPageOpaque opaque;
   OffsetNumber low,
                high;
   int32   result,
           cmpval;
+  int compared_cnt = 0;
 
   page = BufferGetPage(buf);
   opaque = BTPageGetOpaque(page);
@@ -385,12 +399,14 @@ _bt_binsrch(Relation rel,
   high++;           /* establish the loop invariant for high */
 
   cmpval = key->nextkey ? 0 : 1;  /* select comparison value */
+  DBUG_PRINT("info", "before binary search, low:%d, high:%d", low, high);
 
   while (high > low) {
     OffsetNumber mid = low + ((high - low) / 2);
 
     /* We have low <= mid < high, so mid points at a real slot */
 
+    compared_cnt++;
     result = _bt_compare(rel, key, page, mid);
 
     if (result >= cmpval)
@@ -398,6 +414,8 @@ _bt_binsrch(Relation rel,
     else
       high = mid;
   }
+
+  DBUG_PRINT("info", "binary search, times:%d, low:%d, high:%d", compared_cnt, low, high);
 
   /*
    * At this point we have high == low.
@@ -469,6 +487,7 @@ _bt_binsrch(Relation rel,
 OffsetNumber
 _bt_binsrch_insert(Relation rel, BTInsertState insertstate)
 {
+  DBUG_TRACE;
   BTScanInsert key = insertstate->itup_key;
   Page    page;
   BTPageOpaque opaque;
@@ -477,6 +496,7 @@ _bt_binsrch_insert(Relation rel, BTInsertState insertstate)
                stricthigh;
   int32   result,
           cmpval;
+  int compared_cnt = 0;
 
   page = BufferGetPage(insertstate->buf);
   opaque = BTPageGetOpaque(page);
@@ -521,11 +541,14 @@ _bt_binsrch_insert(Relation rel, BTInsertState insertstate)
 
   cmpval = 1;         /* !nextkey comparison value */
 
+  DBUG_PRINT("info", "before binary search, low:%d, high:%d", low, high);
+
   while (high > low) {
     OffsetNumber mid = low + ((high - low) / 2);
 
     /* We have low <= mid < high, so mid points at a real slot */
 
+    compared_cnt++;
     result = _bt_compare(rel, key, page, mid);
 
     if (result >= cmpval)
@@ -564,6 +587,7 @@ _bt_binsrch_insert(Relation rel, BTInsertState insertstate)
     }
   }
 
+  DBUG_PRINT("info", "binary search for insert, times:%d, low:%d, high:%d", compared_cnt, low, high);
   /*
    * On a leaf page, a binary search always returns the first key >= scan
    * key (at least in !nextkey case), which could be the last slot + 1. This
@@ -592,12 +616,14 @@ _bt_binsrch_insert(Relation rel, BTInsertState insertstate)
 static int
 _bt_binsrch_posting(BTScanInsert key, Page page, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
   ItemId    itemid;
   int     low,
           high,
           mid,
           res;
+  int compared_cnt = 0;
 
   /*
    * If this isn't a posting tuple, then the index must be corrupt (if it is
@@ -631,8 +657,11 @@ _bt_binsrch_posting(BTScanInsert key, Page page, OffsetNumber offnum)
   high = BTreeTupleGetNPosting(itup);
   Assert(high >= 2);
 
+  DBUG_PRINT("info", "before binary search, low:%d, high:%d", low, high);
+
   while (high > low) {
     mid = low + ((high - low) / 2);
+    compared_cnt++;
     res = ItemPointerCompare(key->scantid,
                              BTreeTupleGetPostingN(itup, mid));
 
@@ -640,10 +669,13 @@ _bt_binsrch_posting(BTScanInsert key, Page page, OffsetNumber offnum)
       low = mid + 1;
     else if (res < 0)
       high = mid;
-    else
+    else {
+      DBUG_PRINT("info", "binary search for post success, times:%d, low:%d, high:%d", compared_cnt, low, high);
       return mid;
+    }
   }
 
+  DBUG_PRINT("info", "binary search for post failed, times:%d, low:%d, high:%d", compared_cnt, low, high);
   /* Exact match not found */
   return low;
 }
@@ -681,6 +713,7 @@ _bt_compare(Relation rel,
             Page page,
             OffsetNumber offnum)
 {
+  DBUG_TRACE;
   TupleDesc itupdesc = RelationGetDescr(rel);
   BTPageOpaque opaque = BTPageGetOpaque(page);
   IndexTuple  itup;
@@ -698,8 +731,10 @@ _bt_compare(Relation rel,
    * Force result ">" if target item is first data item on an internal page
    * --- see NOTE above.
    */
-  if (!P_ISLEAF(opaque) && offnum == P_FIRSTDATAKEY(opaque))
+  if (!P_ISLEAF(opaque) && offnum == P_FIRSTDATAKEY(opaque)) {
+    DBUG_PRINT("info", "force result '>' if target item is first data item on an internal page");
     return 1;
+  }
 
   itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, offnum));
   ntupatts = BTreeTupleGetNAtts(itup, rel);
@@ -753,13 +788,17 @@ _bt_compare(Relation rel,
                              datum,
                              scankey->sk_argument));
 
-      if (!(scankey->sk_flags & SK_BT_DESC))
+      if (!(scankey->sk_flags & SK_BT_DESC)) {
+        DBUG_PRINT("info", "invert the sign of a qsort-style comparison result");
         INVERT_COMPARE_RESULT(result);
+      }
     }
 
     /* if the keys are unequal, return the difference */
-    if (result != 0)
+    if (result != 0) {
+      DBUG_PRINT("info", "if the keys are unequal, return the difference:%d", result);
       return result;
+    }
 
     scankey++;
   }
@@ -773,8 +812,10 @@ _bt_compare(Relation rel,
    * scankey won't, so explicitly excluding non-key attributes isn't
    * necessary.
    */
-  if (key->keysz > ntupatts)
+  if (key->keysz > ntupatts) {
+    DBUG_PRINT("info", "return 1 when key->keysz:%d > ntupatts:%d", key->keysz, ntupatts);
     return 1;
+  }
 
   /*
    * Use the heap TID attribute and scantid to try to break the tie.  The
@@ -808,10 +849,13 @@ _bt_compare(Relation rel,
      * every index, of course, but other than that it isn't special.
      */
     if (!key->backward && key->keysz == ntupatts && heapTid == NULL &&
-        key->heapkeyspace)
+        key->heapkeyspace) {
+      DBUG_PRINT("info", "return 1");
       return 1;
+    }
 
     /* All provided scankey arguments found to be equal */
+    DBUG_PRINT("info", "all provided scankey arguments found to be equal");
     return 0;
   }
 
@@ -821,8 +865,10 @@ _bt_compare(Relation rel,
    */
   Assert(key->keysz == IndexRelationGetNumberOfKeyAttributes(rel));
 
-  if (heapTid == NULL)
+  if (heapTid == NULL) {
+    DBUG_PRINT("info", "return 1 when heapTid == NULL");
     return 1;
+  }
 
   /*
    * Scankey must be treated as equal to a posting list tuple if its scantid
@@ -833,16 +879,20 @@ _bt_compare(Relation rel,
   Assert(ntupatts >= IndexRelationGetNumberOfKeyAttributes(rel));
   result = ItemPointerCompare(key->scantid, heapTid);
 
-  if (result <= 0 || !BTreeTupleIsPosting(itup))
+  if (result <= 0 || !BTreeTupleIsPosting(itup)) {
+    DBUG_PRINT("info", "return %d", result);
     return result;
-  else {
+  } else {
     result = ItemPointerCompare(key->scantid,
                                 BTreeTupleGetMaxHeapTID(itup));
 
-    if (result > 0)
+    if (result > 0) {
+      DBUG_PRINT("info", "return 1");
       return 1;
+    }
   }
 
+  DBUG_PRINT("info", "return 0");
   return 0;
 }
 
@@ -869,6 +919,7 @@ _bt_compare(Relation rel,
 bool
 _bt_first(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   BTStack   stack;
@@ -1024,6 +1075,8 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
     ScanKey   impliesNN;
     ScanKey   cur;
 
+    DBUG_PRINT("info", "examine the scan keys to discover where we need to start the scan");
+    DBUG_PRINT("info", "number of keys:%d", so->numberOfKeys);
     /*
      * bkey will be set to the key that preprocessing left behind as the
      * boundary key for this attribute, in this scan direction (if any)
@@ -1483,6 +1536,8 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
       return false;
   }
 
+  DBUG_PRINT("info", "now load data from the first page of the scan");
+
   /*
    * Use the manufactured insertion scan key to descend the tree and
    * position ourselves on the target leaf page.
@@ -1564,6 +1619,7 @@ _bt_first(IndexScanDesc scan, ScanDirection dir)
 bool
 _bt_next(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   Assert(BTScanPosIsValid(so->currPos));
@@ -2095,6 +2151,7 @@ _bt_returnitem(IndexScanDesc scan, BTScanOpaque so)
 
   /* Return next item, per amgettuple contract */
   scan->xs_heaptid = currItem->heapTid;
+  DBUG_PRINT("info", "offset:%u", currItem->heapTid.ip_posid);
 
   if (so->currTuples)
     scan->xs_itup = (IndexTuple) (so->currTuples + currItem->tupleOffset);
@@ -2112,6 +2169,7 @@ _bt_returnitem(IndexScanDesc scan, BTScanOpaque so)
 static bool
 _bt_steppage(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   BlockNumber blkno,
               lastcurrblkno;
@@ -2119,8 +2177,12 @@ _bt_steppage(IndexScanDesc scan, ScanDirection dir)
   Assert(BTScanPosIsValid(so->currPos));
 
   /* Before leaving current page, deal with any killed items */
-  if (so->numKilled > 0)
+  if (so->numKilled > 0) {
+    DBUG_PRINT("info", "before leaving current page, deal with any killed items");
     _bt_killitems(scan);
+  }
+
+  DBUG_PRINT("info", "load data from current index page into so->currPos");
 
   /*
    * Before we modify currPos, make a copy of the page data if there was a
@@ -2214,6 +2276,7 @@ _bt_steppage(IndexScanDesc scan, ScanDirection dir)
 static bool
 _bt_readfirstpage(IndexScanDesc scan, OffsetNumber offnum, ScanDirection dir)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   so->numKilled = 0;      /* just paranoia */
@@ -2302,12 +2365,15 @@ static bool
 _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
                  BlockNumber lastcurrblkno, ScanDirection dir, bool seized)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
   Assert(so->currPos.currPage == lastcurrblkno || seized);
   Assert(!(blkno == P_NONE && seized));
   Assert(!BTScanPosIsPinned(so->currPos));
+
+  DBUG_PRINT("info", "read next page(blkno:%u) containing valid data for scan", blkno);
 
   /*
    * Remember that the scan already read lastcurrblkno, a page to the left
@@ -2329,6 +2395,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
       Assert(so->currPos.currPage == lastcurrblkno && !seized);
       BTScanPosInvalidate(so->currPos);
       _bt_parallel_done(scan);  /* iff !so->needPrimScan */
+      DBUG_PRINT("info", "we're at end of scan, blkno:%u", blkno);
       return false;
     }
 
@@ -2338,7 +2405,9 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
     if (!seized && scan->parallel_scan != NULL &&
         !_bt_parallel_seize(scan, &blkno, &lastcurrblkno, false)) {
       /* whole scan is now done (or another primitive scan required) */
+      DBUG_PRINT("info", "whole scan is now done");
       BTScanPosInvalidate(so->currPos);
+      DBUG_PRINT("info", "return false, blkno:%u", blkno);
       return false;
     }
 
@@ -2355,6 +2424,8 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
         /* must have been a concurrent deletion of leftmost page */
         BTScanPosInvalidate(so->currPos);
         _bt_parallel_done(scan);
+        DBUG_PRINT("info", "must have been a concurrent deletion of leftmost page");
+        DBUG_PRINT("info", "return false, blkno:%u", blkno);
         return false;
       }
     }
@@ -2367,14 +2438,18 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
       /* see if there are any matches on this page */
       if (ScanDirectionIsForward(dir)) {
         /* note that this will clear moreRight if we can stop */
-        if (_bt_readpage(scan, dir, P_FIRSTDATAKEY(opaque), seized))
+        if (_bt_readpage(scan, dir, P_FIRSTDATAKEY(opaque), seized)) {
+          DBUG_PRINT("info", "note that this will clear moreRight if we can stop");
           break;
+        }
 
         blkno = so->currPos.nextPage;
       } else {
         /* note that this will clear moreLeft if we can stop */
-        if (_bt_readpage(scan, dir, PageGetMaxOffsetNumber(page), seized))
+        if (_bt_readpage(scan, dir, PageGetMaxOffsetNumber(page), seized)) {
+          DBUG_PRINT("info", "note that this will clear moreLeft if we can stop");
           break;
+        }
 
         blkno = so->currPos.prevPage;
       }
@@ -2391,6 +2466,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 
     /* no matching tuples on this page */
     _bt_relbuf(rel, so->currPos.buf);
+    DBUG_PRINT("info", "no matching tuples on this page");
     seized = false;     /* released by _bt_readpage (or by us) */
   }
 
@@ -2398,6 +2474,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
    * _bt_readpage succeeded.  Drop the lock (and maybe the pin) on
    * so->currPos.buf in preparation for btgettuple returning tuples.
    */
+  DBUG_PRINT("info", "_bt_readpage succeeded(blkno:%u)", blkno);
   Assert(so->currPos.currPage == blkno);
   Assert(BTScanPosIsPinned(so->currPos));
   _bt_drop_lock_and_maybe_pin(rel, so);
@@ -2429,6 +2506,7 @@ static Buffer
 _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
                            BlockNumber lastcurrblkno)
 {
+  DBUG_TRACE;
   BlockNumber origblkno = *blkno; /* detects circular links */
 
   for (;;) {
@@ -2544,6 +2622,7 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 Buffer
 _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
   BTPageOpaque opaque;
@@ -2628,11 +2707,15 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 static bool
 _bt_endpoint(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Page    page;
   BTPageOpaque opaque;
   OffsetNumber start;
+
+  DBUG_PRINT("info", "find the first or last page in the index,");
+  DBUG_PRINT("info", "and scan from there to the first key satisfying all the quals");
 
   Assert(!BTScanPosIsValid(so->currPos));
   Assert(!so->needPrimScan);
@@ -2674,6 +2757,8 @@ _bt_endpoint(IndexScanDesc scan, ScanDirection dir)
   /*
    * Now load data from the first page of the scan.
    */
+  DBUG_PRINT("info", "now load data from the first page of the scan");
+
   if (!_bt_readfirstpage(scan, start, dir))
     return false;
 

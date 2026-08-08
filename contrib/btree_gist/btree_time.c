@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_time.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "btree_gist.h"
 #include "btree_utils_num.h"
@@ -154,6 +155,7 @@ time_dist(PG_FUNCTION_ARGS)
 Datum
 gbt_time_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
@@ -162,6 +164,7 @@ gbt_time_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_timetz_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
 
@@ -187,6 +190,7 @@ gbt_timetz_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_time_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
@@ -195,6 +199,7 @@ gbt_time_fetch(PG_FUNCTION_ARGS)
 Datum
 gbt_time_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TimeADT   query = PG_GETARG_TIMEADT(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -203,6 +208,7 @@ gbt_time_consistent(PG_FUNCTION_ARGS)
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
   timeKEY    *kkk = (timeKEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
+  bool result;
 
   /* All cases served by this function are exact */
   *recheck = false;
@@ -210,30 +216,42 @@ gbt_time_consistent(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, &query, &strategy,
+  result = (gbt_num_consistent(&key, &query, &strategy,
                                     GIST_LEAF(entry), &tinfo, fcinfo->flinfo));
+
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 gbt_time_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TimeADT   query = PG_GETARG_TIMEADT(1);
 
   /* Oid    subtype = PG_GETARG_OID(3); */
   timeKEY    *kkk = (timeKEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
+  float8 result;
 
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_FLOAT8(gbt_num_distance(&key, &query, GIST_LEAF(entry),
+  result = (gbt_num_distance(&key, &query, GIST_LEAF(entry),
                                     &tinfo, fcinfo->flinfo));
+  DBUG_PRINT("btree_gist", "distance:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 gbt_timetz_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   TimeTzADT  *query = PG_GETARG_TIMETZADT_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -243,6 +261,7 @@ gbt_timetz_consistent(PG_FUNCTION_ARGS)
   timeKEY    *kkk = (timeKEY *) DatumGetPointer(entry->key);
   TimeADT   qqq;
   GBT_NUMKEY_R key;
+  bool result;
 
   /* All cases served by this function are inexact */
   *recheck = true;
@@ -252,13 +271,20 @@ gbt_timetz_consistent(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, &qqq, &strategy,
+  result = (gbt_num_consistent(&key, &qqq, &strategy,
                                     GIST_LEAF(entry), &tinfo, fcinfo->flinfo));
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 gbt_time_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   void     *out = palloc(sizeof(timeKEY));
 
@@ -269,6 +295,7 @@ gbt_time_union(PG_FUNCTION_ARGS)
 Datum
 gbt_time_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   timeKEY    *origentry = (timeKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   timeKEY    *newentry = (timeKEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -307,6 +334,7 @@ gbt_time_penalty(PG_FUNCTION_ARGS)
 Datum
 gbt_time_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(gbt_num_picksplit((GistEntryVector *) PG_GETARG_POINTER(0),
                                       (GIST_SPLITVEC *) PG_GETARG_POINTER(1),
                                       &tinfo, fcinfo->flinfo));
@@ -315,11 +343,19 @@ gbt_time_picksplit(PG_FUNCTION_ARGS)
 Datum
 gbt_time_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   timeKEY    *b1 = (timeKEY *) PG_GETARG_POINTER(0);
   timeKEY    *b2 = (timeKEY *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_num_same((void *) b1, (void *) b2, &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 

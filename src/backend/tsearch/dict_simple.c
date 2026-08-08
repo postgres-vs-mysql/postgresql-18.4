@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_collation_d.h"
@@ -29,6 +30,7 @@ typedef struct {
 Datum
 dsimple_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   DictSimple *d = (DictSimple *) palloc0(sizeof(DictSimple));
   bool    stoploaded = false,
@@ -70,6 +72,7 @@ dsimple_init(PG_FUNCTION_ARGS)
 Datum
 dsimple_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DictSimple *d = (DictSimple *) PG_GETARG_POINTER(0);
   char     *in = (char *) PG_GETARG_POINTER(1);
   int32   len = PG_GETARG_INT32(2);

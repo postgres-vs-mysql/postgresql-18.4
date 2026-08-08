@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -59,20 +60,25 @@ void
 PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
              int stmt_location, int stmt_len)
 {
+  DBUG_TRACE;
   RawStmt    *rawstmt;
   CachedPlanSource *plansource;
   Oid      *argtypes = NULL;
   int     nargs;
   List     *query_list;
 
+  DBUG_PRINT("info", "implements the 'PREPARE' utility statement");
+
   /*
    * Disallow empty-string statement name (conflicts with protocol-level
    * unnamed statement).
    */
-  if (!stmt->name || stmt->name[0] == '\0')
+  if (!stmt->name || stmt->name[0] == '\0') {
+    DBUG_INSTANT_PRINT("info", "invalid statement name: must not be empty");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PSTATEMENT_DEFINITION),
              errmsg("invalid statement name: must not be empty")));
+  }
 
   /*
    * Need to wrap the contained statement in a RawStmt node to pass it to
@@ -150,6 +156,7 @@ ExecuteQuery(ParseState *pstate,
              ParamListInfo params,
              DestReceiver *dest, QueryCompletion *qc)
 {
+  DBUG_TRACE;
   PreparedStatement *entry;
   CachedPlan *cplan;
   List     *plan_list;
@@ -160,15 +167,19 @@ ExecuteQuery(ParseState *pstate,
   int     eflags;
   long    count;
 
+  DBUG_INSTANT_PRINT("info", "implement the 'EXECUTE' utility statement");
+  DBUG_INSTANT_PRINT("info", "look it up in the hash table");
   /* Look it up in the hash table */
   entry = FetchPreparedStatement(stmt->name, true);
 
   /* Shouldn't find a non-fixed-result cached plan */
-  if (!entry->plansource->fixed_result)
+  if (!entry->plansource->fixed_result) {
     elog(ERROR, "EXECUTE does not support variable-result cached plans");
+  }
 
   /* Evaluate parameters, if any */
   if (entry->plansource->num_params > 0) {
+    DBUG_INSTANT_PRINT("info", "evaluate parameters");
     /*
      * Need an EState to evaluate parameters; must not delete it till end
      * of query, in case parameters are pass-by-reference.  Note that the
@@ -180,15 +191,18 @@ ExecuteQuery(ParseState *pstate,
     paramLI = EvaluateParams(pstate, entry, stmt->params, estate);
   }
 
+  DBUG_INSTANT_PRINT("info", "create a new portal to run the query in");
   /* Create a new portal to run the query in */
   portal = CreateNewPortal();
   /* Don't display the portal in pg_cursors, it is for internal use only */
   portal->visible = false;
 
   /* Copy the plan's saved query string into the portal's memory */
+  DBUG_INSTANT_PRINT("info", "copy the plan's saved query string into the portal's memory");
   query_string = MemoryContextStrdup(portal->portalContext,
                                      entry->plansource->query_string);
 
+  DBUG_INSTANT_PRINT("info", "replan if needed, and increment plan refcount for portal");
   /* Replan if needed, and increment plan refcount for portal */
   cplan = GetCachedPlan(entry->plansource, paramLI, NULL, NULL);
   plan_list = cplan->stmt_list;
@@ -220,17 +234,21 @@ ExecuteQuery(ParseState *pstate,
   if (intoClause) {
     PlannedStmt *pstmt;
 
-    if (list_length(plan_list) != 1)
+    if (list_length(plan_list) != 1) {
+      DBUG_INSTANT_PRINT("info", "The length of the plan list is not 1");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("prepared statement is not a SELECT")));
+    }
 
     pstmt = linitial_node(PlannedStmt, plan_list);
 
-    if (pstmt->commandType != CMD_SELECT)
+    if (pstmt->commandType != CMD_SELECT) {
+      DBUG_INSTANT_PRINT("info", "prepared statement is not a SELECT");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("prepared statement is not a SELECT")));
+    }
 
     /* Set appropriate eflags */
     eflags = GetIntoRelEFlags(intoClause);
@@ -242,6 +260,7 @@ ExecuteQuery(ParseState *pstate,
       count = FETCH_ALL;
   } else {
     /* Plain old EXECUTE */
+    DBUG_PRINT("info", "plain old EXECUTE");
     eflags = 0;
     count = FETCH_ALL;
   }
@@ -251,6 +270,7 @@ ExecuteQuery(ParseState *pstate,
    */
   PortalStart(portal, paramLI, eflags, GetActiveSnapshot());
 
+  DBUG_PRINT("info", "run the portal as appropriate");
   (void) PortalRun(portal, count, false, dest, dest, qc);
 
   PortalDrop(portal, false);
@@ -277,6 +297,7 @@ static ParamListInfo
 EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
                EState *estate)
 {
+  DBUG_TRACE;
   Oid      *param_types = pstmt->plansource->param_types;
   int     num_params = pstmt->plansource->num_params;
   int     nparams = list_length(params);
@@ -285,13 +306,17 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
   ListCell   *l;
   int     i;
 
-  if (nparams != num_params)
+  DBUG_PRINT("info", "evaluate a list of parameters");
+
+  if (nparams != num_params) {
+    DBUG_INSTANT_PRINT("info", "wrong number of parameters for prepared statement \"%s\"", pstmt->stmt_name);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("wrong number of parameters for prepared statement \"%s\"",
                     pstmt->stmt_name),
              errdetail("Expected %d parameters but got %d.",
                        num_params, nparams)));
+  }
 
   /* Quick exit if no parameters */
   if (num_params == 0)
@@ -320,15 +345,21 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
                                  COERCE_IMPLICIT_CAST,
                                  -1);
 
-    if (expr == NULL)
+    if (expr == NULL) {
+      char *format1 = format_type_be(given_type_id);
+      char *format2 = format_type_be(expected_type_id);
+
+      DBUG_INSTANT_PRINT("info", "parameter $%d of type %s cannot be coerced to the expected type %s",
+                         i + 1, format1, format2);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("parameter $%d of type %s cannot be coerced to the expected type %s",
                       i + 1,
-                      format_type_be(given_type_id),
-                      format_type_be(expected_type_id)),
+                      format1,
+                      format2),
                errhint("You will need to rewrite or cast the expression."),
                parser_errposition(pstate, exprLocation(lfirst(l)))));
+    }
 
     /* Take care of collations in the finished expression. */
     assign_expr_collations(pstate, expr);
@@ -338,6 +369,7 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
   }
 
   /* Prepare the expressions for execution */
+  DBUG_PRINT("info", "prepare the expressions for execution");
   exprstates = ExecPrepareExprList(params, estate);
 
   paramLI = makeParamList(num_params);
@@ -367,11 +399,13 @@ EvaluateParams(ParseState *pstate, PreparedStatement *pstmt, List *params,
 static void
 InitQueryHashTable(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   hash_ctl.keysize = NAMEDATALEN;
   hash_ctl.entrysize = sizeof(PreparedStatement);
 
+  DBUG_PRINT("info", "initialize query hash table upon first use");
   prepared_queries = hash_create("Prepared Queries",
                                  32,
                                  &hash_ctl,
@@ -389,26 +423,32 @@ StorePreparedStatement(const char *stmt_name,
                        CachedPlanSource *plansource,
                        bool from_sql)
 {
+  DBUG_TRACE;
   PreparedStatement *entry;
   TimestampTz cur_ts = GetCurrentStatementStartTimestamp();
   bool    found;
+
+  DBUG_PRINT("info", "store all the data pertaining to a query in the hash table using the specified key");
 
   /* Initialize the hash table, if necessary */
   if (!prepared_queries)
     InitQueryHashTable();
 
   /* Add entry to hash table */
+  DBUG_PRINT("info", "add entry to hash table");
   entry = (PreparedStatement *) hash_search(prepared_queries,
           stmt_name,
           HASH_ENTER,
           &found);
 
   /* Shouldn't get a duplicate entry */
-  if (found)
+  if (found) {
+    DBUG_INSTANT_PRINT("info", "prepared statement \"%s\" already exists", stmt_name);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_PSTATEMENT),
              errmsg("prepared statement \"%s\" already exists",
                     stmt_name)));
+  }
 
   /* Fill in the hash table entry */
   entry->plansource = plansource;
@@ -429,6 +469,7 @@ StorePreparedStatement(const char *stmt_name,
 PreparedStatement *
 FetchPreparedStatement(const char *stmt_name, bool throwError)
 {
+  DBUG_TRACE;
   PreparedStatement *entry;
 
   /*
@@ -443,11 +484,13 @@ FetchPreparedStatement(const char *stmt_name, bool throwError)
   else
     entry = NULL;
 
-  if (!entry && throwError)
+  if (!entry && throwError) {
+    DBUG_INSTANT_PRINT("info", "prepared statement \"%s\" does not exist", stmt_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_PSTATEMENT),
              errmsg("prepared statement \"%s\" does not exist",
                     stmt_name)));
+  }
 
   return entry;
 }
@@ -461,6 +504,7 @@ FetchPreparedStatement(const char *stmt_name, bool throwError)
 TupleDesc
 FetchPreparedStatementResultDesc(PreparedStatement *stmt)
 {
+  DBUG_TRACE;
   /*
    * Since we don't allow prepared statements' result tupdescs to change,
    * there's no need to worry about revalidating the cached plan here.
@@ -485,6 +529,7 @@ FetchPreparedStatementResultDesc(PreparedStatement *stmt)
 List *
 FetchPreparedStatementTargetList(PreparedStatement *stmt)
 {
+  DBUG_TRACE;
   List     *tlist;
 
   /* Get the plan's primary targetlist */
@@ -515,6 +560,7 @@ DeallocateQuery(DeallocateStmt *stmt)
 void
 DropPreparedStatement(const char *stmt_name, bool showError)
 {
+  DBUG_TRACE;
   PreparedStatement *entry;
 
   /* Find the query's hash table entry; raise error if wanted */
@@ -535,6 +581,7 @@ DropPreparedStatement(const char *stmt_name, bool showError)
 void
 DropAllPreparedStatements(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seq;
   PreparedStatement *entry;
 
@@ -567,6 +614,7 @@ void
 ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
                     ParseState *pstate, ParamListInfo params)
 {
+  DBUG_TRACE;
   PreparedStatement *entry;
   const char *query_string;
   CachedPlan *cplan;
@@ -581,6 +629,8 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
   MemoryContextCounters mem_counters;
   MemoryContext planner_ctx = NULL;
   MemoryContext saved_ctx = NULL;
+
+  DBUG_PRINT("info", "implements the 'EXPLAIN EXECUTE' utility statement");
 
   if (es->memory) {
     /* See ExplainOneQuery about this */
@@ -676,6 +726,7 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 Datum
 pg_prepared_statement(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 
   /*
@@ -738,6 +789,7 @@ pg_prepared_statement(PG_FUNCTION_ARGS)
 static Datum
 build_regtype_array(Oid *param_types, int num_params)
 {
+  DBUG_TRACE;
   Datum    *tmp_ary;
   ArrayType  *result;
   int     i;

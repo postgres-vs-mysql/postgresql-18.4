@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -82,6 +83,7 @@ find_inheritance_children_extended(Oid parentrelId, bool omit_detached,
                                    LOCKMODE lockmode, bool *detached_exist,
                                    TransactionId *detached_xmin)
 {
+  DBUG_TRACE;
   List     *list = NIL;
   Relation  relation;
   SysScanDesc scan;
@@ -245,6 +247,7 @@ find_inheritance_children_extended(Oid parentrelId, bool omit_detached,
 List *
 find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 {
+  DBUG_TRACE;
   /* hash table for O(1) rel_oid -> rel_numparents cell lookup */
   HTAB     *seen_rels;
   HASHCTL   ctl;
@@ -341,6 +344,7 @@ find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 bool
 has_subclass(Oid relationId)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   bool    result;
 
@@ -351,6 +355,13 @@ has_subclass(Oid relationId)
 
   result = ((Form_pg_class) GETSTRUCT(tuple))->relhassubclass;
   ReleaseSysCache(tuple);
+
+  if (result) {
+    DBUG_PRINT("info", "this relation(%u) has children", relationId);
+  } else {
+    DBUG_PRINT("info", "this relation(%u) has no children", relationId);
+  }
+
   return result;
 }
 
@@ -364,6 +375,7 @@ has_subclass(Oid relationId)
 bool
 has_superclass(Oid relationId)
 {
+  DBUG_TRACE;
   Relation  catalog;
   SysScanDesc scan;
   ScanKeyData skey;
@@ -393,6 +405,7 @@ has_superclass(Oid relationId)
 bool
 typeInheritsFrom(Oid subclassTypeId, Oid superclassTypeId)
 {
+  DBUG_TRACE;
   bool    result = false;
   Oid     subclassRelid;
   Oid     superclassRelid;
@@ -495,6 +508,7 @@ typeInheritsFrom(Oid subclassTypeId, Oid superclassTypeId)
 void
 StoreSingleInheritance(Oid relationId, Oid parentOid, int32 seqNumber)
 {
+  DBUG_TRACE;
   Datum   values[Natts_pg_inherits];
   bool    nulls[Natts_pg_inherits];
   HeapTuple tuple;
@@ -540,6 +554,7 @@ bool
 DeleteInheritsTuple(Oid inhrelid, Oid inhparent, bool expect_detach_pending,
                     const char *childname)
 {
+  DBUG_TRACE;
   bool    found = false;
   Relation  catalogRelation;
   ScanKeyData key;
@@ -573,20 +588,24 @@ DeleteInheritsTuple(Oid inhrelid, Oid inhparent, bool expect_detach_pending,
        * Raise error depending on state.  This should only happen for
        * partitions, but we have no way to cross-check.
        */
-      if (detach_pending && !expect_detach_pending)
+      if (detach_pending && !expect_detach_pending) {
+        DBUG_INSTANT_PRINT("info", "cannot detach partition \"%s\"", childname ? childname : "unknown relation");
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                  errmsg("cannot detach partition \"%s\"",
                         childname ? childname : "unknown relation"),
                  errdetail("The partition is being detached concurrently or has an unfinished detach."),
                  errhint("Use ALTER TABLE ... DETACH PARTITION ... FINALIZE to complete the pending detach operation.")));
+      }
 
-      if (!detach_pending && expect_detach_pending)
+      if (!detach_pending && expect_detach_pending) {
+        DBUG_INSTANT_PRINT("info", "cannot complete detaching partition \"%s\"", childname ? childname : "unknown relation");
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                  errmsg("cannot complete detaching partition \"%s\"",
                         childname ? childname : "unknown relation"),
                  errdetail("There's no pending concurrent detach.")));
+      }
 
       CatalogTupleDelete(catalogRelation, &inheritsTuple->t_self);
       found = true;
@@ -607,6 +626,7 @@ DeleteInheritsTuple(Oid inhrelid, Oid inhparent, bool expect_detach_pending,
 bool
 PartitionHasPendingDetach(Oid partoid)
 {
+  DBUG_TRACE;
   Relation  catalogRelation;
   ScanKeyData key;
   SysScanDesc scan;

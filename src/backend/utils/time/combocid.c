@@ -39,6 +39,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -101,6 +102,7 @@ static CommandId GetRealCmax(CommandId combocid);
 CommandId
 HeapTupleHeaderGetCmin(const HeapTupleHeaderData *tup)
 {
+  DBUG_TRACE;
   CommandId cid = HeapTupleHeaderGetRawCommandId(tup);
 
   Assert(!(tup->t_infomask & HEAP_MOVED));
@@ -115,6 +117,7 @@ HeapTupleHeaderGetCmin(const HeapTupleHeaderData *tup)
 CommandId
 HeapTupleHeaderGetCmax(const HeapTupleHeaderData *tup)
 {
+  DBUG_TRACE;
   CommandId cid = HeapTupleHeaderGetRawCommandId(tup);
 
   Assert(!(tup->t_infomask & HEAP_MOVED));
@@ -152,6 +155,8 @@ HeapTupleHeaderAdjustCmax(const HeapTupleHeaderData *tup,
                           CommandId *cmax,
                           bool *iscombo)
 {
+  DBUG_TRACE;
+
   /*
    * If we're marking a tuple deleted that was inserted by (any
    * subtransaction of) our transaction, we need to use a combo command id.
@@ -176,6 +181,7 @@ HeapTupleHeaderAdjustCmax(const HeapTupleHeaderData *tup,
 void
 AtEOXact_ComboCid(void)
 {
+  DBUG_TRACE;
   /*
    * Don't bother to pfree. These are allocated in TopTransactionContext, so
    * they're going to go away at the end of transaction anyway.
@@ -198,6 +204,7 @@ AtEOXact_ComboCid(void)
 static CommandId
 GetComboCommandId(CommandId cmin, CommandId cmax)
 {
+  DBUG_TRACE;
   CommandId combocid;
   ComboCidKeyData key;
   ComboCidEntry entry;
@@ -252,6 +259,7 @@ GetComboCommandId(CommandId cmin, CommandId cmax)
 
   if (found) {
     /* Reuse an existing combo CID */
+    DBUG_PRINT("info", "reuse an existing combo CID:%u (cmin:%u, cmax:%u)", entry->combocid, cmin, cmax);
     return entry->combocid;
   }
 
@@ -264,6 +272,7 @@ GetComboCommandId(CommandId cmin, CommandId cmax)
 
   entry->combocid = combocid;
 
+  DBUG_PRINT("info", "cmin:%u, cmax:%u, combocid:%u", cmin, cmax, combocid);
   return combocid;
 }
 
@@ -288,6 +297,7 @@ GetRealCmax(CommandId combocid)
 Size
 EstimateComboCIDStateSpace(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* Add space required for saving usedComboCids */
@@ -296,6 +306,7 @@ EstimateComboCIDStateSpace(void)
   /* Add space required for saving ComboCidKeyData */
   size = add_size(size, mul_size(sizeof(ComboCidKeyData), usedComboCids));
 
+  DBUG_PRINT("info", "estimate the amount of space required to serialize the current combo CID state:%lu", size);
   return size;
 }
 

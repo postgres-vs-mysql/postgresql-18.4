@@ -33,11 +33,13 @@
 
 #include "px-crypt.h"
 #include "px.h"
+#include "debug_trace.h"
 
 static char *
 run_crypt_des(const char *psw, const char *salt,
               char *buf, unsigned len)
 {
+  DBUG_TRACE;
   char     *res;
 
   res = px_crypt_des(psw, salt);
@@ -53,6 +55,7 @@ static char *
 run_crypt_md5(const char *psw, const char *salt,
               char *buf, unsigned len)
 {
+  DBUG_TRACE;
   char     *res;
 
   res = px_crypt_md5(psw, salt, buf, len);
@@ -63,6 +66,7 @@ static char *
 run_crypt_bf(const char *psw, const char *salt,
              char *buf, unsigned len)
 {
+  DBUG_TRACE;
   char     *res;
 
   res = _crypt_blowfish_rn(psw, salt, buf, len);
@@ -102,6 +106,7 @@ static const struct px_crypt_algo
 char *
 px_crypt(const char *psw, const char *salt, char *buf, unsigned len)
 {
+  DBUG_TRACE;
   const struct px_crypt_algo *c;
 
   CheckBuiltinCryptoMode();
@@ -155,6 +160,7 @@ static struct generator gen_list[] = {
 int
 px_gen_salt(const char *salt_type, char *buf, int rounds)
 {
+  DBUG_TRACE;
   struct generator *g;
   char     *p;
   char    rbuf[16];

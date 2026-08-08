@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "px.h"
 
@@ -183,6 +184,7 @@ static int
 combo_init(PX_Combo *cx, const uint8 *key, unsigned klen,
            const uint8 *iv, unsigned ivlen)
 {
+  DBUG_TRACE;
   int     err;
   unsigned  ks,
             ivs;
@@ -223,6 +225,7 @@ static int
 combo_encrypt(PX_Combo *cx, const uint8 *data, unsigned dlen,
               uint8 *res, unsigned *rlen)
 {
+  DBUG_TRACE;
   return px_cipher_encrypt(cx->cipher, cx->padding, data, dlen, res, rlen);
 }
 
@@ -230,12 +233,15 @@ static int
 combo_decrypt(PX_Combo *cx, const uint8 *data, unsigned dlen,
               uint8 *res, unsigned *rlen)
 {
+  DBUG_TRACE;
   return px_cipher_decrypt(cx->cipher, cx->padding, data, dlen, res, rlen);
 }
 
 static void
 combo_free(PX_Combo *cx)
 {
+  DBUG_TRACE;
+
   if (cx->cipher)
     px_cipher_free(cx->cipher);
 
@@ -248,6 +254,7 @@ combo_free(PX_Combo *cx)
 static int
 parse_cipher_name(char *full, char **cipher, char **pad)
 {
+  DBUG_TRACE;
   char     *p,
            *p2,
            *q;
@@ -292,6 +299,7 @@ parse_cipher_name(char *full, char **cipher, char **pad)
 int
 px_find_combo(const char *name, PX_Combo **res)
 {
+  DBUG_TRACE;
   int     err;
   char     *buf,
            *s_cipher,

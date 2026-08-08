@@ -108,15 +108,14 @@ typedef enum vartag_external
  * compiler might otherwise think it could generate code that assumes
  * alignment while touching fields of a 1-byte-header varlena.
  */
-typedef union
-{
-  struct            /* Normal varlena (4-byte length) */
-  {
+typedef union {
+struct
+{          /* Normal varlena (4-byte length) */
     uint32    va_header;
     char    va_data[FLEXIBLE_ARRAY_MEMBER];
   }     va_4byte;
-  struct            /* Compressed-in-line format */
-  {
+struct
+{          /* Compressed-in-line format */
     uint32    va_header;
     uint32    va_tcinfo;  /* Original data size (excludes header) and
                  * compression method; see va_extinfo */

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation.h"
 #include "catalog/pg_operator.h"
@@ -55,6 +56,7 @@ static int  trackitem_compare_lexemes(const void *e1, const void *e2,
 Datum
 ts_typanalyze(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
 
   /* If the attstattarget column is negative, use the default value */

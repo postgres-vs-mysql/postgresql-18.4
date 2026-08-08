@@ -30,6 +30,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/heaptoast.h"
@@ -53,6 +54,7 @@
 #include "utils/inval.h"
 #include "utils/spccache.h"
 #include "utils/syscache.h"
+#include "utils/lsyscache.h"
 
 
 static HeapTuple heap_prepare_insert(Relation relation, HeapTuple tup,
@@ -129,22 +131,22 @@ static const struct {
 }
 
 tupleLockExtraInfo[MaxLockTupleMode + 1] = {
-  {             /* LockTupleKeyShare */
+  { /* LockTupleKeyShare */
     AccessShareLock,
     MultiXactStatusForKeyShare,
     -1            /* KeyShare does not allow updating tuples */
   },
-  {             /* LockTupleShare */
+  { /* LockTupleShare */
     RowShareLock,
     MultiXactStatusForShare,
     -1            /* Share does not allow updating tuples */
   },
-  {             /* LockTupleNoKeyExclusive */
+  { /* LockTupleNoKeyExclusive */
     ExclusiveLock,
     MultiXactStatusForNoKeyUpdate,
     MultiXactStatusNoKeyUpdate
   },
-  {             /* LockTupleExclusive */
+  { /* LockTupleExclusive */
     AccessExclusiveLock,
     MultiXactStatusForUpdate,
     MultiXactStatusUpdate
@@ -153,7 +155,7 @@ tupleLockExtraInfo[MaxLockTupleMode + 1] = {
 
 /* Get the LOCKMODE for a given MultiXactStatus */
 #define LOCKMODE_from_mxstatus(status) \
-      (tupleLockExtraInfo[TUPLOCK_from_mxstatus((status))].hwlock)
+  (tupleLockExtraInfo[TUPLOCK_from_mxstatus((status))].hwlock)
 
 /*
  * Acquire heavyweight locks on tuples, using a LockTupleMode strength value.
@@ -209,7 +211,7 @@ static const int MultiXactStatusLock[MaxMultiXactStatus + 1] = {
 
 /* Get the LockTupleMode for a given MultiXactStatus */
 #define TUPLOCK_from_mxstatus(status) \
-      (MultiXactStatusLock[(status)])
+  (MultiXactStatusLock[(status)])
 
 /*
  * Check that we have a valid snapshot if we might need TOAST access.
@@ -246,6 +248,7 @@ heap_scan_stream_read_next_parallel(ReadStream *stream,
                                     void *callback_private_data,
                                     void *per_buffer_data)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) callback_private_data;
 
   Assert(ScanDirectionIsForward(scan->rs_dir));
@@ -268,6 +271,7 @@ heap_scan_stream_read_next_parallel(ReadStream *stream,
                               scan->rs_base.rs_parallel);
   }
 
+  DBUG_PRINT("info", "return the next block:%u the caller wants from the read stream", scan->rs_prefetch_block);
   return scan->rs_prefetch_block;
 }
 
@@ -281,6 +285,7 @@ heap_scan_stream_read_next_serial(ReadStream *stream,
                                   void *callback_private_data,
                                   void *per_buffer_data)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) callback_private_data;
 
   if (unlikely(!scan->rs_inited)) {
@@ -291,6 +296,7 @@ heap_scan_stream_read_next_serial(ReadStream *stream,
                               scan->rs_prefetch_block,
                               scan->rs_dir);
 
+  DBUG_PRINT("info", "return the next block:%u the caller wants from the read stream", scan->rs_prefetch_block);
   return scan->rs_prefetch_block;
 }
 
@@ -341,6 +347,7 @@ bitmapheap_stream_read_next(ReadStream *pgsr, void *private_data,
 static void
 initscan(HeapScanDesc scan, ScanKey key, bool keep_startblock)
 {
+  DBUG_TRACE;
   ParallelBlockTableScanDesc bpscan = NULL;
   bool    allow_strat;
   bool    allow_sync;
@@ -458,6 +465,7 @@ initscan(HeapScanDesc scan, ScanKey key, bool keep_startblock)
 void
 heap_setscanlimits(TableScanDesc sscan, BlockNumber startBlk, BlockNumber numBlks)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
 
   Assert(!scan->rs_inited); /* else too late to change */
@@ -469,6 +477,7 @@ heap_setscanlimits(TableScanDesc sscan, BlockNumber startBlk, BlockNumber numBlk
 
   scan->rs_startblock = startBlk;
   scan->rs_numblocks = numBlks;
+  DBUG_PRINT("info", "startBlk:%u, numBlks:%u", startBlk, numBlks);
 }
 
 /*
@@ -483,13 +492,41 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
                     BlockNumber block, int lines,
                     bool all_visible, bool check_serializable)
 {
+  DBUG_TRACE;
   int     ntup = 0;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
   OffsetNumber lineoff;
+
+  if (all_visible) {
+    if (check_serializable) {
+      DBUG_PRINT("info", "block:%u, lines:%d, all_visible: true, check_serializable: true", block, lines);
+    } else {
+      DBUG_PRINT("info", "block:%u, lines:%d, all_visible: true, check_serializable: false", block, lines);
+    }
+  } else {
+    if (check_serializable) {
+      DBUG_PRINT("info", "block:%u, lines:%d, all_visible: false, check_serializable: true", block, lines);
+    } else {
+      DBUG_PRINT("info", "block:%u, lines:%d, all_visible: false, check_serializable: false", block, lines);
+    }
+  }
 
   for (lineoff = FirstOffsetNumber; lineoff <= lines; lineoff++) {
     ItemId    lpp = PageGetItemId(page, lineoff);
     HeapTupleData loctup;
     bool    valid;
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
 
     if (!ItemIdIsNormal(lpp))
       continue;
@@ -504,9 +541,11 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
     else
       valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
 
-    if (check_serializable)
+    if (check_serializable) {
+      DBUG_PRINT("info", "check_serializable is true and call HeapCheckForSerializableConflictOut");
       HeapCheckForSerializableConflictOut(valid, scan->rs_base.rs_rd,
                                           &loctup, buffer, snapshot);
+    }
 
     if (valid) {
       scan->rs_vistuples[ntup] = lineoff;
@@ -514,7 +553,18 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
     }
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
+
   Assert(ntup <= MaxHeapTuplesPerPage);
+
+  DBUG_PRINT("info", "ntups:%d for blk:%u", ntup, block);
 
   return ntup;
 }
@@ -528,6 +578,7 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
 void
 heap_prepare_pagescan(TableScanDesc sscan)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
   Buffer    buffer = scan->rs_cbuf;
   BlockNumber block = scan->rs_cblock;
@@ -616,6 +667,7 @@ heap_prepare_pagescan(TableScanDesc sscan)
 static inline void
 heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Assert(scan->rs_read_stream);
 
   /* release previous scan buffer, if any */
@@ -660,14 +712,18 @@ heap_fetch_next_buffer(HeapScanDesc scan, ScanDirection dir)
 static pg_noinline BlockNumber
 heapgettup_initial_block(HeapScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Assert(!scan->rs_inited);
   Assert(scan->rs_base.rs_parallel == NULL);
 
   /* When there are no pages to scan, return InvalidBlockNumber */
-  if (scan->rs_nblocks == 0 || scan->rs_numblocks == 0)
+  if (scan->rs_nblocks == 0 || scan->rs_numblocks == 0) {
+    DBUG_PRINT("info", "when there are no pages to scan, return InvalidBlockNumber");
     return InvalidBlockNumber;
+  }
 
   if (ScanDirectionIsForward(dir)) {
+    DBUG_PRINT("info", "return the first BlockNumber to scan:%u", scan->rs_startblock);
     return scan->rs_startblock;
   } else {
     /*
@@ -682,12 +738,17 @@ heapgettup_initial_block(HeapScanDesc scan, ScanDirection dir)
      * Start from last page of the scan.  Ensure we take into account
      * rs_numblocks if it's been adjusted by heap_setscanlimits().
      */
-    if (scan->rs_numblocks != InvalidBlockNumber)
+    if (scan->rs_numblocks != InvalidBlockNumber) {
+      DBUG_PRINT("info", "return the first BlockNumber to scan:%u", (scan->rs_startblock + scan->rs_numblocks - 1) % scan->rs_nblocks);
       return (scan->rs_startblock + scan->rs_numblocks - 1) % scan->rs_nblocks;
+    }
 
-    if (scan->rs_startblock > 0)
+    if (scan->rs_startblock > 0) {
+      DBUG_PRINT("info", "return the first BlockNumber to scan:%u", scan->rs_startblock - 1);
       return scan->rs_startblock - 1;
+    }
 
+    DBUG_PRINT("info", "return the first BlockNumber to scan:%u", scan->rs_nblocks - 1);
     return scan->rs_nblocks - 1;
   }
 }
@@ -778,10 +839,13 @@ heapgettup_continue_page(HeapScanDesc scan, ScanDirection dir, int *linesleft,
 static inline BlockNumber
 heapgettup_advance_block(HeapScanDesc scan, BlockNumber block, ScanDirection dir)
 {
+  DBUG_TRACE;
   Assert(scan->rs_base.rs_parallel == NULL);
 
   if (likely(ScanDirectionIsForward(dir))) {
     block++;
+
+    DBUG_PRINT("info", "scan forward and blkno:%u", block);
 
     /* wrap back to the start of the heap */
     if (block >= scan->rs_nblocks)
@@ -830,6 +894,7 @@ heapgettup_advance_block(HeapScanDesc scan, BlockNumber block, ScanDirection dir
 
     block--;
 
+    DBUG_PRINT("info", "scan backward and blkno:%u", block);
     return block;
   }
 }
@@ -860,13 +925,17 @@ heapgettup(HeapScanDesc scan,
            int nkeys,
            ScanKey key)
 {
+  DBUG_TRACE;
   HeapTuple tuple = &(scan->rs_ctup);
   Page    page;
   OffsetNumber lineoff;
   int     linesleft;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   if (likely(scan->rs_inited)) {
     /* continue from previously returned page/tuple */
+    DBUG_PRINT("info", "continue from previously returned page/tuple");
     LockBuffer(scan->rs_cbuf, BUFFER_LOCK_SHARE);
     page = heapgettup_continue_page(scan, dir, &linesleft, &lineoff);
     goto continue_page;
@@ -877,7 +946,18 @@ heapgettup(HeapScanDesc scan,
    * to scan
    */
   while (true) {
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     heap_fetch_next_buffer(scan, dir);
+
+    count++;
 
     /* did we run out of blocks to scan? */
     if (!BufferIsValid(scan->rs_cbuf))
@@ -927,6 +1007,15 @@ continue_page:
 
       LockBuffer(scan->rs_cbuf, BUFFER_LOCK_UNLOCK);
       scan->rs_coffset = lineoff;
+
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
       return;
     }
 
@@ -936,6 +1025,15 @@ continue_page:
      */
     LockBuffer(scan->rs_cbuf, BUFFER_LOCK_UNLOCK);
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
 
   /* end of scan */
   if (BufferIsValid(scan->rs_cbuf))
@@ -996,8 +1094,9 @@ heapgettup_pagemode(HeapScanDesc scan,
     heap_fetch_next_buffer(scan, dir);
 
     /* did we run out of blocks to scan? */
-    if (!BufferIsValid(scan->rs_cbuf))
+    if (!BufferIsValid(scan->rs_cbuf)) {
       break;
+    }
 
     Assert(BufferGetBlockNumber(scan->rs_cbuf) == scan->rs_cblock);
 
@@ -1029,8 +1128,9 @@ continue_page:
       /* skip any tuples that don't match the scan key */
       if (key != NULL &&
           !HeapKeyTest(tuple, RelationGetDescr(scan->rs_base.rs_rd),
-                       nkeys, key))
+                       nkeys, key)) {
         continue;
+      }
 
       scan->rs_cindex = lineindex;
       return;
@@ -1061,6 +1161,7 @@ heap_beginscan(Relation relation, Snapshot snapshot,
                ParallelTableScanDesc parallel_scan,
                uint32 flags)
 {
+  DBUG_TRACE;
   HeapScanDesc scan;
 
   /*
@@ -1071,6 +1172,12 @@ heap_beginscan(Relation relation, Snapshot snapshot,
    * anyway, so this is redundant in all normal scenarios...
    */
   RelationIncrementReferenceCount(relation);
+
+  {
+    Oid relid = relation->rd_id;
+    char *rel_name = RelationGetRelationName(relation);
+    DBUG_PRINT("info", "visit relation:%s, relid:%d", rel_name, relid);
+  }
 
   /*
    * allocate and initialize scan descriptor
@@ -1196,6 +1303,7 @@ void
 heap_rescan(TableScanDesc sscan, ScanKey key, bool set_params,
             bool allow_strat, bool allow_sync, bool allow_pagemode)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
 
   if (set_params) {
@@ -1246,6 +1354,7 @@ heap_rescan(TableScanDesc sscan, ScanKey key, bool set_params,
 void
 heap_endscan(TableScanDesc sscan)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
 
   /* Note: no locking manipulations needed */
@@ -1294,10 +1403,12 @@ heap_getnext(TableScanDesc sscan, ScanDirection direction)
    * rather than the AM oid, is that this allows to write regression tests
    * that create another AM reusing the heap handler.
    */
-  if (unlikely(sscan->rs_rd->rd_tableam != GetHeapamTableAmRoutine()))
+  if (unlikely(sscan->rs_rd->rd_tableam != GetHeapamTableAmRoutine())) {
+    DBUG_INSTANT_PRINT("info", "only heap AM is supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg_internal("only heap AM is supported")));
+  }
 
   /*
    * We don't expect direct calls to heap_getnext with valid CheckXidAlive
@@ -1306,8 +1417,10 @@ heap_getnext(TableScanDesc sscan, ScanDirection direction)
    * level API but this is called from many places so we need to ensure it
    * here.
    */
-  if (unlikely(TransactionIdIsValid(CheckXidAlive) && !bsysscan))
+  if (unlikely(TransactionIdIsValid(CheckXidAlive) && !bsysscan)) {
+    DBUG_INSTANT_PRINT("info", "unexpected heap_getnext call during logical decoding");
     elog(ERROR, "unexpected heap_getnext call during logical decoding");
+  }
 
   /* Note: no locking manipulations needed */
 
@@ -1364,6 +1477,7 @@ void
 heap_set_tidrange(TableScanDesc sscan, ItemPointer mintid,
                   ItemPointer maxtid)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
   BlockNumber startBlk;
   BlockNumber numBlks;
@@ -1436,6 +1550,7 @@ bool
 heap_getnextslot_tidrange(TableScanDesc sscan, ScanDirection direction,
                           TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapScanDesc scan = (HeapScanDesc) sscan;
   ItemPointer mintid = &sscan->st.tidrange.rs_mintid;
   ItemPointer maxtid = &sscan->st.tidrange.rs_maxtid;
@@ -1543,6 +1658,7 @@ heap_fetch(Relation relation,
            Buffer *userbuf,
            bool keep_buf)
 {
+  DBUG_TRACE;
   ItemPointer tid = &(tuple->t_self);
   ItemId    lp;
   Buffer    buffer;
@@ -1658,6 +1774,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
                        Snapshot snapshot, HeapTuple heapTuple,
                        bool *all_dead, bool first_call)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   TransactionId prev_xmax = InvalidTransactionId;
   BlockNumber blkno;
@@ -1673,6 +1790,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
 
   blkno = ItemPointerGetBlockNumber(tid);
   offnum = ItemPointerGetOffsetNumber(tid);
+  DBUG_PRINT("info", "blkno:%u, offset:%u", blkno, offnum);
   at_chain_start = first_call;
   skip = !first_call;
 
@@ -1692,14 +1810,22 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
 
     /* check for unused, dead, or redirected items */
     if (!ItemIdIsNormal(lp)) {
+      if (ItemIdIsDead(lp)) {
+        DBUG_PRINT("info", "this is a dead item");
+      } else {
+        DBUG_PRINT("info", "we should only see a redirect at start of chain");
+      }
+
       /* We should only see a redirect at start of chain */
       if (ItemIdIsRedirected(lp) && at_chain_start) {
+        DBUG_PRINT("info", "follow the redirect");
         /* Follow the redirect */
         offnum = ItemIdGetRedirect(lp);
         at_chain_start = false;
         continue;
       }
 
+      DBUG_PRINT("info", "it must be end of chain");
       /* else must be end of chain */
       break;
     }
@@ -1740,6 +1866,13 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
     if (!skip) {
       /* If it's visible per the snapshot, we must return it */
       valid = HeapTupleSatisfiesVisibility(heapTuple, snapshot, buffer);
+
+      if (valid) {
+        DBUG_PRINT("info", "it is visible");
+      } else {
+        DBUG_PRINT("info", "it is not visible");
+      }
+
       HeapCheckForSerializableConflictOut(valid, relation, heapTuple,
                                           buffer, snapshot);
 
@@ -1751,6 +1884,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
         if (all_dead)
           *all_dead = false;
 
+        DBUG_PRINT("info", "one is found and return true");
         return true;
       }
     }
@@ -1787,6 +1921,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
       break;        /* end of chain */
   }
 
+  DBUG_PRINT("info", "no match and return false");
   return false;
 }
 
@@ -1805,6 +1940,7 @@ void
 heap_get_latest_tid(TableScanDesc sscan,
                     ItemPointer tid)
 {
+  DBUG_TRACE;
   Relation  relation = sscan->rs_rd;
   Snapshot  snapshot = sscan->rs_snapshot;
   ItemPointerData ctid;
@@ -1926,6 +2062,7 @@ heap_get_latest_tid(TableScanDesc sscan,
 static void
 UpdateXmaxHintBits(HeapTupleHeader tuple, Buffer buffer, TransactionId xid)
 {
+  DBUG_TRACE;
   Assert(TransactionIdEquals(HeapTupleHeaderGetRawXmax(tuple), xid));
   Assert(!(tuple->t_infomask & HEAP_XMAX_IS_MULTI));
 
@@ -2017,6 +2154,7 @@ void
 heap_insert(Relation relation, HeapTuple tup, CommandId cid,
             int options, BulkInsertState bistate)
 {
+  DBUG_TRACE;
   TransactionId xid = GetCurrentTransactionId();
   HeapTuple heaptup;
   Buffer    buffer;
@@ -2088,6 +2226,7 @@ heap_insert(Relation relation, HeapTuple tup, CommandId cid,
    * If you do add PageSetPrunable here, add it in heap_xlog_insert too.
    */
 
+  DBUG_PRINT("info", "Mark buffer dirty");
   MarkBufferDirty(buffer);
 
   /* XLOG stuff */
@@ -2207,16 +2346,20 @@ static HeapTuple
 heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
                     CommandId cid, int options)
 {
+  DBUG_TRACE;
+
   /*
    * To allow parallel inserts, we need to ensure that they are safe to be
    * performed in workers. We have the infrastructure to allow parallel
    * inserts in general except for the cases where inserts generate a new
    * CommandId (eg. inserts into a table having a foreign key column).
    */
-  if (IsParallelWorker())
+  if (IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot insert tuples in a parallel worker");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot insert tuples in a parallel worker")));
+  }
 
   tup->t_data->t_infomask &= ~(HEAP_XACT_MASK);
   tup->t_data->t_infomask2 &= ~(HEAP2_XACT_MASK);
@@ -2226,6 +2369,7 @@ heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
   if (options & HEAP_INSERT_FROZEN)
     HeapTupleHeaderSetXminFrozen(tup->t_data);
 
+  DBUG_PRINT("info", "set cmin:%u and set xmax zero", cid);
   HeapTupleHeaderSetCmin(tup->t_data, cid);
   HeapTupleHeaderSetXmax(tup->t_data, 0); /* for cleanliness */
   tup->t_tableOid = RelationGetRelid(relation);
@@ -2239,9 +2383,15 @@ heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
     /* toast table entries should never be recursively toasted */
     Assert(!HeapTupleHasExternal(tup));
     return tup;
-  } else if (HeapTupleHasExternal(tup) || tup->t_len > TOAST_TUPLE_THRESHOLD)
+  } else if (HeapTupleHasExternal(tup) || tup->t_len > TOAST_TUPLE_THRESHOLD) {
+    if (HeapTupleHasExternal(tup)) {
+      DBUG_PRINT("info", "heap tuple has external stored attribute(s)");
+    } else {
+      DBUG_PRINT("info", "tup->t_len:%u > TOAST_TUPLE_THRESHOLD(%lu)", tup->t_len, TOAST_TUPLE_THRESHOLD);
+    }
+
     return heap_toast_insert_or_update(relation, tup, NULL, options);
-  else
+  } else
     return tup;
 }
 
@@ -2285,6 +2435,7 @@ void
 heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
                   CommandId cid, int options, BulkInsertState bistate)
 {
+  DBUG_TRACE;
   TransactionId xid = GetCurrentTransactionId();
   HeapTuple  *heaptuples;
   int     i;
@@ -2299,12 +2450,15 @@ heap_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
   bool    starting_with_empty_page = false;
   int     npages = 0;
   int     npages_used = 0;
+  char *rel_name;
 
   /* currently not needed (thus unsupported) for heap_multi_insert() */
   Assert(!(options & HEAP_INSERT_NO_LOGICAL));
 
   AssertHasSnapshotForToast(relation);
 
+  rel_name = RelationGetRelationName(relation);
+  DBUG_PRINT("info", "insert multiple tuples into a heap for relation:%s", rel_name);
   needwal = RelationNeedsWAL(relation);
   saveFreeSpace = RelationGetTargetPageFreeSpace(relation,
                   HEAP_DEFAULT_FILLFACTOR);
@@ -2677,12 +2831,16 @@ compute_infobits(uint16 infomask, uint16 infomask2)
 static inline bool
 xmax_infomask_changed(uint16 new_infomask, uint16 old_infomask)
 {
+  DBUG_TRACE;
   const uint16 interesting =
     HEAP_XMAX_IS_MULTI | HEAP_XMAX_LOCK_ONLY | HEAP_LOCK_MASK;
 
-  if ((new_infomask & interesting) != (old_infomask & interesting))
+  if ((new_infomask & interesting) != (old_infomask & interesting)) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -2702,6 +2860,7 @@ heap_delete(Relation relation, ItemPointer tid,
             CommandId cid, Snapshot crosscheck, bool wait,
             TM_FailureData *tmfd, bool changingPart)
 {
+  DBUG_TRACE;
   TM_Result result;
   TransactionId xid = GetCurrentTransactionId();
   ItemId    lp;
@@ -2728,10 +2887,12 @@ heap_delete(Relation relation, ItemPointer tid,
    * Other workers might need that combo CID for visibility checks, and we
    * have no provision for broadcasting it to them.
    */
-  if (IsInParallelMode())
+  if (IsInParallelMode()) {
+    DBUG_INSTANT_PRINT("info", "cannot delete tuples during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot delete tuples during a parallel operation")));
+  }
 
   block = ItemPointerGetBlockNumber(tid);
   buffer = ReadBuffer(relation, block);
@@ -2774,6 +2935,7 @@ l1:
 
   if (result == TM_Invisible) {
     UnlockReleaseBuffer(buffer);
+    DBUG_INSTANT_PRINT("info", "attempted to delete invisible tuple");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("attempted to delete invisible tuple")));
@@ -2920,6 +3082,7 @@ l1:
     if (vmbuffer != InvalidBuffer)
       ReleaseBuffer(vmbuffer);
 
+    DBUG_PRINT("info", "result:%d", result);
     return result;
   }
 
@@ -2982,6 +3145,7 @@ l1:
   tp.t_data->t_infomask |= new_infomask;
   tp.t_data->t_infomask2 |= new_infomask2;
   HeapTupleHeaderClearHotUpdated(tp.t_data);
+  DBUG_PRINT("info", "set xmax:%u for block:%u", new_xmax, block);
   HeapTupleHeaderSetXmax(tp.t_data, new_xmax);
   HeapTupleHeaderSetCmax(tp.t_data, cid, iscombo);
   /* Make sure there is no forward chain link in t_ctid */
@@ -3100,6 +3264,7 @@ l1:
   if (old_key_tuple != NULL && old_key_copied)
     heap_freetuple(old_key_tuple);
 
+  DBUG_PRINT("info", "result TM_OK");
   return TM_Ok;
 }
 
@@ -3114,6 +3279,7 @@ l1:
 void
 simple_heap_delete(Relation relation, ItemPointer tid)
 {
+  DBUG_TRACE;
   TM_Result result;
   TM_FailureData tmfd;
 
@@ -3125,6 +3291,7 @@ simple_heap_delete(Relation relation, ItemPointer tid)
   switch (result) {
     case TM_SelfModified:
       /* Tuple was already updated in current command? */
+      DBUG_INSTANT_PRINT("info", "tuple already updated by self");
       elog(ERROR, "tuple already updated by self");
       break;
 
@@ -3133,14 +3300,17 @@ simple_heap_delete(Relation relation, ItemPointer tid)
       break;
 
     case TM_Updated:
+      DBUG_INSTANT_PRINT("info", "tuple concurrently updated");
       elog(ERROR, "tuple concurrently updated");
       break;
 
     case TM_Deleted:
+      DBUG_INSTANT_PRINT("info", "tuple concurrently deleted");
       elog(ERROR, "tuple concurrently deleted");
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "unrecognized heap_delete status: %u", result);
       elog(ERROR, "unrecognized heap_delete status: %u", result);
       break;
   }
@@ -3163,6 +3333,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
             TM_FailureData *tmfd, LockTupleMode *lockmode,
             TU_UpdateIndexes *update_indexes)
 {
+  DBUG_TRACE;
   TM_Result result;
   TransactionId xid = GetCurrentTransactionId();
   Bitmapset  *hot_attrs;
@@ -3216,10 +3387,12 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
    * Other workers might need that combo CID for visibility checks, and we
    * have no provision for broadcasting it to them.
    */
-  if (IsInParallelMode())
+  if (IsInParallelMode()) {
+    DBUG_INSTANT_PRINT("info", "cannot update tuples during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot update tuples during a parallel operation")));
+  }
 
 #ifdef USE_ASSERT_CHECKING
   check_lock_if_inplace_updateable_rel(relation, otid, newtup);
@@ -3391,6 +3564,7 @@ l2:
 
   if (result == TM_Invisible) {
     UnlockReleaseBuffer(buffer);
+    DBUG_INSTANT_PRINT("info", "attempted to update invisible tuple");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("attempted to update invisible tuple")));
@@ -3680,6 +3854,7 @@ l2:
   HeapTupleHeaderSetCmin(newtup->t_data, cid);
   newtup->t_data->t_infomask |= HEAP_UPDATED | infomask_new_tuple;
   newtup->t_data->t_infomask2 |= infomask2_new_tuple;
+  DBUG_PRINT("info", "set xmax:%u for block:%u", xmax_new_tuple, block);
   HeapTupleHeaderSetXmax(newtup->t_data, xmax_new_tuple);
 
   /*
@@ -3755,6 +3930,7 @@ l2:
     HeapTupleClearHotUpdated(&oldtup);
     /* ... and store info about transaction updating this tuple */
     Assert(TransactionIdIsValid(xmax_lock_old_tuple));
+    DBUG_PRINT("info", "set xmax:%u for block:%u", xmax_lock_old_tuple, block);
     HeapTupleHeaderSetXmax(oldtup.t_data, xmax_lock_old_tuple);
     oldtup.t_data->t_infomask |= infomask_lock_old_tuple;
     oldtup.t_data->t_infomask2 |= infomask2_lock_old_tuple;
@@ -3973,6 +4149,7 @@ l2:
   oldtup.t_data->t_infomask2 &= ~HEAP_KEYS_UPDATED;
   /* ... and store info about transaction updating this tuple */
   Assert(TransactionIdIsValid(xmax_old_tuple));
+  DBUG_PRINT("info", "set xmax:%u for block:%u", xmax_old_tuple, block);
   HeapTupleHeaderSetXmax(oldtup.t_data, xmax_old_tuple);
   oldtup.t_data->t_infomask |= infomask_old_tuple;
   oldtup.t_data->t_infomask2 |= infomask2_old_tuple;
@@ -4154,7 +4331,13 @@ check_lock_if_inplace_updateable_rel(Relation relation,
         SET_LOCKTAG_RELATION(tag, dbid, relid);
 
       if (!LockHeldByMe(&tag, ShareUpdateExclusiveLock, false) &&
-          !LockHeldByMe(&tag, ShareRowExclusiveLock, true))
+          !LockHeldByMe(&tag, ShareRowExclusiveLock, true)) {
+        DBUG_INSTANT_PRINT("info", "missing lock for relation \"%s\" (OID %u, relkind %c) @ TID (%u,%u)",
+                           NameStr(classForm->relname),
+                           relid,
+                           classForm->relkind,
+                           ItemPointerGetBlockNumber(otid),
+                           ItemPointerGetOffsetNumber(otid));
         elog(WARNING,
              "missing lock for relation \"%s\" (OID %u, relkind %c) @ TID (%u,%u)",
              NameStr(classForm->relname),
@@ -4162,12 +4345,18 @@ check_lock_if_inplace_updateable_rel(Relation relation,
              classForm->relkind,
              ItemPointerGetBlockNumber(otid),
              ItemPointerGetOffsetNumber(otid));
+      }
     }
     break;
 
     case DatabaseRelationId: {
       /* LOCKTAG_TUPLE required */
       Form_pg_database dbForm = (Form_pg_database) GETSTRUCT(newtup);
+      DBUG_INSTANT_PRINT("info", "missing lock on database \"%s\" (OID %u) @ TID (%u,%u)",
+                         NameStr(dbForm->datname),
+                         dbForm->oid,
+                         ItemPointerGetBlockNumber(otid),
+                         ItemPointerGetOffsetNumber(otid));
 
       elog(WARNING,
            "missing lock on database \"%s\" (OID %u) @ TID (%u,%u)",
@@ -4205,7 +4394,13 @@ check_inplace_rel_lock(HeapTuple oldtup)
   } else
     SET_LOCKTAG_RELATION(tag, dbid, relid);
 
-  if (!LockHeldByMe(&tag, ShareUpdateExclusiveLock, true))
+  if (!LockHeldByMe(&tag, ShareUpdateExclusiveLock, true)) {
+    DBUG_INSTANT_PRINT("info", "missing lock for relation \"%s\" (OID %u, relkind %c) @ TID (%u,%u)",
+                       NameStr(classForm->relname),
+                       relid,
+                       classForm->relkind,
+                       ItemPointerGetBlockNumber(&oldtup->t_self),
+                       ItemPointerGetOffsetNumber(&oldtup->t_self));
     elog(WARNING,
          "missing lock for relation \"%s\" (OID %u, relkind %c) @ TID (%u,%u)",
          NameStr(classForm->relname),
@@ -4213,6 +4408,7 @@ check_inplace_rel_lock(HeapTuple oldtup)
          classForm->relkind,
          ItemPointerGetBlockNumber(&oldtup->t_self),
          ItemPointerGetOffsetNumber(&oldtup->t_self));
+  }
 }
 #endif
 
@@ -4358,10 +4554,14 @@ void
 simple_heap_update(Relation relation, ItemPointer otid, HeapTuple tup,
                    TU_UpdateIndexes *update_indexes)
 {
+  DBUG_TRACE;
   TM_Result result;
   TM_FailureData tmfd;
   LockTupleMode lockmode;
+  char *rel_name;
 
+  rel_name = RelationGetRelationName(relation);
+  DBUG_PRINT("info", "replace a tuple for relation:%s", rel_name);
   result = heap_update(relation, otid, tup,
                        GetCurrentCommandId(true), InvalidSnapshot,
                        true /* wait for commit */,
@@ -4370,6 +4570,7 @@ simple_heap_update(Relation relation, ItemPointer otid, HeapTuple tup,
   switch (result) {
     case TM_SelfModified:
       /* Tuple was already updated in current command? */
+      DBUG_INSTANT_PRINT("info", "tuple already updated by self");
       elog(ERROR, "tuple already updated by self");
       break;
 
@@ -4378,14 +4579,17 @@ simple_heap_update(Relation relation, ItemPointer otid, HeapTuple tup,
       break;
 
     case TM_Updated:
+      DBUG_INSTANT_PRINT("info", "tuple concurrently updated");
       elog(ERROR, "tuple concurrently updated");
       break;
 
     case TM_Deleted:
+      DBUG_INSTANT_PRINT("info", "tuple concurrently deleted");
       elog(ERROR, "tuple concurrently deleted");
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "unrecognized heap_update status: %u", result);
       elog(ERROR, "unrecognized heap_update status: %u", result);
       break;
   }
@@ -4405,9 +4609,11 @@ get_mxact_status_for_lock(LockTupleMode mode, bool is_update)
   else
     retval = tupleLockExtraInfo[mode].lockstatus;
 
-  if (retval == -1)
+  if (retval == -1) {
+    DBUG_INSTANT_PRINT("info", "invalid lock tuple mode %d/%s", mode, is_update ? "true" : "false");
     elog(ERROR, "invalid lock tuple mode %d/%s", mode,
          is_update ? "true" : "false");
+  }
 
   return (MultiXactStatus) retval;
 }
@@ -4449,6 +4655,7 @@ heap_lock_tuple(Relation relation, HeapTuple tuple,
                 bool follow_updates,
                 Buffer *buffer, TM_FailureData *tmfd)
 {
+  DBUG_TRACE;
   TM_Result result;
   ItemPointer tid = &(tuple->t_self);
   ItemId    lp;
@@ -4474,8 +4681,10 @@ heap_lock_tuple(Relation relation, HeapTuple tuple,
    * in the middle of changing this, so we'll need to recheck after we have
    * the lock.
    */
-  if (PageIsAllVisible(BufferGetPage(*buffer)))
+  if (PageIsAllVisible(BufferGetPage(*buffer))) {
+    DBUG_PRINT("info", "before locking the buffer, pin the visibility map page");
     visibilitymap_pin(relation, block, &vmbuffer);
+  }
 
   LockBuffer(*buffer, BUFFER_LOCK_EXCLUSIVE);
 
@@ -4498,6 +4707,7 @@ l3:
      * error.
      */
     result = TM_Invisible;
+    DBUG_PRINT("info", "only when locking a tuple for ON CONFLICT UPDATE");
     goto out_locked;
   } else if (result == TM_BeingModified ||
              result == TM_Updated ||
@@ -4509,6 +4719,7 @@ l3:
     ItemPointerData t_ctid;
 
     /* must copy state data before unlocking buffer */
+    DBUG_PRINT("info", "must copy state data before unlocking buffer");
     xwait = HeapTupleHeaderGetRawXmax(tuple->t_data);
     infomask = tuple->t_data->t_infomask;
     infomask2 = tuple->t_data->t_infomask2;
@@ -4545,10 +4756,15 @@ l3:
           GetMultiXactIdMembers(xwait, &members, false,
                                 HEAP_XMAX_IS_LOCKED_ONLY(infomask));
 
+        DBUG_PRINT("info", "HEAP_XMAX_IS_MULTI is true and members:%d", nmembers);
+
         for (i = 0; i < nmembers; i++) {
           /* only consider members of our own transaction */
-          if (!TransactionIdIsCurrentTransactionId(members[i].xid))
+          if (!TransactionIdIsCurrentTransactionId(members[i].xid)) {
             continue;
+          }
+
+          DBUG_PRINT("info", "only consider members of our own transaction");
 
           if (TUPLOCK_from_mxstatus(members[i].status) >= mode) {
             pfree(members);
@@ -4567,6 +4783,7 @@ l3:
              * conflicting locks.
              */
             skip_tuple_lock = true;
+            DBUG_PRINT("info", "disable acquisition of the heavyweight tuple lock");
           }
         }
 
@@ -4575,6 +4792,7 @@ l3:
       } else if (TransactionIdIsCurrentTransactionId(xwait)) {
         switch (mode) {
           case LockTupleKeyShare:
+            DBUG_PRINT("info", "LockTupleKeyShare mode");
             Assert(HEAP_XMAX_IS_KEYSHR_LOCKED(infomask) ||
                    HEAP_XMAX_IS_SHR_LOCKED(infomask) ||
                    HEAP_XMAX_IS_EXCL_LOCKED(infomask));
@@ -4582,6 +4800,8 @@ l3:
             goto out_unlocked;
 
           case LockTupleShare:
+            DBUG_PRINT("info", "LockTupleShare mode");
+
             if (HEAP_XMAX_IS_SHR_LOCKED(infomask) ||
                 HEAP_XMAX_IS_EXCL_LOCKED(infomask)) {
               result = TM_Ok;
@@ -4591,6 +4811,8 @@ l3:
             break;
 
           case LockTupleNoKeyExclusive:
+            DBUG_PRINT("info", "LockTupleNoKeyExclusive mode");
+
             if (HEAP_XMAX_IS_EXCL_LOCKED(infomask)) {
               result = TM_Ok;
               goto out_unlocked;
@@ -4599,6 +4821,8 @@ l3:
             break;
 
           case LockTupleExclusive:
+            DBUG_PRINT("info", "LockTupleExclusive mode");
+
             if (HEAP_XMAX_IS_EXCL_LOCKED(infomask) &&
                 infomask2 & HEAP_KEYS_UPDATED) {
               result = TM_Ok;
@@ -4618,6 +4842,8 @@ l3:
     require_sleep = true;
 
     if (mode == LockTupleKeyShare) {
+      DBUG_PRINT("info", "LockTupleKeyShare mode");
+
       /*
        * If we're requesting KeyShare, and there's no update present, we
        * don't need to wait.  Even if there is an update, we can still
@@ -4681,6 +4907,7 @@ l3:
 
         /* Things look okay, so we can skip sleeping */
         require_sleep = false;
+        DBUG_PRINT("info", "things look okay, so we can skip sleeping");
 
         /*
          * Note we allow Xmax to change here; other updaters/lockers
@@ -4691,6 +4918,8 @@ l3:
          */
       }
     } else if (mode == LockTupleShare) {
+      DBUG_PRINT("info", "LockTupleShare mode");
+
       /*
        * If we're requesting Share, we can similarly avoid sleeping if
        * there's no update and no exclusive lock present.
@@ -4710,6 +4939,8 @@ l3:
         require_sleep = false;
       }
     } else if (mode == LockTupleNoKeyExclusive) {
+      DBUG_PRINT("info", "LockTupleNoKeyExclusive mode");
+
       /*
        * If we're requesting NoKeyExclusive, we might also be able to
        * avoid sleeping; just ensure that there no conflicting lock
@@ -4784,6 +5015,7 @@ l3:
      * we ensure that we grab buffer lock after the sleep.
      */
     if (require_sleep && (result == TM_Updated || result == TM_Deleted)) {
+      DBUG_PRINT("info", "time to sleep on the other transaction/multixact");
       LockBuffer(*buffer, BUFFER_LOCK_EXCLUSIVE);
       goto failed;
     } else if (require_sleep) {
@@ -4814,8 +5046,12 @@ l3:
         MultiXactStatus status = get_mxact_status_for_lock(mode, false);
 
         /* We only ever lock tuples, never update them */
-        if (status >= MultiXactStatusNoKeyUpdate)
+        if (status >= MultiXactStatusNoKeyUpdate) {
+          DBUG_INSTANT_PRINT("info", "invalid lock mode in heap_lock_tuple");
           elog(ERROR, "invalid lock mode in heap_lock_tuple");
+        }
+
+        DBUG_PRINT("info", "wait for multixact to end, or die trying");
 
         /* wait for multixact to end, or die trying  */
         switch (wait_policy) {
@@ -4839,11 +5075,14 @@ l3:
           case LockWaitError:
             if (!ConditionalMultiXactIdWait((MultiXactId) xwait,
                                             status, infomask, relation,
-                                            NULL, log_lock_failures))
+                                            NULL, log_lock_failures)) {
+              char *rel_name = RelationGetRelationName(relation);
+              DBUG_INSTANT_PRINT("info", "could not obtain lock on row in relation \"%s\"", rel_name);
               ereport(ERROR,
                       (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                        errmsg("could not obtain lock on row in relation \"%s\"",
-                              RelationGetRelationName(relation))));
+                              rel_name)));
+            }
 
             break;
         }
@@ -4859,6 +5098,8 @@ l3:
          */
       } else {
         /* wait for regular transaction to end, or die trying */
+        DBUG_PRINT("info", "wait for regular transaction to end, or die trying");
+
         switch (wait_policy) {
           case LockWaitBlock:
             XactLockTableWait(xwait, relation, &tuple->t_self,
@@ -4876,11 +5117,13 @@ l3:
             break;
 
           case LockWaitError:
-            if (!ConditionalXactLockTableWait(xwait, log_lock_failures))
+            if (!ConditionalXactLockTableWait(xwait, log_lock_failures)) {
+              DBUG_INSTANT_PRINT("info", "could not obtain lock on row in relation \"%s\"", RelationGetRelationName(relation));
               ereport(ERROR,
                       (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                        errmsg("could not obtain lock on row in relation \"%s\"",
                               RelationGetRelationName(relation))));
+            }
 
             break;
         }
@@ -4891,6 +5134,7 @@ l3:
           !ItemPointerEquals(&tuple->t_self, &t_ctid)) {
         TM_Result res;
 
+        DBUG_PRINT("info", "follow the update chain");
         res = heap_lock_updated_tuple(relation,
                                       infomask, xwait, &t_ctid,
                                       GetCurrentTransactionId(),
@@ -5033,6 +5277,7 @@ failed:
   if (HEAP_XMAX_IS_LOCKED_ONLY(new_infomask))
     HeapTupleHeaderClearHotUpdated(tuple->t_data);
 
+  DBUG_PRINT("info", "store transaction information of xact locking the tuple and set xmax:%u for block:%u", xid, block);
   HeapTupleHeaderSetXmax(tuple->t_data, xid);
 
   /*
@@ -5048,8 +5293,10 @@ failed:
   /* Clear only the all-frozen bit on visibility map if needed */
   if (PageIsAllVisible(page) &&
       visibilitymap_clear(relation, block, vmbuffer,
-                          VISIBILITYMAP_ALL_FROZEN))
+                          VISIBILITYMAP_ALL_FROZEN)) {
+    DBUG_PRINT("info", "clear only the all-frozen bit on visibility map");
     cleared_all_frozen = true;
+  }
 
 
   MarkBufferDirty(*buffer);
@@ -5070,6 +5317,7 @@ failed:
     xl_heap_lock xlrec;
     XLogRecPtr  recptr;
 
+    DBUG_PRINT("info", "we have to enforce the WAL log-before-data rule even in this case");
     XLogBeginInsert();
     XLogRegisterBuffer(0, *buffer, REGBUF_STANDARD);
 
@@ -5104,6 +5352,8 @@ out_unlocked:
    * visibility info.
    */
 
+  DBUG_PRINT("info", "don't update the visibility map here");
+
   /*
    * Now that we have successfully marked the tuple as locked, we can
    * release the lmgr tuple lock, if we had it.
@@ -5130,8 +5380,12 @@ static bool
 heap_acquire_tuplock(Relation relation, ItemPointer tid, LockTupleMode mode,
                      LockWaitPolicy wait_policy, bool *have_tuple_lock)
 {
-  if (*have_tuple_lock)
+  DBUG_TRACE;
+
+  if (*have_tuple_lock) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   switch (wait_policy) {
     case LockWaitBlock:
@@ -5145,11 +5399,14 @@ heap_acquire_tuplock(Relation relation, ItemPointer tid, LockTupleMode mode,
       break;
 
     case LockWaitError:
-      if (!ConditionalLockTupleTuplock(relation, tid, mode, log_lock_failures))
+      if (!ConditionalLockTupleTuplock(relation, tid, mode, log_lock_failures)) {
+        char *rel_name = RelationGetRelationName(relation);
+        DBUG_INSTANT_PRINT("info", "could not obtain lock on row in relation \"%s\"", rel_name);
         ereport(ERROR,
                 (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                  errmsg("could not obtain lock on row in relation \"%s\"",
-                        RelationGetRelationName(relation))));
+                        rel_name)));
+      }
 
       break;
   }
@@ -5184,6 +5441,7 @@ compute_new_xmax_infomask(TransactionId xmax, uint16 old_infomask,
                           TransactionId *result_xmax, uint16 *result_infomask,
                           uint16 *result_infomask2)
 {
+  DBUG_TRACE;
   TransactionId new_xmax;
   uint16    new_infomask,
             new_infomask2;
@@ -5235,6 +5493,7 @@ l5:
 
         default:
           new_xmax = InvalidTransactionId;  /* silence compiler */
+          DBUG_INSTANT_PRINT("info", "invalid lock mode");
           elog(ERROR, "invalid lock mode");
       }
     }
@@ -5340,6 +5599,7 @@ l5:
          * TransactionIdIsInProgress() should have returned false.  We
          * assume it's no longer locked in this case.
          */
+        DBUG_INSTANT_PRINT("info", "LOCK_ONLY found for Xid in progress %u", xmax);
         elog(WARNING, "LOCK_ONLY found for Xid in progress %u", xmax);
         old_infomask |= HEAP_XMAX_INVALID;
         old_infomask &= ~HEAP_XMAX_LOCK_ONLY;
@@ -5446,6 +5706,7 @@ test_lockmode_for_conflict(MultiXactStatus status, TransactionId xid,
                            LockTupleMode mode, HeapTuple tup,
                            bool *needwait)
 {
+  DBUG_TRACE;
   MultiXactStatus wantedstatus;
 
   *needwait = false;
@@ -5530,6 +5791,7 @@ heap_lock_updated_tuple_rec(Relation rel, TransactionId priorXmax,
                             const ItemPointerData *tid, TransactionId xid,
                             LockTupleMode mode)
 {
+  DBUG_TRACE;
   TM_Result result;
   ItemPointerData tupid;
   HeapTupleData mytup;
@@ -5717,6 +5979,7 @@ l4:
              * as share-locked in the old cluster) shouldn't be
              * seen in the middle of an update chain.
              */
+            DBUG_INSTANT_PRINT("info", "invalid lock status in tuple");
             elog(ERROR, "invalid lock status in tuple");
           }
         } else {
@@ -5768,6 +6031,7 @@ l4:
     START_CRIT_SECTION();
 
     /* ... and set them */
+    DBUG_PRINT("info", "set xmax:%u for block:%u", new_xmax, block);
     HeapTupleHeaderSetXmax(mytup.t_data, new_xmax);
     mytup.t_data->t_infomask &= ~HEAP_XMAX_BITS;
     mytup.t_data->t_infomask2 &= ~HEAP_KEYS_UPDATED;
@@ -5862,6 +6126,7 @@ heap_lock_updated_tuple(Relation rel,
                         const ItemPointerData *prior_ctid,
                         TransactionId xid, LockTupleMode mode)
 {
+  DBUG_TRACE;
   INJECTION_POINT("heap_lock_updated_tuple", NULL);
 
   /*
@@ -5910,6 +6175,7 @@ heap_lock_updated_tuple(Relation rel,
 void
 heap_finish_speculative(Relation relation, ItemPointer tid)
 {
+  DBUG_TRACE;
   Buffer    buffer;
   Page    page;
   OffsetNumber offnum;
@@ -5925,8 +6191,10 @@ heap_finish_speculative(Relation relation, ItemPointer tid)
   if (PageGetMaxOffsetNumber(page) >= offnum)
     lp = PageGetItemId(page, offnum);
 
-  if (PageGetMaxOffsetNumber(page) < offnum || !ItemIdIsNormal(lp))
+  if (PageGetMaxOffsetNumber(page) < offnum || !ItemIdIsNormal(lp)) {
+    DBUG_INSTANT_PRINT("info", "invalid lp");
     elog(ERROR, "invalid lp");
+  }
 
   htup = (HeapTupleHeader) PageGetItem(page, lp);
 
@@ -5997,6 +6265,7 @@ heap_finish_speculative(Relation relation, ItemPointer tid)
 void
 heap_abort_speculative(Relation relation, ItemPointer tid)
 {
+  DBUG_TRACE;
   TransactionId xid = GetCurrentTransactionId();
   ItemId    lp;
   HeapTupleData tp;
@@ -6030,11 +6299,15 @@ heap_abort_speculative(Relation relation, ItemPointer tid)
    * Sanity check that the tuple really is a speculatively inserted tuple,
    * inserted by us.
    */
-  if (tp.t_data->t_choice.t_heap.t_xmin != xid)
+  if (tp.t_data->t_choice.t_heap.t_xmin != xid) {
+    DBUG_INSTANT_PRINT("info", "attempted to kill a tuple inserted by another transaction");
     elog(ERROR, "attempted to kill a tuple inserted by another transaction");
+  }
 
-  if (!(IsToastRelation(relation) || HeapTupleHeaderIsSpeculative(tp.t_data)))
+  if (!(IsToastRelation(relation) || HeapTupleHeaderIsSpeculative(tp.t_data))) {
+    DBUG_INSTANT_PRINT("info", "attempted to kill a non-speculative tuple");
     elog(ERROR, "attempted to kill a non-speculative tuple");
+  }
 
   Assert(!HeapTupleHeaderIsHeapOnly(tp.t_data));
 
@@ -6067,6 +6340,7 @@ heap_abort_speculative(Relation relation, ItemPointer tid)
       prune_xid = TransactionXmin;
 
     PageSetPrunable(page, prune_xid);
+    DBUG_PRINT("info", "relfrozenxid:%u, prune_xid:%u", relfrozenxid, prune_xid);
   }
 
   /* store transaction information of xact deleting the tuple */
@@ -6179,6 +6453,7 @@ heap_inplace_lock(Relation relation,
                   HeapTuple oldtup_ptr, Buffer buffer,
                   void (*release_callback) (void *), void *arg)
 {
+  DBUG_TRACE;
   HeapTupleData oldtup = *oldtup_ptr; /* minimize diff vs. heap_update() */
   TM_Result result;
   bool    ret;
@@ -6222,6 +6497,7 @@ heap_inplace_lock(Relation relation,
 
   if (result == TM_Invisible) {
     /* no known way this can happen */
+    DBUG_INSTANT_PRINT("info", "attempted to overwrite invisible tuple");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg_internal("attempted to overwrite invisible tuple")));
@@ -6232,6 +6508,7 @@ heap_inplace_lock(Relation relation,
      * statements might get here after a heap_update() of the same row, in
      * the absence of an intervening CommandCounterIncrement().
      */
+    DBUG_INSTANT_PRINT("info", "tuple to be updated was already modified by an operation triggered by the current command");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("tuple to be updated was already modified by an operation triggered by the current command")));
@@ -6307,6 +6584,7 @@ heap_inplace_update_and_unlock(Relation relation,
                                HeapTuple oldtup, HeapTuple tuple,
                                Buffer buffer)
 {
+  DBUG_TRACE;
   HeapTupleHeader htup = oldtup->t_data;
   uint32    oldlen;
   uint32    newlen;
@@ -6320,8 +6598,10 @@ heap_inplace_update_and_unlock(Relation relation,
   oldlen = oldtup->t_len - htup->t_hoff;
   newlen = tuple->t_len - tuple->t_data->t_hoff;
 
-  if (oldlen != newlen || htup->t_hoff != tuple->t_data->t_hoff)
+  if (oldlen != newlen || htup->t_hoff != tuple->t_data->t_hoff) {
+    DBUG_INSTANT_PRINT("info", "wrong tuple length");
     elog(ERROR, "wrong tuple length");
+  }
 
   dst = (char *) htup + htup->t_hoff;
   src = (char *) tuple->t_data + tuple->t_data->t_hoff;
@@ -6456,6 +6736,7 @@ void
 heap_inplace_unlock(Relation relation,
                     HeapTuple oldtup, Buffer buffer)
 {
+  DBUG_TRACE;
   LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
   UnlockTuple(relation, &oldtup->t_self, InplaceUpdateTupleLock);
   ForgetInplace_Inval();
@@ -6518,6 +6799,7 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
                   const struct VacuumCutoffs *cutoffs, uint16 *flags,
                   HeapPageFreeze *pagefrz)
 {
+  DBUG_TRACE;
   TransactionId newxmax;
   MultiXactMember *members;
   int     nmembers;
@@ -6539,12 +6821,12 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
     *flags |= FRM_INVALIDATE_XMAX;
     pagefrz->freeze_required = true;
     return InvalidTransactionId;
-  } else if (MultiXactIdPrecedes(multi, cutoffs->relminmxid))
+  } else if (MultiXactIdPrecedes(multi, cutoffs->relminmxid)) {
     ereport(ERROR,
             (errcode(ERRCODE_DATA_CORRUPTED),
              errmsg_internal("found multixact %u from before relminmxid %u",
                              multi, cutoffs->relminmxid)));
-  else if (MultiXactIdPrecedes(multi, cutoffs->OldestMxact)) {
+  } else if (MultiXactIdPrecedes(multi, cutoffs->OldestMxact)) {
     TransactionId update_xact;
 
     /*
@@ -6554,11 +6836,13 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
      * we might need to preserve it.
      */
     if (MultiXactIdIsRunning(multi,
-                             HEAP_XMAX_IS_LOCKED_ONLY(t_infomask)))
+                             HEAP_XMAX_IS_LOCKED_ONLY(t_infomask))) {
+      DBUG_INSTANT_PRINT("info", "multixact %u from before multi freeze cutoff %u found to be still running", multi, cutoffs->OldestMxact);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("multixact %u from before multi freeze cutoff %u found to be still running",
                                multi, cutoffs->OldestMxact)));
+    }
 
     if (HEAP_XMAX_IS_LOCKED_ONLY(t_infomask)) {
       *flags |= FRM_INVALIDATE_XMAX;
@@ -6569,24 +6853,29 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
     /* replace multi with single XID for its updater? */
     update_xact = MultiXactIdGetUpdateXid(multi, t_infomask);
 
-    if (TransactionIdPrecedes(update_xact, cutoffs->relfrozenxid))
+    if (TransactionIdPrecedes(update_xact, cutoffs->relfrozenxid)) {
+      DBUG_INSTANT_PRINT("info", "multixact %u contains update XID %u from before relfrozenxid %u", multi,
+                         update_xact, cutoffs->relfrozenxid);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("multixact %u contains update XID %u from before relfrozenxid %u",
                                multi, update_xact,
                                cutoffs->relfrozenxid)));
-    else if (TransactionIdPrecedes(update_xact, cutoffs->OldestXmin)) {
+    } else if (TransactionIdPrecedes(update_xact, cutoffs->OldestXmin)) {
       /*
        * Updater XID has to have aborted (otherwise the tuple would have
        * been pruned away instead, since updater XID is < OldestXmin).
        * Just remove xmax.
        */
-      if (TransactionIdDidCommit(update_xact))
+      if (TransactionIdDidCommit(update_xact)) {
+        DBUG_INSTANT_PRINT("info", "multixact %u contains committed update XID %u from before removable cutoff %u",
+                           multi, update_xact, cutoffs->OldestXmin);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg_internal("multixact %u contains committed update XID %u from before removable cutoff %u",
                                  multi, update_xact,
                                  cutoffs->OldestXmin)));
+      }
 
       *flags |= FRM_INVALIDATE_XMAX;
       pagefrz->freeze_required = true;
@@ -6701,12 +6990,15 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
        */
       if (TransactionIdIsCurrentTransactionId(xid) ||
           TransactionIdIsInProgress(xid)) {
-        if (TransactionIdPrecedes(xid, cutoffs->OldestXmin))
+        if (TransactionIdPrecedes(xid, cutoffs->OldestXmin)) {
+          DBUG_INSTANT_PRINT("info", "multixact %u contains running locker XID %u from before removable cutoff %u",
+                             multi, xid, cutoffs->OldestXmin);
           ereport(ERROR,
                   (errcode(ERRCODE_DATA_CORRUPTED),
                    errmsg_internal("multixact %u contains running locker XID %u from before removable cutoff %u",
                                    multi, xid,
                                    cutoffs->OldestXmin)));
+        }
 
         newmembers[nnewmembers++] = members[i];
         has_lockers = true;
@@ -6726,13 +7018,15 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
      * In any case the Multi should never contain two updaters, whatever
      * their individual commit status.  Check for that first, in passing.
      */
-    if (TransactionIdIsValid(update_xid))
+    if (TransactionIdIsValid(update_xid)) {
+      DBUG_INSTANT_PRINT("info", "multixact %u has two or more updating members", multi);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("multixact %u has two or more updating members",
                                multi),
                errdetail_internal("First updater XID=%u second updater XID=%u.",
                                   update_xid, xid)));
+    }
 
     /*
      * As with all tuple visibility routines, it's critical to test
@@ -6762,11 +7056,14 @@ FreezeMultiXactId(MultiXactId multi, uint16 t_infomask,
      * We determined that updater must be kept -- add it to pending new
      * members list
      */
-    if (TransactionIdPrecedes(xid, cutoffs->OldestXmin))
+    if (TransactionIdPrecedes(xid, cutoffs->OldestXmin)) {
+      DBUG_INSTANT_PRINT("info", "multixact %u contains committed update XID %u from before removable cutoff %u",
+                         multi, xid, cutoffs->OldestXmin);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("multixact %u contains committed update XID %u from before removable cutoff %u",
                                multi, xid, cutoffs->OldestXmin)));
+    }
 
     newmembers[nnewmembers++] = members[i];
   }
@@ -6860,6 +7157,7 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
                           HeapPageFreeze *pagefrz,
                           HeapTupleFreeze *frz, bool *totally_frozen)
 {
+  DBUG_TRACE;
   bool    xmin_already_frozen = false,
           xmax_already_frozen = false;
   bool    freeze_xmin = false,
@@ -6874,6 +7172,10 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
   frz->frzflags = 0;
   frz->checkflags = 0;
 
+  if (HeapTupleHeaderXminFrozen(tuple)) {
+    DBUG_PRINT("info", "t_infomask:HEAP_XMIN_FROZEN for raw xmin:%u", HeapTupleHeaderGetRawXmin(tuple));
+  }
+
   /*
    * Process xmin, while keeping track of whether it's already frozen, or
    * will become frozen iff our freeze plan is executed by caller (could be
@@ -6881,21 +7183,29 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
    */
   xid = HeapTupleHeaderGetXmin(tuple);
 
-  if (!TransactionIdIsNormal(xid))
+  if (!TransactionIdIsNormal(xid)) {
     xmin_already_frozen = true;
-  else {
-    if (TransactionIdPrecedes(xid, cutoffs->relfrozenxid))
+    DBUG_PRINT("info", "xmin already frozen for xid:%u and OldestXmin:%u", xid, cutoffs->OldestXmin);
+  } else {
+    if (TransactionIdPrecedes(xid, cutoffs->relfrozenxid)) {
+      DBUG_INSTANT_PRINT("info", "found xmin %u from before relfrozenxid %u", xid, cutoffs->relfrozenxid);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("found xmin %u from before relfrozenxid %u",
                                xid, cutoffs->relfrozenxid)));
+    }
+
 
     /* Will set freeze_xmin flags in freeze plan below */
     freeze_xmin = TransactionIdPrecedes(xid, cutoffs->OldestXmin);
 
     /* Verify that xmin committed if and when freeze plan is executed */
-    if (freeze_xmin)
+    if (freeze_xmin) {
+      DBUG_PRINT("info", "freeze_xmin:true, xid:%u, OldestXmin:%u", xid, cutoffs->OldestXmin);
       frz->checkflags |= HEAP_FREEZE_CHECK_XMIN_COMMITTED;
+    } else {
+      DBUG_PRINT("info", "freeze_xmin:false, xid:%u, OldestXmin:%u", xid, cutoffs->OldestXmin);
+    }
   }
 
   /*
@@ -6912,6 +7222,7 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
      * For Xvac, we always freeze proactively.  This allows totally_frozen
      * tracking to ignore xvac.
      */
+    DBUG_PRINT("info", "for Xvac, we always freeze proactively");
     replace_xvac = pagefrz->freeze_required = true;
 
     /* Will set replace_xvac flags in freeze plan below */
@@ -6925,6 +7236,7 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
     TransactionId newxmax;
     uint16    flags;
 
+    DBUG_PRINT("info", "raw xmax is a MultiXactId");
     /*
      * We will either remove xmax completely (in the "freeze_xmax" path),
      * process xmax by replacing it (in the "replace_xmax" path), or
@@ -7016,11 +7328,13 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
     Assert(pagefrz->freeze_required || (!freeze_xmax && !replace_xmax));
   } else if (TransactionIdIsNormal(xid)) {
     /* Raw xmax is normal XID */
-    if (TransactionIdPrecedes(xid, cutoffs->relfrozenxid))
+    if (TransactionIdPrecedes(xid, cutoffs->relfrozenxid)) {
+      DBUG_INSTANT_PRINT("info", "found xmax %u from before relfrozenxid %u", xid, cutoffs->relfrozenxid);
       ereport(ERROR,
               (errcode(ERRCODE_DATA_CORRUPTED),
                errmsg_internal("found xmax %u from before relfrozenxid %u",
                                xid, cutoffs->relfrozenxid)));
+    }
 
     /* Will set freeze_xmax flags in freeze plan below */
     freeze_xmax = TransactionIdPrecedes(xid, cutoffs->OldestXmin);
@@ -7036,11 +7350,13 @@ heap_prepare_freeze_tuple(HeapTupleHeader tuple,
     /* Raw xmax is InvalidTransactionId XID */
     Assert((tuple->t_infomask & HEAP_XMAX_IS_MULTI) == 0);
     xmax_already_frozen = true;
-  } else
+  } else {
+    DBUG_INSTANT_PRINT("info", "found raw xmax %u (infomask 0x%04x) not invalid and not multi", xid, tuple->t_infomask);
     ereport(ERROR,
             (errcode(ERRCODE_DATA_CORRUPTED),
              errmsg_internal("found raw xmax %u (infomask 0x%04x) not invalid and not multi",
                              xid, tuple->t_infomask)));
+  }
 
   if (freeze_xmin) {
     Assert(!xmin_already_frozen);
@@ -7120,6 +7436,7 @@ void
 heap_pre_freeze_checks(Buffer buffer,
                        HeapTupleFreeze *tuples, int ntuples)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
 
   for (int i = 0; i < ntuples; i++) {
@@ -7135,11 +7452,13 @@ heap_pre_freeze_checks(Buffer buffer,
 
       Assert(!HeapTupleHeaderXminFrozen(htup));
 
-      if (unlikely(!TransactionIdDidCommit(xmin)))
+      if (unlikely(!TransactionIdDidCommit(xmin))) {
+        DBUG_INSTANT_PRINT("info", "uncommitted xmin %u needs to be frozen", xmin);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg_internal("uncommitted xmin %u needs to be frozen",
                                  xmin)));
+      }
     }
 
     /*
@@ -7152,11 +7471,13 @@ heap_pre_freeze_checks(Buffer buffer,
 
       Assert(TransactionIdIsNormal(xmax));
 
-      if (unlikely(TransactionIdDidCommit(xmax)))
+      if (unlikely(TransactionIdDidCommit(xmax))) {
+        DBUG_INSTANT_PRINT("info", "cannot freeze committed xmax %u", xmax);
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg_internal("cannot freeze committed xmax %u",
                                  xmax)));
+      }
     }
   }
 }
@@ -7171,6 +7492,7 @@ heap_pre_freeze_checks(Buffer buffer,
 void
 heap_freeze_prepared_tuples(Buffer buffer, HeapTupleFreeze *tuples, int ntuples)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
 
   for (int i = 0; i < ntuples; i++) {
@@ -7194,12 +7516,14 @@ heap_freeze_tuple(HeapTupleHeader tuple,
                   TransactionId relfrozenxid, TransactionId relminmxid,
                   TransactionId FreezeLimit, TransactionId MultiXactCutoff)
 {
+  DBUG_TRACE;
   HeapTupleFreeze frz;
   bool    do_freeze;
   bool    totally_frozen;
   struct VacuumCutoffs cutoffs;
   HeapPageFreeze pagefrz;
 
+  DBUG_PRINT("info", "freeze tuple in place, without WAL logging:%u", relfrozenxid);
   cutoffs.relfrozenxid = relfrozenxid;
   cutoffs.relminmxid = relminmxid;
   cutoffs.OldestXmin = FreezeLimit;
@@ -7238,6 +7562,7 @@ static void
 GetMultiXactIdHintBits(MultiXactId multi, uint16 *new_infomask,
                        uint16 *new_infomask2)
 {
+  DBUG_TRACE;
   int     nmembers;
   MultiXactMember *members;
   int     i;
@@ -7317,6 +7642,7 @@ GetMultiXactIdHintBits(MultiXactId multi, uint16 *new_infomask,
 static TransactionId
 MultiXactIdGetUpdateXid(TransactionId xmax, uint16 t_infomask)
 {
+  DBUG_TRACE;
   TransactionId update_xact = InvalidTransactionId;
   MultiXactMember *members;
   int     nmembers;
@@ -7384,6 +7710,7 @@ static bool
 DoesMultiXactIdConflict(MultiXactId multi, uint16 infomask,
                         LockTupleMode lockmode, bool *current_is_member)
 {
+  DBUG_TRACE;
   int     nmembers;
   MultiXactMember *members;
   bool    result = false;
@@ -7483,6 +7810,7 @@ Do_MultiXactIdWait(MultiXactId multi, MultiXactStatus status,
                    Relation rel, ItemPointer ctid, XLTW_Oper oper,
                    int *remaining, bool logLockFailure)
 {
+  DBUG_TRACE;
   bool    result = true;
   MultiXactMember *members;
   int     nmembers;
@@ -7556,6 +7884,7 @@ MultiXactIdWait(MultiXactId multi, MultiXactStatus status, uint16 infomask,
                 Relation rel, ItemPointer ctid, XLTW_Oper oper,
                 int *remaining)
 {
+  DBUG_TRACE;
   (void) Do_MultiXactIdWait(multi, status, infomask, false,
                             rel, ctid, oper, remaining, false);
 }
@@ -7591,6 +7920,7 @@ ConditionalMultiXactIdWait(MultiXactId multi, MultiXactStatus status,
 bool
 heap_tuple_needs_eventual_freeze(HeapTupleHeader tuple)
 {
+  DBUG_TRACE;
   TransactionId xid;
 
   /*
@@ -7649,6 +7979,7 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
                          TransactionId *NoFreezePageRelfrozenXid,
                          MultiXactId *NoFreezePageRelminMxid)
 {
+  DBUG_TRACE;
   TransactionId xid;
   MultiXactId multi;
   bool    freeze = false;
@@ -7662,8 +7993,10 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
     if (TransactionIdPrecedes(xid, *NoFreezePageRelfrozenXid))
       *NoFreezePageRelfrozenXid = xid;
 
-    if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit))
+    if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit)) {
+      DBUG_PRINT("info", "first, handle xmin and set freeze=true (xid=%u, FreezeLimit=%u)", xid, cutoffs->FreezeLimit);
       freeze = true;
+    }
   }
 
   /* Now deal with xmax */
@@ -7682,8 +8015,10 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
     if (TransactionIdPrecedes(xid, *NoFreezePageRelfrozenXid))
       *NoFreezePageRelfrozenXid = xid;
 
-    if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit))
+    if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit)) {
+      DBUG_PRINT("info", "now handle xmax and set freeze=true (xid=%u, FreezeLimit=%u)", xid, cutoffs->FreezeLimit);
       freeze = true;
+    }
   } else if (!MultiXactIdIsValid(multi)) {
     /* xmax is a permanent XID or invalid MultiXactId/XID */
   } else if (HEAP_LOCKED_UPGRADED(tuple->t_infomask)) {
@@ -7692,6 +8027,7 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
       *NoFreezePageRelminMxid = multi;
 
     /* heap_prepare_freeze_tuple always freezes pg_upgrade'd xmax */
+    DBUG_PRINT("info", "heap_prepare_freeze_tuple always freezes pg_upgrade'd xmax");
     freeze = true;
   } else {
     /* xmax is a MultiXactId that may have an updater XID */
@@ -7703,8 +8039,10 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
     if (MultiXactIdPrecedes(multi, *NoFreezePageRelminMxid))
       *NoFreezePageRelminMxid = multi;
 
-    if (MultiXactIdPrecedes(multi, cutoffs->MultiXactCutoff))
+    if (MultiXactIdPrecedes(multi, cutoffs->MultiXactCutoff)) {
+      DBUG_PRINT("info", "handle xmax and set freeze=true (multi=%u, MultiXactCutoff=%u)", multi, cutoffs->MultiXactCutoff);
       freeze = true;
+    }
 
     /* need to check whether any member of the mxact is old */
     nmembers = GetMultiXactIdMembers(multi, &members, false,
@@ -7717,8 +8055,10 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
       if (TransactionIdPrecedes(xid, *NoFreezePageRelfrozenXid))
         *NoFreezePageRelfrozenXid = xid;
 
-      if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit))
+      if (TransactionIdPrecedes(xid, cutoffs->FreezeLimit)) {
+        DBUG_PRINT("info", "handle mxact and set freeze=true (xid=%u, FreezeLimit=%u)", xid, cutoffs->FreezeLimit);
         freeze = true;
+      }
     }
 
     if (nmembers > 0)
@@ -7735,8 +8075,15 @@ heap_tuple_should_freeze(HeapTupleHeader tuple,
         *NoFreezePageRelfrozenXid = xid;
 
       /* heap_prepare_freeze_tuple forces xvac freezing */
+      DBUG_PRINT("info", "heap_prepare_freeze_tuple forces xvac freezing");
       freeze = true;
     }
+  }
+
+  if (freeze) {
+    DBUG_PRINT("info", "freeze: true");
+  } else {
+    DBUG_PRINT("info", "freeze: false");
   }
 
   return freeze;
@@ -7759,6 +8106,7 @@ void
 HeapTupleHeaderAdvanceConflictHorizon(HeapTupleHeader tuple,
                                       TransactionId *snapshotConflictHorizon)
 {
+  DBUG_TRACE;
   TransactionId xmin = HeapTupleHeaderGetXmin(tuple);
   TransactionId xmax = HeapTupleHeaderGetUpdateXid(tuple);
   TransactionId xvac = HeapTupleHeaderGetXvac(tuple);
@@ -7798,6 +8146,7 @@ index_delete_prefetch_buffer(Relation rel,
                              IndexDeletePrefetchState *prefetch_state,
                              int prefetch_count)
 {
+  DBUG_TRACE;
   BlockNumber cur_hblkno = prefetch_state->cur_hblkno;
   int     count = 0;
   int     i;
@@ -7846,25 +8195,33 @@ index_delete_check_htid(TM_IndexDeleteOp *delstate,
 
   Assert(OffsetNumberIsValid(istatus->idxoffnum));
 
-  if (unlikely(indexpagehoffnum > maxoff))
+  if (unlikely(indexpagehoffnum > maxoff)) {
+    char *rel_name = RelationGetRelationName(delstate->irel);
+    DBUG_INSTANT_PRINT("info", "heap tid from index tuple (%u,%u) points past end of heap page line pointer array at offset %u of block %u in index \"%s\"",
+                       ItemPointerGetBlockNumber(htid), indexpagehoffnum, istatus->idxoffnum, delstate->iblknum, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("heap tid from index tuple (%u,%u) points past end of heap page line pointer array at offset %u of block %u in index \"%s\"",
                              ItemPointerGetBlockNumber(htid),
                              indexpagehoffnum,
                              istatus->idxoffnum, delstate->iblknum,
-                             RelationGetRelationName(delstate->irel))));
+                             rel_name)));
+  }
 
   iid = PageGetItemId(page, indexpagehoffnum);
 
-  if (unlikely(!ItemIdIsUsed(iid)))
+  if (unlikely(!ItemIdIsUsed(iid))) {
+    char *rel_name = RelationGetRelationName(delstate->irel);
+    DBUG_INSTANT_PRINT("info", "heap tid from index tuple (%u,%u) points to unused heap page item at offset %u of block %u in index \"%s\"",
+                       ItemPointerGetBlockNumber(htid), indexpagehoffnum, istatus->idxoffnum, delstate->iblknum, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("heap tid from index tuple (%u,%u) points to unused heap page item at offset %u of block %u in index \"%s\"",
                              ItemPointerGetBlockNumber(htid),
                              indexpagehoffnum,
                              istatus->idxoffnum, delstate->iblknum,
-                             RelationGetRelationName(delstate->irel))));
+                             rel_name)));
+  }
 
   if (ItemIdHasStorage(iid)) {
     HeapTupleHeader htup;
@@ -7872,14 +8229,18 @@ index_delete_check_htid(TM_IndexDeleteOp *delstate,
     Assert(ItemIdIsNormal(iid));
     htup = (HeapTupleHeader) PageGetItem(page, iid);
 
-    if (unlikely(HeapTupleHeaderIsHeapOnly(htup)))
+    if (unlikely(HeapTupleHeaderIsHeapOnly(htup))) {
+      char *rel_name = RelationGetRelationName(delstate->irel);
+      DBUG_INSTANT_PRINT("info", "heap tid from index tuple (%u,%u) points to heap-only tuple at offset %u of block %u in index \"%s\"",
+                         ItemPointerGetBlockNumber(htid), indexpagehoffnum, istatus->idxoffnum, delstate->iblknum, rel_name);
       ereport(ERROR,
               (errcode(ERRCODE_INDEX_CORRUPTED),
                errmsg_internal("heap tid from index tuple (%u,%u) points to heap-only tuple at offset %u of block %u in index \"%s\"",
                                ItemPointerGetBlockNumber(htid),
                                indexpagehoffnum,
                                istatus->idxoffnum, delstate->iblknum,
-                               RelationGetRelationName(delstate->irel))));
+                               rel_name)));
+    }
   }
 }
 
@@ -7899,6 +8260,7 @@ index_delete_check_htid(TM_IndexDeleteOp *delstate,
 TransactionId
 heap_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   /* Initial assumption is that earlier pruning took care of conflict */
   TransactionId snapshotConflictHorizon = InvalidTransactionId;
   BlockNumber blkno = InvalidBlockNumber;
@@ -8242,6 +8604,7 @@ index_delete_sort_cmp(TM_IndexDelete *deltid1, TM_IndexDelete *deltid2)
 static void
 index_delete_sort(TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   TM_IndexDelete *deltids = delstate->deltids;
   int     ndeltids = delstate->ndeltids;
 
@@ -8337,6 +8700,7 @@ static int
 bottomup_nblocksfavorable(IndexDeleteCounts *blockgroups, int nblockgroups,
                           TM_IndexDelete *deltids)
 {
+  DBUG_TRACE;
   int64   lastblock = -1;
   int     nblocksfavorable = 0;
 
@@ -8453,6 +8817,7 @@ bottomup_sort_and_shrink_cmp(const void *arg1, const void *arg2)
 static int
 bottomup_sort_and_shrink(TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   IndexDeleteCounts *blockgroups;
   TM_IndexDelete *reordereddeltids;
   BlockNumber curblock = InvalidBlockNumber;
@@ -8578,6 +8943,7 @@ XLogRecPtr
 log_heap_visible(Relation rel, Buffer heap_buffer, Buffer vm_buffer,
                  TransactionId snapshotConflictHorizon, uint8 vmflags)
 {
+  DBUG_TRACE;
   xl_heap_visible xlrec;
   XLogRecPtr  recptr;
   uint8   flags;
@@ -8618,6 +8984,7 @@ log_heap_update(Relation reln, Buffer oldbuf,
                 HeapTuple old_key_tuple,
                 bool all_visible_cleared, bool new_all_visible_cleared)
 {
+  DBUG_TRACE;
   xl_heap_update xlrec;
   xl_heap_header xlhdr;
   xl_heap_header xlhdr_idx;
@@ -8830,6 +9197,7 @@ log_heap_update(Relation reln, Buffer oldbuf,
 static XLogRecPtr
 log_heap_new_cid(Relation relation, HeapTuple tup)
 {
+  DBUG_TRACE;
   xl_heap_new_cid xlrec;
 
   XLogRecPtr  recptr;
@@ -8909,6 +9277,7 @@ static HeapTuple
 ExtractReplicaIdentity(Relation relation, HeapTuple tp, bool key_required,
                        bool *copy)
 {
+  DBUG_TRACE;
   TupleDesc desc = RelationGetDescr(relation);
   char    replident = relation->rd_rel->relreplident;
   Bitmapset  *idattrs;
@@ -9011,11 +9380,14 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
                                     HeapTuple tuple, Buffer buffer,
                                     Snapshot snapshot)
 {
+  DBUG_TRACE;
   TransactionId xid;
   HTSV_Result htsvResult;
 
-  if (!CheckForSerializableConflictOutNeeded(relation, snapshot))
+  if (!CheckForSerializableConflictOutNeeded(relation, snapshot)) {
+    DBUG_PRINT("info", "there is no need to continue processing");
     return;
+  }
 
   /*
    * Check to see whether the tuple has been written to by a concurrent
@@ -9032,20 +9404,26 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
 
   switch (htsvResult) {
     case HEAPTUPLE_LIVE:
-      if (visible)
+      DBUG_PRINT("info", "HEAPTUPLE_LIVE");
+
+      if (visible) {
+        DBUG_PRINT("info", "HEAPTUPLE_LIVE: return because visible is true");
         return;
+      }
 
       xid = HeapTupleHeaderGetXmin(tuple->t_data);
       break;
 
     case HEAPTUPLE_RECENTLY_DEAD:
     case HEAPTUPLE_DELETE_IN_PROGRESS:
-      if (visible)
+      if (visible) {
         xid = HeapTupleHeaderGetUpdateXid(tuple->t_data);
-      else
+      } else {
         xid = HeapTupleHeaderGetXmin(tuple->t_data);
+      }
 
       if (TransactionIdPrecedes(xid, TransactionXmin)) {
+        DBUG_PRINT("info", "this is like the HEAPTUPLE_DEAD case");
         /* This is like the HEAPTUPLE_DEAD case */
         Assert(!visible);
         return;
@@ -9054,10 +9432,12 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
       break;
 
     case HEAPTUPLE_INSERT_IN_PROGRESS:
+      DBUG_PRINT("info", "HEAPTUPLE_INSERT_IN_PROGRESS");
       xid = HeapTupleHeaderGetXmin(tuple->t_data);
       break;
 
     case HEAPTUPLE_DEAD:
+      DBUG_PRINT("info", "HEAPTUPLE_DEAD: return");
       Assert(!visible);
       return;
 
@@ -9068,6 +9448,7 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
        * added to the enum type without adding it to this switch
        * statement.  That's a bug, so elog.
        */
+      DBUG_INSTANT_PRINT("info", "unrecognized return value from HeapTupleSatisfiesVacuum: %u", htsvResult);
       elog(ERROR, "unrecognized return value from HeapTupleSatisfiesVacuum: %u", htsvResult);
 
       /*
@@ -9086,13 +9467,15 @@ HeapCheckForSerializableConflictOut(bool visible, Relation relation,
    * Find top level xid.  Bail out if xid is too early to be a conflict, or
    * if it's our own xid.
    */
-  if (TransactionIdEquals(xid, GetTopTransactionIdIfAny()))
+  if (TransactionIdEquals(xid, GetTopTransactionIdIfAny())) {
     return;
+  }
 
   xid = SubTransGetTopmostTransaction(xid);
 
-  if (TransactionIdPrecedes(xid, TransactionXmin))
+  if (TransactionIdPrecedes(xid, TransactionXmin)) {
     return;
+  }
 
   CheckForSerializableConflictOut(relation, xid, snapshot);
 }

@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "optimizer/geqo_random.h"
@@ -19,6 +20,7 @@
 void
 geqo_set_seed(PlannerInfo *root, double seed)
 {
+  DBUG_TRACE;
   GeqoPrivateData *private = (GeqoPrivateData *) root->join_search_private;
 
   pg_prng_fseed(&private->random_state, seed);
@@ -27,6 +29,7 @@ geqo_set_seed(PlannerInfo *root, double seed)
 double
 geqo_rand(PlannerInfo *root)
 {
+  DBUG_TRACE;
   GeqoPrivateData *private = (GeqoPrivateData *) root->join_search_private;
 
   return pg_prng_double(&private->random_state);
@@ -35,6 +38,7 @@ geqo_rand(PlannerInfo *root)
 int
 geqo_randint(PlannerInfo *root, int upper, int lower)
 {
+  DBUG_TRACE;
   GeqoPrivateData *private = (GeqoPrivateData *) root->join_search_private;
 
   /*

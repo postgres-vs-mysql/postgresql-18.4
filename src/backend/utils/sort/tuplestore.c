@@ -53,6 +53,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -326,6 +327,7 @@ tuplestore_begin_common(int eflags, bool interXact, int maxKBytes)
 Tuplestorestate *
 tuplestore_begin_heap(bool randomAccess, bool interXact, int maxKBytes)
 {
+  DBUG_TRACE;
   Tuplestorestate *state;
   int     eflags;
 
@@ -426,6 +428,7 @@ tuplestore_alloc_read_pointer(Tuplestorestate *state, int eflags)
 void
 tuplestore_clear(Tuplestorestate *state)
 {
+  DBUG_TRACE;
   int     i;
   TSReadPointer *readptr;
 
@@ -608,6 +611,7 @@ tuplestore_ateof(Tuplestorestate *state)
 static bool
 grow_memtuples(Tuplestorestate *state)
 {
+  DBUG_TRACE;
   int     newmemtupsize;
   int     memtupsize = state->memtupsize;
   int64   memNowUsed = state->allowedMem - state->availMem;
@@ -737,6 +741,7 @@ void
 tuplestore_puttupleslot(Tuplestorestate *state,
                         TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
   MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
@@ -758,6 +763,7 @@ tuplestore_puttupleslot(Tuplestorestate *state,
 void
 tuplestore_puttuple(Tuplestorestate *state, HeapTuple tuple)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
   /*
@@ -779,6 +785,7 @@ void
 tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
                      const Datum *values, const bool *isnull)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
   MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
@@ -839,6 +846,7 @@ tuplestore_puttuple_common(Tuplestorestate *state, void *tuple)
        * Nope; time to switch to tape-based operation.  Make sure that
        * the temp file(s) are created in suitable temp tablespaces.
        */
+      DBUG_PRINT("info", "time to switch to tape-based operation");
       PrepareTempTablespaces();
 
       /* associate the file with the store's resource owner */
@@ -1122,6 +1130,7 @@ bool
 tuplestore_gettupleslot(Tuplestorestate *state, bool forward,
                         bool copy, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
   bool    should_free;
 
@@ -1150,6 +1159,7 @@ tuplestore_gettupleslot(Tuplestorestate *state, bool forward,
 bool
 tuplestore_advance(Tuplestorestate *state, bool forward)
 {
+  DBUG_TRACE;
   void     *tuple;
   bool    should_free;
 
@@ -1173,26 +1183,39 @@ tuplestore_advance(Tuplestorestate *state, bool forward)
 bool
 tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 {
+  DBUG_TRACE;
   TSReadPointer *readptr = &state->readptrs[state->activeptr];
 
   Assert(forward || (readptr->eflags & EXEC_FLAG_BACKWARD));
 
-  if (ntuples <= 0)
+  if (ntuples <= 0) {
+    DBUG_PRINT("info", "ntuples:%ld <= 0 and return true", ntuples);
     return true;
+  }
+
+  if (forward) {
+    DBUG_PRINT("info", "advance over %ld tuples in forward direction", ntuples);
+  } else {
+    DBUG_PRINT("info", "advance over %ld tuples in back direction", ntuples);
+  }
 
   switch (state->status) {
     case TSS_INMEM:
       if (forward) {
-        if (readptr->eof_reached)
+        if (readptr->eof_reached) {
+          DBUG_PRINT("info", "ran out of tuples and return false");
           return false;
+        }
 
         if (state->memtupcount - readptr->current >= ntuples) {
           readptr->current += ntuples;
+          DBUG_PRINT("info", "tuples still fit in memory and return true");
           return true;
         }
 
         readptr->current = state->memtupcount;
         readptr->eof_reached = true;
+        DBUG_PRINT("info", "ran out of tuples and return false");
         return false;
       } else {
         if (readptr->eof_reached) {
@@ -1203,11 +1226,13 @@ tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 
         if (readptr->current - state->memtupdeleted > ntuples) {
           readptr->current -= ntuples;
+          DBUG_PRINT("info", "tuples still fit in memory and return true");
           return true;
         }
 
         Assert(!state->truncated);
         readptr->current = state->memtupdeleted;
+        DBUG_PRINT("info", "ran out of tuples and return false");
         return false;
       }
 
@@ -1222,8 +1247,10 @@ tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 
         tuple = tuplestore_gettuple(state, forward, &should_free);
 
-        if (tuple == NULL)
+        if (tuple == NULL) {
+          DBUG_PRINT("info", "ran out of tuples and return false");
           return false;
+        }
 
         if (should_free)
           pfree(tuple);
@@ -1231,6 +1258,7 @@ tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
         CHECK_FOR_INTERRUPTS();
       }
 
+      DBUG_PRINT("info", "return true");
       return true;
   }
 }
@@ -1245,6 +1273,7 @@ tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 static void
 dumptuples(Tuplestorestate *state)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = state->memtupdeleted;; i++) {
@@ -1285,6 +1314,7 @@ dumptuples(Tuplestorestate *state)
 void
 tuplestore_rescan(Tuplestorestate *state)
 {
+  DBUG_TRACE;
   TSReadPointer *readptr = &state->readptrs[state->activeptr];
 
   Assert(readptr->eflags & EXEC_FLAG_REWIND);
@@ -1325,6 +1355,7 @@ void
 tuplestore_copy_read_pointer(Tuplestorestate *state,
                              int srcptr, int destptr)
 {
+  DBUG_TRACE;
   TSReadPointer *sptr = &state->readptrs[srcptr];
   TSReadPointer *dptr = &state->readptrs[destptr];
 
@@ -1412,6 +1443,7 @@ tuplestore_copy_read_pointer(Tuplestorestate *state,
 void
 tuplestore_trim(Tuplestorestate *state)
 {
+  DBUG_TRACE;
   int     oldest;
   int     nremove;
   int     i;
@@ -1592,6 +1624,7 @@ getlen(Tuplestorestate *state, bool eofOK)
 static void *
 copytup_heap(Tuplestorestate *state, void *tup)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
 
   tuple = minimal_tuple_from_heap_tuple((HeapTuple) tup, 0);

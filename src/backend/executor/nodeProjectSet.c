@@ -21,6 +21,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeProjectSet.h"
@@ -41,6 +42,7 @@ static TupleTableSlot *ExecProjectSRF(ProjectSetState *node, bool continuing);
 static TupleTableSlot *
 ExecProjectSet(PlanState *pstate)
 {
+  DBUG_TRACE;
   ProjectSetState *node = castNode(ProjectSetState, pstate);
   TupleTableSlot *outerTupleSlot;
   TupleTableSlot *resultSlot;
@@ -136,6 +138,7 @@ ExecProjectSet(PlanState *pstate)
 static TupleTableSlot *
 ExecProjectSRF(ProjectSetState *node, bool continuing)
 {
+  DBUG_TRACE;
   TupleTableSlot *resultSlot = node->ps.ps_ResultTupleSlot;
   ExprContext *econtext = node->ps.ps_ExprContext;
   MemoryContext oldcontext;
@@ -220,6 +223,7 @@ ExecProjectSRF(ProjectSetState *node, bool continuing)
 ProjectSetState *
 ExecInitProjectSet(ProjectSet *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   ProjectSetState *state;
   ListCell   *lc;
   int     off;
@@ -327,6 +331,7 @@ ExecEndProjectSet(ProjectSetState *node)
 void
 ExecReScanProjectSet(ProjectSetState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /* Forget any incompletely-evaluated SRFs */

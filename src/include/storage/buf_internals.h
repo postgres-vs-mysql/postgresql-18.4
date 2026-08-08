@@ -292,8 +292,7 @@ typedef struct BufferDesc
  */
 #define BUFFERDESC_PAD_TO_SIZE  (SIZEOF_VOID_P == 8 ? 64 : 1)
 
-typedef union BufferDescPadded
-{
+typedef union BufferDescPadded {
   BufferDesc  bufferdesc;
   char    pad[BUFFERDESC_PAD_TO_SIZE];
 } BufferDescPadded;

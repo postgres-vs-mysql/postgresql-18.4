@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -123,12 +124,17 @@ get_ts_parser_func(DefElem *defel, int attnum)
 
   procOid = LookupFuncName(funcName, nargs, typeId, false);
 
-  if (get_func_rettype(procOid) != retTypeId)
+  if (get_func_rettype(procOid) != retTypeId) {
+    char *format1 = format_type_be(retTypeId);
+    DBUG_INSTANT_PRINT("info", "function %s should return type %s",
+                       func_signature_string(funcName, nargs, NIL, typeId),
+                       format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("function %s should return type %s",
                     func_signature_string(funcName, nargs, NIL, typeId),
-                    format_type_be(retTypeId))));
+                    format1)));
+  }
 
   return ObjectIdGetDatum(procOid);
 }
@@ -187,6 +193,7 @@ makeParserDependencies(HeapTuple tuple)
 ObjectAddress
 DefineTSParser(List *names, List *parameters)
 {
+  DBUG_TRACE;
   char     *prsname;
   ListCell   *pl;
   Relation  prsRel;
@@ -198,10 +205,12 @@ DefineTSParser(List *names, List *parameters)
   Oid     namespaceoid;
   ObjectAddress address;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to create text search parsers");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to create text search parsers")));
+  }
 
   prsRel = table_open(TSParserRelationId, RowExclusiveLock);
 
@@ -240,35 +249,45 @@ DefineTSParser(List *names, List *parameters)
     } else if (strcmp(defel->defname, "lextypes") == 0) {
       values[Anum_pg_ts_parser_prslextype - 1] =
         get_ts_parser_func(defel, Anum_pg_ts_parser_prslextype);
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "text search parser parameter \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("text search parser parameter \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
   /*
    * Validation
    */
-  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prsstart - 1])))
+  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prsstart - 1]))) {
+    DBUG_INSTANT_PRINT("info", "text search parser start method is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search parser start method is required")));
+  }
 
-  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prstoken - 1])))
+  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prstoken - 1]))) {
+    DBUG_INSTANT_PRINT("info", "text search parser gettoken method is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search parser gettoken method is required")));
+  }
 
-  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prsend - 1])))
+  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prsend - 1]))) {
+    DBUG_INSTANT_PRINT("info", "text search parser end method is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search parser end method is required")));
+  }
 
-  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prslextype - 1])))
+  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_parser_prslextype - 1]))) {
+    DBUG_INSTANT_PRINT("info", "text search parser lextypes method is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search parser lextypes method is required")));
+  }
 
   /*
    * Looks good, insert
@@ -299,6 +318,7 @@ DefineTSParser(List *names, List *parameters)
 static ObjectAddress
 makeDictionaryDependencies(HeapTuple tuple)
 {
+  DBUG_TRACE;
   Form_pg_ts_dict dict = (Form_pg_ts_dict) GETSTRUCT(tuple);
   ObjectAddress myself,
                 referenced;
@@ -334,6 +354,7 @@ makeDictionaryDependencies(HeapTuple tuple)
 static void
 verify_dictoptions(Oid tmplId, List *dictoptions)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_ts_template tform;
   Oid     initmethod;
@@ -360,11 +381,13 @@ verify_dictoptions(Oid tmplId, List *dictoptions)
 
   if (!OidIsValid(initmethod)) {
     /* If there is no init method, disallow any options */
-    if (dictoptions)
+    if (dictoptions) {
+      DBUG_INSTANT_PRINT("info", "text search template \"%s\" does not accept options", NameStr(tform->tmplname));
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("text search template \"%s\" does not accept options",
                       NameStr(tform->tmplname))));
+    }
   } else {
     /*
      * Copy the options just in case init method thinks it can scribble on
@@ -388,6 +411,7 @@ verify_dictoptions(Oid tmplId, List *dictoptions)
 ObjectAddress
 DefineTSDictionary(List *names, List *parameters)
 {
+  DBUG_TRACE;
   ListCell   *pl;
   Relation  dictRel;
   HeapTuple tup;
@@ -429,10 +453,12 @@ DefineTSDictionary(List *names, List *parameters)
   /*
    * Validation
    */
-  if (!OidIsValid(templId))
+  if (!OidIsValid(templId)) {
+    DBUG_INSTANT_PRINT("info", "text search template is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search template is required")));
+  }
 
   verify_dictoptions(templId, dictoptions);
 
@@ -482,6 +508,7 @@ DefineTSDictionary(List *names, List *parameters)
 ObjectAddress
 AlterTSDictionary(AlterTSDictionaryStmt *stmt)
 {
+  DBUG_TRACE;
   HeapTuple tup,
             newtup;
   Relation  rel;
@@ -598,6 +625,7 @@ AlterTSDictionary(AlterTSDictionaryStmt *stmt)
 static Datum
 get_ts_template_func(DefElem *defel, int attnum)
 {
+  DBUG_TRACE;
   List     *funcName = defGetQualifiedName(defel);
   Oid     typeId[4];
   Oid     retTypeId;
@@ -628,12 +656,16 @@ get_ts_template_func(DefElem *defel, int attnum)
 
   procOid = LookupFuncName(funcName, nargs, typeId, false);
 
-  if (get_func_rettype(procOid) != retTypeId)
+  if (get_func_rettype(procOid) != retTypeId) {
+    char *format1 = format_type_be(retTypeId);
+    DBUG_INSTANT_PRINT("info", "function %s should return type %s",
+                       func_signature_string(funcName, nargs, NIL, typeId), format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("function %s should return type %s",
                     func_signature_string(funcName, nargs, NIL, typeId),
-                    format_type_be(retTypeId))));
+                    format1)));
+  }
 
   return ObjectIdGetDatum(procOid);
 }
@@ -644,6 +676,7 @@ get_ts_template_func(DefElem *defel, int attnum)
 static ObjectAddress
 makeTSTemplateDependencies(HeapTuple tuple)
 {
+  DBUG_TRACE;
   Form_pg_ts_template tmpl = (Form_pg_ts_template) GETSTRUCT(tuple);
   ObjectAddress myself,
                 referenced;
@@ -681,6 +714,7 @@ makeTSTemplateDependencies(HeapTuple tuple)
 ObjectAddress
 DefineTSTemplate(List *names, List *parameters)
 {
+  DBUG_TRACE;
   ListCell   *pl;
   Relation  tmplRel;
   HeapTuple tup;
@@ -693,10 +727,12 @@ DefineTSTemplate(List *names, List *parameters)
   char     *tmplname;
   ObjectAddress address;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to create text search templates");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to create text search templates")));
+  }
 
   /* Convert list of names to a name and namespace */
   namespaceoid = QualifiedNameGetCreationNamespace(names, &tmplname);
@@ -729,20 +765,24 @@ DefineTSTemplate(List *names, List *parameters)
       values[Anum_pg_ts_template_tmpllexize - 1] =
         get_ts_template_func(defel, Anum_pg_ts_template_tmpllexize);
       nulls[Anum_pg_ts_template_tmpllexize - 1] = false;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "text search template parameter \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("text search template parameter \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
   /*
    * Validation
    */
-  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_template_tmpllexize - 1])))
+  if (!OidIsValid(DatumGetObjectId(values[Anum_pg_ts_template_tmpllexize - 1]))) {
+    DBUG_INSTANT_PRINT("info", "text search template lexize method is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search template lexize method is required")));
+  }
 
   /*
    * Looks good, insert
@@ -772,6 +812,7 @@ DefineTSTemplate(List *names, List *parameters)
 static HeapTuple
 GetTSConfigTuple(List *names)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Oid     cfgId;
 
@@ -799,6 +840,7 @@ static ObjectAddress
 makeConfigurationDependencies(HeapTuple tuple, bool removeOld,
                               Relation mapRel)
 {
+  DBUG_TRACE;
   Form_pg_ts_config cfg = (Form_pg_ts_config) GETSTRUCT(tuple);
   ObjectAddresses *addrs;
   ObjectAddress myself,
@@ -882,6 +924,7 @@ makeConfigurationDependencies(HeapTuple tuple, bool removeOld,
 ObjectAddress
 DefineTSConfiguration(List *names, List *parameters, ObjectAddress *copied)
 {
+  DBUG_TRACE;
   Relation  cfgRel;
   Relation  mapRel = NULL;
   HeapTuple tup;
@@ -917,17 +960,21 @@ DefineTSConfiguration(List *names, List *parameters, ObjectAddress *copied)
       prsOid = get_ts_parser_oid(defGetQualifiedName(defel), false);
     else if (strcmp(defel->defname, "copy") == 0)
       sourceOid = get_ts_config_oid(defGetQualifiedName(defel), false);
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "text search configuration parameter \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("text search configuration parameter \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
-  if (OidIsValid(sourceOid) && OidIsValid(prsOid))
+  if (OidIsValid(sourceOid) && OidIsValid(prsOid)) {
+    DBUG_INSTANT_PRINT("info", "cannot specify both PARSER and COPY options");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("cannot specify both PARSER and COPY options")));
+  }
 
   /* make copied tsconfig available to callers */
   if (copied && OidIsValid(sourceOid)) {
@@ -959,10 +1006,12 @@ DefineTSConfiguration(List *names, List *parameters, ObjectAddress *copied)
   /*
    * Validation
    */
-  if (!OidIsValid(prsOid))
+  if (!OidIsValid(prsOid)) {
+    DBUG_INSTANT_PRINT("info", "text search parser is required");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("text search parser is required")));
+  }
 
   cfgRel = table_open(TSConfigRelationId, RowExclusiveLock);
 
@@ -1087,6 +1136,7 @@ DefineTSConfiguration(List *names, List *parameters, ObjectAddress *copied)
 void
 RemoveTSConfigurationById(Oid cfgId)
 {
+  DBUG_TRACE;
   Relation  relCfg,
             relMap;
   HeapTuple tup;
@@ -1134,6 +1184,7 @@ RemoveTSConfigurationById(Oid cfgId)
 ObjectAddress
 AlterTSConfiguration(AlterTSConfigurationStmt *stmt)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Oid     cfgId;
   Relation  relMap;
@@ -1142,11 +1193,13 @@ AlterTSConfiguration(AlterTSConfigurationStmt *stmt)
   /* Find the configuration */
   tup = GetTSConfigTuple(stmt->cfgname);
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "text search configuration \"%s\" does not exist", NameListToString(stmt->cfgname));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("text search configuration \"%s\" does not exist",
                     NameListToString(stmt->cfgname))));
+  }
 
   cfgId = ((Form_pg_ts_config) GETSTRUCT(tup))->oid;
 
@@ -1183,6 +1236,7 @@ AlterTSConfiguration(AlterTSConfigurationStmt *stmt)
 static bool
 tstoken_list_member(char *token_name, List *tokens)
 {
+  DBUG_TRACE;
   ListCell   *c;
   bool    found = false;
 
@@ -1206,6 +1260,7 @@ tstoken_list_member(char *token_name, List *tokens)
 static List *
 getTokenTypes(Oid prsId, List *tokennames)
 {
+  DBUG_TRACE;
   TSParserCacheEntry *prs = lookup_ts_parser_cache(prsId);
   LexDescr   *list;
   List     *result = NIL;
@@ -1250,11 +1305,13 @@ getTokenTypes(Oid prsId, List *tokennames)
       j++;
     }
 
-    if (!found)
+    if (!found) {
+      DBUG_INSTANT_PRINT("info", "token type \"%s\" does not exist", strVal(val));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("token type \"%s\" does not exist",
                       strVal(val))));
+    }
   }
 
   return result;
@@ -1267,6 +1324,7 @@ static void
 MakeConfigurationMapping(AlterTSConfigurationStmt *stmt,
                          HeapTuple tup, Relation relMap)
 {
+  DBUG_TRACE;
   Form_pg_ts_config tsform;
   Oid     cfgId;
   ScanKeyData skey[2];
@@ -1458,6 +1516,7 @@ static void
 DropConfigurationMapping(AlterTSConfigurationStmt *stmt,
                          HeapTuple tup, Relation relMap)
 {
+  DBUG_TRACE;
   Form_pg_ts_config tsform;
   Oid     cfgId;
   ScanKeyData skey[2];
@@ -1498,6 +1557,7 @@ DropConfigurationMapping(AlterTSConfigurationStmt *stmt,
 
     if (!found) {
       if (!stmt->missing_ok) {
+        DBUG_INSTANT_PRINT("info", "mapping for token type \"%s\" does not exist", ts->name);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("mapping for token type \"%s\" does not exist",
@@ -1525,6 +1585,7 @@ DropConfigurationMapping(AlterTSConfigurationStmt *stmt,
 text *
 serialize_deflist(List *deflist)
 {
+  DBUG_TRACE;
   text     *result;
   StringInfoData buf;
   ListCell   *l;
@@ -1583,6 +1644,7 @@ serialize_deflist(List *deflist)
 List *
 deserialize_deflist(Datum txt)
 {
+  DBUG_TRACE;
   text     *in = DatumGetTextPP(txt); /* in case it's toasted */
   List     *result = NIL;
   int     len = VARSIZE_ANY_EXHDR(in);
@@ -1655,11 +1717,13 @@ deserialize_deflist(Datum txt)
       case CS_WAITEQ:
         if (*ptr == '=')
           state = CS_WAITVALUE;
-        else if (!isspace((unsigned char) *ptr))
+        else if (!isspace((unsigned char) *ptr)) {
+          DBUG_INSTANT_PRINT("info", "invalid parameter list format: \"%s\"", text_to_cstring(in));
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("invalid parameter list format: \"%s\"",
                           text_to_cstring(in))));
+        }
 
         break;
 
@@ -1752,11 +1816,13 @@ deserialize_deflist(Datum txt)
                      buildDefItem(workspace,
                                   startvalue,
                                   false));
-  } else if (state != CS_WAITKEY)
+  } else if (state != CS_WAITKEY) {
+    DBUG_INSTANT_PRINT("info", "invalid parameter list format: \"%s\"", text_to_cstring(in));
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("invalid parameter list format: \"%s\"",
                     text_to_cstring(in))));
+  }
 
   pfree(workspace);
 
@@ -1769,6 +1835,8 @@ deserialize_deflist(Datum txt)
 static DefElem *
 buildDefItem(const char *name, const char *val, bool was_quoted)
 {
+  DBUG_TRACE;
+
   /* If input was quoted, always emit as string */
   if (!was_quoted && val[0] != '\0') {
     int     v;

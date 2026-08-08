@@ -29,8 +29,7 @@ enum config_type
   PGC_ENUM,
 };
 
-union config_var_val
-{
+union config_var_val {
   bool    boolval;
   int     intval;
   double    realval;

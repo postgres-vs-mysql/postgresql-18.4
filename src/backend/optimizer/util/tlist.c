@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -108,6 +109,7 @@ tlist_member(Expr *node, List *targetlist)
 static TargetEntry *
 tlist_member_match_var(Var *var, List *targetlist)
 {
+  DBUG_TRACE;
   ListCell   *temp;
 
   foreach(temp, targetlist) {
@@ -139,6 +141,7 @@ tlist_member_match_var(Var *var, List *targetlist)
 List *
 add_to_flat_tlist(List *tlist, List *exprs)
 {
+  DBUG_TRACE;
   int     next_resno = list_length(tlist) + 1;
   ListCell   *lc;
 
@@ -169,6 +172,7 @@ add_to_flat_tlist(List *tlist, List *exprs)
 List *
 get_tlist_exprs(List *tlist, bool includeJunk)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *l;
 
@@ -192,6 +196,7 @@ get_tlist_exprs(List *tlist, bool includeJunk)
 int
 count_nonjunk_tlist_entries(List *tlist)
 {
+  DBUG_TRACE;
   int     len = 0;
   ListCell   *l;
 
@@ -224,6 +229,7 @@ count_nonjunk_tlist_entries(List *tlist)
 bool
 tlist_same_exprs(List *tlist1, List *tlist2)
 {
+  DBUG_TRACE;
   ListCell   *lc1,
              *lc2;
 
@@ -253,6 +259,7 @@ tlist_same_exprs(List *tlist1, List *tlist2)
 bool
 tlist_same_datatypes(List *tlist, List *colTypes, bool junkOK)
 {
+  DBUG_TRACE;
   ListCell   *l;
   ListCell   *curColType = list_head(colTypes);
 
@@ -287,6 +294,7 @@ tlist_same_datatypes(List *tlist, List *colTypes, bool junkOK)
 bool
 tlist_same_collations(List *tlist, List *colCollations, bool junkOK)
 {
+  DBUG_TRACE;
   ListCell   *l;
   ListCell   *curColColl = list_head(colCollations);
 
@@ -445,6 +453,7 @@ get_sortgroupref_clause(Index sortref, List *clauses)
 SortGroupClause *
 get_sortgroupref_clause_noerr(Index sortref, List *clauses)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, clauses) {
@@ -464,6 +473,7 @@ get_sortgroupref_clause_noerr(Index sortref, List *clauses)
 Oid *
 extract_grouping_ops(List *groupClause)
 {
+  DBUG_TRACE;
   int     numCols = list_length(groupClause);
   int     colno = 0;
   Oid      *groupOperators;
@@ -489,6 +499,7 @@ extract_grouping_ops(List *groupClause)
 Oid *
 extract_grouping_collations(List *groupClause, List *tlist)
 {
+  DBUG_TRACE;
   int     numCols = list_length(groupClause);
   int     colno = 0;
   Oid      *grpCollations;
@@ -513,6 +524,7 @@ extract_grouping_collations(List *groupClause, List *tlist)
 AttrNumber *
 extract_grouping_cols(List *groupClause, List *tlist)
 {
+  DBUG_TRACE;
   AttrNumber *grpColIdx;
   int     numCols = list_length(groupClause);
   int     colno = 0;
@@ -538,15 +550,19 @@ extract_grouping_cols(List *groupClause, List *tlist)
 bool
 grouping_is_sortable(List *groupClause)
 {
+  DBUG_TRACE;
   ListCell   *glitem;
 
   foreach(glitem, groupClause) {
     SortGroupClause *groupcl = (SortGroupClause *) lfirst(glitem);
 
-    if (!OidIsValid(groupcl->sortop))
+    if (!OidIsValid(groupcl->sortop)) {
+      DBUG_PRINT("info", "it is not possible to implement grouping list by sorting");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "it is possible to implement grouping list by sorting");
   return true;
 }
 
@@ -558,15 +574,19 @@ grouping_is_sortable(List *groupClause)
 bool
 grouping_is_hashable(List *groupClause)
 {
+  DBUG_TRACE;
   ListCell   *glitem;
 
   foreach(glitem, groupClause) {
     SortGroupClause *groupcl = (SortGroupClause *) lfirst(glitem);
 
-    if (!groupcl->hashable)
+    if (!groupcl->hashable) {
+      DBUG_PRINT("info", "it is not possible to implement grouping list by hashing");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "it is possible to implement grouping list by hashing");
   return true;
 }
 
@@ -589,6 +609,7 @@ grouping_is_hashable(List *groupClause)
 PathTarget *
 make_pathtarget_from_tlist(List *tlist)
 {
+  DBUG_TRACE;
   PathTarget *target = makeNode(PathTarget);
   int     i;
   ListCell   *lc;
@@ -622,6 +643,7 @@ make_pathtarget_from_tlist(List *tlist)
 List *
 make_tlist_from_pathtarget(PathTarget *target)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   int     i;
   ListCell   *lc;
@@ -657,6 +679,7 @@ make_tlist_from_pathtarget(PathTarget *target)
 PathTarget *
 copy_pathtarget(PathTarget *src)
 {
+  DBUG_TRACE;
   PathTarget *dst = makeNode(PathTarget);
 
   /* Copy scalar fields */
@@ -696,6 +719,7 @@ create_empty_pathtarget(void)
 void
 add_column_to_pathtarget(PathTarget *target, Expr *expr, Index sortgroupref)
 {
+  DBUG_TRACE;
   /* Updating the exprs list is easy ... */
   target->exprs = lappend(target->exprs, expr);
 
@@ -751,6 +775,7 @@ add_new_column_to_pathtarget(PathTarget *target, Expr *expr)
 void
 add_new_columns_to_pathtarget(PathTarget *target, List *exprs)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, exprs) {
@@ -772,6 +797,7 @@ add_new_columns_to_pathtarget(PathTarget *target, List *exprs)
 void
 apply_pathtarget_labeling_to_tlist(List *tlist, PathTarget *target)
 {
+  DBUG_TRACE;
   int     i;
   ListCell   *lc;
 
@@ -935,6 +961,7 @@ split_pathtarget_at_srfs_extended(PlannerInfo *root,
                                   List **targets, List **targets_contain_srfs,
                                   bool is_grouping_target)
 {
+  DBUG_TRACE;
   split_pathtarget_context context;
   int     max_depth;
   bool    need_extra_projection;
@@ -1121,6 +1148,7 @@ split_pathtarget_at_srfs_extended(PlannerInfo *root,
 static bool
 split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 {
+  DBUG_TRACE;
   Node     *sanitized_node = node;
 
   if (node == NULL)
@@ -1257,6 +1285,7 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 static void
 add_sp_item_to_pathtarget(PathTarget *target, split_pathtarget_item *item)
 {
+  DBUG_TRACE;
   int     lci;
   ListCell   *lc;
 
@@ -1303,6 +1332,7 @@ add_sp_item_to_pathtarget(PathTarget *target, split_pathtarget_item *item)
 static void
 add_sp_items_to_pathtarget(PathTarget *target, List *items)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, items) {

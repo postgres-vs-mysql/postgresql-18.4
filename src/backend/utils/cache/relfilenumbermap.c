@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -49,6 +50,7 @@ typedef struct {
 static void
 RelfilenumberMapInvalidateCallback(Datum arg, Oid relid)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   RelfilenumberMapEntry *entry;
 
@@ -82,6 +84,7 @@ RelfilenumberMapInvalidateCallback(Datum arg, Oid relid)
 static void
 InitializeRelfilenumberMap(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
   int     i;
 
@@ -136,6 +139,7 @@ InitializeRelfilenumberMap(void)
 Oid
 RelidByRelfilenumber(Oid reltablespace, RelFileNumber relfilenumber)
 {
+  DBUG_TRACE;
   RelfilenumberMapKey key;
   RelfilenumberMapEntry *entry;
   bool    found;

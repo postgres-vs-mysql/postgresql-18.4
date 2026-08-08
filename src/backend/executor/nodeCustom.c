@@ -9,6 +9,7 @@
  * ------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "executor/executor.h"
@@ -25,6 +26,7 @@ static TupleTableSlot *ExecCustomScan(PlanState *pstate);
 CustomScanState *
 ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   CustomScanState *css;
   const TupleTableSlotOps *slotOps;
   Relation  scan_rel = NULL;
@@ -110,6 +112,7 @@ ExecInitCustomScan(CustomScan *cscan, EState *estate, int eflags)
 static TupleTableSlot *
 ExecCustomScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   CustomScanState *node = castNode(CustomScanState, pstate);
 
   CHECK_FOR_INTERRUPTS();
@@ -121,6 +124,7 @@ ExecCustomScan(PlanState *pstate)
 void
 ExecEndCustomScan(CustomScanState *node)
 {
+  DBUG_TRACE;
   Assert(node->methods->EndCustomScan != NULL);
   node->methods->EndCustomScan(node);
 }
@@ -128,6 +132,7 @@ ExecEndCustomScan(CustomScanState *node)
 void
 ExecReScanCustomScan(CustomScanState *node)
 {
+  DBUG_TRACE;
   Assert(node->methods->ReScanCustomScan != NULL);
   node->methods->ReScanCustomScan(node);
 }
@@ -135,6 +140,8 @@ ExecReScanCustomScan(CustomScanState *node)
 void
 ExecCustomMarkPos(CustomScanState *node)
 {
+  DBUG_TRACE;
+
   if (!node->methods->MarkPosCustomScan)
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -147,6 +154,8 @@ ExecCustomMarkPos(CustomScanState *node)
 void
 ExecCustomRestrPos(CustomScanState *node)
 {
+  DBUG_TRACE;
+
   if (!node->methods->RestrPosCustomScan)
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -159,6 +168,7 @@ ExecCustomRestrPos(CustomScanState *node)
 void
 ExecCustomScanEstimate(CustomScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   const CustomExecMethods *methods = node->methods;
 
   if (methods->EstimateDSMCustomScan) {
@@ -171,6 +181,7 @@ ExecCustomScanEstimate(CustomScanState *node, ParallelContext *pcxt)
 void
 ExecCustomScanInitializeDSM(CustomScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   const CustomExecMethods *methods = node->methods;
 
   if (methods->InitializeDSMCustomScan) {
@@ -186,6 +197,7 @@ ExecCustomScanInitializeDSM(CustomScanState *node, ParallelContext *pcxt)
 void
 ExecCustomScanReInitializeDSM(CustomScanState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   const CustomExecMethods *methods = node->methods;
 
   if (methods->ReInitializeDSMCustomScan) {
@@ -201,6 +213,7 @@ void
 ExecCustomScanInitializeWorker(CustomScanState *node,
                                ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   const CustomExecMethods *methods = node->methods;
 
   if (methods->InitializeWorkerCustomScan) {
@@ -215,6 +228,7 @@ ExecCustomScanInitializeWorker(CustomScanState *node,
 void
 ExecShutdownCustomScan(CustomScanState *node)
 {
+  DBUG_TRACE;
   const CustomExecMethods *methods = node->methods;
 
   if (methods->ShutdownCustomScan)

@@ -21,6 +21,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeGroup.h"
@@ -35,6 +36,7 @@
 static TupleTableSlot *
 ExecGroup(PlanState *pstate)
 {
+  DBUG_TRACE;
   GroupState *node = castNode(GroupState, pstate);
   ExprContext *econtext;
   TupleTableSlot *firsttupleslot;
@@ -156,6 +158,7 @@ ExecGroup(PlanState *pstate)
 GroupState *
 ExecInitGroup(Group *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   GroupState *grpstate;
   const TupleTableSlotOps *tts_ops;
 
@@ -221,6 +224,7 @@ ExecInitGroup(Group *node, EState *estate, int eflags)
 void
 ExecEndGroup(GroupState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
 
   outerPlan = outerPlanState(node);
@@ -230,6 +234,7 @@ ExecEndGroup(GroupState *node)
 void
 ExecReScanGroup(GroupState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   node->grp_done = false;

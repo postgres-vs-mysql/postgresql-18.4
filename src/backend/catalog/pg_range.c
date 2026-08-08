@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -37,6 +38,7 @@ RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
             Oid rangeSubOpclass, RegProcedure rangeCanonical,
             RegProcedure rangeSubDiff, Oid multirangeTypeOid)
 {
+  DBUG_TRACE;
   Relation  pg_range;
   Datum   values[Natts_pg_range];
   bool    nulls[Natts_pg_range];
@@ -109,6 +111,7 @@ RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
 void
 RangeDelete(Oid rangeTypeOid)
 {
+  DBUG_TRACE;
   Relation  pg_range;
   ScanKeyData key[1];
   SysScanDesc scan;

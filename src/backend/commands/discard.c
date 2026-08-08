@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xact.h"
 #include "catalog/namespace.h"
@@ -30,6 +31,8 @@ static void DiscardAll(bool isTopLevel);
 void
 DiscardCommand(DiscardStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
+
   switch (stmt->target) {
     case DISCARD_ALL:
       DiscardAll(isTopLevel);
@@ -55,6 +58,7 @@ DiscardCommand(DiscardStmt *stmt, bool isTopLevel)
 static void
 DiscardAll(bool isTopLevel)
 {
+  DBUG_TRACE;
   /*
    * Disallow DISCARD ALL in a transaction block. This is arguably
    * inconsistent (we don't make a similar check in the command sequence

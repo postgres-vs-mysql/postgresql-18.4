@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/clog.h"
 #include "access/subtrans.h"
@@ -51,6 +52,7 @@ static XidStatus TransactionLogFetch(TransactionId transactionId);
 static XidStatus
 TransactionLogFetch(TransactionId transactionId)
 {
+  DBUG_TRACE;
   XidStatus xidstatus;
   XLogRecPtr  xidlsn;
 
@@ -58,19 +60,26 @@ TransactionLogFetch(TransactionId transactionId)
    * Before going to the commit log manager, check our single item cache to
    * see if we didn't just check the transaction status a moment ago.
    */
-  if (TransactionIdEquals(transactionId, cachedFetchXid))
+  if (TransactionIdEquals(transactionId, cachedFetchXid)) {
+    DBUG_PRINT("info", "return cachedFetchXidStatus:%d", cachedFetchXidStatus);
     return cachedFetchXidStatus;
+  }
 
   /*
    * Also, check to see if the transaction ID is a permanent one.
    */
   if (!TransactionIdIsNormal(transactionId)) {
-    if (TransactionIdEquals(transactionId, BootstrapTransactionId))
+    if (TransactionIdEquals(transactionId, BootstrapTransactionId)) {
+      DBUG_PRINT("info", "return TRANSACTION_STATUS_COMMITTED:%d", TRANSACTION_STATUS_COMMITTED);
       return TRANSACTION_STATUS_COMMITTED;
+    }
 
-    if (TransactionIdEquals(transactionId, FrozenTransactionId))
+    if (TransactionIdEquals(transactionId, FrozenTransactionId)) {
+      DBUG_PRINT("info", "return TRANSACTION_STATUS_COMMITTED:%d", TRANSACTION_STATUS_COMMITTED);
       return TRANSACTION_STATUS_COMMITTED;
+    }
 
+    DBUG_PRINT("info", "return TRANSACTION_STATUS_ABORTED:%d", TRANSACTION_STATUS_ABORTED);
     return TRANSACTION_STATUS_ABORTED;
   }
 
@@ -90,6 +99,7 @@ TransactionLogFetch(TransactionId transactionId)
     cachedCommitLSN = xidlsn;
   }
 
+  DBUG_PRINT("info", "return xidstatus:%d", xidstatus);
   return xidstatus;
 }
 
@@ -125,6 +135,7 @@ TransactionLogFetch(TransactionId transactionId)
 bool              /* true if given transaction committed */
 TransactionIdDidCommit(TransactionId transactionId)
 {
+  DBUG_TRACE;
   XidStatus xidstatus;
 
   xidstatus = TransactionLogFetch(transactionId);
@@ -132,8 +143,10 @@ TransactionIdDidCommit(TransactionId transactionId)
   /*
    * If it's marked committed, it's committed.
    */
-  if (xidstatus == TRANSACTION_STATUS_COMMITTED)
+  if (xidstatus == TRANSACTION_STATUS_COMMITTED) {
+    DBUG_PRINT("info", "if it's marked committed, it's committed:%u", transactionId);
     return true;
+  }
 
   /*
    * If it's marked subcommitted, we have to check the parent recursively.
@@ -152,14 +165,17 @@ TransactionIdDidCommit(TransactionId transactionId)
   if (xidstatus == TRANSACTION_STATUS_SUB_COMMITTED) {
     TransactionId parentXid;
 
-    if (TransactionIdPrecedes(transactionId, TransactionXmin))
+    if (TransactionIdPrecedes(transactionId, TransactionXmin)) {
+      DBUG_PRINT("info", "TransactionIdPrecedes true and return false");
       return false;
+    }
 
     parentXid = SubTransGetParent(transactionId);
 
     if (!TransactionIdIsValid(parentXid)) {
       elog(WARNING, "no pg_subtrans entry for subcommitted XID %u",
            transactionId);
+      DBUG_PRINT("info", "no pg_subtrans entry for subcommitted XID %u", transactionId);
       return false;
     }
 
@@ -169,6 +185,8 @@ TransactionIdDidCommit(TransactionId transactionId)
   /*
    * It's not committed.
    */
+
+  DBUG_PRINT("info", "it's not committed:%u", transactionId);
   return false;
 }
 
@@ -188,6 +206,7 @@ TransactionIdDidCommit(TransactionId transactionId)
 bool              /* true if given transaction aborted */
 TransactionIdDidAbort(TransactionId transactionId)
 {
+  DBUG_TRACE;
   XidStatus xidstatus;
 
   xidstatus = TransactionLogFetch(transactionId);
@@ -241,6 +260,7 @@ TransactionIdDidAbort(TransactionId transactionId)
 void
 TransactionIdCommitTree(TransactionId xid, int nxids, TransactionId *xids)
 {
+  DBUG_TRACE;
   TransactionIdSetTreeStatus(xid, nxids, xids,
                              TRANSACTION_STATUS_COMMITTED,
                              InvalidXLogRecPtr);
@@ -254,6 +274,7 @@ void
 TransactionIdAsyncCommitTree(TransactionId xid, int nxids, TransactionId *xids,
                              XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   TransactionIdSetTreeStatus(xid, nxids, xids,
                              TRANSACTION_STATUS_COMMITTED, lsn);
 }
@@ -271,6 +292,7 @@ TransactionIdAsyncCommitTree(TransactionId xid, int nxids, TransactionId *xids,
 void
 TransactionIdAbortTree(TransactionId xid, int nxids, TransactionId *xids)
 {
+  DBUG_TRACE;
   TransactionIdSetTreeStatus(xid, nxids, xids,
                              TRANSACTION_STATUS_ABORTED, InvalidXLogRecPtr);
 }
@@ -287,8 +309,9 @@ TransactionIdPrecedes(TransactionId id1, TransactionId id2)
    */
   int32   diff;
 
-  if (!TransactionIdIsNormal(id1) || !TransactionIdIsNormal(id2))
+  if (!TransactionIdIsNormal(id1) || !TransactionIdIsNormal(id2)) {
     return (id1 < id2);
+  }
 
   diff = (int32) (id1 - id2);
   return (diff < 0);
@@ -300,6 +323,7 @@ TransactionIdPrecedes(TransactionId id1, TransactionId id2)
 bool
 TransactionIdPrecedesOrEquals(TransactionId id1, TransactionId id2)
 {
+  DBUG_TRACE;
   int32   diff;
 
   if (!TransactionIdIsNormal(id1) || !TransactionIdIsNormal(id2))
@@ -347,6 +371,7 @@ TransactionId
 TransactionIdLatest(TransactionId mainxid,
                     int nxids, const TransactionId *xids)
 {
+  DBUG_TRACE;
   TransactionId result;
 
   /*
@@ -363,6 +388,7 @@ TransactionIdLatest(TransactionId mainxid,
       result = xids[nxids];
   }
 
+  DBUG_PRINT("info", "get latest XID among a main xact and its children:%u", result);
   return result;
 }
 
@@ -384,6 +410,7 @@ TransactionIdLatest(TransactionId mainxid,
 XLogRecPtr
 TransactionIdGetCommitLSN(TransactionId xid)
 {
+  DBUG_TRACE;
   XLogRecPtr  result;
 
   /*
@@ -392,17 +419,22 @@ TransactionIdGetCommitLSN(TransactionId xid)
    * checking TransactionLogFetch's cache will usually succeed and avoid an
    * extra trip to shared memory.
    */
-  if (TransactionIdEquals(xid, cachedFetchXid))
+  if (TransactionIdEquals(xid, cachedFetchXid)) {
+    DBUG_PRINT("info", "xid:%u and return cachedCommitLSN:%lu", xid, cachedCommitLSN);
     return cachedCommitLSN;
+  }
 
   /* Special XIDs are always known committed */
-  if (!TransactionIdIsNormal(xid))
+  if (!TransactionIdIsNormal(xid)) {
+    DBUG_PRINT("info", "xid:%u and special XIDs are always known committed", xid);
     return InvalidXLogRecPtr;
+  }
 
   /*
    * Get the transaction status.
    */
   (void) TransactionIdGetStatus(xid, &result);
 
+  DBUG_PRINT("info", "xid:%u and get the transaction status and return lsn:%lu", xid, result);
   return result;
 }

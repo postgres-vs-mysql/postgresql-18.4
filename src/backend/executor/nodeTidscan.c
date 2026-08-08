@@ -21,6 +21,7 @@
  *    ExecEndTidScan    releases all storage.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "access/tableam.h"
@@ -68,6 +69,7 @@ static TupleTableSlot *TidNext(TidScanState *node);
 static void
 TidExprListCreate(TidScanState *tidstate)
 {
+  DBUG_TRACE;
   TidScan    *node = (TidScan *) tidstate->ss.ps.plan;
   ListCell   *l;
 
@@ -127,6 +129,7 @@ TidExprListCreate(TidScanState *tidstate)
 static void
 TidListEval(TidScanState *tidstate)
 {
+  DBUG_TRACE;
   ExprContext *econtext = tidstate->ss.ps.ps_ExprContext;
   TableScanDesc scan;
   ItemPointerData *tidList;
@@ -307,6 +310,7 @@ itemptr_comparator(const void *a, const void *b)
 static TupleTableSlot *
 TidNext(TidScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ScanDirection direction;
   Snapshot  snapshot;
@@ -446,6 +450,8 @@ ExecTidScan(PlanState *pstate)
 void
 ExecReScanTidScan(TidScanState *node)
 {
+  DBUG_TRACE;
+
   if (node->tss_TidList)
     pfree(node->tss_TidList);
 
@@ -470,6 +476,8 @@ ExecReScanTidScan(TidScanState *node)
 void
 ExecEndTidScan(TidScanState *node)
 {
+  DBUG_TRACE;
+
   if (node->ss.ss_currentScanDesc)
     table_endscan(node->ss.ss_currentScanDesc);
 }
@@ -488,6 +496,7 @@ ExecEndTidScan(TidScanState *node)
 TidScanState *
 ExecInitTidScan(TidScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   TidScanState *tidstate;
   Relation  currentRelation;
 

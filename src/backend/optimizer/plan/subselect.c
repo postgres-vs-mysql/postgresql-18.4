@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_operator.h"
@@ -100,6 +101,188 @@ static Bitmapset *finalize_plan(PlannerInfo *root,
 static bool finalize_primnode(Node *node, finalize_primnode_context *context);
 static bool finalize_agg_primnode(Node *node, finalize_primnode_context *context);
 
+static const char *get_plan_type_str(char* name, int type)
+{
+  const char *pname = NULL;
+
+  switch (type) {
+    case T_Result:
+      pname = "result";
+      break;
+
+    case T_ProjectSet:
+      pname = "project set";
+      break;
+
+    case T_ModifyTable:
+      pname = "modify table";
+      break;
+
+    case T_Append:
+      pname = "append";
+      break;
+
+    case T_MergeAppend:
+      pname = "merge append";
+      break;
+
+    case T_RecursiveUnion:
+      pname = "recursive union";
+      break;
+
+    case T_BitmapAnd:
+      pname = "bitmap and";
+      break;
+
+    case T_BitmapOr:
+      pname = "bitmap or";
+      break;
+
+    case T_NestLoop:
+      pname = "nested loop";
+      break;
+
+    case T_MergeJoin:
+      pname = "merge join";
+      break;
+
+    case T_HashJoin:
+      pname = "hash join";
+      break;
+
+    case T_SeqScan:
+      pname = "seq scan";
+      break;
+
+    case T_SampleScan:
+      pname = "sample scan";
+      break;
+
+    case T_Gather:
+      pname = "gather";
+      break;
+
+    case T_GatherMerge:
+      pname = "gather merge";
+      break;
+
+    case T_IndexScan:
+      pname = "index scan";
+      break;
+
+    case T_IndexOnlyScan:
+      pname = "index only scan";
+      break;
+
+    case T_BitmapIndexScan:
+      pname = "bitmap index scan";
+      break;
+
+    case T_BitmapHeapScan:
+      pname = "bitmap heap scan";
+      break;
+
+    case T_TidScan:
+      pname = "tid scan";
+      break;
+
+    case T_TidRangeScan:
+      pname = "tid range scan";
+      break;
+
+    case T_SubqueryScan:
+      pname = "subquery scan";
+      break;
+
+    case T_FunctionScan:
+      pname = "function scan";
+      break;
+
+    case T_TableFuncScan:
+      pname = "table function scan";
+      break;
+
+    case T_ValuesScan:
+      pname = "values scan";
+      break;
+
+    case T_CteScan:
+      pname = "cte Scan";
+      break;
+
+    case T_NamedTuplestoreScan:
+      pname = "named tuplestore scan";
+      break;
+
+    case T_WorkTableScan:
+      pname = "work table scan";
+      break;
+
+    case T_ForeignScan:
+      pname = "foreign Scan";
+      break;
+
+    case T_CustomScan:
+      pname = "custom scan";
+      break;
+
+    case T_Material:
+      pname = "materialize";
+      break;
+
+    case T_Memoize:
+      pname = "memoize";
+      break;
+
+    case T_Sort:
+      pname = "sort";
+      break;
+
+    case T_IncrementalSort:
+      pname = "incremental sort";
+      break;
+
+    case T_Group:
+      pname = "group";
+      break;
+
+    case T_Agg: {
+      pname = "aggregate";
+    }
+    break;
+
+    case T_WindowAgg:
+      pname = "window agg";
+      break;
+
+    case T_Unique:
+      pname = "unique";
+      break;
+
+    case T_SetOp:
+      pname = "set op";
+      break;
+
+    case T_LockRows:
+      pname = "lock rows";
+      break;
+
+    case T_Limit:
+      pname = "limit";
+      break;
+
+    case T_Hash:
+      pname = "hash";
+      break;
+
+    default:
+      pname = "???";
+      break;
+  }
+
+  strcpy(name, pname);
+  return name;
+}
 
 /*
  * Get the datatype/typmod/collation of the first column of the plan's output.
@@ -114,6 +297,8 @@ static void
 get_first_col_type(Plan *plan, Oid *coltype, int32 *coltypmod,
                    Oid *colcollation)
 {
+  DBUG_TRACE;
+
   /* In cases such as EXISTS, tlist might be empty; arbitrarily use VOID */
   if (plan->targetlist) {
     TargetEntry *tent = linitial_node(TargetEntry, plan->targetlist);
@@ -158,6 +343,7 @@ make_subplan(PlannerInfo *root, Query *orig_subquery,
              SubLinkType subLinkType, int subLinkId,
              Node *testexpr, bool isTopQual)
 {
+  DBUG_TRACE;
   Query    *subquery;
   bool    simple_exists = false;
   double    tuple_fraction;
@@ -168,6 +354,7 @@ make_subplan(PlannerInfo *root, Query *orig_subquery,
   List     *plan_params;
   Node     *result;
 
+  DBUG_PRINT("info", "convert a SubLink (as created by the parser) into a SubPlan");
   /*
    * Copy the source Query node.  This is a quick and dirty kluge to resolve
    * the fact that the parser can generate trees with multiple links to the
@@ -246,7 +433,7 @@ make_subplan(PlannerInfo *root, Query *orig_subquery,
    */
   if (simple_exists && IsA(result, SubPlan)) {
     Node     *newtestexpr;
-    List     *paramIds;
+    List     *paramIds = NULL;
 
     /* Make a second copy of the original subquery */
     subquery = copyObject(orig_subquery);
@@ -315,11 +502,13 @@ build_subplan(PlannerInfo *root, Plan *plan, Path *path,
               Node *testexpr, List *testexpr_paramids,
               bool unknownEqFalse)
 {
+  DBUG_TRACE;
   Node     *result;
   SubPlan    *splan;
   bool    isInitPlan;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "build a SubPlan node given the raw inputs");
   /*
    * Initialize the SubPlan node.  Note plan_id, plan_name, and cost fields
    * are set further down.
@@ -559,10 +748,12 @@ build_subplan(PlannerInfo *root, Plan *plan, Path *path,
 static List *
 generate_subquery_params(PlannerInfo *root, List *tlist, List **paramIds)
 {
+  DBUG_TRACE;
   List     *result;
   List     *ids;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "build a list of Params representing the output columns of a sublink's sub-select");
   result = ids = NIL;
 
   foreach(lc, tlist) {
@@ -592,9 +783,11 @@ generate_subquery_params(PlannerInfo *root, List *tlist, List **paramIds)
 static List *
 generate_subquery_vars(PlannerInfo *root, List *tlist, Index varno)
 {
+  DBUG_TRACE;
   List     *result;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "build a list of Vars representing the output columns of a sublink's sub-select");
   result = NIL;
 
   foreach(lc, tlist) {
@@ -623,6 +816,7 @@ convert_testexpr(PlannerInfo *root,
                  Node *testexpr,
                  List *subst_nodes)
 {
+  DBUG_TRACE;
   convert_testexpr_context context;
 
   context.root = root;
@@ -634,6 +828,8 @@ static Node *
 convert_testexpr_mutator(Node *node,
                          convert_testexpr_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -689,6 +885,7 @@ convert_testexpr_mutator(Node *node,
 static bool
 subplan_is_hashable(Plan *plan)
 {
+  DBUG_TRACE;
   double    subquery_size;
 
   /*
@@ -700,9 +897,12 @@ subplan_is_hashable(Plan *plan)
   subquery_size = plan->plan_rows *
                   (MAXALIGN(plan->plan_width) + MAXALIGN(SizeofHeapTupleHeader));
 
-  if (subquery_size > get_hash_memory_limit())
+  if (subquery_size > get_hash_memory_limit()) {
+    DBUG_PRINT("info", "subquery_size:%g, returning false", subquery_size);
     return false;
+  }
 
+  DBUG_PRINT("info", "subquery_size:%g, returning true", subquery_size);
   return true;
 }
 
@@ -714,8 +914,10 @@ subplan_is_hashable(Plan *plan)
 static bool
 subpath_is_hashable(Path *path)
 {
+  DBUG_TRACE;
   double    subquery_size;
 
+  DBUG_PRINT("info", "can we implement an ANY subplan by hashing?");
   /*
    * The estimated size of the subquery result must fit in hash_mem. (Note:
    * we use heap tuple overhead here even though the tuples will actually be
@@ -725,9 +927,12 @@ subpath_is_hashable(Path *path)
   subquery_size = path->rows *
                   (MAXALIGN(path->pathtarget->width) + MAXALIGN(SizeofHeapTupleHeader));
 
-  if (subquery_size > get_hash_memory_limit())
+  if (subquery_size > get_hash_memory_limit()) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -740,35 +945,48 @@ subpath_is_hashable(Path *path)
 static bool
 testexpr_is_hashable(Node *testexpr, List *param_ids)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "is an ANY SubLink's test expression hashable?");
+
   /*
    * The testexpr must be a single OpExpr, or an AND-clause containing only
    * OpExprs, each of which satisfy test_opexpr_is_hashable().
    */
   if (testexpr && IsA(testexpr, OpExpr)) {
-    if (test_opexpr_is_hashable((OpExpr *) testexpr, param_ids))
+    if (test_opexpr_is_hashable((OpExpr *) testexpr, param_ids)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   } else if (is_andclause(testexpr)) {
     ListCell   *l;
 
     foreach(l, ((BoolExpr *) testexpr)->args) {
       Node     *andarg = (Node *) lfirst(l);
 
-      if (!IsA(andarg, OpExpr))
+      if (!IsA(andarg, OpExpr)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
-      if (!test_opexpr_is_hashable((OpExpr *) andarg, param_ids))
+      if (!test_opexpr_is_hashable((OpExpr *) andarg, param_ids)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
     }
 
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
 static bool
 test_opexpr_is_hashable(OpExpr *testexpr, List *param_ids)
 {
+  DBUG_TRACE;
+
   /*
    * The combining operator must be hashable and strict.  The need for
    * hashability is obvious, since we want to use hashing.  Without
@@ -777,8 +995,10 @@ test_opexpr_is_hashable(OpExpr *testexpr, List *param_ids)
    * NULL for non-null inputs, either (see nodeSubplan.c).  However, hash
    * indexes and hash joins assume that too.
    */
-  if (!hash_ok_operator(testexpr))
+  if (!hash_ok_operator(testexpr)) {
+    DBUG_PRINT("info", "the combining operator must be hashable and strict and return false");
     return false;
+  }
 
   /*
    * The left and right inputs must belong to the outer and inner queries
@@ -791,15 +1011,22 @@ test_opexpr_is_hashable(OpExpr *testexpr, List *param_ids)
    * we don't worry about trying to commute the clause or anything like
    * that; we just need to be sure not to build an invalid plan.)
    */
-  if (list_length(testexpr->args) != 2)
+  if (list_length(testexpr->args) != 2) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
-  if (contain_exec_param((Node *) linitial(testexpr->args), param_ids))
+  if (contain_exec_param((Node *) linitial(testexpr->args), param_ids)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
-  if (contain_var_clause((Node *) lsecond(testexpr->args)))
+  if (contain_var_clause((Node *) lsecond(testexpr->args))) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -812,18 +1039,32 @@ test_opexpr_is_hashable(OpExpr *testexpr, List *param_ids)
 static bool
 hash_ok_operator(OpExpr *expr)
 {
+  DBUG_TRACE;
   Oid     opid = expr->opno;
+  bool result;
+
+  DBUG_PRINT("info", "check expression is hashable + strict");
 
   /* quick out if not a binary operator */
-  if (list_length(expr->args) != 2)
+  if (list_length(expr->args) != 2) {
+    DBUG_PRINT("info", "quick out for non-binary operators");
     return false;
+  }
 
   if (opid == ARRAY_EQ_OP ||
       opid == RECORD_EQ_OP) {
     /* these are strict, but must check input type to ensure hashable */
     Node     *leftarg = linitial(expr->args);
 
-    return op_hashjoinable(opid, exprType(leftarg));
+    result = op_hashjoinable(opid, exprType(leftarg));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    return result;
   } else {
     /* else must look up the operator properties */
     HeapTuple tup;
@@ -838,10 +1079,12 @@ hash_ok_operator(OpExpr *expr)
 
     if (!optup->oprcanhash || !func_strict(optup->oprcode)) {
       ReleaseSysCache(tup);
+      DBUG_PRINT("info", "return false");
       return false;
     }
 
     ReleaseSysCache(tup);
+    DBUG_PRINT("info", "return true");
     return true;
   }
 }
@@ -861,8 +1104,10 @@ hash_ok_operator(OpExpr *expr)
 void
 SS_process_ctes(PlannerInfo *root)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "process a query's WITH list");
   Assert(root->cte_plan_ids == NIL);
 
   foreach(lc, root->parse->cteList) {
@@ -880,6 +1125,7 @@ SS_process_ctes(PlannerInfo *root)
      * Ignore SELECT CTEs that are not actually referenced anywhere.
      */
     if (cte->cterefcount == 0 && cmdType == CMD_SELECT) {
+      DBUG_PRINT("info", "ignore SELECT CTEs that are not actually referenced anywhere");
       /* Make a dummy entry in cte_plan_ids */
       root->cte_plan_ids = lappend_int(root->cte_plan_ids, -1);
       continue;
@@ -916,6 +1162,16 @@ SS_process_ctes(PlannerInfo *root)
      * Note: we check for volatile functions last, because that's more
      * expensive than the other tests needed.
      */
+    DBUG_PRINT("info", "consider inlining the CTE instead of implementing it as a separately-planned CTE:%s", cte->ctename);
+
+    if (cte->ctematerialized == CTEMaterializeDefault) {
+      DBUG_PRINT("info", "no option specified for the CTE:%s", cte->ctename);
+    } else if (cte->ctematerialized == CTEMaterializeAlways) {
+      DBUG_PRINT("info", "the CTE is materialized:%s", cte->ctename);
+    } else {
+      DBUG_PRINT("info", "the CTE is not materialized:%s", cte->ctename);
+    }
+
     if ((cte->ctematerialized == CTEMaterializeNever ||
          (cte->ctematerialized == CTEMaterializeDefault &&
           cte->cterefcount == 1)) &&
@@ -925,8 +1181,10 @@ SS_process_ctes(PlannerInfo *root)
         (cte->cterefcount <= 1 ||
          !contain_outer_selfref(cte->ctequery)) &&
         !contain_volatile_functions(cte->ctequery)) {
+      DBUG_PRINT("info", "inline the CTE:%s", cte->ctename);
       inline_cte(root, cte);
       /* Make a dummy entry in cte_plan_ids */
+      DBUG_PRINT("info", "make a dummy entry in cte_plan_ids");
       root->cte_plan_ids = lappend_int(root->cte_plan_ids, -1);
       continue;
     }
@@ -944,6 +1202,7 @@ SS_process_ctes(PlannerInfo *root)
      * Generate Paths for the CTE query.  Always plan for full retrieval
      * --- we don't have enough info to predict otherwise.
      */
+    DBUG_PRINT("info", "generate Paths for the CTE query");
     subroot = subquery_planner(root->glob, subquery, root,
                                cte->cterecursive, 0.0, NULL);
 
@@ -959,6 +1218,7 @@ SS_process_ctes(PlannerInfo *root)
      * Select best Path and turn it into a Plan.  At least for now, there
      * seems no reason to postpone doing that.
      */
+    DBUG_PRINT("info", "select best Path and turn it into a Plan");
     final_rel = fetch_upper_rel(subroot, UPPERREL_FINAL, NULL);
     best_path = final_rel->cheapest_total_path;
 
@@ -983,6 +1243,7 @@ SS_process_ctes(PlannerInfo *root)
      * CTE scans are not considered for parallelism (cf
      * set_rel_consider_parallel).
      */
+    DBUG_PRINT("info", "CTE scans are not considered for parallelism");
     splan->parallel_safe = false;
     splan->setParam = NIL;
     splan->parParam = NIL;
@@ -1009,6 +1270,7 @@ SS_process_ctes(PlannerInfo *root)
     /*
      * Add the subplan, its path, and its PlannerInfo to the global lists.
      */
+    DBUG_PRINT("info", "add the subplan, its path, and its PlannerInfo to the global lists");
     root->glob->subplans = lappend(root->glob->subplans, plan);
     root->glob->subpaths = lappend(root->glob->subpaths, best_path);
     root->glob->subroots = lappend(root->glob->subroots, subroot);
@@ -1021,6 +1283,7 @@ SS_process_ctes(PlannerInfo *root)
     /* Label the subplan for EXPLAIN purposes */
     splan->plan_name = psprintf("CTE %s", cte->ctename);
 
+    DBUG_PRINT("info", "lastly, fill in the cost estimates for use later");
     /* Lastly, fill in the cost estimates for use later */
     cost_subplan(root, splan, plan);
   }
@@ -1040,20 +1303,43 @@ contain_dml(Node *node)
 static bool
 contain_dml_walker(Node *node, void *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+  bool result;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "node is nullptr and return false");
     return false;
+  }
 
   if (IsA(node, Query)) {
     Query    *query = (Query *) node;
 
     if (query->commandType != CMD_SELECT ||
-        query->rowMarks != NIL)
+        query->rowMarks != NIL) {
+      DBUG_PRINT("info", "this is a query and return true");
       return true;
+    }
 
-    return query_tree_walker(query, contain_dml_walker, context, 0);
+    result = query_tree_walker(query, contain_dml_walker, context, 0);
+
+    if (result) {
+      DBUG_PRINT("info", "after visiting query_tree_walker, return true");
+    } else {
+      DBUG_PRINT("info", "after visiting query_tree_walker, return false");
+    }
+
+    return result;
   }
 
-  return expression_tree_walker(node, contain_dml_walker, context);
+  result = expression_tree_walker(node, contain_dml_walker, context);
+
+  if (result) {
+    DBUG_PRINT("info", "after visiting expression_tree_walker, return true");
+  } else {
+    DBUG_PRINT("info", "after visiting expression_tree_walker, return false");
+  }
+
+  return result;
 }
 
 /*
@@ -1062,6 +1348,7 @@ contain_dml_walker(Node *node, void *context)
 static bool
 contain_outer_selfref(Node *node)
 {
+  DBUG_TRACE;
   Index   depth = 0;
 
   /*
@@ -1076,6 +1363,8 @@ contain_outer_selfref(Node *node)
 static bool
 contain_outer_selfref_walker(Node *node, Index *depth)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -1118,8 +1407,10 @@ contain_outer_selfref_walker(Node *node, Index *depth)
 static void
 inline_cte(PlannerInfo *root, CommonTableExpr *cte)
 {
+  DBUG_TRACE;
   struct inline_cte_walker_context context;
 
+  DBUG_PRINT("info", "convert RTE_CTE references to given CTE into RTE_SUBQUERYs");
   context.ctename = cte->ctename;
   /* Start at levelsup = -1 because we'll immediately increment it */
   context.levelsup = -1;
@@ -1131,8 +1422,13 @@ inline_cte(PlannerInfo *root, CommonTableExpr *cte)
 static bool
 inline_cte_walker(Node *node, inline_cte_walker_context *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+  bool result;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "node is nullptr and return false");
     return false;
+  }
 
   if (IsA(node, Query)) {
     Query    *query = (Query *) node;
@@ -1149,6 +1445,7 @@ inline_cte_walker(Node *node, inline_cte_walker_context *context)
 
     context->levelsup--;
 
+    DBUG_PRINT("info", "visit the query's RTE nodes and return false");
     return false;
   } else if (IsA(node, RangeTblEntry)) {
     RangeTblEntry *rte = (RangeTblEntry *) node;
@@ -1174,6 +1471,7 @@ inline_cte_walker(Node *node, inline_cte_walker_context *context)
        * distinction by not trying to push rowmarks into the new
        * subquery.
        */
+      DBUG_PRINT("info", "convert the RTE_CTE RTE into a RTE_SUBQUERY");
       rte->rtekind = RTE_SUBQUERY;
       rte->subquery = newquery;
       rte->security_barrier = false;
@@ -1187,10 +1485,19 @@ inline_cte_walker(Node *node, inline_cte_walker_context *context)
       rte->colcollations = NIL;
     }
 
+    DBUG_PRINT("info", "visit the range table entry and return false");
     return false;
   }
 
-  return expression_tree_walker(node, inline_cte_walker, context);
+  result = expression_tree_walker(node, inline_cte_walker, context);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -1311,6 +1618,7 @@ JoinExpr *
 convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
                             Relids available_rels)
 {
+  DBUG_TRACE;
   JoinExpr   *result;
   Query    *parse = root->parse;
   Query    *subselect = (Query *) sublink->subselect;
@@ -1325,6 +1633,7 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
   Relids    sub_ref_outer_relids;
   bool    use_lateral;
 
+  DBUG_PRINT("info", "try to convert an ANY SubLink to a join");
   Assert(sublink->subLinkType == ANY_SUBLINK);
 
   /*
@@ -1338,8 +1647,10 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * Can't convert if the sub-select contains parent-level Vars of relations
    * not in available_rels.
    */
-  if (!bms_is_subset(sub_ref_outer_relids, available_rels))
+  if (!bms_is_subset(sub_ref_outer_relids, available_rels)) {
+    DBUG_PRINT("info", "can't convert if the sub-select contains parent-level Vars of relations not in available_rels");
     return NULL;
+  }
 
   /*
    * The test expression must contain some Vars of the parent query, else
@@ -1348,20 +1659,26 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    */
   upper_varnos = pull_varnos(root, sublink->testexpr);
 
-  if (bms_is_empty(upper_varnos))
+  if (bms_is_empty(upper_varnos)) {
+    DBUG_PRINT("info", "the test expression must contain some Vars of the parent query, else it's not gonna be a join");
     return NULL;
+  }
 
   /*
    * However, it can't refer to anything outside available_rels.
    */
-  if (!bms_is_subset(upper_varnos, available_rels))
+  if (!bms_is_subset(upper_varnos, available_rels)) {
+    DBUG_PRINT("info", "however, it can't refer to anything outside available_rels");
     return NULL;
+  }
 
   /*
    * The combining operators and left-hand expressions mustn't be volatile.
    */
-  if (contain_volatile_functions(sublink->testexpr))
+  if (contain_volatile_functions(sublink->testexpr)) {
+    DBUG_PRINT("info", "tThe combining operators and left-hand expressions mustn't be volatile");
     return NULL;
+  }
 
   /* Create a dummy ParseState for addRangeTableEntryForSubquery */
   pstate = make_parsestate(NULL);
@@ -1374,6 +1691,7 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * below). Therefore this is a lot easier than what pull_up_subqueries has
    * to go through.
    */
+  DBUG_PRINT("info", "okay, pull up the sub-select into upper range table");
   nsitem = addRangeTableEntryForSubquery(pstate,
                                          subselect,
                                          makeAlias("ANY_subquery", NIL),
@@ -1399,11 +1717,13 @@ convert_ANY_sublink_to_join(PlannerInfo *root, SubLink *sublink,
   /*
    * Build the new join's qual expression, replacing Params with these Vars.
    */
+  DBUG_PRINT("info", "build the new join's qual expression, replacing Params with these Vars");
   quals = convert_testexpr(root, sublink->testexpr, subquery_vars);
 
   /*
    * And finally, build the JoinExpr node.
    */
+  DBUG_PRINT("info", "and finally, build the JoinExpr node");
   result = makeNode(JoinExpr);
   result->jointype = JOIN_SEMI;
   result->isNatural = false;
@@ -1429,6 +1749,7 @@ JoinExpr *
 convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
                                bool under_not, Relids available_rels)
 {
+  DBUG_TRACE;
   JoinExpr   *result;
   Query    *parse = root->parse;
   Query    *subselect = (Query *) sublink->subselect;
@@ -1438,6 +1759,7 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
   Relids    clause_varnos;
   Relids    upper_varnos;
 
+  DBUG_PRINT("info", "try to convert an EXISTS SubLink to a join");
   Assert(sublink->subLinkType == EXISTS_SUBLINK);
 
   /*
@@ -1448,8 +1770,10 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * this case, since it just produces a subquery RTE that doesn't have to
    * get flattened into the parent query.
    */
-  if (subselect->cteList)
+  if (subselect->cteList) {
+    DBUG_PRINT("info", "can't flatten if it contains WITH");
     return NULL;
+  }
 
   /*
    * Copy the subquery so we can modify it safely (see comments in
@@ -1463,8 +1787,10 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * targetlist, we have to fail, because the pullup operation leaves us
    * with noplace to evaluate the targetlist.
    */
-  if (!simplify_EXISTS_query(root, subselect))
+  if (!simplify_EXISTS_query(root, subselect)) {
+    DBUG_PRINT("info", "if we aren't able to get rid of its targetlist, we have to fail");
     return NULL;
+  }
 
   /*
    * Separate out the WHERE clause.  (We could theoretically also remove
@@ -1478,21 +1804,27 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * The rest of the sub-select must not refer to any Vars of the parent
    * query.  (Vars of higher levels should be okay, though.)
    */
-  if (contain_vars_of_level((Node *) subselect, 1))
+  if (contain_vars_of_level((Node *) subselect, 1)) {
+    DBUG_PRINT("info", "the rest of the sub-select must not refer to any Vars of the parent query");
     return NULL;
+  }
 
   /*
    * On the other hand, the WHERE clause must contain some Vars of the
    * parent query, else it's not gonna be a join.
    */
-  if (!contain_vars_of_level(whereClause, 1))
+  if (!contain_vars_of_level(whereClause, 1)) {
+    DBUG_PRINT("info", "the WHERE clause must contain some Vars of the parent query, else it's not gonna be a join");
     return NULL;
+  }
 
   /*
    * We don't risk optimizing if the WHERE clause is volatile, either.
    */
-  if (contain_volatile_functions(whereClause))
+  if (contain_volatile_functions(whereClause)) {
+    DBUG_PRINT("info", "we don't risk optimizing if the WHERE clause is volatile, either");
     return NULL;
+  }
 
   /*
    * The subquery must have a nonempty jointree, but we can make it so.
@@ -1548,8 +1880,10 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
    * Now that we've got the set of upper-level varnos, we can make the last
    * check: only available_rels can be referenced.
    */
-  if (!bms_is_subset(upper_varnos, available_rels))
+  if (!bms_is_subset(upper_varnos, available_rels)) {
+    DBUG_PRINT("info", "only available_rels can be referenced");
     return NULL;
+  }
 
   /*
    * Now we can attach the modified subquery rtable to the parent. This also
@@ -1561,6 +1895,7 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
   /*
    * And finally, build the JoinExpr node.
    */
+  DBUG_PRINT("info", "and finally, build the JoinExpr node");
   result = makeNode(JoinExpr);
   result->jointype = under_not ? JOIN_ANTI : JOIN_SEMI;
   result->isNatural = false;
@@ -1600,6 +1935,7 @@ convert_EXISTS_sublink_to_join(PlannerInfo *root, SubLink *sublink,
 static bool
 simplify_EXISTS_query(PlannerInfo *root, Query *query)
 {
+  DBUG_TRACE;
   /*
    * We don't try to simplify at all if the query uses set operations,
    * aggregates, grouping sets, SRFs, modifying CTEs, HAVING, OFFSET, or FOR
@@ -1608,6 +1944,8 @@ simplify_EXISTS_query(PlannerInfo *root, Query *query)
    * clause, but that traditionally is used as an optimization fence, so we
    * don't.)
    */
+  DBUG_PRINT("info", "remove any useless stuff in an EXISTS's subquery");
+
   if (query->commandType != CMD_SELECT ||
       query->setOperations ||
       query->hasAggs ||
@@ -1617,8 +1955,10 @@ simplify_EXISTS_query(PlannerInfo *root, Query *query)
       query->hasModifyingCTE ||
       query->havingQual ||
       query->limitOffset ||
-      query->rowMarks)
+      query->rowMarks) {
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
   /*
    * LIMIT with a constant positive (or NULL) value doesn't affect the
@@ -1641,14 +1981,18 @@ simplify_EXISTS_query(PlannerInfo *root, Query *query)
     /* Might as well update the query if we simplified the clause. */
     query->limitCount = node;
 
-    if (!IsA(node, Const))
+    if (!IsA(node, Const)) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     limit = (Const *) node;
     Assert(limit->consttype == INT8OID);
 
-    if (!limit->constisnull && DatumGetInt64(limit->constvalue) <= 0)
+    if (!limit->constisnull && DatumGetInt64(limit->constvalue) <= 0) {
+      DBUG_PRINT("info", "result: false");
       return false;
+    }
 
     /* Whether or not the targetlist is safe, we can drop the LIMIT. */
     query->limitCount = NULL;
@@ -1689,6 +2033,7 @@ simplify_EXISTS_query(PlannerInfo *root, Query *query)
     query->hasGroupRTE = false;
   }
 
+  DBUG_PRINT("info", "result: true");
   return true;
 }
 
@@ -1710,6 +2055,7 @@ static Query *
 convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
                       Node **testexpr, List **paramIds)
 {
+  DBUG_TRACE;
   Node     *whereClause;
   List     *leftargs,
            *rightargs,
@@ -1725,6 +2071,7 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
              *cc;
   AttrNumber  resno;
 
+  DBUG_PRINT("info", "try to convert EXISTS to a hashable ANY sublink");
   /*
    * Query must not require a targetlist, since we have to insert a new one.
    * Caller should have dealt with the case already.
@@ -1747,14 +2094,18 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
    * sub-select is as yet unoptimized; any uplevel Aggref must therefore
    * contain an uplevel Var reference.  This is not the case below ...
    */
-  if (contain_vars_of_level((Node *) subselect, 1))
+  if (contain_vars_of_level((Node *) subselect, 1)) {
+    DBUG_PRINT("info", "the rest of the sub-select must not refer to any Vars of the parent query");
     return NULL;
+  }
 
   /*
    * We don't risk optimizing if the WHERE clause is volatile, either.
    */
-  if (contain_volatile_functions(whereClause))
+  if (contain_volatile_functions(whereClause)) {
+    DBUG_PRINT("info", "we don't risk optimizing if the WHERE clause is volatile, either");
     return NULL;
+  }
 
   /*
    * Clean up the WHERE clause by doing const-simplification etc on it.
@@ -1822,6 +2173,7 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
         }
 
         /* If no commutator, no chance to optimize the WHERE clause */
+        DBUG_PRINT("info", "if no commutator, no chance to optimize the WHERE clause");
         return NULL;
       }
     }
@@ -1833,8 +2185,10 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
   /*
    * If we didn't find anything we could convert, fail.
    */
-  if (leftargs == NIL)
+  if (leftargs == NIL) {
+    DBUG_PRINT("info", "if we didn't find anything we could convert, fail");
     return NULL;
+  }
 
   /*
    * There mustn't be any parent Vars or Aggs in the stuff that we intend to
@@ -1846,13 +2200,17 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
    * SUM(CASE WHEN false THEN uplevelvar ELSE 0 END)
    */
   if (contain_vars_of_level((Node *) newWhere, 1) ||
-      contain_vars_of_level((Node *) rightargs, 1))
+      contain_vars_of_level((Node *) rightargs, 1)) {
+    DBUG_PRINT("info", "there mustn't be any parent Vars in the stuff that we intend to put back into the child query");
     return NULL;
+  }
 
   if (root->parse->hasAggs &&
       (contain_aggs_of_level((Node *) newWhere, 1) ||
-       contain_aggs_of_level((Node *) rightargs, 1)))
+       contain_aggs_of_level((Node *) rightargs, 1))) {
+    DBUG_PRINT("info", "there mustn't be any parent Aggs in the stuff that we intend to put back into the child query");
     return NULL;
+  }
 
   /*
    * And there can't be any child Vars in the stuff we intend to pull up.
@@ -1860,15 +2218,19 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
    * has no aggs at all because of simplify_EXISTS_query's check. The same
    * goes for window functions.)
    */
-  if (contain_vars_of_level((Node *) leftargs, 0))
+  if (contain_vars_of_level((Node *) leftargs, 0)) {
+    DBUG_PRINT("info", "there can't be any child Vars in the stuff we intend to pull up");
     return NULL;
+  }
 
   /*
    * Also reject sublinks in the stuff we intend to pull up.  (It might be
    * possible to support this, but doesn't seem worth the complication.)
    */
-  if (contain_subplans((Node *) leftargs))
+  if (contain_subplans((Node *) leftargs)) {
+    DBUG_PRINT("info", "reject sublinks in the stuff we intend to pull up");
     return NULL;
+  }
 
   /*
    * Okay, adjust the sublevelsup in the stuff we're pulling up.
@@ -1887,6 +2249,7 @@ convert_EXISTS_to_ANY(PlannerInfo *root, Query *subselect,
    * reference the child outputs.  (Since we generate Params directly here,
    * there will be no need to convert the testexpr in build_subplan.)
    */
+  DBUG_PRINT("info", "build a new targetlist for the child that emits the expressions we need");
   tlist = testlist = paramids = NIL;
   resno = 1;
   forfour(lc, leftargs, rc, rightargs, oc, opids, cc, opcollations) {
@@ -2015,6 +2378,7 @@ SS_process_sublinks(PlannerInfo *root, Node *expr, bool isQual)
 static Node *
 process_sublinks_mutator(Node *node, process_sublinks_context *context)
 {
+  DBUG_TRACE;
   process_sublinks_context locContext;
 
   locContext.root = context->root;
@@ -2220,14 +2584,17 @@ SS_identify_outer_params(PlannerInfo *root)
 void
 SS_charge_for_initplans(PlannerInfo *root, RelOptInfo *final_rel)
 {
+  DBUG_TRACE;
   Cost    initplan_cost;
   bool    unsafe_initplans;
   ListCell   *lc;
+  char        name[32];
 
   /* Nothing to do if no initPlans */
   if (root->init_plans == NIL)
     return;
 
+  DBUG_PRINT("info", "account for initplans in Path costs & parallelism");
   /*
    * Compute the cost increment just once, since it will be the same for all
    * Paths.  Also check for parallel-unsafe initPlans.
@@ -2238,11 +2605,16 @@ SS_charge_for_initplans(PlannerInfo *root, RelOptInfo *final_rel)
   /*
    * Now adjust the costs and parallel_safe flags.
    */
+  DBUG_PRINT("info", "now adjust the costs and parallel_safe flags");
+
   foreach(lc, final_rel->pathlist) {
     Path     *path = (Path *) lfirst(lc);
 
     path->startup_cost += initplan_cost;
+    DBUG_PRINT("info", "add initplan_cost:%g to total_cost:%g for path:%s", initplan_cost, path->total_cost,
+               get_plan_type_str(name, path->pathtype));
     path->total_cost += initplan_cost;
+    DBUG_PRINT("info", "now the new total cost:%g", path->total_cost);
 
     if (unsafe_initplans)
       path->parallel_safe = false;
@@ -2256,11 +2628,16 @@ SS_charge_for_initplans(PlannerInfo *root, RelOptInfo *final_rel)
     final_rel->partial_pathlist = NIL;
     final_rel->consider_parallel = false;
   } else {
+    DBUG_PRINT("info", "adjust partial paths' costs too");
+
     foreach(lc, final_rel->partial_pathlist) {
       Path     *path = (Path *) lfirst(lc);
 
       path->startup_cost += initplan_cost;
+      DBUG_PRINT("info", "add initplan_cost:%g to total_cost:%g for partial path:%s", initplan_cost, path->total_cost,
+                 get_plan_type_str(name, path->pathtype));
       path->total_cost += initplan_cost;
+      DBUG_PRINT("info", "now the new total cost:%g", path->total_cost);
     }
   }
 
@@ -2282,6 +2659,7 @@ SS_compute_initplan_cost(List *init_plans,
                          Cost *initplan_cost_p,
                          bool *unsafe_initplans_p)
 {
+  DBUG_TRACE;
   Cost    initplan_cost;
   bool    unsafe_initplans;
   ListCell   *lc;
@@ -2305,6 +2683,12 @@ SS_compute_initplan_cost(List *init_plans,
 
   *initplan_cost_p = initplan_cost;
   *unsafe_initplans_p = unsafe_initplans;
+
+  if (unsafe_initplans) {
+    DBUG_PRINT("info", "initplan_cost: %g and unsafe_initplans: true", initplan_cost);
+  } else {
+    DBUG_PRINT("info", "initplan_cost: %g and unsafe_initplans: false", initplan_cost);
+  }
 }
 
 /*
@@ -2338,6 +2722,7 @@ SS_attach_initplans(PlannerInfo *root, Plan *plan)
 void
 SS_finalize_plan(PlannerInfo *root, Plan *plan)
 {
+  DBUG_TRACE;
   /* No setup needed, just recurse through plan tree. */
   (void) finalize_plan(root, plan, -1, root->outer_params, NULL);
 }
@@ -2379,6 +2764,7 @@ finalize_plan(PlannerInfo *root, Plan *plan,
               Bitmapset *valid_params,
               Bitmapset *scan_params)
 {
+  DBUG_TRACE;
   finalize_primnode_context context;
   int     locally_added_param;
   Bitmapset  *nestloop_params;
@@ -2390,6 +2776,7 @@ finalize_plan(PlannerInfo *root, Plan *plan,
   if (plan == NULL)
     return NULL;
 
+  DBUG_PRINT("info", "recursive processing of all nodes in the plan tree");
   context.root = root;
   context.paramids = NULL;  /* initialize set to empty */
   locally_added_param = -1; /* there isn't one */
@@ -2440,6 +2827,8 @@ finalize_plan(PlannerInfo *root, Plan *plan,
     context.paramids =
       bms_add_member(context.paramids, gather_param);
   }
+
+  DBUG_PRINT("info", "check additional node-type-specific fields for node tag:%d", nodeTag(plan));
 
   /* Check additional node-type-specific fields */
   switch (nodeTag(plan)) {
@@ -2886,6 +3275,7 @@ finalize_plan(PlannerInfo *root, Plan *plan,
   }
 
   /* Process left and right child plans, if any */
+  DBUG_PRINT("info", "process left and right child plans, if any");
   child_params = finalize_plan(root,
                                plan->lefttree,
                                gather_param,
@@ -3038,6 +3428,8 @@ finalize_primnode(Node *node, finalize_primnode_context *context)
 static bool
 finalize_agg_primnode(Node *node, finalize_primnode_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -3083,6 +3475,7 @@ SS_make_initplan_from_plan(PlannerInfo *root,
                            PlannerInfo *subroot, Plan *plan,
                            Param *prm)
 {
+  DBUG_TRACE;
   SubPlan    *node;
 
   /*

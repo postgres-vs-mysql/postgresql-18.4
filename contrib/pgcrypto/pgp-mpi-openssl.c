@@ -34,10 +34,12 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 static BIGNUM *
 mpi_to_bn(PGP_MPI *n)
 {
+  DBUG_TRACE;
   BIGNUM     *bn = BN_bin2bn(n->data, n->bytes, NULL);
 
   if (!bn)
@@ -56,6 +58,7 @@ mpi_to_bn(PGP_MPI *n)
 static PGP_MPI *
 bn_to_mpi(BIGNUM *bn)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *n;
 
@@ -103,6 +106,7 @@ int
 pgp_elgamal_encrypt(PGP_PubKey *pk, PGP_MPI *_m,
                     PGP_MPI **c1_p, PGP_MPI **c2_p)
 {
+  DBUG_TRACE;
   int     res = PXE_PGP_MATH_FAILED;
   int     k_bits;
   BIGNUM     *m = mpi_to_bn(_m);
@@ -181,6 +185,7 @@ int
 pgp_elgamal_decrypt(PGP_PubKey *pk, PGP_MPI *_c1, PGP_MPI *_c2,
                     PGP_MPI **msg_p)
 {
+  DBUG_TRACE;
   int     res = PXE_PGP_MATH_FAILED;
   BIGNUM     *c1 = mpi_to_bn(_c1);
   BIGNUM     *c2 = mpi_to_bn(_c2);
@@ -244,6 +249,7 @@ err:
 int
 pgp_rsa_encrypt(PGP_PubKey *pk, PGP_MPI *_m, PGP_MPI **c_p)
 {
+  DBUG_TRACE;
   int     res = PXE_PGP_MATH_FAILED;
   BIGNUM     *m = mpi_to_bn(_m);
   BIGNUM     *e = mpi_to_bn(pk->pub.rsa.e);
@@ -288,6 +294,7 @@ err:
 int
 pgp_rsa_decrypt(PGP_PubKey *pk, PGP_MPI *_c, PGP_MPI **m_p)
 {
+  DBUG_TRACE;
   int     res = PXE_PGP_MATH_FAILED;
   BIGNUM     *c = mpi_to_bn(_c);
   BIGNUM     *d = mpi_to_bn(pk->sec.rsa.d);

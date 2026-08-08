@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/gist.h"
@@ -179,6 +180,7 @@ CheckIndexCompatible(Oid oldId,
                      const List *exclusionOpNames,
                      bool isWithoutOverlaps)
 {
+  DBUG_TRACE;
   bool    isconstraint;
   Oid      *typeIds;
   Oid      *collationIds;
@@ -217,13 +219,16 @@ CheckIndexCompatible(Oid oldId,
   Assert(numberOfAttributes <= INDEX_MAX_KEYS);
 
   /* look up the access method */
+  DBUG_PRINT("info", "look up the access method:%s", accessMethodName);
   tuple = SearchSysCache1(AMNAME, PointerGetDatum(accessMethodName));
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not exist", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("access method \"%s\" does not exist",
                     accessMethodName)));
+  }
 
   accessMethodForm = (Form_pg_am) GETSTRUCT(tuple);
   accessMethodId = accessMethodForm->oid;
@@ -241,6 +246,7 @@ CheckIndexCompatible(Oid oldId,
    * key attributes, thus we're filling ii_NumIndexAttrs and
    * ii_NumIndexKeyAttrs with same value.
    */
+  DBUG_PRINT("info", "compute the operator classes, collations, and exclusion operators for the new index");
   indexInfo = makeIndexInfo(numberOfAttributes, numberOfAttributes,
                             accessMethodId, NIL, NIL, false, false,
                             false, false, amsummarizing, isWithoutOverlaps);
@@ -273,6 +279,7 @@ CheckIndexCompatible(Oid oldId,
         heap_attisnull(tuple, Anum_pg_index_indexprs, NULL) &&
         indexForm->indisvalid)) {
     ReleaseSysCache(tuple);
+    DBUG_PRINT("info", "assume incompatibility here");
     return false;
   }
 
@@ -291,8 +298,10 @@ CheckIndexCompatible(Oid oldId,
 
   ReleaseSysCache(tuple);
 
-  if (!ret)
+  if (!ret) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* For polymorphic opcintype, column type changes break compatibility. */
   irel = index_open(oldId, AccessShareLock);  /* caller probably has a lock */
@@ -345,6 +354,13 @@ CheckIndexCompatible(Oid oldId,
   }
 
   index_close(irel, NoLock);
+
+  if (ret) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return ret;
 }
 
@@ -357,6 +373,7 @@ CheckIndexCompatible(Oid oldId,
 static bool
 CompareOpclassOptions(const Datum *opts1, const Datum *opts2, int natts)
 {
+  DBUG_TRACE;
   int     i;
   FmgrInfo  fm;
 
@@ -428,6 +445,7 @@ CompareOpclassOptions(const Datum *opts1, const Datum *opts2, int natts)
 void
 WaitForOlderSnapshots(TransactionId limitXmin, bool progress)
 {
+  DBUG_TRACE;
   int     n_old_snapshots;
   int     i;
   VirtualTransactionId *old_snapshots;
@@ -545,6 +563,7 @@ DefineIndex(Oid tableId,
             bool skip_build,
             bool quiet)
 {
+  DBUG_TRACE;
   bool    concurrent;
   char     *indexRelationName;
   char     *accessMethodName;
@@ -585,6 +604,7 @@ DefineIndex(Oid tableId,
   int     root_save_sec_context;
   int     root_save_nestlevel;
 
+  DBUG_PRINT("info", "creates a new index");
   root_save_nestlevel = NewGUCNestLevel();
 
   RestrictSearchPath();
@@ -634,6 +654,7 @@ DefineIndex(Oid tableId,
    */
   numberOfKeyAttributes = list_length(stmt->indexParams);
 
+  DBUG_PRINT("info", "count key attributes in index:%d", numberOfKeyAttributes);
   /*
    * Calculate the new list of index columns including both key columns and
    * INCLUDE columns.  Later we can determine which of these are key
@@ -646,16 +667,20 @@ DefineIndex(Oid tableId,
                                     stmt->indexIncludingParams);
   numberOfAttributes = list_length(allIndexParams);
 
-  if (numberOfKeyAttributes <= 0)
+  if (numberOfKeyAttributes <= 0) {
+    DBUG_INSTANT_PRINT("info", "must specify at least one column");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("must specify at least one column")));
+  }
 
-  if (numberOfAttributes > INDEX_MAX_KEYS)
+  if (numberOfAttributes > INDEX_MAX_KEYS) {
+    DBUG_INSTANT_PRINT("info", "cannot use more than %d columns in an index", INDEX_MAX_KEYS);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("cannot use more than %d columns in an index",
                     INDEX_MAX_KEYS)));
+  }
 
   /*
    * Only SELECT ... FOR UPDATE/SHARE are allowed while doing a standard
@@ -701,6 +726,7 @@ DefineIndex(Oid tableId,
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "cannot create index on relation \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot create index on relation \"%s\"",
@@ -720,26 +746,32 @@ DefineIndex(Oid tableId,
   partitioned = rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE;
 
   if (partitioned) {
+    DBUG_PRINT("info", "establish behavior for partitioned tables, and verify sanity of parameters");
+
     /*
      * Note: we check 'stmt->concurrent' rather than 'concurrent', so that
      * the error is thrown also for temporary tables.  Seems better to be
      * consistent, even though we could do it on temporary table because
      * we're not actually doing it concurrently.
      */
-    if (stmt->concurrent)
+    if (stmt->concurrent) {
+      DBUG_INSTANT_PRINT("info", "cannot create index on partitioned table \"%s\" concurrently", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot create index on partitioned table \"%s\" concurrently",
                       RelationGetRelationName(rel))));
+    }
   }
 
   /*
    * Don't try to CREATE INDEX on temp tables of other backends.
    */
-  if (RELATION_IS_OTHER_TEMP(rel))
+  if (RELATION_IS_OTHER_TEMP(rel)) {
+    DBUG_INSTANT_PRINT("info", "cannot create indexes on temporary tables of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot create indexes on temporary tables of other sessions")));
+  }
 
   /*
    * Unless our caller vouches for having checked this already, insist that
@@ -774,10 +806,12 @@ DefineIndex(Oid tableId,
   if (stmt->tableSpace) {
     tablespaceId = get_tablespace_oid(stmt->tableSpace, false);
 
-    if (partitioned && tablespaceId == MyDatabaseTableSpace)
+    if (partitioned && tablespaceId == MyDatabaseTableSpace) {
+      DBUG_INSTANT_PRINT("info", "cannot specify default tablespace for partitioned relations");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot specify default tablespace for partitioned relations")));
+    }
   } else {
     tablespaceId = GetDefaultTablespace(rel->rd_rel->relpersistence,
                                         partitioned);
@@ -804,14 +838,17 @@ DefineIndex(Oid tableId,
    */
   if (rel->rd_rel->relisshared)
     tablespaceId = GLOBALTABLESPACE_OID;
-  else if (tablespaceId == GLOBALTABLESPACE_OID)
+  else if (tablespaceId == GLOBALTABLESPACE_OID) {
+    DBUG_INSTANT_PRINT("info", "only shared relations can be placed in pg_global tablespace");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("only shared relations can be placed in pg_global tablespace")));
+  }
 
   /*
    * Choose the index column names.
    */
+  DBUG_PRINT("info", "choose the index column names");
   indexColNames = ChooseIndexColumnNames(allIndexParams);
 
   /*
@@ -831,6 +868,7 @@ DefineIndex(Oid tableId,
    * look up the access method, verify it can handle the requested features
    */
   accessMethodName = stmt->accessMethod;
+  DBUG_PRINT("info", "look up the access method, verify it can handle the requested features:%s", accessMethodName);
   tuple = SearchSysCache1(AMNAME, PointerGetDatum(accessMethodName));
 
   if (!HeapTupleIsValid(tuple)) {
@@ -839,17 +877,20 @@ DefineIndex(Oid tableId,
      * indexes to GiST: if RTREE is requested and not found, use GIST.
      */
     if (strcmp(accessMethodName, "rtree") == 0) {
+      DBUG_PRINT("info", "substituting access method \"gist\" for obsolete method \"rtree\"");
       ereport(NOTICE,
               (errmsg("substituting access method \"gist\" for obsolete method \"rtree\"")));
       accessMethodName = "gist";
       tuple = SearchSysCache1(AMNAME, PointerGetDatum(accessMethodName));
     }
 
-    if (!HeapTupleIsValid(tuple))
+    if (!HeapTupleIsValid(tuple)) {
+      DBUG_INSTANT_PRINT("info", "access method \"%s\" does not exist", accessMethodName);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("access method \"%s\" does not exist",
                       accessMethodName)));
+    }
   }
 
   accessMethodForm = (Form_pg_am) GETSTRUCT(tuple);
@@ -859,35 +900,45 @@ DefineIndex(Oid tableId,
   pgstat_progress_update_param(PROGRESS_CREATEIDX_ACCESS_METHOD_OID,
                                accessMethodId);
 
-  if (stmt->unique && !stmt->iswithoutoverlaps && !amRoutine->amcanunique)
+  if (stmt->unique && !stmt->iswithoutoverlaps && !amRoutine->amcanunique) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support unique indexes", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("access method \"%s\" does not support unique indexes",
                     accessMethodName)));
+  }
 
-  if (stmt->indexIncludingParams != NIL && !amRoutine->amcaninclude)
+  if (stmt->indexIncludingParams != NIL && !amRoutine->amcaninclude) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support included columns", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("access method \"%s\" does not support included columns",
                     accessMethodName)));
+  }
 
-  if (numberOfKeyAttributes > 1 && !amRoutine->amcanmulticol)
+  if (numberOfKeyAttributes > 1 && !amRoutine->amcanmulticol) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support multicolumn indexes", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("access method \"%s\" does not support multicolumn indexes",
                     accessMethodName)));
+  }
 
-  if (exclusion && amRoutine->amgettuple == NULL)
+  if (exclusion && amRoutine->amgettuple == NULL) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support exclusion constraints", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("access method \"%s\" does not support exclusion constraints",
                     accessMethodName)));
+  }
 
-  if (stmt->iswithoutoverlaps && strcmp(accessMethodName, "gist") != 0)
+  if (stmt->iswithoutoverlaps && strcmp(accessMethodName, "gist") != 0) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support WITHOUT OVERLAPS constraints", accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("access method \"%s\" does not support WITHOUT OVERLAPS constraints",
                     accessMethodName)));
+  }
 
   amcanorder = amRoutine->amcanorder;
   amoptions = amRoutine->amoptions;
@@ -899,8 +950,10 @@ DefineIndex(Oid tableId,
   /*
    * Validate predicate, if given
    */
-  if (stmt->whereClause)
+  if (stmt->whereClause) {
+    DBUG_PRINT("info", "validate predicate");
     CheckPredicate((Expr *) stmt->whereClause);
+  }
 
   /*
    * Parse AM-specific options, convert to text array form, validate.
@@ -944,8 +997,10 @@ DefineIndex(Oid tableId,
   /*
    * Extra checks when creating a PRIMARY KEY index.
    */
-  if (stmt->primary)
+  if (stmt->primary) {
+    DBUG_PRINT("info", "extra checks when creating a PRIMARY KEY index");
     index_check_primary_key(rel, indexInfo, is_alter_table, stmt);
+  }
 
   /*
    * If this table is partitioned and we're creating a unique index, primary
@@ -961,6 +1016,8 @@ DefineIndex(Oid tableId,
     PartitionKey key = RelationGetPartitionKey(rel);
     const char *constraint_type;
     int     i;
+
+    DBUG_PRINT("info", "make sure that the partition key is a  subset of the index's columns");
 
     if (stmt->primary)
       constraint_type = "PRIMARY KEY";
@@ -1061,11 +1118,14 @@ DefineIndex(Oid tableId,
                */
               Form_pg_attribute att = TupleDescAttr(RelationGetDescr(rel), key->partattrs[i] - 1);
 
+              char *opname =  get_opname(indexInfo->ii_ExclusionOps[j]);
+              DBUG_INSTANT_PRINT("info", "cannot match partition key to index on column \"%s\" using non-equal operator \"%s\"",
+                                 NameStr(att->attname), opname);
               ereport(ERROR,
                       (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                        errmsg("cannot match partition key to index on column \"%s\" using non-equal operator \"%s\"",
                               NameStr(att->attname),
-                              get_opname(indexInfo->ii_ExclusionOps[j]))));
+                              opname)));
             }
           }
         }
@@ -1076,6 +1136,7 @@ DefineIndex(Oid tableId,
 
         att = TupleDescAttr(RelationGetDescr(rel),
                             key->partattrs[i] - 1);
+        DBUG_INSTANT_PRINT("info", "unique constraint on partitioned table must include all partitioning columns");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("unique constraint on partitioned table must include all partitioning columns"),
@@ -1094,17 +1155,22 @@ DefineIndex(Oid tableId,
    * Also disallow virtual generated columns in indexes (use expression
    * index instead).
    */
+  DBUG_PRINT("info", "we disallow indexes on system columns");
+
   for (int i = 0; i < indexInfo->ii_NumIndexAttrs; i++) {
     AttrNumber  attno = indexInfo->ii_IndexAttrNumbers[i];
 
-    if (attno < 0)
+    if (attno < 0) {
+      DBUG_INSTANT_PRINT("info", "index creation on system columns is not supported");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("index creation on system columns is not supported")));
+    }
 
 
     if (attno > 0 &&
-        TupleDescAttr(RelationGetDescr(rel), attno - 1)->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+        TupleDescAttr(RelationGetDescr(rel), attno - 1)->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL) {
+      DBUG_INSTANT_PRINT("info", "primary keys on virtual generated columns are not supported");
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               stmt->primary ?
@@ -1112,6 +1178,7 @@ DefineIndex(Oid tableId,
               stmt->isconstraint ?
               errmsg("unique constraints on virtual generated columns are not supported") :
               errmsg("indexes on virtual generated columns are not supported"));
+    }
   }
 
   /*
@@ -1127,10 +1194,12 @@ DefineIndex(Oid tableId,
 
     for (int i = FirstLowInvalidHeapAttributeNumber + 1; i < 0; i++) {
       if (bms_is_member(i - FirstLowInvalidHeapAttributeNumber,
-                        indexattrs))
+                        indexattrs)) {
+        DBUG_INSTANT_PRINT("info", "index creation on system columns is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("index creation on system columns is not supported")));
+      }
     }
 
     /*
@@ -1271,6 +1340,7 @@ DefineIndex(Oid tableId,
    * subsequent changes local to this command.  This is essential if some
    * index function changed a behavior-affecting GUC, e.g. search_path.
    */
+  DBUG_PRINT("info", "roll back any GUC changes executed by index functions , and keep subsequent changes local to this command");
   AtEOXact_GUC(false, root_save_nestlevel);
   root_save_nestlevel = NewGUCNestLevel();
   RestrictSearchPath();
@@ -1377,13 +1447,15 @@ DefineIndex(Oid tableId,
          * constraint index.
          */
         if (childrel->rd_rel->relkind == RELKIND_FOREIGN_TABLE) {
-          if (stmt->unique || stmt->primary)
+          if (stmt->unique || stmt->primary) {
+            DBUG_INSTANT_PRINT("info", "cannot create unique index on partitioned table \"%s\"", RelationGetRelationName(rel));
             ereport(ERROR,
                     (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                      errmsg("cannot create unique index on partitioned table \"%s\"",
                             RelationGetRelationName(rel)),
                      errdetail("Table \"%s\" contains partitions that are foreign tables.",
                                RelationGetRelationName(rel))));
+          }
 
           AtEOXact_GUC(false, child_save_nestlevel);
           SetUserIdAndSecContext(child_save_userid,
@@ -1826,6 +1898,7 @@ DefineIndex(Oid tableId,
 static void
 CheckPredicate(Expr *predicate)
 {
+  DBUG_TRACE;
   /*
    * transformExpr() should have already rejected subqueries, aggregates,
    * and window functions, based on the EXPR_KIND_ for a predicate.
@@ -1835,10 +1908,12 @@ CheckPredicate(Expr *predicate)
    * A predicate using mutable functions is probably wrong, for the same
    * reasons that we don't allow an index expression to use one.
    */
-  if (contain_mutable_functions_after_planning(predicate))
+  if (contain_mutable_functions_after_planning(predicate)) {
+    DBUG_INSTANT_PRINT("info", "functions in index predicate must be marked IMMUTABLE");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("functions in index predicate must be marked IMMUTABLE")));
+  }
 }
 
 /*
@@ -1869,6 +1944,7 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
                   int ddl_sec_context,
                   int *ddl_save_nestlevel)
 {
+  DBUG_TRACE;
   ListCell   *nextExclOp;
   ListCell   *lc;
   int     attn;
@@ -1928,16 +2004,19 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 
       if (!HeapTupleIsValid(atttuple)) {
         /* difference in error message spellings is historical */
-        if (isconstraint)
+        if (isconstraint) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" named in key does not exist", attribute->name);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_COLUMN),
                    errmsg("column \"%s\" named in key does not exist",
                           attribute->name)));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" does not exist", attribute->name);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_COLUMN),
                    errmsg("column \"%s\" does not exist",
                           attribute->name)));
+        }
       }
 
       attform = (Form_pg_attribute) GETSTRUCT(atttuple);
@@ -1951,10 +2030,12 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
 
       Assert(expr != NULL);
 
-      if (attn >= nkeycols)
+      if (attn >= nkeycols) {
+        DBUG_INSTANT_PRINT("info", "expressions are not supported in included columns");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("expressions are not supported in included columns")));
+      }
 
       atttype = exprType(expr);
       attcollation = exprCollation(expr);
@@ -1990,10 +2071,12 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
          * same data every time, it's not clear what the index entries
          * mean at all.
          */
-        if (contain_mutable_functions_after_planning((Expr *) expr))
+        if (contain_mutable_functions_after_planning((Expr *) expr)) {
+          DBUG_INSTANT_PRINT("info", "functions in index expression must be marked IMMUTABLE");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                    errmsg("functions in index expression must be marked IMMUTABLE")));
+        }
       }
     }
 
@@ -2004,25 +2087,33 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
      * options.
      */
     if (attn >= nkeycols) {
-      if (attribute->collation)
+      if (attribute->collation) {
+        DBUG_INSTANT_PRINT("info", "including column does not support a collation");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("including column does not support a collation")));
+      }
 
-      if (attribute->opclass)
+      if (attribute->opclass) {
+        DBUG_INSTANT_PRINT("info", "including column does not support an operator class");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("including column does not support an operator class")));
+      }
 
-      if (attribute->ordering != SORTBY_DEFAULT)
+      if (attribute->ordering != SORTBY_DEFAULT) {
+        DBUG_INSTANT_PRINT("info", "including column does not support ASC/DESC options");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("including column does not support ASC/DESC options")));
+      }
 
-      if (attribute->nulls_ordering != SORTBY_NULLS_DEFAULT)
+      if (attribute->nulls_ordering != SORTBY_NULLS_DEFAULT) {
+        DBUG_INSTANT_PRINT("info", "including column does not support NULLS FIRST/LAST options");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("including column does not support NULLS FIRST/LAST options")));
+      }
 
       opclassOids[attn] = InvalidOid;
       opclassOptions[attn] = (Datum) 0;
@@ -2060,17 +2151,22 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
      * might as well code this to be a complete consistency check.
      */
     if (type_is_collatable(atttype)) {
-      if (!OidIsValid(attcollation))
+      if (!OidIsValid(attcollation)) {
+        DBUG_INSTANT_PRINT("info", "could not determine which collation to use for index expression");
         ereport(ERROR,
                 (errcode(ERRCODE_INDETERMINATE_COLLATION),
                  errmsg("could not determine which collation to use for index expression"),
                  errhint("Use the COLLATE clause to set the collation explicitly.")));
+      }
     } else {
-      if (OidIsValid(attcollation))
+      if (OidIsValid(attcollation)) {
+        char *format1 = format_type_be(atttype);
+        DBUG_INSTANT_PRINT("info", "collations are not supported by type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("collations are not supported by type %s",
-                        format_type_be(atttype))));
+                        format1)));
+      }
     }
 
     collationOids[attn] = attcollation;
@@ -2132,12 +2228,14 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
        * constraints. If X conflicts with Y, but Y does not conflict
        * with X, bad things will happen.
        */
-      if (get_commutator(opid) != opid)
+      if (get_commutator(opid) != opid) {
+        DBUG_INSTANT_PRINT("info", "operator %s is not commutative", format_operator(opid));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("operator %s is not commutative",
                         format_operator(opid)),
                  errdetail("Only commutative operators can be used in exclusion constraints.")));
+      }
 
       /*
        * Operator must be a member of the right opfamily, too
@@ -2145,13 +2243,15 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
       opfamily = get_opclass_family(opclassOids[attn]);
       strat = get_op_opfamily_strategy(opid, opfamily);
 
-      if (strat == 0)
+      if (strat == 0) {
+        DBUG_INSTANT_PRINT("info", "operator %s is not a member of operator family \"%s\"", format_operator(opid), get_opfamily_name(opfamily, false));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("operator %s is not a member of operator family \"%s\"",
                         format_operator(opid),
                         get_opfamily_name(opfamily, false)),
                  errdetail("The exclusion operator must be related to the index operator class for the constraint.")));
+      }
 
       indexInfo->ii_ExclusionOps[attn] = opid;
       indexInfo->ii_ExclusionProcs[attn] = get_opcode(opid);
@@ -2193,17 +2293,21 @@ ComputeIndexAttrs(IndexInfo *indexInfo,
         colOptions[attn] |= INDOPTION_NULLS_FIRST;
     } else {
       /* index AM does not support ordering */
-      if (attribute->ordering != SORTBY_DEFAULT)
+      if (attribute->ordering != SORTBY_DEFAULT) {
+        DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support ASC/DESC options", accessMethodName);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("access method \"%s\" does not support ASC/DESC options",
                         accessMethodName)));
+      }
 
-      if (attribute->nulls_ordering != SORTBY_NULLS_DEFAULT)
+      if (attribute->nulls_ordering != SORTBY_NULLS_DEFAULT) {
+        DBUG_INSTANT_PRINT("info", "access method \"%s\" does not support NULLS FIRST/LAST options", accessMethodName);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("access method \"%s\" does not support NULLS FIRST/LAST options",
                         accessMethodName)));
+      }
     }
 
     /* Set up the per-column opclass options (attoptions field). */
@@ -2230,6 +2334,7 @@ Oid
 ResolveOpClass(const List *opclass, Oid attrType,
                const char *accessMethodName, Oid accessMethodId)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *opcname;
   HeapTuple tuple;
@@ -2241,12 +2346,15 @@ ResolveOpClass(const List *opclass, Oid attrType,
     /* no operator class specified, so find the default */
     opClassId = GetDefaultOpClass(attrType, accessMethodId);
 
-    if (!OidIsValid(opClassId))
+    if (!OidIsValid(opClassId)) {
+      char *format1 = format_type_be(attrType);
+      DBUG_INSTANT_PRINT("info", "data type %s has no default operator class for access method \"%s\"", format1, accessMethodName);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("data type %s has no default operator class for access method \"%s\"",
-                      format_type_be(attrType), accessMethodName),
+                      format1, accessMethodName),
                errhint("You must specify an operator class for the index or define a default operator class for the data type.")));
+    }
 
     return opClassId;
   }
@@ -2271,20 +2379,24 @@ ResolveOpClass(const List *opclass, Oid attrType,
     /* Unqualified opclass name, so search the search path */
     opClassId = OpclassnameGetOpcid(accessMethodId, opcname);
 
-    if (!OidIsValid(opClassId))
+    if (!OidIsValid(opClassId)) {
+      DBUG_INSTANT_PRINT("info", "operator class \"%s\" does not exist for access method \"%s\"", opcname, accessMethodName);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("operator class \"%s\" does not exist for access method \"%s\"",
                       opcname, accessMethodName)));
+    }
 
     tuple = SearchSysCache1(CLAOID, ObjectIdGetDatum(opClassId));
   }
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "operator class \"%s\" does not exist for access method \"%s\"", NameListToString(opclass), accessMethodName);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("operator class \"%s\" does not exist for access method \"%s\"",
                     NameListToString(opclass), accessMethodName)));
+  }
 
   /*
    * Verify that the index operator class accepts this datatype.  Note we
@@ -2294,11 +2406,14 @@ ResolveOpClass(const List *opclass, Oid attrType,
   opClassId = opform->oid;
   opInputType = opform->opcintype;
 
-  if (!IsBinaryCoercible(attrType, opInputType))
+  if (!IsBinaryCoercible(attrType, opInputType)) {
+    char *format1 = format_type_be(attrType);
+    DBUG_INSTANT_PRINT("info", "operator class \"%s\" does not accept data type %s", NameListToString(opclass), format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("operator class \"%s\" does not accept data type %s",
-                    NameListToString(opclass), format_type_be(attrType))));
+                    NameListToString(opclass), format1)));
+  }
 
   ReleaseSysCache(tuple);
 
@@ -2314,6 +2429,7 @@ ResolveOpClass(const List *opclass, Oid attrType,
 Oid
 GetDefaultOpClass(Oid type_id, Oid am_id)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   int     nexact = 0;
   int     ncompatible = 0;
@@ -2378,11 +2494,14 @@ GetDefaultOpClass(Oid type_id, Oid am_id)
   table_close(rel, AccessShareLock);
 
   /* raise error if pg_opclass contains inconsistent data */
-  if (nexact > 1)
+  if (nexact > 1) {
+    char *format1 = format_type_be(type_id);
+    DBUG_INSTANT_PRINT("info", "there are multiple default operator classes for data type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("there are multiple default operator classes for data type %s",
-                    format_type_be(type_id))));
+                    format1)));
+  }
 
   if (nexact == 1 ||
       ncompatiblepreferred == 1 ||
@@ -2482,6 +2601,7 @@ GetOperatorFromCompareType(Oid opclass, Oid rhstype, CompareType cmptype,
 char *
 makeObjectName(const char *name1, const char *name2, const char *label)
 {
+  DBUG_TRACE;
   char     *name;
   int     overhead = 0; /* chars needed for label and underscores */
   int     availchars;   /* chars available for name(s) */
@@ -2571,6 +2691,7 @@ ChooseRelationName(const char *name1, const char *name2,
                    const char *label, Oid namespaceid,
                    bool isconstraint)
 {
+  DBUG_TRACE;
   int     pass = 0;
   char     *relname = NULL;
   char    modlabel[NAMEDATALEN];
@@ -2637,6 +2758,7 @@ ChooseIndexName(const char *tabname, Oid namespaceId,
                 const List *colnames, const List *exclusionOpNames,
                 bool primary, bool isconstraint)
 {
+  DBUG_TRACE;
   char     *indexname;
 
   if (primary) {
@@ -2683,6 +2805,7 @@ ChooseIndexName(const char *tabname, Oid namespaceId,
 static char *
 ChooseIndexNameAddition(const List *colnames)
 {
+  DBUG_TRACE;
   char    buf[NAMEDATALEN * 2];
   int     buflen = 0;
   ListCell   *lc;
@@ -2719,6 +2842,7 @@ ChooseIndexNameAddition(const List *colnames)
 static List *
 ChooseIndexColumnNames(const List *indexElems)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -2780,6 +2904,7 @@ ChooseIndexColumnNames(const List *indexElems)
 void
 ExecReindex(ParseState *pstate, const ReindexStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   ReindexParams params = {0};
   ListCell   *lc;
   bool    concurrently = false;
@@ -2796,12 +2921,14 @@ ExecReindex(ParseState *pstate, const ReindexStmt *stmt, bool isTopLevel)
       concurrently = defGetBoolean(opt);
     else if (strcmp(opt->defname, "tablespace") == 0)
       tablespacename = defGetString(opt);
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "unrecognized REINDEX option \"%s\"", opt->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized %s option \"%s\"",
                       "REINDEX", opt->defname),
                parser_errposition(pstate, opt->location)));
+    }
   }
 
   if (concurrently)
@@ -2874,12 +3001,14 @@ ExecReindex(ParseState *pstate, const ReindexStmt *stmt, bool isTopLevel)
 static void
 ReindexIndex(const ReindexStmt *stmt, const ReindexParams *params, bool isTopLevel)
 {
+  DBUG_TRACE;
   const RangeVar *indexRelation = stmt->relation;
   struct ReindexIndexCallbackState state;
   Oid     indOid;
   char    persistence;
   char    relkind;
 
+  DBUG_PRINT("info", "recreate a specific index");
   /*
    * Find and lock index, and check permissions on table; use callback to
    * obtain lock on table first, to avoid deadlock hazard.  The lock level
@@ -2928,6 +3057,7 @@ static void
 RangeVarCallbackForReindexIndex(const RangeVar *relation,
                                 Oid relId, Oid oldRelId, void *arg)
 {
+  DBUG_TRACE;
   char    relkind;
   struct ReindexIndexCallbackState *state = arg;
   LOCKMODE  table_lockmode;
@@ -2966,10 +3096,12 @@ RangeVarCallbackForReindexIndex(const RangeVar *relation,
     return;
 
   if (relkind != RELKIND_INDEX &&
-      relkind != RELKIND_PARTITIONED_INDEX)
+      relkind != RELKIND_PARTITIONED_INDEX) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not an index", relation->relname);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not an index", relation->relname)));
+  }
 
   /* Check permissions */
   table_oid = IndexGetRelation(relId, true);
@@ -3003,10 +3135,12 @@ RangeVarCallbackForReindexIndex(const RangeVar *relation,
 static Oid
 ReindexTable(const ReindexStmt *stmt, const ReindexParams *params, bool isTopLevel)
 {
+  DBUG_TRACE;
   Oid     heapOid;
   bool    result;
   const RangeVar *relation = stmt->relation;
 
+  DBUG_PRINT("info", "recreate all indexes of a table");
   /*
    * The lock level used here should match reindex_relation().
    *
@@ -3027,10 +3161,11 @@ ReindexTable(const ReindexStmt *stmt, const ReindexParams *params, bool isTopLev
            get_rel_persistence(heapOid) != RELPERSISTENCE_TEMP) {
     result = ReindexRelationConcurrently(stmt, heapOid, params);
 
-    if (!result)
+    if (!result) {
       ereport(NOTICE,
               (errmsg("table \"%s\" has no indexes that can be reindexed concurrently",
                       relation->relname)));
+    }
   } else {
     ReindexParams newparams = *params;
 
@@ -3040,10 +3175,11 @@ ReindexTable(const ReindexStmt *stmt, const ReindexParams *params, bool isTopLev
                               REINDEX_REL_CHECK_CONSTRAINTS,
                               &newparams);
 
-    if (!result)
+    if (!result) {
       ereport(NOTICE,
               (errmsg("table \"%s\" has no indexes to reindex",
                       relation->relname)));
+    }
   }
 
   return heapOid;
@@ -3060,7 +3196,7 @@ ReindexTable(const ReindexStmt *stmt, const ReindexParams *params, bool isTopLev
 static void
 ReindexMultipleTables(const ReindexStmt *stmt, const ReindexParams *params)
 {
-
+  DBUG_TRACE;
   Oid     objectOid;
   Relation  relationRelation;
   TableScanDesc scan;
@@ -3086,10 +3222,12 @@ ReindexMultipleTables(const ReindexStmt *stmt, const ReindexParams *params)
   Assert(objectName || objectKind != REINDEX_OBJECT_SCHEMA);
 
   if (objectKind == REINDEX_OBJECT_SYSTEM &&
-      (params->options & REINDEXOPT_CONCURRENTLY) != 0)
+      (params->options & REINDEXOPT_CONCURRENTLY) != 0) {
+    DBUG_INSTANT_PRINT("info", "cannot reindex system catalogs concurrently");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot reindex system catalogs concurrently")));
+  }
 
   /*
    * Get OID of object to reindex, being the database currently being used
@@ -3107,10 +3245,12 @@ ReindexMultipleTables(const ReindexStmt *stmt, const ReindexParams *params)
   } else {
     objectOid = MyDatabaseId;
 
-    if (objectName && strcmp(objectName, get_database_name(objectOid)) != 0)
+    if (objectName && strcmp(objectName, get_database_name(objectOid)) != 0) {
+      DBUG_INSTANT_PRINT("info", "can only reindex the currently open database");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("can only reindex the currently open database")));
+    }
 
     if (!object_ownercheck(DatabaseRelationId, objectOid, GetUserId()) &&
         !has_privs_of_role(GetUserId(), ROLE_PG_MAINTAIN))
@@ -3197,10 +3337,11 @@ ReindexMultipleTables(const ReindexStmt *stmt, const ReindexParams *params)
      */
     if ((params->options & REINDEXOPT_CONCURRENTLY) != 0 &&
         IsCatalogRelationOid(relid)) {
-      if (!concurrent_warning)
+      if (!concurrent_warning) {
         ereport(WARNING,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot reindex system catalogs concurrently, skipping all")));
+      }
 
       concurrent_warning = true;
       continue;
@@ -3229,10 +3370,11 @@ ReindexMultipleTables(const ReindexStmt *stmt, const ReindexParams *params)
         skip_rel = true;
 
       if (skip_rel) {
-        if (!tablespace_warning)
+        if (!tablespace_warning) {
           ereport(WARNING,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("cannot move system relations, skipping all")));
+        }
 
         tablespace_warning = true;
         continue;
@@ -3296,6 +3438,7 @@ reindex_error_callback(void *arg)
 static void
 ReindexPartitions(const ReindexStmt *stmt, Oid relid, const ReindexParams *params, bool isTopLevel)
 {
+  DBUG_TRACE;
   List     *partitions = NIL;
   char    relkind = get_rel_relkind(relid);
   char     *relname = get_rel_name(relid);
@@ -3389,6 +3532,7 @@ ReindexPartitions(const ReindexStmt *stmt, Oid relid, const ReindexParams *param
 static void
 ReindexMultipleInternal(const ReindexStmt *stmt, const List *relids, const ReindexParams *params)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   PopActiveSnapshot();
@@ -3468,11 +3612,12 @@ ReindexMultipleInternal(const ReindexStmt *stmt, const List *relids, const Reind
                                 REINDEX_REL_CHECK_CONSTRAINTS,
                                 &newparams);
 
-      if (result && (params->options & REINDEXOPT_VERBOSE) != 0)
+      if (result && (params->options & REINDEXOPT_VERBOSE) != 0) {
         ereport(INFO,
                 (errmsg("table \"%s.%s\" was reindexed",
                         get_namespace_name(get_rel_namespace(relid)),
                         get_rel_name(relid))));
+      }
 
       PopActiveSnapshot();
     }
@@ -3510,6 +3655,7 @@ ReindexMultipleInternal(const ReindexStmt *stmt, const List *relids, const Reind
 static bool
 ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const ReindexParams *params)
 {
+  DBUG_TRACE;
   typedef struct ReindexIndexInfo {
     Oid     indexId;
     Oid     tableId;
@@ -3528,6 +3674,7 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
   char    relkind;
   char     *relationName = NULL;
   char     *relationNamespace = NULL;
+  char *name_str;
   PGRUsage  ru0;
   const int progress_index[] = {
     PROGRESS_CREATEIDX_COMMAND,
@@ -3537,6 +3684,7 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
   };
   int64   progress_vals[4];
 
+  DBUG_PRINT("info", "process REINDEX CONCURRENTLY for given relation OID");
   /*
    * Create a memory context that will survive forced transaction commits we
    * do below.  Since it is a child of PortalContext, it will go away
@@ -3583,10 +3731,12 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
 
       MemoryContextSwitchTo(oldcontext);
 
-      if (IsCatalogRelationOid(relationOid))
+      if (IsCatalogRelationOid(relationOid)) {
+        DBUG_INSTANT_PRINT("info", "cannot reindex system catalogs concurrently");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot reindex system catalogs concurrently")));
+      }
 
       /* Open relation to get its indexes */
       if ((params->options & REINDEXOPT_MISSING_OK) != 0) {
@@ -3601,11 +3751,13 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
                                   ShareUpdateExclusiveLock);
 
       if (OidIsValid(params->tablespaceOid) &&
-          IsSystemRelation(heapRelation))
+          IsSystemRelation(heapRelation)) {
+        DBUG_INSTANT_PRINT("info", "cannot move system relation \"%s\"", RelationGetRelationName(heapRelation));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot move system relation \"%s\"",
                         RelationGetRelationName(heapRelation))));
+      }
 
       /* Add all the valid indexes of relation to list */
       foreach(lc, RelationGetIndexList(heapRelation)) {
@@ -3613,20 +3765,20 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
         Relation  indexRelation = index_open(cellOid,
                                              ShareUpdateExclusiveLock);
 
-        if (!indexRelation->rd_index->indisvalid)
+        if (!indexRelation->rd_index->indisvalid) {
           ereport(WARNING,
                   (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                    errmsg("skipping reindex of invalid index \"%s.%s\"",
                           get_namespace_name(get_rel_namespace(cellOid)),
                           get_rel_name(cellOid)),
                    errhint("Use DROP INDEX or REINDEX INDEX.")));
-        else if (indexRelation->rd_index->indisexclusion)
+        } else if (indexRelation->rd_index->indisexclusion) {
           ereport(WARNING,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cannot reindex exclusion constraint index \"%s.%s\" concurrently, skipping",
                           get_namespace_name(get_rel_namespace(cellOid)),
                           get_rel_name(cellOid))));
-        else {
+        } else {
           ReindexIndexInfo *idx;
 
           /* Save the list of relation OIDs in private context */
@@ -3663,14 +3815,14 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
           Relation  indexRelation = index_open(cellOid,
                                                ShareUpdateExclusiveLock);
 
-          if (!indexRelation->rd_index->indisvalid)
+          if (!indexRelation->rd_index->indisvalid) {
             ereport(WARNING,
                     (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                      errmsg("skipping reindex of invalid index \"%s.%s\"",
                             get_namespace_name(get_rel_namespace(cellOid)),
                             get_rel_name(cellOid)),
                      errhint("Use DROP INDEX or REINDEX INDEX.")));
-          else {
+          } else {
             ReindexIndexInfo *idx;
 
             /*
@@ -3707,10 +3859,12 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
       if (!OidIsValid(heapId))
         break;
 
-      if (IsCatalogRelationOid(heapId))
+      if (IsCatalogRelationOid(heapId)) {
+        DBUG_INSTANT_PRINT("info", "cannot reindex system catalogs concurrently");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot reindex system catalogs concurrently")));
+      }
 
       /*
        * Don't allow reindex for an invalid index on TOAST table, as
@@ -3718,10 +3872,12 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
        * error message in reindex_index().
        */
       if (IsToastNamespace(get_rel_namespace(relationOid)) &&
-          !get_index_isvalid(relationOid))
+          !get_index_isvalid(relationOid)) {
+        DBUG_INSTANT_PRINT("info", "cannot reindex invalid index on TOAST table");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot reindex invalid index on TOAST table")));
+      }
 
       /*
        * Check if parent relation can be locked and if it exists,
@@ -3741,11 +3897,14 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
                                   ShareUpdateExclusiveLock);
 
       if (OidIsValid(params->tablespaceOid) &&
-          IsSystemRelation(heapRelation))
+          IsSystemRelation(heapRelation)) {
+        char *rel_name = get_rel_name(relationOid);
+        DBUG_INSTANT_PRINT("info", "cannot move system relation \"%s\"", rel_name);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cannot move system relation \"%s\"",
-                        get_rel_name(relationOid))));
+                        rel_name)));
+      }
 
       table_close(heapRelation, NoLock);
 
@@ -3772,6 +3931,7 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
     case RELKIND_PARTITIONED_INDEX:
     default:
       /* Return error if type of relation is not supported */
+      DBUG_INSTANT_PRINT("info", "cannot reindex this type of relation concurrently");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot reindex this type of relation concurrently")));
@@ -3789,11 +3949,14 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
     return false;
 
   /* It's not a shared catalog, so refuse to move it to shared tablespace */
-  if (params->tablespaceOid == GLOBALTABLESPACE_OID)
+  if (params->tablespaceOid == GLOBALTABLESPACE_OID) {
+    name_str = get_tablespace_name(params->tablespaceOid);
+    DBUG_INSTANT_PRINT("info", "cannot move non-shared relation to tablespace \"%s\"", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot move non-shared relation to tablespace \"%s\"",
-                    get_tablespace_name(params->tablespaceOid))));
+                    name_str)));
+  }
 
   Assert(heapRelationIds != NIL);
 
@@ -4363,6 +4526,7 @@ ReindexRelationConcurrently(const ReindexStmt *stmt, Oid relationOid, const Rein
 void
 IndexSetParentIndex(Relation partitionIdx, Oid parentOid)
 {
+  DBUG_TRACE;
   Relation  pg_inherits;
   ScanKeyData key[2];
   SysScanDesc scan;
@@ -4480,6 +4644,7 @@ IndexSetParentIndex(Relation partitionIdx, Oid parentOid)
 static void
 update_relispartition(Oid relationId, bool newval)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  classRel;
   ItemPointerData otid;
@@ -4520,6 +4685,7 @@ update_relispartition(Oid relationId, bool newval)
 static inline void
 set_indexsafe_procflags(void)
 {
+  DBUG_TRACE;
   /*
    * This should only be called before installing xid or xmin in MyProc;
    * otherwise, concurrent processes could see an Xmin that moves backwards.

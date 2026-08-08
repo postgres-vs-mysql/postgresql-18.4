@@ -32,6 +32,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/clog.h"
 #include "access/slru.h"
@@ -183,6 +184,7 @@ void
 TransactionIdSetTreeStatus(TransactionId xid, int nsubxids,
                            TransactionId *subxids, XidStatus status, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToPage(xid);  /* get page of parent */
   int     i;
 
@@ -253,6 +255,7 @@ static void
 set_status_by_pages(int nsubxids, TransactionId *subxids,
                     XidStatus status, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToPage(subxids[0]);
   int     offset = 0;
   int     i = 0;
@@ -291,6 +294,7 @@ TransactionIdSetPageStatus(TransactionId xid, int nsubxids,
                            XLogRecPtr lsn, int64 pageno,
                            bool all_xact_same_page)
 {
+  DBUG_TRACE;
   LWLock     *lock;
 
   /* Can't use group update when PGPROC overflows. */
@@ -357,14 +361,30 @@ TransactionIdSetPageStatusInternal(TransactionId xid, int nsubxids,
                                    TransactionId *subxids, XidStatus status,
                                    XLogRecPtr lsn, int64 pageno)
 {
+  DBUG_TRACE;
   int     slotno;
   int     i;
 
+  DBUG_PRINT("info", "record the final state of transaction entry in the commit log");
   Assert(status == TRANSACTION_STATUS_COMMITTED ||
          status == TRANSACTION_STATUS_ABORTED ||
          (status == TRANSACTION_STATUS_SUB_COMMITTED && !TransactionIdIsValid(xid)));
   Assert(LWLockHeldByMeInMode(SimpleLruGetBankLock(XactCtl, pageno),
                               LW_EXCLUSIVE));
+
+  if (status ==  TRANSACTION_STATUS_ABORTED) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_ABORTED", xid, pageno);
+  }
+
+  if (status == TRANSACTION_STATUS_COMMITTED) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_COMMITTED", xid, pageno);
+  }
+
+  if (status == TRANSACTION_STATUS_IN_PROGRESS) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_IN_PROGRESS", xid, pageno);
+  } else {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:%d", xid, pageno, status);
+  }
 
   /*
    * If we're doing an async commit (ie, lsn is valid), then we must wait
@@ -429,6 +449,7 @@ static bool
 TransactionGroupUpdateXidStatus(TransactionId xid, XidStatus status,
                                 XLogRecPtr lsn, int64 pageno)
 {
+  DBUG_TRACE;
   volatile PROC_HDR *procglobal = ProcGlobal;
   PGPROC     *proc = MyProc;
   uint32    nextidx;
@@ -646,6 +667,7 @@ TransactionGroupUpdateXidStatus(TransactionId xid, XidStatus status,
 static void
 TransactionIdSetStatusBit(TransactionId xid, XidStatus status, XLogRecPtr lsn, int slotno)
 {
+  DBUG_TRACE;
   int     byteno = TransactionIdToByte(xid);
   int     bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
   char     *byteptr;
@@ -719,6 +741,7 @@ TransactionIdSetStatusBit(TransactionId xid, XidStatus status, XLogRecPtr lsn, i
 XidStatus
 TransactionIdGetStatus(TransactionId xid, XLogRecPtr *lsn)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToPage(xid);
   int     byteno = TransactionIdToByte(xid);
   int     bshift = TransactionIdToBIndex(xid) * CLOG_BITS_PER_XACT;
@@ -738,6 +761,20 @@ TransactionIdGetStatus(TransactionId xid, XLogRecPtr *lsn)
   *lsn = XactCtl->shared->group_lsn[lsnindex];
 
   LWLockRelease(SimpleLruGetBankLock(XactCtl, pageno));
+
+  if (status ==  TRANSACTION_STATUS_ABORTED) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_ABORTED", xid, pageno);
+  }
+
+  if (status == TRANSACTION_STATUS_COMMITTED) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_COMMITTED", xid, pageno);
+  }
+
+  if (status == TRANSACTION_STATUS_IN_PROGRESS) {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:TRANSACTION_STATUS_IN_PROGRESS", xid, pageno);
+  } else {
+    DBUG_PRINT("info", "xid:%u, pageno:%ld, status:%d", xid, pageno, status);
+  }
 
   return status;
 }
@@ -771,6 +808,7 @@ CLOGShmemSize(void)
 void
 CLOGShmemInit(void)
 {
+  DBUG_TRACE;
   /* If auto-tuning is requested, now is the time to do it */
   if (transaction_buffers == 0) {
     char    buf[32];
@@ -817,6 +855,7 @@ check_transaction_buffers(int *newval, void **extra, GucSource source)
 void
 BootStrapCLOG(void)
 {
+  DBUG_TRACE;
   int     slotno;
   LWLock     *lock = SimpleLruGetBankLock(XactCtl, 0);
 
@@ -844,6 +883,7 @@ BootStrapCLOG(void)
 static int
 ZeroCLOGPage(int64 pageno, bool writeXlog)
 {
+  DBUG_TRACE;
   int     slotno;
 
   slotno = SimpleLruZeroPage(XactCtl, pageno);
@@ -861,6 +901,7 @@ ZeroCLOGPage(int64 pageno, bool writeXlog)
 void
 StartupCLOG(void)
 {
+  DBUG_TRACE;
   TransactionId xid = XidFromFullTransactionId(TransamVariables->nextXid);
   int64   pageno = TransactionIdToPage(xid);
 
@@ -876,6 +917,7 @@ StartupCLOG(void)
 void
 TrimCLOG(void)
 {
+  DBUG_TRACE;
   TransactionId xid = XidFromFullTransactionId(TransamVariables->nextXid);
   int64   pageno = TransactionIdToPage(xid);
   LWLock     *lock = SimpleLruGetBankLock(XactCtl, pageno);
@@ -920,6 +962,7 @@ TrimCLOG(void)
 void
 CheckPointCLOG(void)
 {
+  DBUG_TRACE;
   /*
    * Write dirty CLOG pages to disk.  This may result in sync requests
    * queued for later handling by ProcessSyncRequests(), as part of the
@@ -942,6 +985,7 @@ CheckPointCLOG(void)
 void
 ExtendCLOG(TransactionId newestXact)
 {
+  DBUG_TRACE;
   int64   pageno;
   LWLock     *lock;
 
@@ -956,6 +1000,7 @@ ExtendCLOG(TransactionId newestXact)
   pageno = TransactionIdToPage(newestXact);
   lock = SimpleLruGetBankLock(XactCtl, pageno);
 
+  DBUG_PRINT("info", "zero the page(%ld) and make an XLOG entry about it", pageno);
   LWLockAcquire(lock, LW_EXCLUSIVE);
 
   /* Zero the page and make an XLOG entry about it */
@@ -983,6 +1028,7 @@ ExtendCLOG(TransactionId newestXact)
 void
 TruncateCLOG(TransactionId oldestXact, Oid oldestxid_datoid)
 {
+  DBUG_TRACE;
   int64   cutoffPage;
 
   /*
@@ -1010,9 +1056,11 @@ TruncateCLOG(TransactionId oldestXact, Oid oldestxid_datoid)
    * ahead of clog truncation in case we crash, and so a standby finds out
    * the new valid xid before the next checkpoint.
    */
+  DBUG_PRINT("info", "write XLOG record and flush XLOG to disk");
   WriteTruncateXlogRec(cutoffPage, oldestXact, oldestxid_datoid);
 
   /* Now we can remove the old CLOG segment(s) */
+  DBUG_PRINT("info", "now we can remove the old CLOG segment(s)");
   SimpleLruTruncate(XactCtl, cutoffPage);
 }
 
@@ -1038,6 +1086,7 @@ TruncateCLOG(TransactionId oldestXact, Oid oldestxid_datoid)
 static bool
 CLOGPagePrecedes(int64 page1, int64 page2)
 {
+  DBUG_TRACE;
   TransactionId xid1;
   TransactionId xid2;
 
@@ -1057,6 +1106,7 @@ CLOGPagePrecedes(int64 page1, int64 page2)
 static void
 WriteZeroPageXlogRec(int64 pageno)
 {
+  DBUG_TRACE;
   XLogBeginInsert();
   XLogRegisterData(&pageno, sizeof(pageno));
   (void) XLogInsert(RM_CLOG_ID, CLOG_ZEROPAGE);
@@ -1071,6 +1121,7 @@ WriteZeroPageXlogRec(int64 pageno)
 static void
 WriteTruncateXlogRec(int64 pageno, TransactionId oldestXact, Oid oldestXactDb)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
   xl_clog_truncate xlrec;
 
@@ -1090,6 +1141,7 @@ WriteTruncateXlogRec(int64 pageno, TransactionId oldestXact, Oid oldestXactDb)
 void
 clog_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /* Backup blocks are not used in clog records */
@@ -1100,6 +1152,7 @@ clog_redo(XLogReaderState *record)
     int     slotno;
     LWLock     *lock;
 
+    DBUG_PRINT("info", "CLOG_ZEROPAGE");
     memcpy(&pageno, XLogRecGetData(record), sizeof(pageno));
 
     lock = SimpleLruGetBankLock(XactCtl, pageno);
@@ -1113,6 +1166,7 @@ clog_redo(XLogReaderState *record)
   } else if (info == CLOG_TRUNCATE) {
     xl_clog_truncate xlrec;
 
+    DBUG_PRINT("info", "CLOG_TRUNCATE");
     memcpy(&xlrec, XLogRecGetData(record), sizeof(xl_clog_truncate));
 
     AdvanceOldestClogXid(xlrec.oldestXact);
@@ -1128,5 +1182,6 @@ clog_redo(XLogReaderState *record)
 int
 clogsyncfiletag(const FileTag *ftag, char *path)
 {
+  DBUG_TRACE;
   return SlruSyncFileTag(XactCtl, ftag, path);
 }

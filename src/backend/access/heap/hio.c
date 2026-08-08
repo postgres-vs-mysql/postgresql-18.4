@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/hio.h"
@@ -37,7 +38,9 @@ RelationPutHeapTuple(Relation relation,
                      HeapTuple tuple,
                      bool token)
 {
+  DBUG_TRACE;
   Page    pageHeader;
+  BlockNumber  blkno;
   OffsetNumber offnum;
 
   /*
@@ -64,8 +67,10 @@ RelationPutHeapTuple(Relation relation,
   if (offnum == InvalidOffsetNumber)
     elog(PANIC, "failed to add tuple to page");
 
+  blkno = BufferGetBlockNumber(buffer);
+  DBUG_PRINT("info", "add the tuple to the page, blkno:%u, offset:%u", blkno, offnum);
   /* Update tuple->t_self to the actual position where it was stored */
-  ItemPointerSet(&(tuple->t_self), BufferGetBlockNumber(buffer), offnum);
+  ItemPointerSet(&(tuple->t_self), blkno, offnum);
 
   /*
    * Insert the correct position into CTID of the stored tuple, too (unless
@@ -87,6 +92,7 @@ static Buffer
 ReadBufferBI(Relation relation, BlockNumber targetBlock,
              ReadBufferMode mode, BulkInsertState bistate)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* If not bulk-insert, exactly like ReadBuffer */
@@ -139,6 +145,7 @@ GetVisibilityMapPins(Relation relation, Buffer buffer1, Buffer buffer2,
                      BlockNumber block1, BlockNumber block2,
                      Buffer *vmbuffer1, Buffer *vmbuffer2)
 {
+  DBUG_TRACE;
   bool    need_to_pin_buffer1;
   bool    need_to_pin_buffer2;
   bool    released_locks = false;
@@ -238,6 +245,7 @@ static Buffer
 RelationAddBlocks(Relation relation, BulkInsertState bistate,
                   int num_pages, bool use_fsm, bool *did_unlock)
 {
+  DBUG_TRACE;
 #define MAX_BUFFERS_TO_EXTEND_BY 64
   Buffer    victim_buffers[MAX_BUFFERS_TO_EXTEND_BY];
   BlockNumber first_block = InvalidBlockNumber;
@@ -493,6 +501,7 @@ RelationGetBufferForTuple(Relation relation, Size len,
                           Buffer *vmbuffer, Buffer *vmbuffer_other,
                           int num_pages)
 {
+  DBUG_TRACE;
   bool    use_fsm = !(options & HEAP_INSERT_SKIP_FSM);
   Buffer    buffer = InvalidBuffer;
   Page    page;
@@ -517,11 +526,13 @@ RelationGetBufferForTuple(Relation relation, Size len,
   /*
    * If we're gonna fail for oversize tuple, do it right away
    */
-  if (len > MaxHeapTupleSize)
+  if (len > MaxHeapTupleSize) {
+    DBUG_INSTANT_PRINT("info", "row is too big: size %zu, maximum size %zu", len, MaxHeapTupleSize);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("row is too big: size %zu, maximum size %zu",
                     len, MaxHeapTupleSize)));
+  }
 
   /* Compute desired extra freespace due to fillfactor option */
   saveFreeSpace = RelationGetTargetPageFreeSpace(relation,
@@ -559,10 +570,12 @@ RelationGetBufferForTuple(Relation relation, Size len,
    * When use_fsm is false, we either put the tuple onto the existing target
    * page or extend the relation.
    */
-  if (bistate && bistate->current_buf != InvalidBuffer)
+  if (bistate && bistate->current_buf != InvalidBuffer) {
     targetBlock = BufferGetBlockNumber(bistate->current_buf);
-  else
+  } else {
     targetBlock = RelationGetTargetBlock(relation);
+    DBUG_PRINT("info", "fetch relation's current insertion target block:%u", targetBlock);
+  }
 
   if (targetBlock == InvalidBlockNumber && use_fsm) {
     /*
@@ -570,6 +583,15 @@ RelationGetBufferForTuple(Relation relation, Size len,
      * target.
      */
     targetBlock = GetPageWithFreeSpace(relation, targetFreeSpace);
+    DBUG_PRINT("info", "we have no cached target page, so ask the fsm for an initial target:%u, free space:%lu", targetBlock, targetFreeSpace);
+  } else {
+    if (targetBlock != InvalidBlockNumber) {
+      if (use_fsm) {
+        DBUG_PRINT("info", "use fsm and set target block(blkno:%u)", targetBlock);
+      } else {
+        DBUG_PRINT("info", "without fsm, set target block:%u", targetBlock);
+      }
+    }
   }
 
   /*
@@ -580,8 +602,10 @@ RelationGetBufferForTuple(Relation relation, Size len,
   if (targetBlock == InvalidBlockNumber) {
     BlockNumber nblocks = RelationGetNumberOfBlocks(relation);
 
-    if (nblocks > 0)
+    if (nblocks > 0) {
       targetBlock = nblocks - 1;
+      DBUG_PRINT("info", "the fsm knows nothing of the rel and try the last page:%u", targetBlock);
+    }
   }
 
 loop:
@@ -690,6 +714,8 @@ loop:
     if (targetFreeSpace <= pageFreeSpace) {
       /* use this page as future insert target, too */
       RelationSetTargetBlock(relation, targetBlock);
+      DBUG_PRINT("info", "target free space:%lu, page free space:%lu", targetFreeSpace, pageFreeSpace);
+      DBUG_PRINT("info", "use this page(blkno:%u) as future insert target", targetBlock);
       return buffer;
     }
 
@@ -722,6 +748,7 @@ loop:
         RecordPageWithFreeSpace(relation, targetBlock, pageFreeSpace);
 
       targetBlock = bistate->next_free;
+      DBUG_PRINT("info", "there is an ongoing bulk extension and set target block(blkno:%u)", targetBlock);
 
       if (bistate->next_free >= bistate->last_free) {
         bistate->next_free = InvalidBlockNumber;
@@ -730,6 +757,7 @@ loop:
         bistate->next_free++;
     } else if (!use_fsm) {
       /* Without FSM, always fall out of the loop and extend */
+      DBUG_PRINT("info", "without fsm, always fall out of the loop and extend");
       break;
     } else {
       /*
@@ -740,6 +768,7 @@ loop:
                     targetBlock,
                     pageFreeSpace,
                     targetFreeSpace);
+      DBUG_PRINT("info", "update fsm as to condition of this page, and ask for another page(blkno:%u) to try", targetBlock);
     }
   }
 
@@ -748,6 +777,7 @@ loop:
                              &unlockedTargetBuffer);
 
   targetBlock = BufferGetBlockNumber(buffer);
+  DBUG_PRINT("info", "have to extend the relation and set target block:%u", targetBlock);
   page = BufferGetPage(buffer);
 
   /*
@@ -857,6 +887,7 @@ loop:
    * current backend to make more insertions or not, which is probably a
    * good bet most of the time.  So for now, don't add it to FSM yet.
    */
+  DBUG_PRINT("info", "remember the new page as our target for future insertions:%u", targetBlock);
   RelationSetTargetBlock(relation, targetBlock);
 
   return buffer;

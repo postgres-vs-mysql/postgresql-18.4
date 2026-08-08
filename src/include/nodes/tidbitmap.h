@@ -51,8 +51,7 @@ typedef struct TBMSharedIterator TBMSharedIterator;
 typedef struct TBMIterator
 {
   bool    shared;
-  union
-  {
+  union {
     TBMPrivateIterator *private_iterator;
     TBMSharedIterator *shared_iterator;
   }     i;

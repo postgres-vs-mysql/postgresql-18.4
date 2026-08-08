@@ -60,6 +60,7 @@ static PLyExecutionContext *PLy_execution_contexts = NULL;
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   int     **bitmask_ptr;
 
   /*
@@ -99,6 +100,7 @@ _PG_init(void)
 static void
 PLy_initialize(void)
 {
+  DBUG_TRACE;
   static bool inited = false;
 
   /*
@@ -143,6 +145,7 @@ PLy_initialize(void)
 static void
 PLy_init_interp(void)
 {
+  DBUG_TRACE;
   static PyObject *PLy_interp_safe_globals = NULL;
   PyObject   *mainmod;
 
@@ -203,6 +206,7 @@ plpython3_validator(PG_FUNCTION_ARGS)
 Datum
 plpython3_call_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nonatomic;
   Datum   retval;
   PLyExecutionContext *exec_ctx;
@@ -271,6 +275,7 @@ plpython3_call_handler(PG_FUNCTION_ARGS)
 Datum
 plpython3_inline_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fake_fcinfo, 0);
   InlineCodeBlock *codeblock = (InlineCodeBlock *) DatumGetPointer(PG_GETARG_DATUM(0));
   FmgrInfo  flinfo;
@@ -352,6 +357,7 @@ PLy_procedure_is_trigger(Form_pg_proc procStruct)
 static void
 plpython_error_callback(void *arg)
 {
+  DBUG_TRACE;
   PLyExecutionContext *exec_ctx = (PLyExecutionContext *) arg;
 
   if (exec_ctx->curr_proc) {
@@ -382,6 +388,8 @@ PLy_current_execution_context(void)
 MemoryContext
 PLy_get_scratch_context(PLyExecutionContext *context)
 {
+  DBUG_TRACE;
+
   /*
    * A scratch context might never be needed in a given plpython procedure,
    * so allocate it on first request.
@@ -398,6 +406,7 @@ PLy_get_scratch_context(PLyExecutionContext *context)
 static PLyExecutionContext *
 PLy_push_execution_context(bool atomic_context)
 {
+  DBUG_TRACE;
   PLyExecutionContext *context;
 
   /* Pick a memory context similar to what SPI uses. */
@@ -414,6 +423,7 @@ PLy_push_execution_context(bool atomic_context)
 static void
 PLy_pop_execution_context(void)
 {
+  DBUG_TRACE;
   PLyExecutionContext *context = PLy_execution_contexts;
 
   if (context == NULL)

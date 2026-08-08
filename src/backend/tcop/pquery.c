@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -141,6 +142,7 @@ ProcessQuery(PlannedStmt *plan,
              DestReceiver *dest,
              QueryCompletion *qc)
 {
+  DBUG_TRACE;
   QueryDesc  *queryDesc;
 
   /*
@@ -212,6 +214,7 @@ ProcessQuery(PlannedStmt *plan,
 PortalStrategy
 ChoosePortalStrategy(List *stmts)
 {
+  DBUG_TRACE;
   int     nSetTag;
   ListCell   *lc;
 
@@ -229,16 +232,22 @@ ChoosePortalStrategy(List *stmts)
 
       if (query->canSetTag) {
         if (query->commandType == CMD_SELECT) {
-          if (query->hasModifyingCTE)
+          if (query->hasModifyingCTE) {
+            DBUG_PRINT("info", "return PORTAL_ONE_MOD_WITH");
             return PORTAL_ONE_MOD_WITH;
-          else
+          } else {
+            DBUG_PRINT("info", "return PORTAL_ONE_SELECT");
             return PORTAL_ONE_SELECT;
+          }
         }
 
         if (query->commandType == CMD_UTILITY) {
-          if (UtilityReturnsTuples(query->utilityStmt))
+          if (UtilityReturnsTuples(query->utilityStmt)) {
+            DBUG_PRINT("info", "return PORTAL_UTIL_SELECT");
             return PORTAL_UTIL_SELECT;
+          }
 
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           /* it can't be ONE_RETURNING, so give up */
           return PORTAL_MULTI_QUERY;
         }
@@ -248,17 +257,23 @@ ChoosePortalStrategy(List *stmts)
 
       if (pstmt->canSetTag) {
         if (pstmt->commandType == CMD_SELECT) {
-          if (pstmt->hasModifyingCTE)
+          if (pstmt->hasModifyingCTE) {
+            DBUG_PRINT("info", "return PORTAL_ONE_MOD_WITH");
             return PORTAL_ONE_MOD_WITH;
-          else
+          } else {
+            DBUG_PRINT("info", "return PORTAL_ONE_SELECT");
             return PORTAL_ONE_SELECT;
+          }
         }
 
         if (pstmt->commandType == CMD_UTILITY) {
-          if (UtilityReturnsTuples(pstmt->utilityStmt))
+          if (UtilityReturnsTuples(pstmt->utilityStmt)) {
+            DBUG_PRINT("info", "return PORTAL_UTIL_SELECT");
             return PORTAL_UTIL_SELECT;
+          }
 
           /* it can't be ONE_RETURNING, so give up */
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           return PORTAL_MULTI_QUERY;
         }
       }
@@ -280,31 +295,43 @@ ChoosePortalStrategy(List *stmts)
       Query    *query = (Query *) stmt;
 
       if (query->canSetTag) {
-        if (++nSetTag > 1)
+        if (++nSetTag > 1) {
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           return PORTAL_MULTI_QUERY;  /* no need to look further */
+        }
 
         if (query->commandType == CMD_UTILITY ||
-            query->returningList == NIL)
+            query->returningList == NIL) {
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           return PORTAL_MULTI_QUERY;  /* no need to look further */
+        }
       }
     } else if (IsA(stmt, PlannedStmt)) {
       PlannedStmt *pstmt = (PlannedStmt *) stmt;
 
       if (pstmt->canSetTag) {
-        if (++nSetTag > 1)
+        if (++nSetTag > 1) {
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           return PORTAL_MULTI_QUERY;  /* no need to look further */
+        }
 
         if (pstmt->commandType == CMD_UTILITY ||
-            !pstmt->hasReturning)
+            !pstmt->hasReturning) {
+          DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
           return PORTAL_MULTI_QUERY;  /* no need to look further */
+        }
       }
     } else
       elog(ERROR, "unrecognized node type: %d", (int) nodeTag(stmt));
   }
 
-  if (nSetTag == 1)
+  if (nSetTag == 1) {
+    DBUG_PRINT("info", "return PORTAL_ONE_RETURNING");
     return PORTAL_ONE_RETURNING;
+  }
 
+
+  DBUG_PRINT("info", "return PORTAL_MULTI_QUERY");
   /* Else, it's the general case... */
   return PORTAL_MULTI_QUERY;
 }
@@ -319,6 +346,8 @@ ChoosePortalStrategy(List *stmts)
 List *
 FetchPortalTargetList(Portal portal)
 {
+  DBUG_TRACE;
+
   /* no point in looking if we determined it doesn't return tuples */
   if (portal->strategy == PORTAL_MULTI_QUERY)
     return NIL;
@@ -342,6 +371,8 @@ FetchPortalTargetList(Portal portal)
 List *
 FetchStatementTargetList(Node *stmt)
 {
+  DBUG_TRACE;
+
   if (stmt == NULL)
     return NIL;
 
@@ -427,6 +458,7 @@ void
 PortalStart(Portal portal, ParamListInfo params,
             int eflags, Snapshot snapshot)
 {
+  DBUG_TRACE;
   Portal    saveActivePortal;
   ResourceOwner saveResourceOwner;
   MemoryContext savePortalContext;
@@ -617,6 +649,7 @@ PortalStart(Portal portal, ParamListInfo params,
 void
 PortalSetResultFormat(Portal portal, int nFormats, int16 *formats)
 {
+  DBUG_TRACE;
   int     natts;
   int     i;
 
@@ -678,6 +711,7 @@ PortalRun(Portal portal, long count, bool isTopLevel,
           DestReceiver *dest, DestReceiver *altdest,
           QueryCompletion *qc)
 {
+  DBUG_TRACE;
   bool    result;
   uint64    nprocessed;
   ResourceOwner saveTopTransactionResourceOwner;
@@ -863,15 +897,21 @@ PortalRunSelect(Portal portal,
                 long count,
                 DestReceiver *dest)
 {
+  DBUG_TRACE;
   QueryDesc  *queryDesc;
   ScanDirection direction;
   uint64    nprocessed;
+
 
   /*
    * NB: queryDesc will be NULL if we are fetching from a held cursor or a
    * completed utility query; can't use it in that path.
    */
   queryDesc = portal->queryDesc;
+
+  if (queryDesc) {
+    DBUG_PRINT("info", "query:%s", queryDesc->sourceText);
+  }
 
   /* Caller messed up if we have neither a ready query nor held data. */
   Assert(queryDesc || portal->holdStore);
@@ -979,6 +1019,7 @@ PortalRunSelect(Portal portal,
 static void
 FillPortalStore(Portal portal, bool isTopLevel)
 {
+  DBUG_TRACE;
   DestReceiver *treceiver;
   QueryCompletion qc;
 
@@ -1040,6 +1081,7 @@ static uint64
 RunFromStore(Portal portal, ScanDirection direction, uint64 count,
              DestReceiver *dest)
 {
+  DBUG_TRACE;
   uint64    current_tuple_count = 0;
   TupleTableSlot *slot;
 
@@ -1104,6 +1146,8 @@ PortalRunUtility(Portal portal, PlannedStmt *pstmt,
                  bool isTopLevel, bool setHoldSnapshot,
                  DestReceiver *dest, QueryCompletion *qc)
 {
+  DBUG_TRACE;
+
   /*
    * Set snapshot if utility stmt needs one.
    */
@@ -1165,8 +1209,12 @@ PortalRunMulti(Portal portal,
                DestReceiver *dest, DestReceiver *altdest,
                QueryCompletion *qc)
 {
+  DBUG_TRACE;
   bool    active_snapshot_set = false;
   ListCell   *stmtlist_item;
+
+  DBUG_PRINT("info", "execute a portal's queries in the general case (multi queries or non-SELECT-like queries)");
+  DBUG_PRINT("info", "query:%s", portal->sourceText);
 
   /*
    * If the destination is DestRemoteExecute, change to DestNone.  The
@@ -1200,6 +1248,7 @@ PortalRunMulti(Portal portal,
       /*
        * process a plannable query.
        */
+      DBUG_PRINT("info", "process a plannable query");
       TRACE_POSTGRESQL_QUERY_EXECUTE_START();
 
       if (log_executor_stats)
@@ -1272,14 +1321,18 @@ PortalRunMulti(Portal portal,
        * whether it has a snapshot or not, so we just leave the current
        * snapshot alone if we have one.
        */
+      DBUG_PRINT("info", "process utility functions (create, destroy, etc..)");
+
       if (pstmt->canSetTag) {
         Assert(!active_snapshot_set);
         /* statement can set tag string */
+        DBUG_PRINT("info", "statement can set tag string");
         PortalRunUtility(portal, pstmt, isTopLevel, false,
                          dest, qc);
       } else {
         Assert(IsA(pstmt->utilityStmt, NotifyStmt));
         /* stmt added by rewrite cannot set tag */
+        DBUG_PRINT("info", "stmt added by rewrite cannot set tag");
         PortalRunUtility(portal, pstmt, isTopLevel, false,
                          altdest, NULL);
       }
@@ -1345,6 +1398,7 @@ PortalRunFetch(Portal portal,
                long count,
                DestReceiver *dest)
 {
+  DBUG_TRACE;
   uint64    result;
   Portal    saveActivePortal;
   ResourceOwner saveResourceOwner;
@@ -1444,6 +1498,7 @@ DoPortalRunFetch(Portal portal,
                  long count,
                  DestReceiver *dest)
 {
+  DBUG_TRACE;
   bool    forward;
 
   Assert(portal->strategy == PORTAL_ONE_SELECT ||
@@ -1629,6 +1684,7 @@ DoPortalRunFetch(Portal portal,
 static void
 DoPortalRewind(Portal portal)
 {
+  DBUG_TRACE;
   QueryDesc  *queryDesc;
 
   /*
@@ -1674,11 +1730,14 @@ DoPortalRewind(Portal portal)
 bool
 PlannedStmtRequiresSnapshot(PlannedStmt *pstmt)
 {
+  DBUG_TRACE;
   Node     *utilityStmt = pstmt->utilityStmt;
 
   /* If it's not a utility statement, it definitely needs a snapshot */
-  if (utilityStmt == NULL)
+  if (utilityStmt == NULL) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /*
    * Most utility statements need a snapshot, and the default presumption
@@ -1703,9 +1762,12 @@ PlannedStmtRequiresSnapshot(PlannedStmt *pstmt)
       IsA(utilityStmt, ListenStmt) ||
       IsA(utilityStmt, NotifyStmt) ||
       IsA(utilityStmt, UnlistenStmt) ||
-      IsA(utilityStmt, CheckPointStmt))
+      IsA(utilityStmt, CheckPointStmt)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -1722,6 +1784,7 @@ PlannedStmtRequiresSnapshot(PlannedStmt *pstmt)
 void
 EnsurePortalSnapshotExists(void)
 {
+  DBUG_TRACE;
   Portal    portal;
 
   /*

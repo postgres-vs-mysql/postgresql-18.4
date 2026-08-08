@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/gist_private.h"
@@ -43,6 +44,7 @@ static void WriteTempFileBlock(BufFile *file, long blknum, const void *ptr);
 GISTBuildBuffers *
 gistInitBuildBuffers(int pagesPerBuffer, int levelStep, int maxLevel)
 {
+  DBUG_TRACE;
   GISTBuildBuffers *gfbb;
   HASHCTL   hashCtl;
 
@@ -113,6 +115,7 @@ GISTNodeBuffer *
 gistGetNodeBuffer(GISTBuildBuffers *gfbb, GISTSTATE *giststate,
                   BlockNumber nodeBlocknum, int level)
 {
+  DBUG_TRACE;
   GISTNodeBuffer *nodeBuffer;
   bool    found;
 
@@ -197,6 +200,8 @@ gistAllocateNewPageBuffer(GISTBuildBuffers *gfbb)
 static void
 gistAddLoadedBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 {
+  DBUG_TRACE;
+
   /* Never add a temporary buffer to the array */
   if (nodeBuffer->isTemp)
     return;
@@ -219,6 +224,8 @@ gistAddLoadedBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 static void
 gistLoadNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 {
+  DBUG_TRACE;
+
   /* Check if we really should load something */
   if (!nodeBuffer->pageBuffer && nodeBuffer->blocksCount > 0) {
     /* Allocate memory for page */
@@ -243,6 +250,8 @@ gistLoadNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 static void
 gistUnloadNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 {
+  DBUG_TRACE;
+
   /* Check if we have something to write */
   if (nodeBuffer->pageBuffer) {
     BlockNumber blkno;
@@ -268,6 +277,7 @@ gistUnloadNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer)
 void
 gistUnloadNodeBuffers(GISTBuildBuffers *gfbb)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Unload all the buffers that have a page loaded in memory. */
@@ -284,6 +294,7 @@ gistUnloadNodeBuffers(GISTBuildBuffers *gfbb)
 static void
 gistPlaceItupToPage(GISTNodeBufferPage *pageBuffer, IndexTuple itup)
 {
+  DBUG_TRACE;
   Size    itupsz = IndexTupleSize(itup);
   char     *ptr;
 
@@ -307,6 +318,7 @@ gistPlaceItupToPage(GISTNodeBufferPage *pageBuffer, IndexTuple itup)
 static void
 gistGetItupFromPage(GISTNodeBufferPage *pageBuffer, IndexTuple *itup)
 {
+  DBUG_TRACE;
   IndexTuple  ptr;
   Size    itupsz;
 
@@ -333,6 +345,7 @@ void
 gistPushItupToNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer,
                          IndexTuple itup)
 {
+  DBUG_TRACE;
   /*
    * Most part of memory operations will be in buffering build persistent
    * context. So, let's switch to it.
@@ -400,6 +413,8 @@ bool
 gistPopItupFromNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer,
                           IndexTuple *itup)
 {
+  DBUG_TRACE;
+
   /*
    * If node buffer is empty then return false.
    */
@@ -459,6 +474,8 @@ gistPopItupFromNodeBuffer(GISTBuildBuffers *gfbb, GISTNodeBuffer *nodeBuffer,
 static long
 gistBuffersGetFreeBlock(GISTBuildBuffers *gfbb)
 {
+  DBUG_TRACE;
+
   /*
    * If there are multiple free blocks, we select the one appearing last in
    * freeBlocks[].  If there are none, assign the next block at the end of
@@ -476,6 +493,7 @@ gistBuffersGetFreeBlock(GISTBuildBuffers *gfbb)
 static void
 gistBuffersReleaseBlock(GISTBuildBuffers *gfbb, long blocknum)
 {
+  DBUG_TRACE;
   int     ndx;
 
   /* Enlarge freeBlocks array if full. */
@@ -497,6 +515,7 @@ gistBuffersReleaseBlock(GISTBuildBuffers *gfbb, long blocknum)
 void
 gistFreeBuildBuffers(GISTBuildBuffers *gfbb)
 {
+  DBUG_TRACE;
   /* Close buffers file. */
   BufFileClose(gfbb->pfile);
 
@@ -524,6 +543,7 @@ gistRelocateBuildBuffersOnSplit(GISTBuildBuffers *gfbb, GISTSTATE *giststate,
                                 Relation r, int level,
                                 Buffer buffer, List *splitinfo)
 {
+  DBUG_TRACE;
   RelocationBufferInfo *relocationBuffersInfos;
   bool    found;
   GISTNodeBuffer *nodeBuffer;
@@ -731,6 +751,8 @@ gistRelocateBuildBuffersOnSplit(GISTBuildBuffers *gfbb, GISTSTATE *giststate,
 static void
 ReadTempFileBlock(BufFile *file, long blknum, void *ptr)
 {
+  DBUG_TRACE;
+
   if (BufFileSeekBlock(file, blknum) != 0)
     elog(ERROR, "could not seek to block %ld in temporary file", blknum);
 
@@ -740,6 +762,8 @@ ReadTempFileBlock(BufFile *file, long blknum, void *ptr)
 static void
 WriteTempFileBlock(BufFile *file, long blknum, const void *ptr)
 {
+  DBUG_TRACE;
+
   if (BufFileSeekBlock(file, blknum) != 0)
     elog(ERROR, "could not seek to block %ld in temporary file", blknum);
 

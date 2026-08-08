@@ -7,6 +7,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "fmgr.h"
@@ -27,6 +28,7 @@ PG_FUNCTION_INFO_V1(pg_freespace);
 Datum
 pg_freespace(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   blkno = PG_GETARG_INT64(1);
   int16   freespace;

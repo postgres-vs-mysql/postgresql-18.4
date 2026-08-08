@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/partition.h"
@@ -61,6 +62,7 @@ check_rel_can_be_partition(Oid relid)
 Datum
 pg_partition_tree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_PARTITION_TREE_COLS  4
   Oid     rootrelid = PG_GETARG_OID(0);
   FuncCallContext *funcctx;
@@ -163,6 +165,7 @@ pg_partition_tree(PG_FUNCTION_ARGS)
 Datum
 pg_partition_root(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Oid     rootrelid;
   List     *ancestors;
@@ -200,6 +203,7 @@ pg_partition_root(PG_FUNCTION_ARGS)
 Datum
 pg_partition_ancestors(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   FuncCallContext *funcctx;
   List     *ancestors;

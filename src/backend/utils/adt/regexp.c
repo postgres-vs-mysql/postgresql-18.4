@@ -28,6 +28,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "funcapi.h"
@@ -458,6 +459,7 @@ parse_re_flags(pg_re_flags *flags, text *opts)
 Datum
 nameregexeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    n = PG_GETARG_NAME(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -472,6 +474,7 @@ nameregexeq(PG_FUNCTION_ARGS)
 Datum
 nameregexne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    n = PG_GETARG_NAME(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -486,6 +489,7 @@ nameregexne(PG_FUNCTION_ARGS)
 Datum
 textregexeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -500,6 +504,7 @@ textregexeq(PG_FUNCTION_ARGS)
 Datum
 textregexne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -521,6 +526,7 @@ textregexne(PG_FUNCTION_ARGS)
 Datum
 nameicregexeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    n = PG_GETARG_NAME(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -535,6 +541,7 @@ nameicregexeq(PG_FUNCTION_ARGS)
 Datum
 nameicregexne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    n = PG_GETARG_NAME(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -549,6 +556,7 @@ nameicregexne(PG_FUNCTION_ARGS)
 Datum
 texticregexeq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -563,6 +571,7 @@ texticregexeq(PG_FUNCTION_ARGS)
 Datum
 texticregexne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
 
@@ -582,6 +591,7 @@ texticregexne(PG_FUNCTION_ARGS)
 Datum
 textregexsubstr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
   regex_t    *re;
@@ -638,6 +648,7 @@ textregexsubstr(PG_FUNCTION_ARGS)
 Datum
 textregexreplace_noopt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
   text     *r = PG_GETARG_TEXT_PP(2);
@@ -654,6 +665,7 @@ textregexreplace_noopt(PG_FUNCTION_ARGS)
 Datum
 textregexreplace(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
   text     *r = PG_GETARG_TEXT_PP(2);
@@ -695,6 +707,7 @@ textregexreplace(PG_FUNCTION_ARGS)
 Datum
 textregexreplace_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *s = PG_GETARG_TEXT_PP(0);
   text     *p = PG_GETARG_TEXT_PP(1);
   text     *r = PG_GETARG_TEXT_PP(2);
@@ -741,6 +754,7 @@ textregexreplace_extended(PG_FUNCTION_ARGS)
 Datum
 textregexreplace_extended_no_n(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return textregexreplace_extended(fcinfo);
 }
 
@@ -748,6 +762,7 @@ textregexreplace_extended_no_n(PG_FUNCTION_ARGS)
 Datum
 textregexreplace_extended_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return textregexreplace_extended(fcinfo);
 }
 
@@ -1039,6 +1054,7 @@ similar_escape_internal(text *pat_text, text *esc_text)
 Datum
 similar_to_escape_2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *pat_text = PG_GETARG_TEXT_PP(0);
   text     *esc_text = PG_GETARG_TEXT_PP(1);
   text     *result;
@@ -1055,6 +1071,7 @@ similar_to_escape_2(PG_FUNCTION_ARGS)
 Datum
 similar_to_escape_1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *pat_text = PG_GETARG_TEXT_PP(0);
   text     *result;
 
@@ -1073,6 +1090,7 @@ similar_to_escape_1(PG_FUNCTION_ARGS)
 Datum
 similar_escape(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *pat_text;
   text     *esc_text;
   text     *result;
@@ -1100,6 +1118,7 @@ similar_escape(PG_FUNCTION_ARGS)
 Datum
 regexp_count(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pattern = PG_GETARG_TEXT_PP(1);
   int     start = 1;
@@ -1145,6 +1164,7 @@ regexp_count(PG_FUNCTION_ARGS)
 Datum
 regexp_count_no_start(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_count(fcinfo);
 }
 
@@ -1152,6 +1172,7 @@ regexp_count_no_start(PG_FUNCTION_ARGS)
 Datum
 regexp_count_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_count(fcinfo);
 }
 
@@ -1162,6 +1183,7 @@ regexp_count_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_instr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pattern = PG_GETARG_TEXT_PP(1);
   int     start = 1;
@@ -1263,6 +1285,7 @@ regexp_instr(PG_FUNCTION_ARGS)
 Datum
 regexp_instr_no_start(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_instr(fcinfo);
 }
 
@@ -1270,6 +1293,7 @@ regexp_instr_no_start(PG_FUNCTION_ARGS)
 Datum
 regexp_instr_no_n(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_instr(fcinfo);
 }
 
@@ -1277,6 +1301,7 @@ regexp_instr_no_n(PG_FUNCTION_ARGS)
 Datum
 regexp_instr_no_endoption(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_instr(fcinfo);
 }
 
@@ -1284,6 +1309,7 @@ regexp_instr_no_endoption(PG_FUNCTION_ARGS)
 Datum
 regexp_instr_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_instr(fcinfo);
 }
 
@@ -1291,6 +1317,7 @@ regexp_instr_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_instr_no_subexpr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_instr(fcinfo);
 }
 
@@ -1301,6 +1328,7 @@ regexp_instr_no_subexpr(PG_FUNCTION_ARGS)
 Datum
 regexp_like(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pattern = PG_GETARG_TEXT_PP(1);
   text     *flags = PG_GETARG_TEXT_PP_IF_EXISTS(2);
@@ -1330,6 +1358,7 @@ regexp_like(PG_FUNCTION_ARGS)
 Datum
 regexp_like_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_like(fcinfo);
 }
 
@@ -1340,6 +1369,7 @@ regexp_like_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_match(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *orig_str = PG_GETARG_TEXT_PP(0);
   text     *pattern = PG_GETARG_TEXT_PP(1);
   text     *flags = PG_GETARG_TEXT_PP_IF_EXISTS(2);
@@ -1377,6 +1407,7 @@ regexp_match(PG_FUNCTION_ARGS)
 Datum
 regexp_match_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_match(fcinfo);
 }
 
@@ -1387,6 +1418,7 @@ regexp_match_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_matches(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   regexp_matches_ctx *matchctx;
 
@@ -1434,6 +1466,7 @@ regexp_matches(PG_FUNCTION_ARGS)
 Datum
 regexp_matches_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_matches(fcinfo);
 }
 
@@ -1663,6 +1696,7 @@ setup_regexp_matches(text *orig_str, text *pattern, pg_re_flags *re_flags,
 static ArrayType *
 build_regexp_match_result(regexp_matches_ctx *matchctx)
 {
+  DBUG_TRACE;
   char     *buf = matchctx->conv_buf;
   Datum    *elems = matchctx->elems;
   bool     *nulls = matchctx->nulls;
@@ -1714,6 +1748,7 @@ build_regexp_match_result(regexp_matches_ctx *matchctx)
 Datum
 regexp_split_to_table(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   regexp_matches_ctx *splitctx;
 
@@ -1767,6 +1802,7 @@ regexp_split_to_table(PG_FUNCTION_ARGS)
 Datum
 regexp_split_to_table_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_split_to_table(fcinfo);
 }
 
@@ -1778,6 +1814,7 @@ regexp_split_to_table_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_split_to_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayBuildState *astate = NULL;
   pg_re_flags re_flags;
   regexp_matches_ctx *splitctx;
@@ -1818,6 +1855,7 @@ regexp_split_to_array(PG_FUNCTION_ARGS)
 Datum
 regexp_split_to_array_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_split_to_array(fcinfo);
 }
 
@@ -1830,6 +1868,7 @@ regexp_split_to_array_no_flags(PG_FUNCTION_ARGS)
 static Datum
 build_regexp_split_result(regexp_matches_ctx *splitctx)
 {
+  DBUG_TRACE;
   char     *buf = splitctx->conv_buf;
   int     startpos;
   int     endpos;
@@ -1870,6 +1909,7 @@ build_regexp_split_result(regexp_matches_ctx *splitctx)
 Datum
 regexp_substr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pattern = PG_GETARG_TEXT_PP(1);
   int     start = 1;
@@ -1964,6 +2004,7 @@ regexp_substr(PG_FUNCTION_ARGS)
 Datum
 regexp_substr_no_start(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_substr(fcinfo);
 }
 
@@ -1971,6 +2012,7 @@ regexp_substr_no_start(PG_FUNCTION_ARGS)
 Datum
 regexp_substr_no_n(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_substr(fcinfo);
 }
 
@@ -1978,6 +2020,7 @@ regexp_substr_no_n(PG_FUNCTION_ARGS)
 Datum
 regexp_substr_no_flags(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_substr(fcinfo);
 }
 
@@ -1985,6 +2028,7 @@ regexp_substr_no_flags(PG_FUNCTION_ARGS)
 Datum
 regexp_substr_no_subexpr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return regexp_substr(fcinfo);
 }
 

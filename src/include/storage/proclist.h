@@ -62,14 +62,11 @@ proclist_push_head_offset(proclist_head *list, int procno, size_t node_offset)
 
   Assert(node->next == 0 && node->prev == 0);
 
-  if (list->head == INVALID_PROC_NUMBER)
-  {
+  if (list->head == INVALID_PROC_NUMBER) {
     Assert(list->tail == INVALID_PROC_NUMBER);
     node->next = node->prev = INVALID_PROC_NUMBER;
     list->head = list->tail = procno;
-  }
-  else
-  {
+  } else {
     Assert(list->tail != INVALID_PROC_NUMBER);
     Assert(list->head != procno);
     Assert(list->tail != procno);
@@ -90,14 +87,11 @@ proclist_push_tail_offset(proclist_head *list, int procno, size_t node_offset)
 
   Assert(node->next == 0 && node->prev == 0);
 
-  if (list->tail == INVALID_PROC_NUMBER)
-  {
+  if (list->tail == INVALID_PROC_NUMBER) {
     Assert(list->head == INVALID_PROC_NUMBER);
     node->next = node->prev = INVALID_PROC_NUMBER;
     list->head = list->tail = procno;
-  }
-  else
-  {
+  } else {
     Assert(list->head != INVALID_PROC_NUMBER);
     Assert(list->head != procno);
     Assert(list->tail != procno);
@@ -118,20 +112,16 @@ proclist_delete_offset(proclist_head *list, int procno, size_t node_offset)
 
   Assert(node->next != 0 || node->prev != 0);
 
-  if (node->prev == INVALID_PROC_NUMBER)
-  {
+  if (node->prev == INVALID_PROC_NUMBER) {
     Assert(list->head == procno);
     list->head = node->next;
-  }
-  else
+  } else
     proclist_node_get(node->prev, node_offset)->next = node->next;
 
-  if (node->next == INVALID_PROC_NUMBER)
-  {
+  if (node->next == INVALID_PROC_NUMBER) {
     Assert(list->tail == procno);
     list->tail = node->prev;
-  }
-  else
+  } else
     proclist_node_get(node->next, node_offset)->prev = node->prev;
 
   node->next = node->prev = 0;

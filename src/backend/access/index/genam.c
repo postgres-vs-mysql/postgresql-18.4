@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -145,6 +146,8 @@ RelationGetIndexScan(Relation indexRelation, int nkeys, int norderbys)
 void
 IndexScanEnd(IndexScanDesc scan)
 {
+  DBUG_TRACE;
+
   if (scan->keyData != NULL)
     pfree(scan->keyData);
 
@@ -180,6 +183,7 @@ char *
 BuildIndexValueDescription(Relation indexRelation,
                            const Datum *values, const bool *isnull)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   Form_pg_index idxrec;
   int     indnkeyatts;
@@ -297,6 +301,7 @@ index_compute_xid_horizon_for_tuples(Relation irel,
                                      OffsetNumber *itemnos,
                                      int nitems)
 {
+  DBUG_TRACE;
   TM_IndexDeleteOp delstate;
   TransactionId snapshotConflictHorizon = InvalidTransactionId;
   Page    ipage = BufferGetPage(ibuf);
@@ -389,8 +394,11 @@ systable_beginscan(Relation heapRelation,
                    Snapshot snapshot,
                    int nkeys, ScanKey key)
 {
+  DBUG_TRACE;
   SysScanDesc sysscan;
   Relation  irel;
+
+  DBUG_PRINT("info", "set up for heap-or-index scan");
 
   if (indexOK &&
       !IgnoreSystemIndexes &&
@@ -420,6 +428,8 @@ systable_beginscan(Relation heapRelation,
     ScanKey   idxkey;
 
     idxkey = palloc_array(ScanKeyData, nkeys);
+
+    DBUG_PRINT("info", "change attribute numbers to be index column numbers");
 
     /* Convert attribute numbers to be index column numbers. */
     for (i = 0; i < nkeys; i++) {
@@ -482,10 +492,12 @@ HandleConcurrentAbort()
 {
   if (TransactionIdIsValid(CheckXidAlive) &&
       !TransactionIdIsInProgress(CheckXidAlive) &&
-      !TransactionIdDidCommit(CheckXidAlive))
+      !TransactionIdDidCommit(CheckXidAlive)) {
+    DBUG_INSTANT_PRINT("info", "transaction aborted during system catalog scan");
     ereport(ERROR,
             (errcode(ERRCODE_TRANSACTION_ROLLBACK),
              errmsg("transaction aborted during system catalog scan")));
+  }
 }
 
 /*
@@ -503,9 +515,12 @@ HandleConcurrentAbort()
 HeapTuple
 systable_getnext(SysScanDesc sysscan)
 {
+  DBUG_TRACE;
   HeapTuple htup = NULL;
 
   if (sysscan->irel) {
+    DBUG_PRINT("info", "sysscan->irel: not null");
+
     if (index_getnext_slot(sysscan->iscan, ForwardScanDirection, sysscan->slot)) {
       bool    shouldFree;
 
@@ -524,6 +539,8 @@ systable_getnext(SysScanDesc sysscan)
         elog(ERROR, "system catalog scans with lossy index conditions are not implemented");
     }
   } else {
+    DBUG_PRINT("info", "sysscan->irel: null if doing heap scan");
+
     if (table_scan_getnextslot(sysscan->scan, ForwardScanDirection, sysscan->slot)) {
       bool    shouldFree;
 
@@ -557,6 +574,7 @@ systable_getnext(SysScanDesc sysscan)
 bool
 systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 {
+  DBUG_TRACE;
   Snapshot  freshsnap;
   bool    result;
 
@@ -587,6 +605,8 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 void
 systable_endscan(SysScanDesc sysscan)
 {
+  DBUG_TRACE;
+
   if (sysscan->slot) {
     ExecDropSingleTupleTableSlot(sysscan->slot);
     sysscan->slot = NULL;
@@ -634,6 +654,7 @@ systable_beginscan_ordered(Relation heapRelation,
                            Snapshot snapshot,
                            int nkeys, ScanKey key)
 {
+  DBUG_TRACE;
   SysScanDesc sysscan;
   int     i;
   ScanKey   idxkey;
@@ -709,6 +730,7 @@ systable_beginscan_ordered(Relation heapRelation,
 HeapTuple
 systable_getnext_ordered(SysScanDesc sysscan, ScanDirection direction)
 {
+  DBUG_TRACE;
   HeapTuple htup = NULL;
 
   Assert(sysscan->irel);
@@ -735,6 +757,8 @@ systable_getnext_ordered(SysScanDesc sysscan, ScanDirection direction)
 void
 systable_endscan_ordered(SysScanDesc sysscan)
 {
+  DBUG_TRACE;
+
   if (sysscan->slot) {
     ExecDropSingleTupleTableSlot(sysscan->slot);
     sysscan->slot = NULL;
@@ -791,6 +815,7 @@ systable_inplace_update_begin(Relation relation,
                               HeapTuple *oldtupcopy,
                               void **state)
 {
+  DBUG_TRACE;
   int     retries = 0;
   SysScanDesc scan;
   HeapTuple oldtup;
@@ -802,10 +827,12 @@ systable_inplace_update_begin(Relation relation,
    * this restriction, but not without more thought and testing.  It's not
    * clear that it would be useful, anyway.
    */
-  if (IsInParallelMode())
+  if (IsInParallelMode()) {
+    DBUG_INSTANT_PRINT("info", "cannot update tuples during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              errmsg("cannot update tuples during a parallel operation")));
+  }
 
   /*
    * Accept a snapshot argument, for symmetry, but this function advances
@@ -860,6 +887,7 @@ systable_inplace_update_begin(Relation relation,
 void
 systable_inplace_update_finish(void *state, HeapTuple tuple)
 {
+  DBUG_TRACE;
   SysScanDesc scan = (SysScanDesc) state;
   Relation  relation = scan->heap_rel;
   TupleTableSlot *slot = scan->slot;
@@ -879,6 +907,7 @@ systable_inplace_update_finish(void *state, HeapTuple tuple)
 void
 systable_inplace_update_cancel(void *state)
 {
+  DBUG_TRACE;
   SysScanDesc scan = (SysScanDesc) state;
   Relation  relation = scan->heap_rel;
   TupleTableSlot *slot = scan->slot;

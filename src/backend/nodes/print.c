@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/printtup.h"
 #include "lib/stringinfo.h"
@@ -53,9 +54,8 @@ print(const void *obj)
 void
 pprint(const void *obj)
 {
-  char     *s;
-  char     *f;
-
+  char       *s;
+  char       *f;
   s = nodeToStringWithLocations(obj);
   f = pretty_format_node_dump(s);
   pfree(s);
@@ -64,6 +64,17 @@ pprint(const void *obj)
   pfree(f);
 }
 
+void
+pprint_for_tracing(const void *obj)
+{
+  char       *s;
+  char       *f;
+  s = nodeToStringWithLocations(obj);
+  f = pretty_format_node_dump(s);
+  pfree(s);
+  DBUG_PRINT("info", "%s", f);
+  pfree(f);
+}
 /*
  * elog_node_display
  *    send pretty-printed contents of Node to postmaster log
@@ -353,6 +364,8 @@ print_rt(const List *rtable)
 void
 print_expr(const Node *expr, const List *rtable)
 {
+  DBUG_TRACE;
+
   if (expr == NULL) {
     printf("<>");
     return;

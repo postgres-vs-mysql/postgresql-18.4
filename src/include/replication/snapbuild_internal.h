@@ -97,8 +97,8 @@ struct SnapBuild
    * Array of transactions which could have catalog changes that committed
    * between xmin and xmax.
    */
-  struct
-  {
+struct
+{
     /* number of committed transactions */
     size_t    xcnt;
 
@@ -147,8 +147,8 @@ struct SnapBuild
    * catalog. We discard this array when all the xids in the list become old
    * enough to matter. See SnapBuildPurgeOlderTxn for details.
    */
-  struct
-  {
+struct
+{
     /* number of transactions */
     size_t    xcnt;
 

@@ -23,6 +23,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #define MAX_LEVENSHTEIN_STRLEN    255
 
 /*
@@ -76,6 +77,7 @@ varstr_levenshtein(const char *source, int slen,
                    bool trusted)
 #endif
 {
+  DBUG_TRACE;
   int     m,
           n;
   int      *prev;

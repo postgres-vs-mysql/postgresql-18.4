@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/ginxlog.h"
@@ -46,6 +47,7 @@ ItemPointer
 ginVacuumItemPointers(GinVacuumState *gvs, ItemPointerData *items,
                       int nitem, int *nremaining)
 {
+  DBUG_TRACE;
   int     i,
           remaining = 0;
   ItemPointer tmpitems = NULL;
@@ -85,6 +87,7 @@ ginVacuumItemPointers(GinVacuumState *gvs, ItemPointerData *items,
 static void
 xlogVacuumPage(Relation index, Buffer buffer)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   XLogRecPtr  recptr;
 
@@ -125,6 +128,7 @@ static void
 ginDeletePage(GinVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkno,
               BlockNumber parentBlkno, OffsetNumber myoff, bool isParentRoot)
 {
+  DBUG_TRACE;
   Buffer    dBuffer;
   Buffer    lBuffer;
   Buffer    pBuffer;
@@ -242,6 +246,7 @@ static bool
 ginScanToDelete(GinVacuumState *gvs, BlockNumber blkno, bool isRoot,
                 DataPageDeleteStack *parent, OffsetNumber myoff)
 {
+  DBUG_TRACE;
   DataPageDeleteStack *me;
   Buffer    buffer;
   Page    page;
@@ -329,6 +334,7 @@ ginScanToDelete(GinVacuumState *gvs, BlockNumber blkno, bool isRoot,
 static bool
 ginVacuumPostingTreeLeaves(GinVacuumState *gvs, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Buffer    buffer;
   Page    page;
   bool    hasVoidPage = false;
@@ -389,6 +395,8 @@ ginVacuumPostingTreeLeaves(GinVacuumState *gvs, BlockNumber blkno)
 static void
 ginVacuumPostingTree(GinVacuumState *gvs, BlockNumber rootBlkno)
 {
+  DBUG_TRACE;
+
   if (ginVacuumPostingTreeLeaves(gvs, rootBlkno)) {
     /*
      * There is at least one empty page.  So we have to rescan the tree
@@ -434,6 +442,7 @@ ginVacuumPostingTree(GinVacuumState *gvs, BlockNumber rootBlkno)
 static Page
 ginVacuumEntryPage(GinVacuumState *gvs, Buffer buffer, BlockNumber *roots, uint32 *nroot)
 {
+  DBUG_TRACE;
   Page    origpage = BufferGetPage(buffer),
           tmppage;
   OffsetNumber i,
@@ -534,6 +543,7 @@ IndexBulkDeleteResult *
 ginbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
               IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   Relation  index = info->index;
   BlockNumber blkno = GIN_ROOT_BLKNO;
   GinVacuumState gvs;
@@ -648,6 +658,7 @@ ginbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 IndexBulkDeleteResult *
 ginvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Relation  index = info->index;
   bool    needLock;
   BlockNumber npages,
@@ -758,6 +769,7 @@ ginvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 bool
 GinPageIsRecyclable(Page page)
 {
+  DBUG_TRACE;
   TransactionId delete_xid;
 
   if (PageIsNew(page))

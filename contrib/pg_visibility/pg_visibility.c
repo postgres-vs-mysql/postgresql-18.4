@@ -9,6 +9,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/htup_details.h"
@@ -80,6 +81,7 @@ static void check_relation_relkind(Relation rel);
 Datum
 pg_visibility_map(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   blkno = PG_GETARG_INT64(1);
   int32   mapbits;
@@ -121,6 +123,7 @@ pg_visibility_map(PG_FUNCTION_ARGS)
 Datum
 pg_visibility(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int64   blkno = PG_GETARG_INT64(1);
   int32   mapbits;
@@ -177,6 +180,7 @@ pg_visibility(PG_FUNCTION_ARGS)
 Datum
 pg_visibility_map_rel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   vbits    *info;
 
@@ -219,6 +223,7 @@ pg_visibility_map_rel(PG_FUNCTION_ARGS)
 Datum
 pg_visibility_rel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   vbits    *info;
 
@@ -262,6 +267,7 @@ pg_visibility_rel(PG_FUNCTION_ARGS)
 Datum
 pg_visibility_map_summary(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
   BlockNumber nblocks;
@@ -319,6 +325,7 @@ pg_visibility_map_summary(PG_FUNCTION_ARGS)
 Datum
 pg_check_frozen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   corrupt_items *items;
 
@@ -350,6 +357,7 @@ pg_check_frozen(PG_FUNCTION_ARGS)
 Datum
 pg_check_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   corrupt_items *items;
 
@@ -384,6 +392,7 @@ pg_check_visible(PG_FUNCTION_ARGS)
 Datum
 pg_truncate_visibility_map(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
   ForkNumber  fork;
@@ -466,6 +475,7 @@ pg_truncate_visibility_map(PG_FUNCTION_ARGS)
 static TupleDesc
 pg_visibility_tupdesc(bool include_blkno, bool include_pd)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   AttrNumber  maxattr = 2;
   AttrNumber  a = 0;
@@ -501,6 +511,7 @@ pg_visibility_tupdesc(bool include_blkno, bool include_pd)
 static vbits *
 collect_visibility_data(Oid relid, bool include_pd)
 {
+  DBUG_TRACE;
   Relation  rel;
   BlockNumber nblocks;
   vbits    *info;
@@ -624,6 +635,7 @@ collect_visibility_data(Oid relid, bool include_pd)
 static TransactionId
 GetStrictOldestNonRemovableTransactionId(Relation rel)
 {
+  DBUG_TRACE;
   RunningTransactions runningTransactions;
 
   if (RecoveryInProgress()) {
@@ -709,6 +721,7 @@ collect_corrupt_items_read_stream_next_block(ReadStream *stream,
 static corrupt_items *
 collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 {
+  DBUG_TRACE;
   Relation  rel;
   corrupt_items *items;
   Buffer    vmbuffer = InvalidBuffer;
@@ -889,6 +902,8 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 static void
 record_corrupt_item(corrupt_items *items, ItemPointer tid)
 {
+  DBUG_TRACE;
+
   /* enlarge output array if needed. */
   if (items->next >= items->count) {
     items->count *= 2;
@@ -907,6 +922,7 @@ record_corrupt_item(corrupt_items *items, ItemPointer tid)
 static bool
 tuple_all_visible(HeapTuple tup, TransactionId OldestXmin, Buffer buffer)
 {
+  DBUG_TRACE;
   HTSV_Result state;
   TransactionId xmin;
 
@@ -937,6 +953,8 @@ tuple_all_visible(HeapTuple tup, TransactionId OldestXmin, Buffer buffer)
 static void
 check_relation_relkind(Relation rel)
 {
+  DBUG_TRACE;
+
   if (!RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind))
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),

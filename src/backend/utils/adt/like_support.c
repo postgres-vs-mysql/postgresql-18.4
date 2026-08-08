@@ -33,6 +33,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -112,6 +113,7 @@ static Const *string_to_bytea_const(const char *str, size_t str_len);
 Datum
 textlike_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(like_regex_support(rawreq, Pattern_Type_Like));
@@ -120,6 +122,7 @@ textlike_support(PG_FUNCTION_ARGS)
 Datum
 texticlike_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(like_regex_support(rawreq, Pattern_Type_Like_IC));
@@ -128,6 +131,7 @@ texticlike_support(PG_FUNCTION_ARGS)
 Datum
 textregexeq_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(like_regex_support(rawreq, Pattern_Type_Regex));
@@ -136,6 +140,7 @@ textregexeq_support(PG_FUNCTION_ARGS)
 Datum
 texticregexeq_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(like_regex_support(rawreq, Pattern_Type_Regex_IC));
@@ -144,6 +149,7 @@ texticregexeq_support(PG_FUNCTION_ARGS)
 Datum
 text_starts_with_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(like_regex_support(rawreq, Pattern_Type_Prefix));
@@ -153,6 +159,7 @@ text_starts_with_support(PG_FUNCTION_ARGS)
 static Node *
 like_regex_support(Node *rawreq, Pattern_Type ptype)
 {
+  DBUG_TRACE;
   Node     *ret = NULL;
 
   if (IsA(rawreq, SupportRequestSelectivity)) {
@@ -235,6 +242,7 @@ match_pattern_prefix(Node *leftop,
                      Oid opfamily,
                      Oid indexcollation)
 {
+  DBUG_TRACE;
   List     *result;
   Const    *patt;
   Const    *prefix;
@@ -479,6 +487,7 @@ patternsel_common(PlannerInfo *root,
                   Pattern_Type ptype,
                   bool negate)
 {
+  DBUG_TRACE;
   VariableStatData vardata;
   Node     *other;
   bool    varonleft;
@@ -664,10 +673,14 @@ patternsel_common(PlannerInfo *root,
                                   constval, true,
                                   10, 1, &hist_size);
 
+    DBUG_PRINT("info", "try to use the histogram entries to get selectivity:%g", selec);
+
     /* If not at least 100 entries, use the heuristic method */
     if (hist_size < 100) {
       Selectivity heursel;
       Selectivity prefixsel;
+
+      DBUG_PRINT("info", "if not at least 100 entries, use the heuristic method");
 
       if (pstatus == Pattern_Prefix_Partial)
         prefixsel = prefix_selectivity(root, &vardata,
@@ -691,6 +704,8 @@ patternsel_common(PlannerInfo *root,
 
         selec = selec * hist_weight + heursel * (1.0 - hist_weight);
       }
+
+      DBUG_PRINT("info", "new selectivity:%g", selec);
     }
 
     /* In any case, don't believe extremely small or large estimates. */
@@ -714,9 +729,12 @@ patternsel_common(PlannerInfo *root,
      * realizing that the histogram covers only the non-null values that
      * are not listed in MCV.
      */
+    DBUG_PRINT("info", "new selec = old selec:%g * (1.0 - nullfrac:%g - sumcommon:%g)", selec, nullfrac, sumcommon);
     selec *= 1.0 - nullfrac - sumcommon;
+    DBUG_PRINT("info", "new selec = old selec:%g + mcv_selec:%g", selec, mcv_selec);
     selec += mcv_selec;
     result = selec;
+    DBUG_PRINT("info", "new selec:%g", selec);
   }
 
   /* now adjust if we wanted not-match rather than match */
@@ -733,6 +751,7 @@ patternsel_common(PlannerInfo *root,
 
   ReleaseVariableStats(vardata);
 
+  DBUG_PRINT("info", "generic code for pattern-match restriction selectivity:%g", result);
   return result;
 }
 
@@ -742,11 +761,13 @@ patternsel_common(PlannerInfo *root,
 static double
 patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
   int     varRelid = PG_GETARG_INT32(3);
   Oid     collation = PG_GET_COLLATION();
+  double result;
 
   /*
    * If this is for a NOT LIKE or similar operator, get the corresponding
@@ -759,14 +780,16 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
       elog(ERROR, "patternsel called for operator without a negator");
   }
 
-  return patternsel_common(root,
-                           operator,
-                           InvalidOid,
-                           args,
-                           varRelid,
-                           collation,
-                           ptype,
-                           negate);
+  result = patternsel_common(root,
+                             operator,
+                             InvalidOid,
+                             args,
+                             varRelid,
+                             collation,
+                             ptype,
+                             negate);
+  DBUG_PRINT("info", "result:%g", result);
+  return result;
 }
 
 /*
@@ -775,7 +798,12 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 Datum
 regexeqsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Regex, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Regex, false);
+
+  DBUG_PRINT("info", "return selectivity of regular-expression pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -784,7 +812,13 @@ regexeqsel(PG_FUNCTION_ARGS)
 Datum
 icregexeqsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Regex_IC, false));
+  DBUG_TRACE;
+
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Regex_IC, false);
+
+  DBUG_PRINT("info", "return selectivity of case-insensitive regex match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -793,7 +827,12 @@ icregexeqsel(PG_FUNCTION_ARGS)
 Datum
 likesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Like, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Like, false);
+
+  DBUG_PRINT("info", "return selectivity of LIKE pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -802,7 +841,12 @@ likesel(PG_FUNCTION_ARGS)
 Datum
 prefixsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Prefix, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Prefix, false);
+
+  DBUG_PRINT("info", "return selectivity of prefix operator:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -812,7 +856,12 @@ prefixsel(PG_FUNCTION_ARGS)
 Datum
 iclikesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Like_IC, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Like_IC, false);
+
+  DBUG_PRINT("info", "return selectivity of ILIKE pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -821,7 +870,12 @@ iclikesel(PG_FUNCTION_ARGS)
 Datum
 regexnesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Regex, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Regex, true);
+
+  DBUG_PRINT("info", "return selectivity of regular-expression pattern non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -830,7 +884,12 @@ regexnesel(PG_FUNCTION_ARGS)
 Datum
 icregexnesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Regex_IC, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Regex_IC, true);
+
+  DBUG_PRINT("info", "return selectivity of case-insensitive regex non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -839,7 +898,12 @@ icregexnesel(PG_FUNCTION_ARGS)
 Datum
 nlikesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Like, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Like, true);
+
+  DBUG_PRINT("info", "return selectivity of LIKE pattern non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -848,7 +912,12 @@ nlikesel(PG_FUNCTION_ARGS)
 Datum
 icnlikesel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternsel(fcinfo, Pattern_Type_Like_IC, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternsel(fcinfo, Pattern_Type_Like_IC, true);
+
+  DBUG_PRINT("info", "return selectivity of ILIKE pattern non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -857,6 +926,7 @@ icnlikesel(PG_FUNCTION_ARGS)
 static double
 patternjoinsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 {
+  DBUG_TRACE;
   /* For the moment we just punt. */
   return negate ? (1.0 - DEFAULT_MATCH_SEL) : DEFAULT_MATCH_SEL;
 }
@@ -867,7 +937,12 @@ patternjoinsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 Datum
 regexeqjoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Regex, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Regex, false);
+
+  DBUG_PRINT("info", "return join selectivity of regular-expression pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -876,7 +951,12 @@ regexeqjoinsel(PG_FUNCTION_ARGS)
 Datum
 icregexeqjoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Regex_IC, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Regex_IC, false);
+
+  DBUG_PRINT("info", "return join selectivity of case-insensitive regex match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -885,7 +965,12 @@ icregexeqjoinsel(PG_FUNCTION_ARGS)
 Datum
 likejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Like, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Like, false);
+
+  DBUG_PRINT("info", "return join selectivity of LIKE pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -894,7 +979,12 @@ likejoinsel(PG_FUNCTION_ARGS)
 Datum
 prefixjoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Prefix, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Prefix, false);
+
+  DBUG_PRINT("info", "return join selectivity of prefix operator:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -903,7 +993,12 @@ prefixjoinsel(PG_FUNCTION_ARGS)
 Datum
 iclikejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Like_IC, false));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Like_IC, false);
+
+  DBUG_PRINT("info", "return join selectivity of ILIKE pattern match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -912,7 +1007,12 @@ iclikejoinsel(PG_FUNCTION_ARGS)
 Datum
 regexnejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Regex, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Regex, true);
+
+  DBUG_PRINT("info", "return join selectivity of regex non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -921,7 +1021,13 @@ regexnejoinsel(PG_FUNCTION_ARGS)
 Datum
 icregexnejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Regex_IC, true));
+  DBUG_TRACE;
+
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Regex_IC, true);
+
+  DBUG_PRINT("info", "return join selectivity of case-insensitive regex non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -930,7 +1036,12 @@ icregexnejoinsel(PG_FUNCTION_ARGS)
 Datum
 nlikejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Like, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Like, true);
+
+  DBUG_PRINT("info", "return join selectivity of LIKE pattern non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -939,7 +1050,13 @@ nlikejoinsel(PG_FUNCTION_ARGS)
 Datum
 icnlikejoinsel(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_FLOAT8(patternjoinsel(fcinfo, Pattern_Type_Like_IC, true));
+  DBUG_TRACE;
+  float8 result;
+  result = patternjoinsel(fcinfo, Pattern_Type_Like_IC, true);
+
+  DBUG_PRINT("info", "return join selectivity of ILIKE pattern non-match:%g", result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 
@@ -975,6 +1092,7 @@ static Pattern_Prefix_Status
 like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
                   Const **prefix_const, Selectivity *rest_selec)
 {
+  DBUG_TRACE;
   char     *match;
   char     *patt;
   int     pattlen;
@@ -1072,6 +1190,7 @@ static Pattern_Prefix_Status
 regex_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
                    Const **prefix_const, Selectivity *rest_selec)
 {
+  DBUG_TRACE;
   Oid     typeid = patt_const->consttype;
   char     *prefix;
   bool    exact;
@@ -1134,6 +1253,7 @@ static Pattern_Prefix_Status
 pattern_fixed_prefix(Const *patt, Pattern_Type ptype, Oid collation,
                      Const **prefix, Selectivity *rest_selec)
 {
+  DBUG_TRACE;
   Pattern_Prefix_Status result;
 
   switch (ptype) {
@@ -1208,6 +1328,7 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
                    Oid collation,
                    Const *prefixcon)
 {
+  DBUG_TRACE;
   Selectivity prefixsel;
   FmgrInfo  opproc;
   Const    *greaterstrcon;
@@ -1224,6 +1345,7 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
 
   if (prefixsel < 0.0) {
     /* No histogram is present ... return a suitable default estimate */
+    DBUG_PRINT("info", "no histogram is present ... return a suitable default estimate:%g", DEFAULT_MATCH_SEL);
     return DEFAULT_MATCH_SEL;
   }
 
@@ -1272,6 +1394,7 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
 
   prefixsel = Max(prefixsel, eq_sel);
 
+  DBUG_PRINT("info", "estimate the selectivity of a fixed prefix for a pattern match:%g", prefixsel);
   return prefixsel;
 }
 
@@ -1295,6 +1418,7 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
 static Selectivity
 like_selectivity(const char *patt, int pattlen, bool case_insensitive)
 {
+  DBUG_TRACE;
   Selectivity sel = 1.0;
   int     pos;
 
@@ -1326,12 +1450,14 @@ like_selectivity(const char *patt, int pattlen, bool case_insensitive)
   if (sel > 1.0)
     sel = 1.0;
 
+  DBUG_PRINT("info", "estimate the selectivity of a pattern of the specified type:%g", sel);
   return sel;
 }
 
 static Selectivity
 regex_selectivity_sub(const char *patt, int pattlen, bool case_insensitive)
 {
+  DBUG_TRACE;
   Selectivity sel = 1.0;
   int     paren_depth = 0;
   int     paren_pos = 0;  /* dummy init to keep compiler quiet */
@@ -1412,6 +1538,7 @@ regex_selectivity_sub(const char *patt, int pattlen, bool case_insensitive)
   if (sel > 1.0)
     sel = 1.0;
 
+  DBUG_PRINT("info", "estimate the selectivity:%g", sel);
   return sel;
 }
 
@@ -1419,6 +1546,7 @@ static Selectivity
 regex_selectivity(const char *patt, int pattlen, bool case_insensitive,
                   int fixed_prefix_len)
 {
+  DBUG_TRACE;
   Selectivity sel;
 
   /* If patt doesn't end with $, consider it to have a trailing wildcard */
@@ -1446,6 +1574,7 @@ regex_selectivity(const char *patt, int pattlen, bool case_insensitive,
 
   /* Make sure result stays in range */
   CLAMP_PROBABILITY(sel);
+  DBUG_PRINT("info", "estimate the selectivity:%g", sel);
   return sel;
 }
 
@@ -1531,6 +1660,7 @@ byte_increment(unsigned char *ptr, int len)
 static Const *
 make_greater_string(const Const *str_const, FmgrInfo *ltproc, Oid collation)
 {
+  DBUG_TRACE;
   Oid     datatype = str_const->consttype;
   char     *workstr;
   int     len;
@@ -1680,6 +1810,7 @@ make_greater_string(const Const *str_const, FmgrInfo *ltproc, Oid collation)
 static Datum
 string_to_datum(const char *str, Oid datatype)
 {
+  DBUG_TRACE;
   Assert(str != NULL);
 
   /*

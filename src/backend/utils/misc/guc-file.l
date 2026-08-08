@@ -7,6 +7,7 @@
  * src/backend/utils/misc/guc-file.l
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -119,42 +120,43 @@ STRING			\'([^'\\\n]|\\.|\'\')*\'
 void
 ProcessConfigFile(GucContext context)
 {
-	int			elevel;
-	MemoryContext config_cxt;
-	MemoryContext caller_cxt;
+  DBUG_TRACE;
+  int			elevel;
+  MemoryContext config_cxt;
+  MemoryContext caller_cxt;
 
-	/*
-	 * Config files are processed on startup (by the postmaster only) and on
-	 * SIGHUP (by the postmaster and its children)
-	 */
-	Assert((context == PGC_POSTMASTER && !IsUnderPostmaster) ||
-		   context == PGC_SIGHUP);
+  /*
+   * Config files are processed on startup (by the postmaster only) and on
+   * SIGHUP (by the postmaster and its children)
+   */
+  Assert((context == PGC_POSTMASTER && !IsUnderPostmaster) ||
+      context == PGC_SIGHUP);
 
-	/*
-	 * To avoid cluttering the log, only the postmaster bleats loudly about
-	 * problems with the config file.
-	 */
-	elevel = IsUnderPostmaster ? DEBUG2 : LOG;
+  /*
+   * To avoid cluttering the log, only the postmaster bleats loudly about
+   * problems with the config file.
+   */
+  elevel = IsUnderPostmaster ? DEBUG2 : LOG;
 
-	/*
-	 * This function is usually called within a process-lifespan memory
-	 * context.  To ensure that any memory leaked during GUC processing does
-	 * not accumulate across repeated SIGHUP cycles, do the work in a private
-	 * context that we can free at exit.
-	 */
-	config_cxt = AllocSetContextCreate(CurrentMemoryContext,
-									   "config file processing",
-									   ALLOCSET_DEFAULT_SIZES);
-	caller_cxt = MemoryContextSwitchTo(config_cxt);
+  /*
+   * This function is usually called within a process-lifespan memory
+   * context.  To ensure that any memory leaked during GUC processing does
+   * not accumulate across repeated SIGHUP cycles, do the work in a private
+   * context that we can free at exit.
+   */
+  config_cxt = AllocSetContextCreate(CurrentMemoryContext,
+      "config file processing",
+      ALLOCSET_DEFAULT_SIZES);
+  caller_cxt = MemoryContextSwitchTo(config_cxt);
 
-	/*
-	 * Read and apply the config file.  We don't need to examine the result.
-	 */
-	(void) ProcessConfigFileInternal(context, true, elevel);
+  /*
+   * Read and apply the config file.  We don't need to examine the result.
+   */
+  (void) ProcessConfigFileInternal(context, true, elevel);
 
-	/* Clean up */
-	MemoryContextSwitchTo(caller_cxt);
-	MemoryContextDelete(config_cxt);
+  /* Clean up */
+  MemoryContextSwitchTo(caller_cxt);
+  MemoryContextDelete(config_cxt);
 }
 
 /*
@@ -173,101 +175,102 @@ ProcessConfigFile(GucContext context)
  */
 bool
 ParseConfigFile(const char *config_file, bool strict,
-				const char *calling_file, int calling_lineno,
-				int depth, int elevel,
-				ConfigVariable **head_p,
-				ConfigVariable **tail_p)
+    const char *calling_file, int calling_lineno,
+    int depth, int elevel,
+    ConfigVariable **head_p,
+    ConfigVariable **tail_p)
 {
-	char	   *abs_path;
-	bool		OK = true;
-	FILE	   *fp;
+  DBUG_TRACE;
+  char	   *abs_path;
+  bool		OK = true;
+  FILE	   *fp;
 
-	/*
-	 * Reject file name that is all-blank (including empty), as that leads to
-	 * confusion --- we'd try to read the containing directory as a file.
-	 */
-	if (strspn(config_file, " \t\r\n") == strlen(config_file))
-	{
-		ereport(elevel,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("empty configuration file name: \"%s\"",
-						config_file)));
-		record_config_file_error("empty configuration file name",
-								 calling_file, calling_lineno,
-								 head_p, tail_p);
-		return false;
-	}
+  /*
+   * Reject file name that is all-blank (including empty), as that leads to
+   * confusion --- we'd try to read the containing directory as a file.
+   */
+  if (strspn(config_file, " \t\r\n") == strlen(config_file))
+  {
+    ereport(elevel,
+        (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+         errmsg("empty configuration file name: \"%s\"",
+           config_file)));
+    record_config_file_error("empty configuration file name",
+        calling_file, calling_lineno,
+        head_p, tail_p);
+    return false;
+  }
 
-	/*
-	 * Reject too-deep include nesting depth.  This is just a safety check to
-	 * avoid dumping core due to stack overflow if an include file loops back
-	 * to itself.  The maximum nesting depth is pretty arbitrary.
-	 */
-	if (depth > CONF_FILE_MAX_DEPTH)
-	{
-		ereport(elevel,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("could not open configuration file \"%s\": maximum nesting depth exceeded",
-						config_file)));
-		record_config_file_error("nesting depth exceeded",
-								 calling_file, calling_lineno,
-								 head_p, tail_p);
-		return false;
-	}
+  /*
+   * Reject too-deep include nesting depth.  This is just a safety check to
+   * avoid dumping core due to stack overflow if an include file loops back
+   * to itself.  The maximum nesting depth is pretty arbitrary.
+   */
+  if (depth > CONF_FILE_MAX_DEPTH)
+  {
+    ereport(elevel,
+        (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+         errmsg("could not open configuration file \"%s\": maximum nesting depth exceeded",
+           config_file)));
+    record_config_file_error("nesting depth exceeded",
+        calling_file, calling_lineno,
+        head_p, tail_p);
+    return false;
+  }
 
-	abs_path = AbsoluteConfigLocation(config_file, calling_file);
+  abs_path = AbsoluteConfigLocation(config_file, calling_file);
 
-	/*
-	 * Reject direct recursion.  Indirect recursion is also possible, but it's
-	 * harder to detect and so doesn't seem worth the trouble.  (We test at
-	 * this step because the canonicalization done by AbsoluteConfigLocation
-	 * makes it more likely that a simple strcmp comparison will match.)
-	 */
-	if (calling_file && strcmp(abs_path, calling_file) == 0)
-	{
-		ereport(elevel,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("configuration file recursion in \"%s\"",
-						calling_file)));
-		record_config_file_error("configuration file recursion",
-								 calling_file, calling_lineno,
-								 head_p, tail_p);
-		pfree(abs_path);
-		return false;
-	}
+  /*
+   * Reject direct recursion.  Indirect recursion is also possible, but it's
+   * harder to detect and so doesn't seem worth the trouble.  (We test at
+   * this step because the canonicalization done by AbsoluteConfigLocation
+   * makes it more likely that a simple strcmp comparison will match.)
+   */
+  if (calling_file && strcmp(abs_path, calling_file) == 0)
+  {
+    ereport(elevel,
+        (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+         errmsg("configuration file recursion in \"%s\"",
+           calling_file)));
+    record_config_file_error("configuration file recursion",
+        calling_file, calling_lineno,
+        head_p, tail_p);
+    pfree(abs_path);
+    return false;
+  }
 
-	fp = AllocateFile(abs_path, "r");
-	if (!fp)
-	{
-		if (strict)
-		{
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not open configuration file \"%s\": %m",
-							abs_path)));
-			record_config_file_error(psprintf("could not open file \"%s\"",
-											  abs_path),
-									 calling_file, calling_lineno,
-									 head_p, tail_p);
-			OK = false;
-		}
-		else
-		{
-			ereport(LOG,
-					(errmsg("skipping missing configuration file \"%s\"",
-							abs_path)));
-		}
-		goto cleanup;
-	}
+  fp = AllocateFile(abs_path, "r");
+  if (!fp)
+  {
+    if (strict)
+    {
+      ereport(elevel,
+          (errcode_for_file_access(),
+           errmsg("could not open configuration file \"%s\": %m",
+             abs_path)));
+      record_config_file_error(psprintf("could not open file \"%s\"",
+            abs_path),
+          calling_file, calling_lineno,
+          head_p, tail_p);
+      OK = false;
+    }
+    else
+    {
+      ereport(LOG,
+          (errmsg("skipping missing configuration file \"%s\"",
+                  abs_path)));
+    }
+    goto cleanup;
+  }
 
-	OK = ParseConfigFp(fp, abs_path, depth, elevel, head_p, tail_p);
+  OK = ParseConfigFp(fp, abs_path, depth, elevel, head_p, tail_p);
 
 cleanup:
-	if (fp)
-		FreeFile(fp);
-	pfree(abs_path);
+  if (fp)
+    FreeFile(fp);
+  pfree(abs_path);
 
-	return OK;
+  return OK;
 }
 
 /*

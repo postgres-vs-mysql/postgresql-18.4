@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/session.h"
 #include "storage/lwlock.h"
@@ -53,6 +54,7 @@ Session    *CurrentSession = NULL;
 void
 InitializeSession(void)
 {
+  DBUG_TRACE;
   CurrentSession = MemoryContextAllocZero(TopMemoryContext, sizeof(Session));
 }
 
@@ -69,6 +71,7 @@ InitializeSession(void)
 dsm_handle
 GetSessionDsmHandle(void)
 {
+  DBUG_TRACE;
   shm_toc_estimator estimator;
   shm_toc    *toc;
   dsm_segment *seg;
@@ -155,6 +158,7 @@ GetSessionDsmHandle(void)
 void
 AttachSession(dsm_handle handle)
 {
+  DBUG_TRACE;
   dsm_segment *seg;
   shm_toc    *toc;
   void     *dsa_space;
@@ -203,6 +207,7 @@ AttachSession(dsm_handle handle)
 void
 DetachSession(void)
 {
+  DBUG_TRACE;
   /* Runs detach hooks. */
   dsm_detach(CurrentSession->segment);
   CurrentSession->segment = NULL;

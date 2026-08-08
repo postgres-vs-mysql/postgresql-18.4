@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -90,6 +91,8 @@ static void
 generate_dependencies_recurse(DependencyGenerator state, int index,
                               AttrNumber start, AttrNumber *current)
 {
+  DBUG_TRACE;
+
   /*
    * The generator handles the first (k-1) elements differently from the
    * last element.
@@ -147,6 +150,7 @@ generate_dependencies_recurse(DependencyGenerator state, int index,
 static void
 generate_dependencies(DependencyGenerator state)
 {
+  DBUG_TRACE;
   AttrNumber *current = (AttrNumber *) palloc0(sizeof(AttrNumber) * state->k);
 
   generate_dependencies_recurse(state, 0, 0, current);
@@ -163,6 +167,7 @@ generate_dependencies(DependencyGenerator state)
 static DependencyGenerator
 DependencyGenerator_init(int n, int k)
 {
+  DBUG_TRACE;
   DependencyGenerator state;
 
   Assert((n >= k) && (k > 0));
@@ -186,6 +191,7 @@ DependencyGenerator_init(int n, int k)
 static void
 DependencyGenerator_free(DependencyGenerator state)
 {
+  DBUG_TRACE;
   pfree(state->dependencies);
   pfree(state);
 }
@@ -194,6 +200,8 @@ DependencyGenerator_free(DependencyGenerator state)
 static AttrNumber *
 DependencyGenerator_next(DependencyGenerator state)
 {
+  DBUG_TRACE;
+
   if (state->current == state->ndependencies)
     return NULL;
 
@@ -211,6 +219,7 @@ DependencyGenerator_next(DependencyGenerator state)
 static double
 dependency_degree(StatsBuildData *data, int k, AttrNumber *dependency)
 {
+  DBUG_TRACE;
   int     i,
           nitems;
   MultiSortSupport mss;
@@ -337,6 +346,7 @@ dependency_degree(StatsBuildData *data, int k, AttrNumber *dependency)
 MVDependencies *
 statext_dependencies_build(StatsBuildData *data)
 {
+  DBUG_TRACE;
   int     i,
           k;
 
@@ -431,6 +441,7 @@ statext_dependencies_build(StatsBuildData *data)
 bytea *
 statext_dependencies_serialize(MVDependencies *dependencies)
 {
+  DBUG_TRACE;
   int     i;
   bytea    *output;
   char     *tmp;
@@ -485,6 +496,7 @@ statext_dependencies_serialize(MVDependencies *dependencies)
 MVDependencies *
 statext_dependencies_deserialize(bytea *data)
 {
+  DBUG_TRACE;
   int     i;
   Size    min_expected_size;
   MVDependencies *dependencies;
@@ -580,6 +592,7 @@ statext_dependencies_deserialize(bytea *data)
 static bool
 dependency_is_fully_matched(MVDependency *dependency, Bitmapset *attnums)
 {
+  DBUG_TRACE;
   int     j;
 
   /*
@@ -603,6 +616,7 @@ dependency_is_fully_matched(MVDependency *dependency, Bitmapset *attnums)
 MVDependencies *
 statext_dependencies_load(Oid mvoid, bool inh)
 {
+  DBUG_TRACE;
   MVDependencies *result;
   bool    isnull;
   Datum   deps;
@@ -639,6 +653,7 @@ statext_dependencies_load(Oid mvoid, bool inh)
 Datum
 pg_dependencies_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * pg_node_list stores the data in binary form and parsing text input is
    * not needed, so disallow this.
@@ -656,6 +671,7 @@ pg_dependencies_in(PG_FUNCTION_ARGS)
 Datum
 pg_dependencies_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data = PG_GETARG_BYTEA_PP(0);
   MVDependencies *dependencies = statext_dependencies_deserialize(data);
   int     i,
@@ -696,6 +712,7 @@ pg_dependencies_out(PG_FUNCTION_ARGS)
 Datum
 pg_dependencies_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "pg_dependencies")));
@@ -712,6 +729,7 @@ pg_dependencies_recv(PG_FUNCTION_ARGS)
 Datum
 pg_dependencies_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteasend(fcinfo);
 }
 
@@ -727,6 +745,7 @@ pg_dependencies_send(PG_FUNCTION_ARGS)
 static bool
 dependency_is_compatible_clause(Node *clause, Index relid, AttrNumber *attnum)
 {
+  DBUG_TRACE;
   Var      *var;
   Node     *clause_expr;
 
@@ -905,6 +924,7 @@ static MVDependency *
 find_strongest_dependency(MVDependencies **dependencies, int ndependencies,
                           Bitmapset *attnums)
 {
+  DBUG_TRACE;
   int     i,
           j;
   MVDependency *strongest = NULL;
@@ -991,6 +1011,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
                               AttrNumber *list_attnums,
                               Bitmapset **estimatedclauses)
 {
+  DBUG_TRACE;
   Bitmapset  *attnums;
   int     i;
   int     j;
@@ -1021,6 +1042,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
    * Compute per-column selectivity estimates for each of these attributes,
    * and mark all the corresponding clauses as estimated.
    */
+  DBUG_PRINT("info", "compute per-column selectivity estimates for each of these attributes");
   nattrs = bms_num_members(attnums);
   attr_sel = (Selectivity *) palloc(sizeof(Selectivity) * nattrs);
 
@@ -1073,6 +1095,8 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
    * attributes.  The selectivities of all other non-implied attributes are
    * left as they are.
    */
+  DBUG_PRINT("info", "now combine these selectivities using the dependency information");
+
   for (i = ndependencies - 1; i >= 0; i--) {
     MVDependency *dependency = dependencies[i];
     AttrNumber  attnum;
@@ -1088,10 +1112,14 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
       s1 *= attr_sel[attidx];
     }
 
+    DBUG_PRINT("info", "selectivity of all the implying attributes(%d):%g", dependency->nattributes - 1, s1);
+
     /* Original selectivity of the implied attribute */
     attnum = dependency->attributes[j];
     attidx = bms_member_index(attnums, attnum);
     s2 = attr_sel[attidx];
+    DBUG_PRINT("info", "original selectivity of the implied attribute:%g", s2);
+
 
     /*
      * Replace s2 with the conditional probability s2 given s1, computed
@@ -1104,10 +1132,13 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
      */
     f = dependency->degree;
 
-    if (s1 <= s2)
+    if (s1 <= s2) {
       attr_sel[attidx] = f + (1 - f) * s2;
-    else
+      DBUG_PRINT("info", "attr_sel[%d] = f(%g) + (1 - f(%g)) * s2(%g)", attidx, f, f, s2);
+    } else {
       attr_sel[attidx] = f * s2 / s1 + (1 - f) * s2;
+      DBUG_PRINT("info", "attr_sel[%d] = f(%g) * s2(%g) / s1(%g) + (1 - f(%g)) * s2(%g)", attidx, f, s2, s1, f, s2);
+    }
   }
 
   /*
@@ -1120,7 +1151,10 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
   for (i = 0; i < nattrs; i++)
     s1 *= attr_sel[i];
 
+  DBUG_PRINT("info", "the overall selectivity of all the clauses on all these attributes is then the product of all the original");
+  DBUG_PRINT("info", "probabilities and the new conditional (implied) probabilities:%g", s1);
   CLAMP_PROBABILITY(s1);
+  DBUG_PRINT("info", "adjust selectivity to %g", s1);
 
   pfree(attr_sel);
   bms_free(attnums);
@@ -1139,6 +1173,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 static bool
 dependency_is_compatible_expression(Node *clause, Index relid, List *statlist, Node **expr)
 {
+  DBUG_TRACE;
   ListCell   *lc,
              *lc2;
   Node     *clause_expr;
@@ -1333,6 +1368,7 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
                                     RelOptInfo *rel,
                                     Bitmapset **estimatedclauses)
 {
+  DBUG_TRACE;
   Selectivity s1 = 1.0;
   ListCell   *l;
   Bitmapset  *clauses_attnums = NULL;
@@ -1352,8 +1388,10 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
   int     unique_exprs_cnt;
 
   /* check if there's any stats that might be useful for us. */
-  if (!has_stats_of_kind(rel->statlist, STATS_EXT_DEPENDENCIES))
+  if (!has_stats_of_kind(rel->statlist, STATS_EXT_DEPENDENCIES)) {
+    DBUG_PRINT("info", "return selectivity:1.0");
     return 1.0;
+  }
 
   list_attnums = (AttrNumber *) palloc(sizeof(AttrNumber) *
                                        list_length(clauses));
@@ -1494,6 +1532,8 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
   if (bms_membership(clauses_attnums) != BMS_MULTIPLE) {
     bms_free(clauses_attnums);
     pfree(list_attnums);
+    DBUG_PRINT("info", "if there's not at least two distinct attnums and expressions, then reject the whole list of clauses");
+    DBUG_PRINT("info", "return selectivity:1.0");
     return 1.0;
   }
 
@@ -1712,6 +1752,8 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
     bms_free(clauses_attnums);
     pfree(list_attnums);
     pfree(unique_exprs);
+    DBUG_PRINT("info", "if no matching stats could be found then we've nothing to do");
+    DBUG_PRINT("info", "return selectivity:1.0");
     return 1.0;
   }
 
@@ -1761,5 +1803,6 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
   pfree(list_attnums);
   pfree(unique_exprs);
 
+  DBUG_PRINT("info", "return selectivity:%g", s1);
   return s1;
 }

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <float.h>
@@ -163,10 +164,13 @@ is_infinite(double val)
 Datum
 float4in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *num = PG_GETARG_CSTRING(0);
 
-  PG_RETURN_FLOAT4(float4in_internal(num, NULL, "real", num,
-                                     fcinfo->context));
+  float4 result = (float4in_internal(num, NULL, "real", num, fcinfo->context));
+
+  DBUG_PRINT("info", "convert '%s' to float4:%g", num, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 /*
@@ -300,6 +304,7 @@ float4in_internal(char *num, char **endptr_p,
 Datum
 float4out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
   char     *ascii = (char *) palloc(32);
   int     ndig = FLT_DIG + extra_float_digits;
@@ -310,6 +315,7 @@ float4out(PG_FUNCTION_ARGS)
   }
 
   (void) pg_strfromd(ascii, 32, ndig, num);
+  DBUG_PRINT("info", "convert a float4 number to a string:'%s'", ascii);
   PG_RETURN_CSTRING(ascii);
 }
 
@@ -319,9 +325,13 @@ float4out(PG_FUNCTION_ARGS)
 Datum
 float4recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
-  PG_RETURN_FLOAT4(pq_getmsgfloat4(buf));
+  float4 result = (pq_getmsgfloat4(buf));
+
+  DBUG_PRINT("info", "convert external binary format to float4:%g", result);
+  PG_RETURN_FLOAT4(result);
 }
 
 /*
@@ -330,6 +340,7 @@ float4recv(PG_FUNCTION_ARGS)
 Datum
 float4send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
   StringInfoData buf;
 
@@ -344,10 +355,13 @@ float4send(PG_FUNCTION_ARGS)
 Datum
 float8in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *num = PG_GETARG_CSTRING(0);
 
-  PG_RETURN_FLOAT8(float8in_internal(num, NULL, "double precision", num,
-                                     fcinfo->context));
+  float8 result = (float8in_internal(num, NULL, "double precision", num, fcinfo->context));
+
+  DBUG_PRINT("info", "convert '%s' to float8:%g", num, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -484,9 +498,13 @@ float8in_internal(char *num, char **endptr_p,
 Datum
 float8out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
 
-  PG_RETURN_CSTRING(float8out_internal(num));
+  char *result = float8out_internal(num);
+
+  DBUG_PRINT("info", "convert float8 number to a string:'%s'", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -517,9 +535,12 @@ float8out_internal(double num)
 Datum
 float8recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+  float8 result = pq_getmsgfloat8(buf);
 
-  PG_RETURN_FLOAT8(pq_getmsgfloat8(buf));
+  DBUG_PRINT("info", "convert external binary format to float8:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -528,11 +549,13 @@ float8recv(PG_FUNCTION_ARGS)
 Datum
 float8send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
   StringInfoData buf;
 
   pq_begintypsend(&buf);
   pq_sendfloat8(&buf, num);
+  DBUG_PRINT("info", "convert float8:%g to binary format", num);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -552,9 +575,12 @@ float8send(PG_FUNCTION_ARGS)
 Datum
 float4abs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
+  float4 result = fabsf(arg1);
 
-  PG_RETURN_FLOAT4(fabsf(arg1));
+  DBUG_PRINT("info", "return |%g| (%g)", arg1, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 /*
@@ -563,24 +589,29 @@ float4abs(PG_FUNCTION_ARGS)
 Datum
 float4um(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    result;
 
   result = -arg1;
+  DBUG_PRINT("info", "return -arg1(unary minus) = %g", result);
   PG_RETURN_FLOAT4(result);
 }
 
 Datum
 float4up(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg = PG_GETARG_FLOAT4(0);
 
+  DBUG_PRINT("info", "result:%g", arg);
   PG_RETURN_FLOAT4(arg);
 }
 
 Datum
 float4larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
   float4    result;
@@ -590,12 +621,14 @@ float4larger(PG_FUNCTION_ARGS)
   else
     result = arg2;
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT4(result);
 }
 
 Datum
 float4smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
   float4    result;
@@ -605,6 +638,7 @@ float4smaller(PG_FUNCTION_ARGS)
   else
     result = arg2;
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT4(result);
 }
 
@@ -620,9 +654,14 @@ float4smaller(PG_FUNCTION_ARGS)
 Datum
 float8abs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  float8 result = fabs(arg1);
 
-  PG_RETURN_FLOAT8(fabs(arg1));
+
+  DBUG_PRINT("info", "result:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -632,24 +671,29 @@ float8abs(PG_FUNCTION_ARGS)
 Datum
 float8um(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
   result = -arg1;
+  DBUG_PRINT("info", "return -arg1(unary minus) = %g", result);
   PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8up(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg = PG_GETARG_FLOAT8(0);
 
+  DBUG_PRINT("info", "result:%g", arg);
   PG_RETURN_FLOAT8(arg);
 }
 
 Datum
 float8larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
   float8    result;
@@ -659,12 +703,14 @@ float8larger(PG_FUNCTION_ARGS)
   else
     result = arg2;
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
   float8    result;
@@ -674,6 +720,7 @@ float8smaller(PG_FUNCTION_ARGS)
   else
     result = arg2;
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -693,37 +740,49 @@ float8smaller(PG_FUNCTION_ARGS)
 Datum
 float4pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT4(float4_pl(arg1, arg2));
+  float4 result = float4_pl(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) + arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 Datum
 float4mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT4(float4_mi(arg1, arg2));
+  float4 result = float4_mi(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) - arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 Datum
 float4mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT4(float4_mul(arg1, arg2));
+  float4 result = float4_mul(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) * arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 Datum
 float4div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT4(float4_div(arg1, arg2));
+  float4 result = float4_div(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) / arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT4(result);
 }
 
 /*
@@ -735,37 +794,49 @@ float4div(PG_FUNCTION_ARGS)
 Datum
 float8pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_pl(arg1, arg2));
+  float8 result = float8_pl(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) + arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_mi(arg1, arg2));
+  float8 result = float8_mi(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) - arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_mul(arg1, arg2));
+  float8 result = float8_mul(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) * arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_div(arg1, arg2));
+  float8 result = float8_div(arg1, arg2);
+  DBUG_PRINT("info", "return arg1(%g) / arg2(%g) = %g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -793,64 +864,121 @@ float4_cmp_internal(float4 a, float4 b)
 Datum
 float4eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
+  bool result = float4_eq(arg1, arg2);
 
-  PG_RETURN_BOOL(float4_eq(arg1, arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float4ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float4_ne(arg1, arg2));
+  bool result = float4_ne(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float4lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float4_lt(arg1, arg2));
+  bool result = float4_lt(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float4le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float4_le(arg1, arg2));
+  bool result = float4_le(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float4gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float4_gt(arg1, arg2));
+  bool result = float4_gt(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float4ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float4_ge(arg1, arg2));
+  bool result = float4_ge(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 btfloat4cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_INT32(float4_cmp_internal(arg1, arg2));
+  int32 result = float4_cmp_internal(arg1, arg2);
+
+  DBUG_PRINT("info", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 static int
@@ -865,9 +993,11 @@ btfloat4fastcmp(Datum x, Datum y, SortSupport ssup)
 Datum
 btfloat4sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = btfloat4fastcmp;
+  DBUG_PRINT("info", "use btfloat4fastcmp as the comparator");
   PG_RETURN_VOID();
 }
 
@@ -889,64 +1019,122 @@ float8_cmp_internal(float8 a, float8 b)
 Datum
 float8eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_eq(arg1, arg2));
+  bool result = float8_eq(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float8ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_ne(arg1, arg2));
+  bool result = float8_ne(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float8lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_lt(arg1, arg2));
+  bool result = float8_lt(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float8le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_le(arg1, arg2));
+  bool result = float8_le(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float8gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_gt(arg1, arg2));
+  bool result = float8_gt(arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 float8ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
+  bool result = float8_ge(arg1, arg2);
 
-  PG_RETURN_BOOL(float8_ge(arg1, arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 btfloat8cmp(PG_FUNCTION_ARGS)
 {
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  DBUG_TRACE;
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_INT32(float8_cmp_internal(arg1, arg2));
+  int32 result = float8_cmp_internal(arg1, arg2);
+  DBUG_PRINT("info", "result:%d", result);
+  PG_RETURN_INT32(result);
 }
 
 static int
@@ -961,30 +1149,39 @@ btfloat8fastcmp(Datum x, Datum y, SortSupport ssup)
 Datum
 btfloat8sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = btfloat8fastcmp;
+  DBUG_PRINT("info", "use btfloat8fastcmp as the comparator");
   PG_RETURN_VOID();
 }
 
 Datum
 btfloat48cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
+  int32 result = float8_cmp_internal(arg1, arg2);
 
+  DBUG_PRINT("info", "result:%d", result);
   /* widen float4 to float8 and then compare */
-  PG_RETURN_INT32(float8_cmp_internal(arg1, arg2));
+  PG_RETURN_INT32(result);
 }
 
 Datum
 btfloat84cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
+  int32 result = float8_cmp_internal(arg1, arg2);
+
+  DBUG_PRINT("info", "result:%d", result);
   /* widen float4 to float8 and then compare */
-  PG_RETURN_INT32(float8_cmp_internal(arg1, arg2));
+  PG_RETURN_INT32(result);
 }
 
 /*
@@ -996,6 +1193,7 @@ btfloat84cmp(PG_FUNCTION_ARGS)
 Datum
 in_range_float8_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    val = PG_GETARG_FLOAT8(0);
   float8    base = PG_GETARG_FLOAT8(1);
   float8    offset = PG_GETARG_FLOAT8(2);
@@ -1018,11 +1216,25 @@ in_range_float8_float8(PG_FUNCTION_ARGS)
    * affect the conclusion.
    */
   if (isnan(val)) {
-    if (isnan(base))
+    if (isnan(base)) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true); /* NAN = NAN */
-    else
+    } else {
+      if (!less) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!less);  /* NAN > non-NAN */
+    }
   } else if (isnan(base)) {
+    if (less) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(less); /* non-NAN < NAN */
   }
 
@@ -1040,8 +1252,10 @@ in_range_float8_float8(PG_FUNCTION_ARGS)
    * this test.
    */
   if (isinf(offset) && isinf(base) &&
-      (sub ? base > 0 : base < 0))
+      (sub ? base > 0 : base < 0)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   /*
    * Otherwise it should be safe to compute base +/- offset.  We trust the
@@ -1054,10 +1268,23 @@ in_range_float8_float8(PG_FUNCTION_ARGS)
   else
     sum = base + offset;
 
-  if (less)
+  if (less) {
+    if (val <= sum) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(val <= sum);
-  else
+  } else {
+    if (val >= sum) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(val >= sum);
+  }
 }
 
 /*
@@ -1069,6 +1296,7 @@ in_range_float8_float8(PG_FUNCTION_ARGS)
 Datum
 in_range_float4_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    val = PG_GETARG_FLOAT4(0);
   float4    base = PG_GETARG_FLOAT4(1);
   float8    offset = PG_GETARG_FLOAT8(2);
@@ -1091,11 +1319,25 @@ in_range_float4_float8(PG_FUNCTION_ARGS)
    * affect the conclusion.
    */
   if (isnan(val)) {
-    if (isnan(base))
+    if (isnan(base)) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true); /* NAN = NAN */
-    else
+    } else {
+      if (!less) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       PG_RETURN_BOOL(!less);  /* NAN > non-NAN */
+    }
   } else if (isnan(base)) {
+    if (less) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(less); /* non-NAN < NAN */
   }
 
@@ -1113,8 +1355,10 @@ in_range_float4_float8(PG_FUNCTION_ARGS)
    * this test.
    */
   if (isinf(offset) && isinf(base) &&
-      (sub ? base > 0 : base < 0))
+      (sub ? base > 0 : base < 0)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   /*
    * Otherwise it should be safe to compute base +/- offset.  We trust the
@@ -1127,10 +1371,23 @@ in_range_float4_float8(PG_FUNCTION_ARGS)
   else
     sum = base + offset;
 
-  if (less)
+  if (less) {
+    if (val <= sum) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(val <= sum);
-  else
+  } else {
+    if (val >= sum) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     PG_RETURN_BOOL(val >= sum);
+  }
 }
 
 
@@ -1146,8 +1403,9 @@ in_range_float4_float8(PG_FUNCTION_ARGS)
 Datum
 ftod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
-
+  DBUG_PRINT("info", "convert a float4 number(%g) to a float8 number", num);
   PG_RETURN_FLOAT8((float8) num);
 }
 
@@ -1158,6 +1416,7 @@ ftod(PG_FUNCTION_ARGS)
 Datum
 dtof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
   float4    result;
 
@@ -1169,6 +1428,7 @@ dtof(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0f) && num != 0.0)
     float_underflow_error();
 
+  DBUG_PRINT("info", "convert a float8 number(%g) to a float4 number", num);
   PG_RETURN_FLOAT4(result);
 }
 
@@ -1179,6 +1439,7 @@ dtof(PG_FUNCTION_ARGS)
 Datum
 dtoi4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
 
   /*
@@ -1194,6 +1455,7 @@ dtoi4(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("integer out of range")));
 
+  DBUG_PRINT("info", "convert a float8 number:%g to an int4 number:%d", num, (int32) num);
   PG_RETURN_INT32((int32) num);
 }
 
@@ -1204,7 +1466,9 @@ dtoi4(PG_FUNCTION_ARGS)
 Datum
 dtoi2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    num = PG_GETARG_FLOAT8(0);
+  float8    orig_num = num;
 
   /*
    * Get rid of any fractional part in the input.  This is so we don't fail
@@ -1219,6 +1483,7 @@ dtoi2(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("smallint out of range")));
 
+  DBUG_PRINT("info", "convert a float8 number:%g to an int2 number:%d", orig_num, (int16) num);
   PG_RETURN_INT16((int16) num);
 }
 
@@ -1229,8 +1494,10 @@ dtoi2(PG_FUNCTION_ARGS)
 Datum
 i4tod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   num = PG_GETARG_INT32(0);
 
+  DBUG_PRINT("info", "convert an int4 number:%d to a float8 number:%g", num, (float8) num);
   PG_RETURN_FLOAT8((float8) num);
 }
 
@@ -1241,8 +1508,10 @@ i4tod(PG_FUNCTION_ARGS)
 Datum
 i2tod(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   num = PG_GETARG_INT16(0);
 
+  DBUG_PRINT("info", "convert an int2 number:%d to a float8 number:%g", num, (float8) num);
   PG_RETURN_FLOAT8((float8) num);
 }
 
@@ -1253,7 +1522,9 @@ i2tod(PG_FUNCTION_ARGS)
 Datum
 ftoi4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
+  float4    orig_num = num;
 
   /*
    * Get rid of any fractional part in the input.  This is so we don't fail
@@ -1268,6 +1539,7 @@ ftoi4(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("integer out of range")));
 
+  DBUG_PRINT("info", "convert a float4 number:%g to an int4 number:%d", orig_num, (int32) num);
   PG_RETURN_INT32((int32) num);
 }
 
@@ -1278,7 +1550,9 @@ ftoi4(PG_FUNCTION_ARGS)
 Datum
 ftoi2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    num = PG_GETARG_FLOAT4(0);
+  float4    orig_num = num;
 
   /*
    * Get rid of any fractional part in the input.  This is so we don't fail
@@ -1293,6 +1567,7 @@ ftoi2(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
              errmsg("smallint out of range")));
 
+  DBUG_PRINT("info", "convert a float4 number:%g to an int2 number:%d", orig_num, (int16) num);
   PG_RETURN_INT16((int16) num);
 }
 
@@ -1303,8 +1578,10 @@ ftoi2(PG_FUNCTION_ARGS)
 Datum
 i4tof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   num = PG_GETARG_INT32(0);
 
+  DBUG_PRINT("info", "convert an int4 number:%d to a float4 number:%g", num, (float4) num);
   PG_RETURN_FLOAT4((float4) num);
 }
 
@@ -1315,8 +1592,10 @@ i4tof(PG_FUNCTION_ARGS)
 Datum
 i2tof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   num = PG_GETARG_INT16(0);
 
+  DBUG_PRINT("info", "convert an int2 number:%d to a float4 number:%g", num, (float4) num);
   PG_RETURN_FLOAT4((float4) num);
 }
 
@@ -1333,9 +1612,12 @@ i2tof(PG_FUNCTION_ARGS)
 Datum
 dround(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  float8 result = rint(arg1);
+  DBUG_PRINT("info", "return round(%g):%g", arg1, result);
 
-  PG_RETURN_FLOAT8(rint(arg1));
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -1345,9 +1627,14 @@ dround(PG_FUNCTION_ARGS)
 Datum
 dceil(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  float8 result = ceil(arg1);
 
-  PG_RETURN_FLOAT8(ceil(arg1));
+  DBUG_PRINT("info", "return the smallest integer(%g) greater than or equal to the specified float:%g", result, arg1);
+
+
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -1357,9 +1644,13 @@ dceil(PG_FUNCTION_ARGS)
 Datum
 dfloor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  float8 result = floor(arg1);
 
-  PG_RETURN_FLOAT8(floor(arg1));
+  DBUG_PRINT("info", "return the smallest integer(%g) greater than or equal to the specified float:%g", result, arg1);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -1370,16 +1661,19 @@ dfloor(PG_FUNCTION_ARGS)
 Datum
 dsign(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
-  if (arg1 > 0)
+  if (arg1 > 0) {
     result = 1.0;
-  else if (arg1 < 0)
+  } else if (arg1 < 0) {
     result = -1.0;
-  else
+  } else {
     result = 0.0;
+  }
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1393,6 +1687,7 @@ dsign(PG_FUNCTION_ARGS)
 Datum
 dtrunc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1401,6 +1696,7 @@ dtrunc(PG_FUNCTION_ARGS)
   else
     result = -floor(-arg1);
 
+  DBUG_PRINT("info", "return truncation-towards-zero of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1411,6 +1707,7 @@ dtrunc(PG_FUNCTION_ARGS)
 Datum
 dsqrt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1427,6 +1724,7 @@ dsqrt(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0) && arg1 != 0.0)
     float_underflow_error();
 
+  DBUG_PRINT("info", "return square root of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1437,6 +1735,7 @@ dsqrt(PG_FUNCTION_ARGS)
 Datum
 dcbrt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1448,6 +1747,7 @@ dcbrt(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0) && arg1 != 0.0)
     float_underflow_error();
 
+  DBUG_PRINT("info", "return cube root of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1458,6 +1758,7 @@ dcbrt(PG_FUNCTION_ARGS)
 Datum
 dpow(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
   float8    result;
@@ -1590,6 +1891,7 @@ dpow(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("info", "return pow(arg1:%g,arg2:%g) = %g", arg1, arg2, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1600,6 +1902,7 @@ dpow(PG_FUNCTION_ARGS)
 Datum
 dexp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1632,6 +1935,7 @@ dexp(PG_FUNCTION_ARGS)
       float_underflow_error();
   }
 
+  DBUG_PRINT("info", "return the exponential function of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1642,6 +1946,7 @@ dexp(PG_FUNCTION_ARGS)
 Datum
 dlog1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1667,6 +1972,7 @@ dlog1(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0) && arg1 != 1.0)
     float_underflow_error();
 
+  DBUG_PRINT("info", "return the natural logarithm of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1677,6 +1983,7 @@ dlog1(PG_FUNCTION_ARGS)
 Datum
 dlog10(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1703,6 +2010,7 @@ dlog10(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0) && arg1 != 1.0)
     float_underflow_error();
 
+  DBUG_PRINT("info", "return the base 10 logarithm of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1713,6 +2021,7 @@ dlog10(PG_FUNCTION_ARGS)
 Datum
 dacos(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1735,6 +2044,7 @@ dacos(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arccos of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1745,6 +2055,7 @@ dacos(PG_FUNCTION_ARGS)
 Datum
 dasin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1767,6 +2078,7 @@ dasin(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arcsin of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1777,6 +2089,7 @@ dasin(PG_FUNCTION_ARGS)
 Datum
 datan(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1794,6 +2107,7 @@ datan(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arctan of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1804,6 +2118,7 @@ datan(PG_FUNCTION_ARGS)
 Datum
 datan2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
   float8    result;
@@ -1821,6 +2136,7 @@ datan2(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arctan of arg1(%g)/arg2(%g) = %g", arg1, arg2, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1831,6 +2147,7 @@ datan2(PG_FUNCTION_ARGS)
 Datum
 dcos(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1864,6 +2181,7 @@ dcos(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the cosine of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1874,6 +2192,7 @@ dcos(PG_FUNCTION_ARGS)
 Datum
 dcot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1893,6 +2212,7 @@ dcot(PG_FUNCTION_ARGS)
   result = 1.0 / result;
   /* Not checking for overflow because cot(0) == Inf */
 
+  DBUG_PRINT("info", "return the cotangent of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1903,6 +2223,7 @@ dcot(PG_FUNCTION_ARGS)
 Datum
 dsin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1922,6 +2243,7 @@ dsin(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the sine of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1932,6 +2254,7 @@ dsin(PG_FUNCTION_ARGS)
 Datum
 dtan(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -1950,6 +2273,7 @@ dtan(PG_FUNCTION_ARGS)
 
   /* Not checking for overflow because tan(pi/2) == Inf */
 
+  DBUG_PRINT("info", "return the tangent of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2071,6 +2395,7 @@ acosd_q1(double x)
 Datum
 dacosd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2098,6 +2423,7 @@ dacosd(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arccos of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2108,6 +2434,7 @@ dacosd(PG_FUNCTION_ARGS)
 Datum
 dasind(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2135,6 +2462,7 @@ dasind(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arcsin of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2145,6 +2473,7 @@ dasind(PG_FUNCTION_ARGS)
 Datum
 datand(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
   volatile float8 atan_arg1;
@@ -2167,6 +2496,7 @@ datand(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arctan of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2177,6 +2507,7 @@ datand(PG_FUNCTION_ARGS)
 Datum
 datan2d(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
   float8    result;
@@ -2203,6 +2534,7 @@ datan2d(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the arctan of arg1(%g)/arg2(%g) = %g", arg1, arg2, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2281,6 +2613,7 @@ cosd_q1(double x)
 Datum
 dcosd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
   int     sign = 1;
@@ -2323,6 +2656,7 @@ dcosd(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the cosine of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2333,6 +2667,7 @@ dcosd(PG_FUNCTION_ARGS)
 Datum
 dcotd(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
   volatile float8 cot_arg1;
@@ -2386,6 +2721,7 @@ dcotd(PG_FUNCTION_ARGS)
 
   /* Not checking for overflow because cotd(0) == Inf */
 
+  DBUG_PRINT("info", "return the cotangent of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2396,6 +2732,7 @@ dcotd(PG_FUNCTION_ARGS)
 Datum
 dsind(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
   int     sign = 1;
@@ -2439,6 +2776,7 @@ dsind(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the sine of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2449,6 +2787,7 @@ dsind(PG_FUNCTION_ARGS)
 Datum
 dtand(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
   volatile float8 tan_arg1;
@@ -2502,6 +2841,7 @@ dtand(PG_FUNCTION_ARGS)
 
   /* Not checking for overflow because tand(90) == Inf */
 
+  DBUG_PRINT("info", "return the tangent of arg1(%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2512,9 +2852,12 @@ dtand(PG_FUNCTION_ARGS)
 Datum
 degrees(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
+  float8      result = float8_div(arg1, RADIANS_PER_DEGREE);
 
-  PG_RETURN_FLOAT8(float8_div(arg1, RADIANS_PER_DEGREE));
+  DBUG_PRINT("info", "return degrees:%g converted from radians(arg1:%g)", result, arg1);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -2524,6 +2867,8 @@ degrees(PG_FUNCTION_ARGS)
 Datum
 dpi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "return the constant PI:%g", M_PI);
   PG_RETURN_FLOAT8(M_PI);
 }
 
@@ -2534,9 +2879,14 @@ dpi(PG_FUNCTION_ARGS)
 Datum
 radians(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
 
-  PG_RETURN_FLOAT8(float8_mul(arg1, RADIANS_PER_DEGREE));
+  float8 result = float8_mul(arg1, RADIANS_PER_DEGREE);
+
+  DBUG_PRINT("info", "return radians:%g converted from degrees(arg1:%g)", result, arg1);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -2549,6 +2899,7 @@ radians(PG_FUNCTION_ARGS)
 Datum
 dsinh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2567,6 +2918,7 @@ dsinh(PG_FUNCTION_ARGS)
       result = get_float8_infinity();
   }
 
+  DBUG_PRINT("info", "return the hyperbolic:%g sine of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2577,6 +2929,7 @@ dsinh(PG_FUNCTION_ARGS)
 Datum
 dcosh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2593,6 +2946,7 @@ dcosh(PG_FUNCTION_ARGS)
   if (unlikely(result == 0.0))
     float_underflow_error();
 
+  DBUG_PRINT("info", "return the hyperbolic:%g cosine of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2602,6 +2956,7 @@ dcosh(PG_FUNCTION_ARGS)
 Datum
 dtanh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2613,6 +2968,7 @@ dtanh(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the hyperbolic:%g tangent of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2622,6 +2978,7 @@ dtanh(PG_FUNCTION_ARGS)
 Datum
 dasinh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2630,6 +2987,7 @@ dasinh(PG_FUNCTION_ARGS)
    */
   result = asinh(arg1);
 
+  DBUG_PRINT("info", "return the inverse hyperbolic:%g sine of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2639,6 +2997,7 @@ dasinh(PG_FUNCTION_ARGS)
 Datum
 dacosh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2655,6 +3014,7 @@ dacosh(PG_FUNCTION_ARGS)
 
   result = acosh(arg1);
 
+  DBUG_PRINT("info", "return the inverse hyperbolic:%g cosine of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2664,6 +3024,7 @@ dacosh(PG_FUNCTION_ARGS)
 Datum
 datanh(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2689,6 +3050,7 @@ datanh(PG_FUNCTION_ARGS)
   else
     result = atanh(arg1);
 
+  DBUG_PRINT("info", "return the inverse hyperbolic:%g tangent of arg1:%g", result, arg1);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2702,6 +3064,7 @@ datanh(PG_FUNCTION_ARGS)
 Datum
 derf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2713,6 +3076,7 @@ derf(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the error function: erf(arg1:%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2722,6 +3086,7 @@ derf(PG_FUNCTION_ARGS)
 Datum
 derfc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float8    result;
 
@@ -2733,6 +3098,7 @@ derfc(PG_FUNCTION_ARGS)
   if (unlikely(isinf(result)))
     float_overflow_error();
 
+  DBUG_PRINT("info", "return the complementary error function: 1 - erf(arg1:%g) = %g", arg1, result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -2895,6 +3261,7 @@ check_float8_array(ArrayType *transarray, const char *caller, int n)
 Datum
 float8_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray1 = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *transarray2 = PG_GETARG_ARRAYTYPE_P(1);
   float8     *transvalues1;
@@ -2916,10 +3283,13 @@ float8_combine(PG_FUNCTION_ARGS)
   N1 = transvalues1[0];
   Sx1 = transvalues1[1];
   Sxx1 = transvalues1[2];
+  DBUG_PRINT("info", "N1:%g,Sx1:%g,Sxx1:%g", N1, Sx1, Sxx1);
 
   N2 = transvalues2[0];
   Sx2 = transvalues2[1];
   Sxx2 = transvalues2[2];
+
+  DBUG_PRINT("info", "N2:%g,Sx2:%g,Sxx2:%g", N2, Sx2, Sxx2);
 
   /*--------------------
    * The transition values combine using a generalization of the
@@ -2952,6 +3322,8 @@ float8_combine(PG_FUNCTION_ARGS)
       float_overflow_error();
   }
 
+  DBUG_PRINT("info", "new N:%g,Sx:%g,Sxx:%g", N, Sx, Sxx);
+
   /*
    * If we're invoked as an aggregate, we can cheat and modify our first
    * parameter in-place to reduce palloc overhead. Otherwise we construct a
@@ -2980,6 +3352,7 @@ float8_combine(PG_FUNCTION_ARGS)
 Datum
 float8_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8    newval = PG_GETARG_FLOAT8(1);
   float8     *transvalues;
@@ -2993,6 +3366,8 @@ float8_accum(PG_FUNCTION_ARGS)
   Sx = transvalues[1];
   Sxx = transvalues[2];
 
+  DBUG_PRINT("info", "old N:%g,Sx:%g,Sxx:%g", N, Sx, Sxx);
+  DBUG_PRINT("info", "use the Youngs-Cramer algorithm to incorporate the new value(%g) into the transition values", newval);
   /*
    * Use the Youngs-Cramer algorithm to incorporate the new value into the
    * transition values.
@@ -3026,6 +3401,8 @@ float8_accum(PG_FUNCTION_ARGS)
     if (isnan(newval) || isinf(newval))
       Sxx = get_float8_nan();
   }
+
+  DBUG_PRINT("info", "new N:%g,Sx:%g,Sxx:%g", N, Sx, Sxx);
 
   /*
    * If we're invoked as an aggregate, we can cheat and modify our first
@@ -3055,6 +3432,7 @@ float8_accum(PG_FUNCTION_ARGS)
 Datum
 float4_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
 
   /* do computations as float8 */
@@ -3070,6 +3448,8 @@ float4_accum(PG_FUNCTION_ARGS)
   Sx = transvalues[1];
   Sxx = transvalues[2];
 
+  DBUG_PRINT("info", "old N:%g,Sx:%g,Sxx:%g", N, Sx, Sxx);
+  DBUG_PRINT("info", "use the Youngs-Cramer algorithm to incorporate the new value(%g) into the transition values", newval);
   /*
    * Use the Youngs-Cramer algorithm to incorporate the new value into the
    * transition values.
@@ -3104,6 +3484,8 @@ float4_accum(PG_FUNCTION_ARGS)
       Sxx = get_float8_nan();
   }
 
+  DBUG_PRINT("info", "new N:%g,Sx:%g,Sxx:%g", N, Sx, Sxx);
+
   /*
    * If we're invoked as an aggregate, we can cheat and modify our first
    * parameter in-place to reduce palloc overhead. Otherwise we construct a
@@ -3132,10 +3514,12 @@ float4_accum(PG_FUNCTION_ARGS)
 Datum
 float8_avg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_avg", 3);
   N = transvalues[0];
@@ -3146,16 +3530,21 @@ float8_avg(PG_FUNCTION_ARGS)
   if (N == 0.0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sx / N);
+  result = Sx / N;
+
+  DBUG_PRINT("info", "return Sx(%g)/N(%g) = %g", Sx, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_var_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_var_pop", 3);
   N = transvalues[0];
@@ -3168,16 +3557,21 @@ float8_var_pop(PG_FUNCTION_ARGS)
 
   /* Note that Sxx is guaranteed to be non-negative */
 
-  PG_RETURN_FLOAT8(Sxx / N);
+  result = Sxx / N;
+  DBUG_PRINT("info", "return Sxx(%g)/N(%g) = %g", Sxx, N, result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_var_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_var_samp", 3);
   N = transvalues[0];
@@ -3189,17 +3583,20 @@ float8_var_samp(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
 
   /* Note that Sxx is guaranteed to be non-negative */
-
-  PG_RETURN_FLOAT8(Sxx / (N - 1.0));
+  result = Sxx / (N - 1.0);
+  DBUG_PRINT("info", "return Sxx(%g)/(N(%g) - 1.0) = %g", Sxx, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_stddev_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_stddev_pop", 3);
   N = transvalues[0];
@@ -3212,16 +3609,20 @@ float8_stddev_pop(PG_FUNCTION_ARGS)
 
   /* Note that Sxx is guaranteed to be non-negative */
 
-  PG_RETURN_FLOAT8(sqrt(Sxx / N));
+  result = sqrt(Sxx / N);
+  DBUG_PRINT("info", "return Sxx(%g)/N(%g) = %g", Sxx, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_stddev_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_stddev_samp", 3);
   N = transvalues[0];
@@ -3233,8 +3634,9 @@ float8_stddev_samp(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
 
   /* Note that Sxx is guaranteed to be non-negative */
-
-  PG_RETURN_FLOAT8(sqrt(Sxx / (N - 1.0)));
+  result = sqrt(Sxx / (N - 1.0));
+  DBUG_PRINT("info", "return Sxx(%g)/(N(%g) - 1.0) = %g", Sxx, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -3261,6 +3663,7 @@ float8_stddev_samp(PG_FUNCTION_ARGS)
 Datum
 float8_regr_accum(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8    newvalY = PG_GETARG_FLOAT8(1);
   float8    newvalX = PG_GETARG_FLOAT8(2);
@@ -3283,6 +3686,8 @@ float8_regr_accum(PG_FUNCTION_ARGS)
   Syy = transvalues[4];
   Sxy = transvalues[5];
 
+  DBUG_PRINT("info", "old N:%g,Sx:%g,Sxx:%g, Sy:%g, Syy:%g, Sxy:%g", N, Sx, Sxx, Sy, Syy, Sxy);
+  DBUG_PRINT("info", "newvalY:%g, newvalX:%g", newvalY, newvalX);
   /*
    * Use the Youngs-Cramer algorithm to incorporate the new values into the
    * transition values.
@@ -3338,6 +3743,8 @@ float8_regr_accum(PG_FUNCTION_ARGS)
       Syy = Sxy = get_float8_nan();
   }
 
+  DBUG_PRINT("info", "new N:%g,Sx:%g,Sxx:%g, Sy:%g, Syy:%g, Sxy:%g", N, Sx, Sxx, Sy, Syy, Sxy);
+
   /*
    * If we're invoked as an aggregate, we can cheat and modify our first
    * parameter in-place to reduce palloc overhead. Otherwise we construct a
@@ -3380,6 +3787,7 @@ float8_regr_accum(PG_FUNCTION_ARGS)
 Datum
 float8_regr_combine(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray1 = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *transarray2 = PG_GETARG_ARRAYTYPE_P(1);
   float8     *transvalues1;
@@ -3421,6 +3829,9 @@ float8_regr_combine(PG_FUNCTION_ARGS)
   Sy2 = transvalues2[3];
   Syy2 = transvalues2[4];
   Sxy2 = transvalues2[5];
+
+  DBUG_PRINT("info", "old N1:%g,Sx1:%g,Sxx1:%g, Sy1:%g, Syy1:%g, Sxy1:%g", N1, Sx1, Sxx1, Sy1, Syy1, Sxy1);
+  DBUG_PRINT("info", "old N2:%g,Sx2:%g,Sxx2:%g, Sy2:%g, Syy2:%g, Sxy2:%g", N2, Sx2, Sxx2, Sy2, Syy2, Sxy2);
 
   /*--------------------
    * The transition values combine using a generalization of the
@@ -3474,6 +3885,8 @@ float8_regr_combine(PG_FUNCTION_ARGS)
       float_overflow_error();
   }
 
+  DBUG_PRINT("info", "new N:%g,Sx:%g,Sxx:%g, Sy:%g, Syy:%g, Sxy:%g", N, Sx, Sxx, Sy, Syy, Sxy);
+
   /*
    * If we're invoked as an aggregate, we can cheat and modify our first
    * parameter in-place to reduce palloc overhead. Otherwise we construct a
@@ -3509,6 +3922,7 @@ float8_regr_combine(PG_FUNCTION_ARGS)
 Datum
 float8_regr_sxx(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
@@ -3524,12 +3938,14 @@ float8_regr_sxx(PG_FUNCTION_ARGS)
 
   /* Note that Sxx is guaranteed to be non-negative */
 
+  DBUG_PRINT("info", "return Sxx%g", Sxx);
   PG_RETURN_FLOAT8(Sxx);
 }
 
 Datum
 float8_regr_syy(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
@@ -3545,12 +3961,14 @@ float8_regr_syy(PG_FUNCTION_ARGS)
 
   /* Note that Syy is guaranteed to be non-negative */
 
+  DBUG_PRINT("info", "return Syy%g", Syy);
   PG_RETURN_FLOAT8(Syy);
 }
 
 Datum
 float8_regr_sxy(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
@@ -3566,16 +3984,19 @@ float8_regr_sxy(PG_FUNCTION_ARGS)
 
   /* A negative result is valid here */
 
+  DBUG_PRINT("info", "return Sxy%g", Sxy);
   PG_RETURN_FLOAT8(Sxy);
 }
 
 Datum
 float8_regr_avgx(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sx;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_regr_avgx", 6);
   N = transvalues[0];
@@ -3585,16 +4006,20 @@ float8_regr_avgx(PG_FUNCTION_ARGS)
   if (N < 1.0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sx / N);
+  result = Sx / N;
+  DBUG_PRINT("info", "return Sx(%g) / N(%g) = %g ", Sx, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_regr_avgy(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_regr_avgy", 6);
   N = transvalues[0];
@@ -3604,16 +4029,21 @@ float8_regr_avgy(PG_FUNCTION_ARGS)
   if (N < 1.0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sy / N);
+  result = Sy / N;
+  DBUG_PRINT("info", "return Sy(%g) / N(%g) = %g ", Sy, N, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float8_covar_pop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_covar_pop", 6);
   N = transvalues[0];
@@ -3623,17 +4053,21 @@ float8_covar_pop(PG_FUNCTION_ARGS)
   if (N < 1.0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sxy / N);
+  result = Sxy / N;
+  DBUG_PRINT("info", "return Sxy(%g) / N(%g) = %g ", Sxy, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_covar_samp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxy;
 
+  float8 result;
   transvalues = check_float8_array(transarray, "float8_covar_samp", 6);
   N = transvalues[0];
   Sxy = transvalues[5];
@@ -3642,18 +4076,22 @@ float8_covar_samp(PG_FUNCTION_ARGS)
   if (N < 2.0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sxy / (N - 1.0));
+  result = Sxy / (N - 1.0);
+  DBUG_PRINT("info", "return Sxy(%g) / (N(%g) - 1.0) = %g ", Sxy, N, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float8_corr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx,
             Syy,
             Sxy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_corr", 6);
   N = transvalues[0];
@@ -3671,18 +4109,23 @@ float8_corr(PG_FUNCTION_ARGS)
   if (Sxx == 0 || Syy == 0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sxy / sqrt(Sxx * Syy));
+  result = Sxy / sqrt(Sxx * Syy);
+  DBUG_PRINT("info", "return Sxy(%g) / sqrt(Sxx(%g) * Syy(%g)) = %g ", Sxy, Sxx, Syy, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float8_regr_r2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx,
             Syy,
             Sxy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_regr_r2", 6);
   N = transvalues[0];
@@ -3704,17 +4147,22 @@ float8_regr_r2(PG_FUNCTION_ARGS)
   if (Syy == 0)
     PG_RETURN_FLOAT8(1.0);
 
-  PG_RETURN_FLOAT8((Sxy * Sxy) / (Sxx * Syy));
+  result = ((Sxy * Sxy) / (Sxx * Syy));
+  DBUG_PRINT("info", "return (Sxy(%g) * Sxy(%g) / (Sxx(%g) * Syy(%g)) = %g ", Sxy, Sxy, Sxx, Syy, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float8_regr_slope(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
             Sxx,
             Sxy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_regr_slope", 6);
   N = transvalues[0];
@@ -3731,12 +4179,17 @@ float8_regr_slope(PG_FUNCTION_ARGS)
   if (Sxx == 0)
     PG_RETURN_NULL();
 
-  PG_RETURN_FLOAT8(Sxy / Sxx);
+  result = Sxy / Sxx;
+
+  DBUG_PRINT("info", "return Sxy(%g) / Sxx(%g) = %g ", Sxy, Sxx, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float8_regr_intercept(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
   float8     *transvalues;
   float8    N,
@@ -3744,6 +4197,7 @@ float8_regr_intercept(PG_FUNCTION_ARGS)
             Sxx,
             Sy,
             Sxy;
+  float8 result;
 
   transvalues = check_float8_array(transarray, "float8_regr_intercept", 6);
   N = transvalues[0];
@@ -3761,6 +4215,11 @@ float8_regr_intercept(PG_FUNCTION_ARGS)
   /* per spec, return NULL for a vertical line */
   if (Sxx == 0)
     PG_RETURN_NULL();
+
+  result = (Sy - Sx * Sxy / Sxx) / N;
+  DBUG_PRINT("info", "return (Sy:%g - Sx:%g * Sxy:%g / Sxx:%g) / N:%g = %g ", Sy, Sx, Sxy, Sxx, N, result);
+  PG_RETURN_FLOAT8(result);
+
 
   PG_RETURN_FLOAT8((Sy - Sx * Sxy / Sxx) / N);
 }
@@ -3781,37 +4240,53 @@ float8_regr_intercept(PG_FUNCTION_ARGS)
 Datum
 float48pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(float8_pl((float8) arg1, arg2));
+  result = float8_pl((float8) arg1, arg2);
+
+  DBUG_PRINT("info", "return arg1:%g + args:%g = result:%g", arg1, arg2, result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float48mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_mi((float8) arg1, arg2));
+  float8 result = float8_mi((float8) arg1, arg2);
+  DBUG_PRINT("info", "return arg1:%g - args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float48mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_mul((float8) arg1, arg2));
+  float8 result = float8_mul((float8) arg1, arg2);
+  DBUG_PRINT("info", "return arg1:%g * args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float48div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_FLOAT8(float8_div((float8) arg1, arg2));
+  float8 result = float8_div((float8) arg1, arg2);
+  DBUG_PRINT("info", "return arg1:%g / args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -3823,37 +4298,52 @@ float48div(PG_FUNCTION_ARGS)
 Datum
 float84pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT8(float8_pl(arg1, (float8) arg2));
+  float8 result = float8_pl(arg1, (float8) arg2);
+  DBUG_PRINT("info", "return arg1:%g + args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float84mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT8(float8_mi(arg1, (float8) arg2));
+  float8 result = float8_mi(arg1, (float8) arg2);
+  DBUG_PRINT("info", "return arg1:%g - args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 float84mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT8(float8_mul(arg1, (float8) arg2));
+  float8 result = float8_mul(arg1, (float8) arg2);
+  DBUG_PRINT("info", "return arg1:%g * args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 Datum
 float84div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_FLOAT8(float8_div(arg1, (float8) arg2));
+  float8 result = float8_div(arg1, (float8) arg2);
+  DBUG_PRINT("info", "return arg1:%g / args:%g = result:%g", arg1, arg2, result);
+  PG_RETURN_FLOAT8(result);
+
+
 }
 
 /*
@@ -3868,55 +4358,108 @@ float84div(PG_FUNCTION_ARGS)
 Datum
 float48eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
+  bool result = float8_eq((float8) arg1, arg2);
 
-  PG_RETURN_BOOL(float8_eq((float8) arg1, arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float48ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_ne((float8) arg1, arg2));
+  bool result = float8_ne((float8) arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float48lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_lt((float8) arg1, arg2));
+  bool result = float8_lt((float8) arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float48le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_le((float8) arg1, arg2));
+  bool result = float8_le((float8) arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float48gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_gt((float8) arg1, arg2));
+  bool result = float8_gt((float8) arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float48ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float4    arg1 = PG_GETARG_FLOAT4(0);
   float8    arg2 = PG_GETARG_FLOAT8(1);
 
-  PG_RETURN_BOOL(float8_ge((float8) arg1, arg2));
+  bool result = float8_ge((float8) arg1, arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -3925,55 +4468,109 @@ float48ge(PG_FUNCTION_ARGS)
 Datum
 float84eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float8_eq(arg1, (float8) arg2));
+  bool result = float8_eq(arg1, (float8) arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float84ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
 
-  PG_RETURN_BOOL(float8_ne(arg1, (float8) arg2));
+  bool result = float8_ne(arg1, (float8) arg2);
+
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 float84lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
+  bool result = float8_lt(arg1, (float8) arg2);
 
-  PG_RETURN_BOOL(float8_lt(arg1, (float8) arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 float84le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
+  bool result = float8_le(arg1, (float8) arg2);
 
-  PG_RETURN_BOOL(float8_le(arg1, (float8) arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 float84gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
+  bool result = float8_gt(arg1, (float8) arg2);
 
-  PG_RETURN_BOOL(float8_gt(arg1, (float8) arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 float84ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    arg1 = PG_GETARG_FLOAT8(0);
   float4    arg2 = PG_GETARG_FLOAT4(1);
+  bool result = float8_ge(arg1, (float8) arg2);
 
-  PG_RETURN_BOOL(float8_ge(arg1, (float8) arg2));
+  if (result) {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return true", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "arg1:%g, arg2:%g and return false", arg1, arg2);
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*
@@ -3993,6 +4590,7 @@ float84ge(PG_FUNCTION_ARGS)
 Datum
 width_bucket_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    operand = PG_GETARG_FLOAT8(0);
   float8    bound1 = PG_GETARG_FLOAT8(1);
   float8    bound2 = PG_GETARG_FLOAT8(2);
@@ -4073,5 +4671,6 @@ width_bucket_float8(PG_FUNCTION_ARGS)
     result = 0;       /* keep the compiler quiet */
   }
 
+  DBUG_PRINT("info", "result:%d", result);
   PG_RETURN_INT32(result);
 }

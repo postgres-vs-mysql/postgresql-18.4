@@ -64,6 +64,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "funcapi.h"
@@ -285,6 +286,7 @@ ShmemAddrIsValid(const void *addr)
 void
 InitShmemIndex(void)
 {
+  DBUG_TRACE;
   HASHCTL   info;
 
   /*
@@ -338,6 +340,7 @@ ShmemInitHash(const char *name,   /* table string name for shmem index */
               HASHCTL *infoP, /* info about key and bucket size */
               int hash_flags) /* info about infoP */
 {
+  DBUG_TRACE;
   bool    found;
   void     *location;
 
@@ -389,6 +392,7 @@ ShmemInitHash(const char *name,   /* table string name for shmem index */
 void *
 ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 {
+  DBUG_TRACE;
   ShmemIndexEnt *result;
   void     *structPtr;
 
@@ -487,6 +491,7 @@ ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 Datum
 pg_get_shmem_allocations(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_GET_SHMEM_SIZES_COLS 4
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   HASH_SEQ_STATUS hstat;

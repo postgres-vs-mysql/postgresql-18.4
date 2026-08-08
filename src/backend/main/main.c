@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -69,6 +70,7 @@ static void check_root(const char *progname);
 int
 main(int argc, char *argv[])
 {
+  DBUG_TRACE;
   bool    do_check_root = true;
   DispatchOption dispatch_option = DISPATCH_POSTMASTER;
 
@@ -83,6 +85,7 @@ main(int argc, char *argv[])
 #endif
 
   progname = get_progname(argv[0]);
+  DBUG_PRINT("info", "progname:'%s'", progname);
 
   /*
    * Platform-specific startup hacks
@@ -121,6 +124,7 @@ main(int argc, char *argv[])
   /*
    * Set up locale information
    */
+  DBUG_PRINT("info", "set up locale information");
   set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("postgres"));
 
   /*
@@ -443,9 +447,11 @@ help(const char *progname)
 static void
 check_root(const char *progname)
 {
+  DBUG_TRACE;
 #ifndef WIN32
 
   if (geteuid() == 0) {
+    DBUG_INSTANT_PRINT("info", "\"root\" execution of the PostgreSQL server is not permitted");
     write_stderr("\"root\" execution of the PostgreSQL server is not permitted.\n"
                  "The server must be started under an unprivileged user ID to prevent\n"
                  "possible system security compromise.  See the documentation for\n"
@@ -462,6 +468,7 @@ check_root(const char *progname)
    * worth; we'll just expend the effort to check for it.)
    */
   if (getuid() != geteuid()) {
+    DBUG_INSTANT_PRINT("info", "%s: real and effective user IDs must match", progname);
     write_stderr("%s: real and effective user IDs must match\n",
                  progname);
     exit(1);

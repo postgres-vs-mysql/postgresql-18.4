@@ -5,6 +5,7 @@
  * stream-based SAX-type parser
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "executor/spi.h"
@@ -65,6 +66,7 @@ static void cleanup_workspace(xpath_workspace *workspace);
 PgXmlErrorContext *
 pgxml_parser_init(PgXmlStrictness strictness)
 {
+  DBUG_TRACE;
   PgXmlErrorContext *xmlerrcxt;
 
   /* Set up error handling (we share the core's error handler) */
@@ -86,6 +88,7 @@ PG_FUNCTION_INFO_V1(xml_encode_special_chars);
 Datum
 xml_encode_special_chars(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *tin = PG_GETARG_TEXT_PP(0);
   text     *tout;
   xmlChar    *ts,
@@ -121,6 +124,7 @@ pgxmlNodeSetToText(xmlNodeSetPtr nodeset,
                    xmlChar *septagname,
                    xmlChar *plainsep)
 {
+  DBUG_TRACE;
   xmlBufferPtr buf;
   xmlChar    *result;
   int     i;
@@ -181,6 +185,7 @@ pgxmlNodeSetToText(xmlNodeSetPtr nodeset,
 static xmlChar *
 pgxml_texttoxmlchar(text *textstring)
 {
+  DBUG_TRACE;
   return (xmlChar *) text_to_cstring(textstring);
 }
 
@@ -195,6 +200,7 @@ PG_FUNCTION_INFO_V1(xpath_nodeset);
 Datum
 xpath_nodeset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *document = PG_GETARG_TEXT_PP(0);
   text     *xpathsupp = PG_GETARG_TEXT_PP(1); /* XPath expression */
   xmlChar    *toptag = pgxml_texttoxmlchar(PG_GETARG_TEXT_PP(2));
@@ -229,6 +235,7 @@ PG_FUNCTION_INFO_V1(xpath_list);
 Datum
 xpath_list(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *document = PG_GETARG_TEXT_PP(0);
   text     *xpathsupp = PG_GETARG_TEXT_PP(1); /* XPath expression */
   xmlChar    *plainsep = pgxml_texttoxmlchar(PG_GETARG_TEXT_PP(2));
@@ -259,6 +266,7 @@ PG_FUNCTION_INFO_V1(xpath_string);
 Datum
 xpath_string(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *document = PG_GETARG_TEXT_PP(0);
   text     *xpathsupp = PG_GETARG_TEXT_PP(1); /* XPath expression */
   xmlChar    *xpath;
@@ -301,6 +309,7 @@ PG_FUNCTION_INFO_V1(xpath_number);
 Datum
 xpath_number(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *document = PG_GETARG_TEXT_PP(0);
   text     *xpathsupp = PG_GETARG_TEXT_PP(1); /* XPath expression */
   xmlChar    *xpath;
@@ -333,6 +342,7 @@ PG_FUNCTION_INFO_V1(xpath_bool);
 Datum
 xpath_bool(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *document = PG_GETARG_TEXT_PP(0);
   text     *xpathsupp = PG_GETARG_TEXT_PP(1); /* XPath expression */
   xmlChar    *xpath;
@@ -363,6 +373,7 @@ xpath_bool(PG_FUNCTION_ARGS)
 static xmlXPathObjectPtr
 pgxml_xpath(text *document, xmlChar *xpath, xpath_workspace *workspace)
 {
+  DBUG_TRACE;
   int32   docsize = VARSIZE_ANY_EXHDR(document);
   PgXmlErrorContext *xmlerrcxt;
   xmlXPathCompExprPtr comppath;
@@ -418,6 +429,8 @@ pgxml_xpath(text *document, xmlChar *xpath, xpath_workspace *workspace)
 static void
 cleanup_workspace(xpath_workspace *workspace)
 {
+  DBUG_TRACE;
+
   if (workspace->res)
     xmlXPathFreeObject(workspace->res);
 
@@ -440,6 +453,7 @@ pgxml_result_to_text(xmlXPathObjectPtr res,
                      xmlChar *septag,
                      xmlChar *plainsep)
 {
+  DBUG_TRACE;
   xmlChar    *xpresstr;
   text     *xpres;
 
@@ -480,6 +494,7 @@ PG_FUNCTION_INFO_V1(xpath_table);
 Datum
 xpath_table(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Function parameters */
   char     *pkeyfield = text_to_cstring(PG_GETARG_TEXT_PP(0));
   char     *xmlfield = text_to_cstring(PG_GETARG_TEXT_PP(1));

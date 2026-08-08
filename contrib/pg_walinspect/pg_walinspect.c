@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xlog.h"
 #include "access/xlog_internal.h"
@@ -71,6 +72,7 @@ static void GetWALBlockInfo(FunctionCallInfo fcinfo, XLogReaderState *record,
 static XLogRecPtr
 GetCurrentLSN(void)
 {
+  DBUG_TRACE;
   XLogRecPtr  curr_lsn;
 
   /*
@@ -84,6 +86,7 @@ GetCurrentLSN(void)
 
   Assert(!XLogRecPtrIsInvalid(curr_lsn));
 
+  DBUG_PRINT("walinspect", "return the LSN:%lu up to which the server has WAL", curr_lsn);
   return curr_lsn;
 }
 
@@ -93,6 +96,7 @@ GetCurrentLSN(void)
 static XLogReaderState *
 InitXLogReaderState(XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   XLogReaderState *xlogreader;
   ReadLocalXLogPageNoWaitPrivate *private_data;
   XLogRecPtr  first_valid_record;
@@ -149,6 +153,7 @@ InitXLogReaderState(XLogRecPtr lsn)
 static XLogRecord *
 ReadNextXLogRecord(XLogReaderState *xlogreader)
 {
+  DBUG_TRACE;
   XLogRecord *record;
   char     *errormsg;
 
@@ -161,8 +166,10 @@ ReadNextXLogRecord(XLogReaderState *xlogreader)
     private_data = (ReadLocalXLogPageNoWaitPrivate *)
                    xlogreader->private_data;
 
-    if (private_data->end_of_wal)
+    if (private_data->end_of_wal) {
+      DBUG_PRINT("walinspect", "end of WAL is reached and return null");
       return NULL;
+    }
 
     if (errormsg)
       ereport(ERROR,
@@ -191,6 +198,7 @@ static void
 GetWALRecordInfo(XLogReaderState *record, Datum *values,
                  bool *nulls, uint32 ncols)
 {
+  DBUG_TRACE;
   const char *record_type;
   RmgrData  desc;
   uint32    fpi_len = 0;
@@ -250,6 +258,7 @@ static void
 GetWALBlockInfo(FunctionCallInfo fcinfo, XLogReaderState *record,
                 bool show_data)
 {
+  DBUG_TRACE;
 #define PG_GET_WAL_BLOCK_INFO_COLS 20
   int     block_id;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -412,6 +421,7 @@ GetWALBlockInfo(FunctionCallInfo fcinfo, XLogReaderState *record,
 Datum
 pg_get_wal_block_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  start_lsn = PG_GETARG_LSN(0);
   XLogRecPtr  end_lsn = PG_GETARG_LSN(1);
   bool    show_data = PG_GETARG_BOOL(2);
@@ -459,6 +469,7 @@ pg_get_wal_block_info(PG_FUNCTION_ARGS)
 Datum
 pg_get_wal_record_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_GET_WAL_RECORD_INFO_COLS 11
   Datum   result;
   Datum   values[PG_GET_WAL_RECORD_INFO_COLS] = {0};
@@ -512,6 +523,7 @@ pg_get_wal_record_info(PG_FUNCTION_ARGS)
 static void
 ValidateInputLSNs(XLogRecPtr start_lsn, XLogRecPtr *end_lsn)
 {
+  DBUG_TRACE;
   XLogRecPtr  curr_lsn = GetCurrentLSN();
 
   if (start_lsn > curr_lsn)
@@ -537,6 +549,7 @@ static void
 GetWALRecordsInfo(FunctionCallInfo fcinfo, XLogRecPtr start_lsn,
                   XLogRecPtr end_lsn)
 {
+  DBUG_TRACE;
 #define PG_GET_WAL_RECORDS_INFO_COLS 11
   XLogReaderState *xlogreader;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -587,6 +600,7 @@ GetWALRecordsInfo(FunctionCallInfo fcinfo, XLogRecPtr start_lsn,
 Datum
 pg_get_wal_records_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  start_lsn = PG_GETARG_LSN(0);
   XLogRecPtr  end_lsn = PG_GETARG_LSN(1);
 
@@ -607,6 +621,7 @@ FillXLogStatsRow(const char *name,
                  uint64 tot_len, uint64 total_len,
                  Datum *values, bool *nulls, uint32 ncols)
 {
+  DBUG_TRACE;
   double    n_pct,
             rec_len_pct,
             fpi_len_pct,
@@ -654,6 +669,7 @@ GetXLogSummaryStats(XLogStats *stats, ReturnSetInfo *rsinfo,
                     Datum *values, bool *nulls, uint32 ncols,
                     bool stats_per_record)
 {
+  DBUG_TRACE;
   MemoryContext old_cxt;
   MemoryContext tmp_cxt;
   uint64    total_count = 0;
@@ -762,6 +778,7 @@ static void
 GetWalStats(FunctionCallInfo fcinfo, XLogRecPtr start_lsn, XLogRecPtr end_lsn,
             bool stats_per_record)
 {
+  DBUG_TRACE;
 #define PG_GET_WAL_STATS_COLS 9
   XLogReaderState *xlogreader;
   XLogStats stats = {0};
@@ -798,6 +815,7 @@ GetWalStats(FunctionCallInfo fcinfo, XLogRecPtr start_lsn, XLogRecPtr end_lsn,
 Datum
 pg_get_wal_stats(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  start_lsn = PG_GETARG_LSN(0);
   XLogRecPtr  end_lsn = PG_GETARG_LSN(1);
   bool    stats_per_record = PG_GETARG_BOOL(2);
@@ -815,6 +833,7 @@ pg_get_wal_stats(PG_FUNCTION_ARGS)
 Datum
 pg_get_wal_records_info_till_end_of_wal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  start_lsn = PG_GETARG_LSN(0);
   XLogRecPtr  end_lsn = GetCurrentLSN();
 
@@ -833,6 +852,7 @@ pg_get_wal_records_info_till_end_of_wal(PG_FUNCTION_ARGS)
 Datum
 pg_get_wal_stats_till_end_of_wal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  start_lsn = PG_GETARG_LSN(0);
   XLogRecPtr  end_lsn = GetCurrentLSN();
   bool    stats_per_record = PG_GETARG_BOOL(1);

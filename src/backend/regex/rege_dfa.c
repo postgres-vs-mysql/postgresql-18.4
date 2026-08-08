@@ -32,6 +32,7 @@
  *
  */
 
+#include "debug_trace.h"
 /*
  * longest - longest-preferred matching engine
  *
@@ -887,8 +888,9 @@ miss(struct vars *v,
 
   dolacons = (cnfa->flags & HASLACONS);
   sawlacons = 0;
-
   /* outer loop handles transitive closure of reachable-by-LACON states */
+  DBUG_PRINT("info", "outer loop handles transitive closure of reachable-by-LACON states");
+
   while (dolacons) {
     dolacons = 0;
 

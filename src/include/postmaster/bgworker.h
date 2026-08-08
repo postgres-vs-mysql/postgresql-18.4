@@ -93,6 +93,7 @@ typedef struct BackgroundWorker
   int     bgw_flags;
   BgWorkerStartTime bgw_start_time;
   int     bgw_restart_time; /* in seconds, or BGW_NEVER_RESTART */
+  int     bgw_debug_traced; 
   char    bgw_library_name[MAXPGPATH];
   char    bgw_function_name[BGW_MAXLEN];
   Datum   bgw_main_arg;

@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "funcapi.h"
 #include "mb/pg_wchar.h"
@@ -181,6 +182,7 @@ PutMemoryContextsStatsTupleStore(Tuplestorestate *tupstore,
 Datum
 pg_get_backend_memory_contexts(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   int     context_id;
   List     *contexts;
@@ -261,6 +263,7 @@ pg_get_backend_memory_contexts(PG_FUNCTION_ARGS)
 Datum
 pg_log_backend_memory_contexts(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     pid = PG_GETARG_INT32(0);
   PGPROC     *proc;
   ProcNumber  procNumber = INVALID_PROC_NUMBER;

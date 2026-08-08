@@ -89,11 +89,10 @@ typedef struct ReorderBufferChange
    * Context data for the change. Which part of the union is valid depends
    * on action.
    */
-  union
-  {
+  union {
     /* Old, new tuples when action == *_INSERT|UPDATE|DELETE */
-    struct
-    {
+struct
+{
       /* relation that has been changed */
       RelFileLocator rlocator;
 
@@ -110,8 +109,8 @@ typedef struct ReorderBufferChange
      * Truncate data for REORDER_BUFFER_CHANGE_TRUNCATE representing one
      * set of relations to be truncated.
      */
-    struct
-    {
+struct
+{
       Size    nrelids;
       bool    cascade;
       bool    restart_seqs;
@@ -119,8 +118,8 @@ typedef struct ReorderBufferChange
     }     truncate;
 
     /* Message with arbitrary data. */
-    struct
-    {
+struct
+{
       char     *prefix;
       Size    message_size;
       char     *message;
@@ -139,8 +138,8 @@ typedef struct ReorderBufferChange
      * New cid mapping for catalog changing transaction, set when action
      * == *_INTERNAL_TUPLECID.
      */
-    struct
-    {
+struct
+{
       RelFileLocator locator;
       ItemPointerData tid;
       CommandId cmin;
@@ -149,8 +148,8 @@ typedef struct ReorderBufferChange
     }     tuplecid;
 
     /* Invalidation. */
-    struct
-    {
+struct
+{
       uint32    ninvalidations; /* Number of messages */
       SharedInvalidationMessage *invalidations; /* invalidation message */
     }     inval;
@@ -354,8 +353,7 @@ typedef struct ReorderBufferTXN
    * Commit or Prepare time, only known when we read the actual commit or
    * prepare record.
    */
-  union
-  {
+  union {
     TimestampTz commit_time;
     TimestampTz prepare_time;
     TimestampTz abort_time;

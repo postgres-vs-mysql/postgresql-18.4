@@ -291,8 +291,7 @@ typedef struct
 {
   int     len;
   int     isint;
-  union
-  {
+  union {
     int      *ptr;    /* can't use void (dec compiler barfs)   */
     int     integer;
   }     u;

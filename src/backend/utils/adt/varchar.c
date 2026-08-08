@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/htup_details.h"
@@ -194,6 +195,7 @@ bpchar_input(const char *s, size_t len, int32 atttypmod, Node *escontext)
 Datum
 bpcharin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *s = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -215,6 +217,7 @@ bpcharin(PG_FUNCTION_ARGS)
 Datum
 bpcharout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   txt = PG_GETARG_DATUM(0);
 
   PG_RETURN_CSTRING(TextDatumGetCString(txt));
@@ -226,6 +229,7 @@ bpcharout(PG_FUNCTION_ARGS)
 Datum
 bpcharrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -247,6 +251,7 @@ bpcharrecv(PG_FUNCTION_ARGS)
 Datum
 bpcharsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as textsend, so share code */
   return textsend(fcinfo);
 }
@@ -267,6 +272,7 @@ bpcharsend(PG_FUNCTION_ARGS)
 Datum
 bpchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *source = PG_GETARG_BPCHAR_PP(0);
   int32   maxlen = PG_GETARG_INT32(1);
   bool    isExplicit = PG_GETARG_BOOL(2);
@@ -345,6 +351,7 @@ bpchar(PG_FUNCTION_ARGS)
 Datum
 char_bpchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    c = PG_GETARG_CHAR(0);
   BpChar     *result;
 
@@ -363,6 +370,7 @@ char_bpchar(PG_FUNCTION_ARGS)
 Datum
 bpchar_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *s = PG_GETARG_BPCHAR_PP(0);
   char     *s_data;
   Name    result;
@@ -399,6 +407,7 @@ bpchar_name(PG_FUNCTION_ARGS)
 Datum
 name_bpchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    s = PG_GETARG_NAME(0);
   BpChar     *result;
 
@@ -409,6 +418,7 @@ name_bpchar(PG_FUNCTION_ARGS)
 Datum
 bpchartypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anychar_typmodin(ta, "char"));
@@ -417,6 +427,7 @@ bpchartypmodin(PG_FUNCTION_ARGS)
 Datum
 bpchartypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anychar_typmodout(typmod));
@@ -485,6 +496,7 @@ varchar_input(const char *s, size_t len, int32 atttypmod, Node *escontext)
 Datum
 varcharin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *s = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -506,6 +518,7 @@ varcharin(PG_FUNCTION_ARGS)
 Datum
 varcharout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   txt = PG_GETARG_DATUM(0);
 
   PG_RETURN_CSTRING(TextDatumGetCString(txt));
@@ -517,6 +530,7 @@ varcharout(PG_FUNCTION_ARGS)
 Datum
 varcharrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -538,6 +552,7 @@ varcharrecv(PG_FUNCTION_ARGS)
 Datum
 varcharsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as textsend, so share code */
   return textsend(fcinfo);
 }
@@ -555,6 +570,7 @@ varcharsend(PG_FUNCTION_ARGS)
 Datum
 varchar_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 
@@ -597,6 +613,7 @@ varchar_support(PG_FUNCTION_ARGS)
 Datum
 varchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarChar    *source = PG_GETARG_VARCHAR_PP(0);
   int32   typmod = PG_GETARG_INT32(1);
   bool    isExplicit = PG_GETARG_BOOL(2);
@@ -635,6 +652,7 @@ varchar(PG_FUNCTION_ARGS)
 Datum
 varchartypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anychar_typmodin(ta, "varchar"));
@@ -643,6 +661,7 @@ varchartypmodin(PG_FUNCTION_ARGS)
 Datum
 varchartypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anychar_typmodout(typmod));
@@ -680,6 +699,7 @@ bpchartruelen(char *s, int len)
 Datum
 bpcharlen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg = PG_GETARG_BPCHAR_PP(0);
   int     len;
 
@@ -696,6 +716,7 @@ bpcharlen(PG_FUNCTION_ARGS)
 Datum
 bpcharoctetlen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   arg = PG_GETARG_DATUM(0);
 
   /* We need not detoast the input at all */
@@ -729,6 +750,7 @@ check_collation_set(Oid collid)
 Datum
 bpchareq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -767,6 +789,7 @@ bpchareq(PG_FUNCTION_ARGS)
 Datum
 bpcharne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -805,6 +828,7 @@ bpcharne(PG_FUNCTION_ARGS)
 Datum
 bpcharlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -826,6 +850,7 @@ bpcharlt(PG_FUNCTION_ARGS)
 Datum
 bpcharle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -847,6 +872,7 @@ bpcharle(PG_FUNCTION_ARGS)
 Datum
 bpchargt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -868,6 +894,7 @@ bpchargt(PG_FUNCTION_ARGS)
 Datum
 bpcharge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -889,6 +916,7 @@ bpcharge(PG_FUNCTION_ARGS)
 Datum
 bpcharcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -910,6 +938,7 @@ bpcharcmp(PG_FUNCTION_ARGS)
 Datum
 bpchar_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   Oid     collid = ssup->ssup_collation;
   MemoryContext oldcontext;
@@ -927,6 +956,7 @@ bpchar_sortsupport(PG_FUNCTION_ARGS)
 Datum
 bpchar_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -945,6 +975,7 @@ bpchar_larger(PG_FUNCTION_ARGS)
 Datum
 bpchar_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     len1,
@@ -968,6 +999,7 @@ bpchar_smaller(PG_FUNCTION_ARGS)
 Datum
 hashbpchar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *key = PG_GETARG_BPCHAR_PP(0);
   Oid     collid = PG_GET_COLLATION();
   char     *keydata;
@@ -1021,6 +1053,7 @@ hashbpchar(PG_FUNCTION_ARGS)
 Datum
 hashbpcharextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *key = PG_GETARG_BPCHAR_PP(0);
   Oid     collid = PG_GET_COLLATION();
   char     *keydata;
@@ -1106,6 +1139,7 @@ internal_bpchar_pattern_compare(BpChar *arg1, BpChar *arg2)
 Datum
 bpchar_pattern_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     result;
@@ -1122,6 +1156,7 @@ bpchar_pattern_lt(PG_FUNCTION_ARGS)
 Datum
 bpchar_pattern_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     result;
@@ -1138,6 +1173,7 @@ bpchar_pattern_le(PG_FUNCTION_ARGS)
 Datum
 bpchar_pattern_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     result;
@@ -1154,6 +1190,7 @@ bpchar_pattern_ge(PG_FUNCTION_ARGS)
 Datum
 bpchar_pattern_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     result;
@@ -1170,6 +1207,7 @@ bpchar_pattern_gt(PG_FUNCTION_ARGS)
 Datum
 btbpchar_pattern_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BpChar     *arg1 = PG_GETARG_BPCHAR_PP(0);
   BpChar     *arg2 = PG_GETARG_BPCHAR_PP(1);
   int     result;
@@ -1186,6 +1224,7 @@ btbpchar_pattern_cmp(PG_FUNCTION_ARGS)
 Datum
 btbpchar_pattern_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
   MemoryContext oldcontext;
 

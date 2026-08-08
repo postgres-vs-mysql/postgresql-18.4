@@ -39,6 +39,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_aggregate.h"
 #include "catalog/pg_collation.h"
@@ -98,6 +99,8 @@ static void assign_hypothetical_collations(Aggref *aggref,
 void
 assign_query_collations(ParseState *pstate, Query *query)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "mark all expressions in the given Query with collation information");
   /*
    * We just use query_tree_walker() to visit all the contained expressions.
    * We can skip the rangetable and CTE subqueries, though, since RTEs and
@@ -123,16 +126,22 @@ assign_query_collations(ParseState *pstate, Query *query)
 static bool
 assign_query_collations_walker(Node *node, ParseState *pstate)
 {
+  DBUG_TRACE;
+
   /* Need do nothing for empty subexpressions */
-  if (node == NULL)
+  if (node == NULL) {
+    DBUG_PRINT("info", "need do nothing for empty subexpressions");
     return false;
+  }
 
   /*
    * We don't want to recurse into a set-operations tree; it's already been
    * fully processed in transformSetOperationStmt.
    */
-  if (IsA(node, SetOperationStmt))
+  if (IsA(node, SetOperationStmt)) {
+    DBUG_PRINT("info", "we don't want to recurse into a set-operations tree");
     return false;
+  }
 
   if (IsA(node, List))
     assign_list_collations(pstate, (List *) node);
@@ -204,7 +213,10 @@ assign_expr_collations(ParseState *pstate, Node *expr)
 Oid
 select_common_collation(ParseState *pstate, List *exprs, bool none_ok)
 {
+  DBUG_TRACE;
   assign_collations_context context;
+  char *collation1;
+  char *collation2;
 
   /* initialize context for tree walk */
   context.pstate = pstate;
@@ -220,11 +232,15 @@ select_common_collation(ParseState *pstate, List *exprs, bool none_ok)
     if (none_ok)
       return InvalidOid;
 
+    collation1 = get_collation_name(context.collation);
+    collation2 = get_collation_name(context.collation2);
+    DBUG_INSTANT_PRINT("info", "collation mismatch between implicit collations \"%s\" and \"%s\"",
+                       get_collation_name(context.collation), get_collation_name(context.collation2));
     ereport(ERROR,
             (errcode(ERRCODE_COLLATION_MISMATCH),
              errmsg("collation mismatch between implicit collations \"%s\" and \"%s\"",
-                    get_collation_name(context.collation),
-                    get_collation_name(context.collation2)),
+                    collation1,
+                    collation2),
              errhint("You can choose the collation by applying the COLLATE clause to one or both expressions."),
              parser_errposition(context.pstate, context.location2)));
   }
@@ -234,7 +250,341 @@ select_common_collation(ParseState *pstate, List *exprs, bool none_ok)
    * that's okay because it must mean none of the expressions returned
    * collatable datatypes.
    */
+  DBUG_PRINT("info", "identify a common collation for a list of expressions:%u", context.collation);
   return context.collation;
+}
+
+static void trace_node_type(int type)
+{
+  switch (type) {
+    case T_Var:
+      DBUG_PRINT("info", "node type(var)");
+      break;
+
+    case T_Const:
+      DBUG_PRINT("info", "node type(const)");
+      break;
+
+    case T_Param:
+      DBUG_PRINT("info", "node type(param)");
+      break;
+
+    case T_CaseTestExpr:
+      DBUG_PRINT("info", "node type(case test expr)");
+      break;
+
+    case T_SQLValueFunction:
+      DBUG_PRINT("info", "node type(SQL value function)");
+      break;
+
+    case T_CoerceToDomainValue:
+      DBUG_PRINT("info", "node type(coerce to domain value)");
+      break;
+
+    case T_SetToDefault:
+      DBUG_PRINT("info", "node type(set to default)");
+      break;
+
+    case T_CurrentOfExpr:
+      DBUG_PRINT("info", "node type(current of expr)");
+      break;
+
+    case T_NextValueExpr:
+      DBUG_PRINT("info", "node type(next value expr)");
+      break;
+
+    case T_RangeTblRef:
+      DBUG_PRINT("info", "node type(range table ref)");
+      break;
+
+    case T_SortGroupClause:
+      DBUG_PRINT("info", "node type(sort group clause)");
+      break;
+
+    case T_CTESearchClause:
+      DBUG_PRINT("info", "node type(cte search clause)");
+      break;
+
+    case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node type(merge support func)");
+      break;
+
+    case T_WithCheckOption:
+      DBUG_PRINT("info", "node type(with check option)");
+      break;
+
+    case T_Aggref:
+      DBUG_PRINT("info", "node type(aggref)");
+      break;
+
+    case T_GroupingFunc:
+      DBUG_PRINT("info", "node type(grouping func)");
+      break;
+
+    case T_WindowFunc:
+      DBUG_PRINT("info", "node type(window func)");
+      break;
+
+    case T_WindowFuncRunCondition:
+      DBUG_PRINT("info", "node type(window func run condition)");
+      break;
+
+    case T_SubscriptingRef:
+      DBUG_PRINT("info", "node type(subscripting ref)");
+      break;
+
+    case T_FuncExpr:
+      DBUG_PRINT("info", "node type(func expr)");
+      break;
+
+    case T_NamedArgExpr:
+      DBUG_PRINT("info", "node type(named arg expr)");
+      break;
+
+    case T_OpExpr:
+      DBUG_PRINT("info", "node type(op expr)");
+      break;
+
+    case T_DistinctExpr:  /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(distinct expr)");
+      break;
+
+    case T_NullIfExpr:    /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(null if expr)");
+      break;
+
+    case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node type(scalar array op expr)");
+      break;
+
+    case T_BoolExpr:
+      DBUG_PRINT("info", "node type(bool expr)");
+      break;
+
+    case T_SubLink:
+      DBUG_PRINT("info", "node type(sub link)");
+      break;
+
+    case T_SubPlan:
+      DBUG_PRINT("info", "node type(sub plan)");
+      break;
+
+    case T_AlternativeSubPlan:
+      DBUG_PRINT("info", "node type(alternative sub plan)");
+      break;
+
+    case T_FieldSelect:
+      DBUG_PRINT("info", "node type(field select)");
+      break;
+
+    case T_FieldStore:
+      DBUG_PRINT("info", "node type(field store)");
+      break;
+
+    case T_RelabelType:
+      DBUG_PRINT("info", "node type(relabel type)");
+      break;
+
+    case T_CoerceViaIO:
+      DBUG_PRINT("info", "node type(coerce via io)");
+      break;
+
+    case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node type(array coerce expr)");
+      break;
+
+    case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node type(convert row type expr)");
+      break;
+
+    case T_CollateExpr:
+      DBUG_PRINT("info", "node type(collate expr)");
+      break;
+
+    case T_CaseExpr:
+      DBUG_PRINT("info", "node type(case expr)");
+      break;
+
+    case T_ArrayExpr:
+      DBUG_PRINT("info", "node type(array expr)");
+      break;
+
+    case T_RowExpr:
+      DBUG_PRINT("info", "node type(row expr)");
+      break;
+
+    case T_RowCompareExpr:
+      DBUG_PRINT("info", "node type(row compare expr)");
+      break;
+
+    case T_CoalesceExpr:
+      DBUG_PRINT("info", "node type(coalesce expr)");
+      break;
+
+    case T_MinMaxExpr:
+      DBUG_PRINT("info", "node type(min max expr)");
+      break;
+
+    case T_XmlExpr:
+      DBUG_PRINT("info", "node type(xml expr)");
+      break;
+
+    case T_JsonValueExpr:
+      DBUG_PRINT("info", "node type(json value expr)");
+      break;
+
+    case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node type(json constructor expr)");
+      break;
+
+    case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node type(json is predicate)");
+      break;
+
+    case T_JsonExpr:
+      DBUG_PRINT("info", "node type(json expr)");
+      break;
+
+    case T_JsonBehavior:
+      DBUG_PRINT("info", "node type(json behavior)");
+      break;
+
+    case T_NullTest:
+      DBUG_PRINT("info", "node type(null test)");
+      break;
+
+    case T_BooleanTest:
+      DBUG_PRINT("info", "node type(boolean test)");
+      break;
+
+    case T_CoerceToDomain:
+      DBUG_PRINT("info", "node type(coerce to domain)");
+      break;
+
+    case T_TargetEntry:
+      DBUG_PRINT("info", "node type(target entry)");
+      break;
+
+    case T_Query:
+      DBUG_PRINT("info", "node type(query)");
+      break;
+
+    case T_WindowClause:
+      DBUG_PRINT("info", "node type(window clause)");
+      break;
+
+    case T_CTECycleClause:
+      DBUG_PRINT("info", "node type(cte cycle clause)");
+      break;
+
+    case T_CommonTableExpr:
+      DBUG_PRINT("info", "node type(common table expr)");
+      break;
+
+    case T_JsonKeyValue:
+      DBUG_PRINT("info", "node type(json key value)");
+      break;
+
+    case T_JsonObjectConstructor:
+      DBUG_PRINT("info", "node type(json Object constructor)");
+      break;
+
+    case T_JsonArrayConstructor:
+      DBUG_PRINT("info", "node type(json array constructor)");
+      break;
+
+    case T_JsonArrayQueryConstructor:
+      DBUG_PRINT("info", "node type(json array query constructor)");
+      break;
+
+    case T_JsonAggConstructor:
+      DBUG_PRINT("info", "node type(json agg constructor)");
+      break;
+
+    case T_JsonObjectAgg:
+      DBUG_PRINT("info", "node type(json object agg)");
+      break;
+
+    case T_JsonArrayAgg:
+      DBUG_PRINT("info", "node type(json array agg)");
+      break;
+
+    case T_PartitionBoundSpec:
+      DBUG_PRINT("info", "node type(partition bound spec)");
+      break;
+
+    case T_PartitionRangeDatum:
+      DBUG_PRINT("info", "node type(partition range datum)");
+      break;
+
+    case T_List:
+      DBUG_PRINT("info", "node type(list)");
+      break;
+
+    case T_FromExpr:
+      DBUG_PRINT("info", "node type(from expr)");
+      break;
+
+    case T_OnConflictExpr:
+      DBUG_PRINT("info", "node type(on conflict expr)");
+      break;
+
+    case T_MergeAction:
+      DBUG_PRINT("info", "node type(merge action)");
+      break;
+
+    case T_PartitionPruneStepOp:
+      DBUG_PRINT("info", "node type(partition prune step op)");
+      break;
+
+    case T_PartitionPruneStepCombine:
+      DBUG_PRINT("info", "node type(partition prune step combine)");
+      break;
+
+    case T_JoinExpr:
+      DBUG_PRINT("info", "node type(join expr)");
+      break;
+
+    case T_SetOperationStmt:
+      DBUG_PRINT("info", "node type(set operation stmt)");
+      break;
+
+    case T_IndexClause:
+      DBUG_PRINT("info", "node type(index clause)");
+      break;
+
+    case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node type(place holder var)");
+      break;
+
+    case T_InferenceElem:
+      DBUG_PRINT("info", "node type(inference elem)");
+      break;
+
+    case T_AppendRelInfo:
+      DBUG_PRINT("info", "node type(append rel info)");
+      break;
+
+    case T_PlaceHolderInfo:
+      DBUG_PRINT("info", "node type(place holder info)");
+      break;
+
+    case T_RangeTblFunction:
+      DBUG_PRINT("info", "node type(range table function)");
+      break;
+
+    case T_TableSampleClause:
+      DBUG_PRINT("info", "node type(table sample clause)");
+      break;
+
+    case T_TableFunc:
+      DBUG_PRINT("info", "node type(table func)");
+      break;
+
+    default:
+      DBUG_PRINT("info", "node tag:%d", type);
+      break;
+  }
 }
 
 /*
@@ -251,6 +601,7 @@ select_common_collation(ParseState *pstate, List *exprs, bool none_ok)
 static bool
 assign_collations_walker(Node *node, assign_collations_context *context)
 {
+  DBUG_TRACE;
   assign_collations_context loccontext;
   Oid     collation;
   CollateStrength strength;
@@ -279,6 +630,8 @@ assign_collations_walker(Node *node, assign_collations_context *context)
    * Note: the general cases are at the bottom of the switch, after various
    * special cases.
    */
+  trace_node_type(nodeTag(node));
+
   switch (nodeTag(node)) {
     case T_CollateExpr: {
       /*
@@ -455,15 +808,19 @@ assign_collations_walker(Node *node, assign_collations_context *context)
        * without sorting.)
        */
       if (strength == COLLATE_CONFLICT &&
-          ((TargetEntry *) node)->ressortgroupref != 0)
+          ((TargetEntry *) node)->ressortgroupref != 0) {
+        char *collation1 = get_collation_name(loccontext.collation);
+        char *collation2 = get_collation_name(loccontext.collation2);
+        DBUG_INSTANT_PRINT("info", "collation mismatch between implicit collations \"%s\" and \"%s\"", collation1, collation2);
         ereport(ERROR,
                 (errcode(ERRCODE_COLLATION_MISMATCH),
                  errmsg("collation mismatch between implicit collations \"%s\" and \"%s\"",
-                        get_collation_name(loccontext.collation),
-                        get_collation_name(loccontext.collation2)),
+                        collation1,
+                        collation2),
                  errhint("You can choose the collation by applying the COLLATE clause to one or both expressions."),
                  parser_errposition(context->pstate,
                                     loccontext.location2)));
+      }
 
       break;
 
@@ -771,6 +1128,8 @@ merge_collation_state(Oid collation,
                       int location2,
                       assign_collations_context *context)
 {
+  DBUG_TRACE;
+
   /*
    * If the collation strength for this node is different from what's
    * already in *context, then this node either dominates or is dominated by
@@ -832,11 +1191,16 @@ merge_collation_state(Oid collation,
            * the SQL standard says to do, and there's no good reason
            * to be less strict.
            */
+
+          char *collation1 = get_collation_name(context->collation);
+          char *collation2 = get_collation_name(collation);
+          DBUG_INSTANT_PRINT("info", "collation mismatch between explicit collations \"%s\" and \"%s\"",
+                             collation1, collation2);
           ereport(ERROR,
                   (errcode(ERRCODE_COLLATION_MISMATCH),
                    errmsg("collation mismatch between explicit collations \"%s\" and \"%s\"",
-                          get_collation_name(context->collation),
-                          get_collation_name(collation)),
+                          collation1,
+                          collation2),
                    parser_errposition(context->pstate, location)));
         }
 
@@ -864,6 +1228,7 @@ static void
 assign_aggregate_collations(Aggref *aggref,
                             assign_collations_context *loccontext)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Plain aggregates have no direct args */
@@ -901,6 +1266,7 @@ static void
 assign_ordered_set_collations(Aggref *aggref,
                               assign_collations_context *loccontext)
 {
+  DBUG_TRACE;
   bool    merge_sort_collations;
   ListCell   *lc;
 
@@ -936,6 +1302,7 @@ static void
 assign_hypothetical_collations(Aggref *aggref,
                                assign_collations_context *loccontext)
 {
+  DBUG_TRACE;
   ListCell   *h_cell = list_head(aggref->aggdirectargs);
   ListCell   *s_cell = list_head(aggref->args);
   bool    merge_sort_collations;
@@ -979,15 +1346,19 @@ assign_hypothetical_collations(Aggref *aggref,
     (void) assign_collations_walker((Node *) s_tle->expr, &paircontext);
 
     /* deal with collation conflict */
-    if (paircontext.strength == COLLATE_CONFLICT)
+    if (paircontext.strength == COLLATE_CONFLICT) {
+      char *collation1 = get_collation_name(paircontext.collation);
+      char *collation2 = get_collation_name(paircontext.collation2);
+      DBUG_INSTANT_PRINT("info", "collation mismatch between implicit collations \"%s\" and \"%s\"", collation1, collation2);
       ereport(ERROR,
               (errcode(ERRCODE_COLLATION_MISMATCH),
                errmsg("collation mismatch between implicit collations \"%s\" and \"%s\"",
-                      get_collation_name(paircontext.collation),
-                      get_collation_name(paircontext.collation2)),
+                      collation1,
+                      collation2),
                errhint("You can choose the collation by applying the COLLATE clause to one or both expressions."),
                parser_errposition(paircontext.pstate,
                                   paircontext.location2)));
+    }
 
     /*
      * At this point paircontext.collation can be InvalidOid only if the

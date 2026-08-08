@@ -462,8 +462,7 @@ UInt64GetDatum(uint64 X)
 static inline float4
 DatumGetFloat4(Datum X)
 {
-  union
-  {
+  union {
     int32   value;
     float4    retval;
   }     myunion;
@@ -479,8 +478,7 @@ DatumGetFloat4(Datum X)
 static inline Datum
 Float4GetDatum(float4 X)
 {
-  union
-  {
+  union {
     float4    value;
     int32   retval;
   }     myunion;
@@ -499,8 +497,7 @@ static inline float8
 DatumGetFloat8(Datum X)
 {
 #ifdef USE_FLOAT8_BYVAL
-  union
-  {
+  union {
     int64   value;
     float8    retval;
   }     myunion;
@@ -523,8 +520,7 @@ DatumGetFloat8(Datum X)
 static inline Datum
 Float8GetDatum(float8 X)
 {
-  union
-  {
+  union {
     float8    value;
     int64   retval;
   }     myunion;

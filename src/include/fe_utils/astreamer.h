@@ -188,14 +188,12 @@ astreamer_buffer_until(astreamer *streamer, const char **data, int *len,
 {
   int     buflen = streamer->bbs_buffer.len;
 
-  if (buflen >= target_bytes)
-  {
+  if (buflen >= target_bytes) {
     /* Target length already reached; nothing to do. */
     return true;
   }
 
-  if (buflen + *len < target_bytes)
-  {
+  if (buflen + *len < target_bytes) {
     /* Not enough data to reach target length; buffer all of it. */
     astreamer_buffer_bytes(streamer, data, len, *len);
     return false;

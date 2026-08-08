@@ -23,6 +23,7 @@
  *--------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <math.h>
@@ -277,6 +278,7 @@ static bool call_enum_check_hook(struct config_enum *conf, int *newval,
 ConfigVariable *
 ProcessConfigFileInternal(GucContext context, bool applySettings, int elevel)
 {
+  DBUG_TRACE;
   bool    error = false;
   bool    applying = false;
   const char *ConfFileWithError;
@@ -289,6 +291,10 @@ ProcessConfigFileInternal(GucContext context, bool applySettings, int elevel)
   /* Parse the main config file into a list of option names and values */
   ConfFileWithError = ConfigFileName;
   head = tail = NULL;
+
+  if (ConfigFileName) {
+    DBUG_PRINT("info", "ConfigFileName:'%s'", ConfigFileName);
+  }
 
   if (!ParseConfigFile(ConfigFileName, true,
                        NULL, 0, CONF_FILE_START_DEPTH, elevel,
@@ -305,6 +311,8 @@ ProcessConfigFileInternal(GucContext context, bool applySettings, int elevel)
    * set.
    */
   if (DataDir) {
+    DBUG_PRINT("info", "DataDir:'%s'", DataDir);
+
     if (!ParseConfigFile(PG_AUTOCONF_FILENAME, false,
                          NULL, 0, CONF_FILE_START_DEPTH, elevel,
                          &head, &tail)) {
@@ -869,6 +877,7 @@ discard_stack_value(struct config_generic *gconf, config_var_value *val)
 struct config_generic **
 get_guc_variables(int *num_vars)
 {
+  DBUG_TRACE;
   struct config_generic **result;
   HASH_SEQ_STATUS status;
   GUCHashEntry *hentry;
@@ -887,6 +896,7 @@ get_guc_variables(int *num_vars)
   Assert(i == *num_vars);
 
   /* Sort by name */
+  DBUG_PRINT("info", "sort by name(num_vars:%d)", *num_vars );
   qsort(result, *num_vars,
         sizeof(struct config_generic *), guc_var_compare);
 
@@ -902,6 +912,7 @@ get_guc_variables(int *num_vars)
 void
 build_guc_variables(void)
 {
+  DBUG_TRACE;
   int     size_vars;
   int     num_vars = 0;
   HASHCTL   hash_ctl;
@@ -1109,6 +1120,7 @@ valid_custom_variable_name(const char *name)
 static bool
 assignable_custom_variable_name(const char *name, bool skip_errors, int elevel)
 {
+  DBUG_TRACE;
   /* If there's no separator, it can't be a custom variable */
   const char *sep = strchr(name, GUC_QUALIFIER_SEPARATOR);
 
@@ -1166,6 +1178,7 @@ assignable_custom_variable_name(const char *name, bool skip_errors, int elevel)
 static struct config_generic *
 add_placeholder_variable(const char *name, int elevel)
 {
+  DBUG_TRACE;
   size_t    sz = sizeof(struct config_string) + sizeof(char *);
   struct config_string *var;
   struct config_generic *gen;
@@ -1428,6 +1441,8 @@ check_GUC_name_for_parameter_acl(const char *name)
 static bool
 check_GUC_init(struct config_generic *gconf)
 {
+  DBUG_TRACE;
+
   /* Checks on values */
   switch (gconf->vartype) {
     case PGC_BOOL: {
@@ -1519,6 +1534,7 @@ check_GUC_init(struct config_generic *gconf)
 void
 InitializeGUCOptions(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   GUCHashEntry *hentry;
 
@@ -1578,6 +1594,7 @@ InitializeGUCOptions(void)
 static void
 InitializeGUCOptionsFromEnvironment(void)
 {
+  DBUG_TRACE;
   char     *env;
   ssize_t   stack_rlimit;
 
@@ -1635,6 +1652,7 @@ InitializeGUCOptionsFromEnvironment(void)
 static void
 InitializeOneGUCOption(struct config_generic *gconf)
 {
+  DBUG_TRACE;
   gconf->status = 0;
   gconf->source = PGC_S_DEFAULT;
   gconf->reset_source = PGC_S_DEFAULT;
@@ -1654,6 +1672,12 @@ InitializeOneGUCOption(struct config_generic *gconf)
       bool    newval = conf->boot_val;
       void     *extra = NULL;
 
+      if (newval) {
+        DBUG_PRINT("info", "vartype is PGC_BOOL and newval is true");
+      } else {
+        DBUG_PRINT("info", "vartype is PGC_BOOL and newval is false");
+      }
+
       if (!call_bool_check_hook(conf, &newval, &extra,
                                 PGC_S_DEFAULT, LOG))
         elog(FATAL, "failed to initialize %s to %d",
@@ -1662,6 +1686,7 @@ InitializeOneGUCOption(struct config_generic *gconf)
       if (conf->assign_hook)
         conf->assign_hook(newval, extra);
 
+      DBUG_PRINT("info", "initialize %s to %d", conf->gen.name, (int) newval);
       *conf->variable = conf->reset_val = newval;
       conf->gen.extra = conf->reset_extra = extra;
       break;
@@ -1675,6 +1700,8 @@ InitializeOneGUCOption(struct config_generic *gconf)
       Assert(newval >= conf->min);
       Assert(newval <= conf->max);
 
+      DBUG_PRINT("info", "vartype is PGC_INT and newval is %d", newval);
+
       if (!call_int_check_hook(conf, &newval, &extra,
                                PGC_S_DEFAULT, LOG))
         elog(FATAL, "failed to initialize %s to %d",
@@ -1683,6 +1710,7 @@ InitializeOneGUCOption(struct config_generic *gconf)
       if (conf->assign_hook)
         conf->assign_hook(newval, extra);
 
+      DBUG_PRINT("info", "initialize %s to %d", conf->gen.name, (int) newval);
       *conf->variable = conf->reset_val = newval;
       conf->gen.extra = conf->reset_extra = extra;
       break;
@@ -1696,6 +1724,8 @@ InitializeOneGUCOption(struct config_generic *gconf)
       Assert(newval >= conf->min);
       Assert(newval <= conf->max);
 
+      DBUG_PRINT("info", "vartype is PGC_REAL and newval is %g", newval);
+
       if (!call_real_check_hook(conf, &newval, &extra,
                                 PGC_S_DEFAULT, LOG))
         elog(FATAL, "failed to initialize %s to %g",
@@ -1704,6 +1734,7 @@ InitializeOneGUCOption(struct config_generic *gconf)
       if (conf->assign_hook)
         conf->assign_hook(newval, extra);
 
+      DBUG_PRINT("info", "initialize %s to %g", conf->gen.name, newval);
       *conf->variable = conf->reset_val = newval;
       conf->gen.extra = conf->reset_extra = extra;
       break;
@@ -1720,6 +1751,10 @@ InitializeOneGUCOption(struct config_generic *gconf)
       else
         newval = NULL;
 
+      if (newval) {
+        DBUG_PRINT("info", "vartype is PGC_STRING and newval is '%s'", newval);
+      }
+
       if (!call_string_check_hook(conf, &newval, &extra,
                                   PGC_S_DEFAULT, LOG))
         elog(FATAL, "failed to initialize %s to \"%s\"",
@@ -1728,6 +1763,7 @@ InitializeOneGUCOption(struct config_generic *gconf)
       if (conf->assign_hook)
         conf->assign_hook(newval, extra);
 
+      DBUG_PRINT("info", "initialize %s to \"%s\"", conf->gen.name, newval ? newval : "");
       *conf->variable = conf->reset_val = newval;
       conf->gen.extra = conf->reset_extra = extra;
       break;
@@ -1738,6 +1774,8 @@ InitializeOneGUCOption(struct config_generic *gconf)
       int     newval = conf->boot_val;
       void     *extra = NULL;
 
+      DBUG_PRINT("info", "vartype is PGC_ENUM and newval is %d", newval);
+
       if (!call_enum_check_hook(conf, &newval, &extra,
                                 PGC_S_DEFAULT, LOG))
         elog(FATAL, "failed to initialize %s to %d",
@@ -1746,6 +1784,7 @@ InitializeOneGUCOption(struct config_generic *gconf)
       if (conf->assign_hook)
         conf->assign_hook(newval, extra);
 
+      DBUG_PRINT("info", "initialize %s to %d", conf->gen.name, newval);
       *conf->variable = conf->reset_val = newval;
       conf->gen.extra = conf->reset_extra = extra;
       break;
@@ -1762,6 +1801,8 @@ InitializeOneGUCOption(struct config_generic *gconf)
 static void
 RemoveGUCFromLists(struct config_generic *gconf)
 {
+  DBUG_TRACE;
+
   if (gconf->source != PGC_S_DEFAULT)
     dlist_delete(&gconf->nondef_link);
 
@@ -1787,11 +1828,15 @@ RemoveGUCFromLists(struct config_generic *gconf)
 bool
 SelectConfigFiles(const char *userDoption, const char *progname)
 {
+  DBUG_TRACE;
   char     *configdir;
   char     *fname;
   bool    fname_is_malloced;
   struct stat stat_buf;
   struct config_string *data_directory_rec;
+
+  DBUG_PRINT("info", "select the configuration files and data directory to be used, and");
+  DBUG_PRINT("info", "do the initial read of postgresql.conf");
 
   /* configdir is -D option, or $PGDATA if no -D */
   if (userDoption)
@@ -1993,6 +2038,7 @@ pg_timezone_abbrev_initialize(void)
 void
 ResetAllOptions(void)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   /* We need only consider GUCs not already at PGC_S_DEFAULT */
@@ -2104,6 +2150,8 @@ ResetAllOptions(void)
 static void
 set_guc_source(struct config_generic *gconf, GucSource newsource)
 {
+  DBUG_TRACE;
+
   /* Adjust nondef list membership if appropriate for change */
   if (gconf->source == PGC_S_DEFAULT) {
     if (newsource != PGC_S_DEFAULT)
@@ -2113,6 +2161,7 @@ set_guc_source(struct config_generic *gconf, GucSource newsource)
       dlist_delete(&gconf->nondef_link);
   }
 
+  DBUG_PRINT("info", "now update the source field:'%s', newsource:%d", gconf->name, newsource);
   /* Now update the source field */
   gconf->source = newsource;
 }
@@ -2125,6 +2174,7 @@ set_guc_source(struct config_generic *gconf, GucSource newsource)
 static void
 push_old_value(struct config_generic *gconf, GucAction action)
 {
+  DBUG_TRACE;
   GucStack   *stack;
 
   /* If we're not inside a nest level, do nothing */
@@ -2214,6 +2264,8 @@ push_old_value(struct config_generic *gconf, GucAction action)
 void
 AtStart_GUC(void)
 {
+  DBUG_TRACE;
+
   /*
    * The nest level should be 0 between transactions; if it isn't, somebody
    * didn't call AtEOXact_GUC, or called it with the wrong nestLevel.  We
@@ -2262,6 +2314,7 @@ RestrictSearchPath(void)
 void
 AtEOXact_GUC(bool isCommit, int nestLevel)
 {
+  DBUG_TRACE;
   slist_mutable_iter iter;
 
   /*
@@ -2394,6 +2447,8 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
             bool    newval = newvalue.val.boolval;
             void     *newextra = newvalue.extra;
 
+            DBUG_PRINT("info", "vartype:PGC_BOOL");
+
             if (*conf->variable != newval ||
                 conf->gen.extra != newextra) {
               if (conf->assign_hook)
@@ -2402,6 +2457,13 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
               *conf->variable = newval;
               set_extra_field(&conf->gen, &conf->gen.extra,
                               newextra);
+
+              if (newval) {
+                DBUG_PRINT("info", "name:'%s', newval:true", gconf->name);
+              } else {
+                DBUG_PRINT("info", "name:'%s', newval:false", gconf->name);
+              }
+
               changed = true;
             }
 
@@ -2413,6 +2475,8 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
             int     newval = newvalue.val.intval;
             void     *newextra = newvalue.extra;
 
+            DBUG_PRINT("info", "vartype:PGC_INT");
+
             if (*conf->variable != newval ||
                 conf->gen.extra != newextra) {
               if (conf->assign_hook)
@@ -2421,6 +2485,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
               *conf->variable = newval;
               set_extra_field(&conf->gen, &conf->gen.extra,
                               newextra);
+              DBUG_PRINT("info", "name:'%s', newval:%d", gconf->name, newval);
               changed = true;
             }
 
@@ -2432,6 +2497,8 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
             double    newval = newvalue.val.realval;
             void     *newextra = newvalue.extra;
 
+            DBUG_PRINT("info", "vartype:PGC_REAL");
+
             if (*conf->variable != newval ||
                 conf->gen.extra != newextra) {
               if (conf->assign_hook)
@@ -2440,6 +2507,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
               *conf->variable = newval;
               set_extra_field(&conf->gen, &conf->gen.extra,
                               newextra);
+              DBUG_PRINT("info", "name:'%s', newval:%g", gconf->name, newval);
               changed = true;
             }
 
@@ -2451,6 +2519,8 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
             char     *newval = newvalue.val.stringval;
             void     *newextra = newvalue.extra;
 
+            DBUG_PRINT("info", "vartype:PGC_STRING");
+
             if (*conf->variable != newval ||
                 conf->gen.extra != newextra) {
               if (conf->assign_hook)
@@ -2459,6 +2529,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
               set_string_field(conf, conf->variable, newval);
               set_extra_field(&conf->gen, &conf->gen.extra,
                               newextra);
+              DBUG_PRINT("info", "name:'%s', newval:'%s'", gconf->name, newval);
               changed = true;
             }
 
@@ -2478,12 +2549,15 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
             int     newval = newvalue.val.enumval;
             void     *newextra = newvalue.extra;
 
+            DBUG_PRINT("info", "vartype:PGC_ENUM");
+
             if (*conf->variable != newval ||
                 conf->gen.extra != newextra) {
               if (conf->assign_hook)
                 conf->assign_hook(newval, newextra);
 
               *conf->variable = newval;
+              DBUG_PRINT("info", "name:'%s', newval:%d", gconf->name, newval);
               set_extra_field(&conf->gen, &conf->gen.extra,
                               newextra);
               changed = true;
@@ -2537,6 +2611,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
 void
 BeginReportingGUCOptions(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   GUCHashEntry *hentry;
 
@@ -2587,6 +2662,7 @@ BeginReportingGUCOptions(void)
 void
 ReportChangedGUCOptions(void)
 {
+  DBUG_TRACE;
   slist_mutable_iter iter;
 
   /* Quick exit if not (yet) enabled */
@@ -2624,6 +2700,7 @@ ReportChangedGUCOptions(void)
 static void
 ReportGUCOption(struct config_generic *record)
 {
+  DBUG_TRACE;
   char     *val = ShowGUCOption(record, false);
 
   if (record->last_reported == NULL ||
@@ -2661,6 +2738,7 @@ static bool
 convert_to_base_unit(double value, const char *unit,
                      int base_unit, double *base_value)
 {
+  DBUG_TRACE;
   char    unitstr[MAX_UNIT_LEN + 1];
   int     unitlen;
   const unit_conversion *table;
@@ -2722,6 +2800,7 @@ static void
 convert_int_from_base_unit(int64 base_value, int base_unit,
                            int64 *value, const char **unit)
 {
+  DBUG_TRACE;
   const unit_conversion *table;
   int     i;
 
@@ -2761,6 +2840,7 @@ static void
 convert_real_from_base_unit(double base_value, int base_unit,
                             double *value, const char **unit)
 {
+  DBUG_TRACE;
   const unit_conversion *table;
   int     i;
 
@@ -2802,6 +2882,8 @@ convert_real_from_base_unit(double base_value, int base_unit,
 const char *
 get_config_unit_name(int flags)
 {
+  DBUG_TRACE;
+
   switch (flags & GUC_UNIT) {
     case 0:
       return NULL;    /* GUC has no units */
@@ -3123,6 +3205,8 @@ parse_and_validate_value(struct config_generic *record,
                          GucSource source, int elevel,
                          union config_var_val *newval, void **newextra)
 {
+  DBUG_TRACE;
+
   switch (record->vartype) {
     case PGC_BOOL: {
       struct config_bool *conf = (struct config_bool *) record;
@@ -3329,6 +3413,7 @@ set_config_option(const char *name, const char *value,
                   GucAction action, bool changeVal, int elevel,
                   bool is_reload)
 {
+  DBUG_TRACE;
   Oid     srole;
 
   /*
@@ -3393,11 +3478,14 @@ set_config_with_handle(const char *name, config_handle *handle,
                        GucAction action, bool changeVal, int elevel,
                        bool is_reload)
 {
+  DBUG_TRACE;
   struct config_generic *record;
   union config_var_val newval_union;
   void     *newextra = NULL;
   bool    prohibitValueChange = false;
   bool    makeDefault;
+
+  DBUG_PRINT("info", "name:'%s', value:'%s'", name, value);
 
   if (elevel == 0) {
     if (source == PGC_S_DEFAULT || source == PGC_S_FILE) {
@@ -3450,6 +3538,8 @@ set_config_with_handle(const char *name, config_handle *handle,
    */
   switch (record->context) {
     case PGC_INTERNAL:
+      DBUG_PRINT("info", "context:PGC_INTERNAL");
+
       if (context != PGC_INTERNAL) {
         ereport(elevel,
                 (errcode(ERRCODE_CANT_CHANGE_RUNTIME_PARAM),
@@ -3461,6 +3551,8 @@ set_config_with_handle(const char *name, config_handle *handle,
       break;
 
     case PGC_POSTMASTER:
+      DBUG_PRINT("info", "context:PGC_POSTMASTER");
+
       if (context == PGC_SIGHUP) {
         /*
          * We are re-reading a PGC_POSTMASTER variable from
@@ -3483,6 +3575,8 @@ set_config_with_handle(const char *name, config_handle *handle,
       break;
 
     case PGC_SIGHUP:
+      DBUG_PRINT("info", "context:PGC_SIGHUP");
+
       if (context != PGC_SIGHUP && context != PGC_POSTMASTER) {
         ereport(elevel,
                 (errcode(ERRCODE_CANT_CHANGE_RUNTIME_PARAM),
@@ -3500,6 +3594,8 @@ set_config_with_handle(const char *name, config_handle *handle,
       break;
 
     case PGC_SU_BACKEND:
+      DBUG_PRINT("info", "context:PGC_SU_BACKEND");
+
       if (context == PGC_BACKEND) {
         /*
          * Check whether the requesting user has been granted
@@ -3511,6 +3607,7 @@ set_config_with_handle(const char *name, config_handle *handle,
 
         if (aclresult != ACLCHECK_OK) {
           /* No granted privilege */
+          DBUG_INSTANT_PRINT("info", "no granted privilege");
           ereport(elevel,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("permission denied to set parameter \"%s\"",
@@ -3522,6 +3619,8 @@ set_config_with_handle(const char *name, config_handle *handle,
     /* fall through to process the same as PGC_BACKEND */
     /* FALLTHROUGH */
     case PGC_BACKEND:
+      DBUG_PRINT("info", "context:PGC_BACKEND");
+
       if (context == PGC_SIGHUP) {
         /*
          * If a PGC_BACKEND or PGC_SU_BACKEND parameter is changed in
@@ -3561,6 +3660,8 @@ set_config_with_handle(const char *name, config_handle *handle,
       break;
 
     case PGC_SUSET:
+      DBUG_PRINT("info", "context:PGC_SUSET");
+
       if (context == PGC_USERSET || context == PGC_BACKEND) {
         /*
          * Check whether the requesting user has been granted
@@ -3572,6 +3673,7 @@ set_config_with_handle(const char *name, config_handle *handle,
 
         if (aclresult != ACLCHECK_OK) {
           /* No granted privilege */
+          DBUG_INSTANT_PRINT("info", "no granted privilege");
           ereport(elevel,
                   (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                    errmsg("permission denied to set parameter \"%s\"",
@@ -3583,6 +3685,7 @@ set_config_with_handle(const char *name, config_handle *handle,
       break;
 
     case PGC_USERSET:
+      DBUG_PRINT("info", "context:PGC_USERSET");
       /* always okay */
       break;
   }
@@ -3611,6 +3714,7 @@ set_config_with_handle(const char *name, config_handle *handle,
        * Phrasing of this error message is historical, but it's the most
        * common case.
        */
+      DBUG_INSTANT_PRINT("info", "no granted privilege");
       ereport(elevel,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("cannot set parameter \"%s\" within security-definer function",
@@ -3619,6 +3723,7 @@ set_config_with_handle(const char *name, config_handle *handle,
     }
 
     if (InSecurityRestrictedOperation()) {
+      DBUG_INSTANT_PRINT("info", "no granted privilege");
       ereport(elevel,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("cannot set parameter \"%s\" within security-restricted operation",
@@ -3674,10 +3779,13 @@ set_config_with_handle(const char *name, config_handle *handle,
   /*
    * Evaluate value and set variable.
    */
+  DBUG_PRINT("info", "record vartype:%d", record->vartype);
+
   switch (record->vartype) {
     case PGC_BOOL: {
       struct config_bool *conf = (struct config_bool *) record;
 
+      DBUG_PRINT("info", "vartype:PGC_BOOL");
 #define newval (newval_union.boolval)
 
       if (value) {
@@ -3769,6 +3877,7 @@ set_config_with_handle(const char *name, config_handle *handle,
     case PGC_INT: {
       struct config_int *conf = (struct config_int *) record;
 
+      DBUG_PRINT("info", "vartype:PGC_INT");
 #define newval (newval_union.intval)
 
       if (value) {
@@ -3809,6 +3918,8 @@ set_config_with_handle(const char *name, config_handle *handle,
       }
 
       if (changeVal) {
+        DBUG_PRINT("info", "save old value to support transaction abort");
+
         /* Save old value to support transaction abort */
         if (!makeDefault)
           push_old_value(&conf->gen, action);
@@ -3860,6 +3971,7 @@ set_config_with_handle(const char *name, config_handle *handle,
     case PGC_REAL: {
       struct config_real *conf = (struct config_real *) record;
 
+      DBUG_PRINT("info", "vartype:PGC_REAL");
 #define newval (newval_union.realval)
 
       if (value) {
@@ -3954,6 +4066,7 @@ set_config_with_handle(const char *name, config_handle *handle,
       GucSource orig_source = source;
       Oid     orig_srole = srole;
 
+      DBUG_PRINT("info", "vartype:PGC_STRING");
 #define newval (newval_union.stringval)
 
       if (value) {
@@ -4112,6 +4225,7 @@ set_config_with_handle(const char *name, config_handle *handle,
     case PGC_ENUM: {
       struct config_enum *conf = (struct config_enum *) record;
 
+      DBUG_PRINT("info", "vartype:PGC_ENUM");
 #define newval (newval_union.enumval)
 
       if (value) {
@@ -4233,6 +4347,7 @@ get_config_handle(const char *name)
 static void
 set_config_sourcefile(const char *name, char *sourcefile, int sourceline)
 {
+  DBUG_TRACE;
   struct config_generic *record;
   int     elevel;
 
@@ -4290,6 +4405,7 @@ SetConfigOption(const char *name, const char *value,
 const char *
 GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
 {
+  DBUG_TRACE;
   struct config_generic *record;
   static char buffer[256];
 
@@ -4299,12 +4415,14 @@ GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
     return NULL;
 
   if (restrict_privileged &&
-      !ConfigOptionIsVisible(record))
+      !ConfigOptionIsVisible(record)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to examine \"%s\"", name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to examine \"%s\"", name),
              errdetail("Only roles with privileges of the \"%s\" role may examine this parameter.",
                        "pg_read_all_settings")));
+  }
 
   switch (record->vartype) {
     case PGC_BOOL:
@@ -4342,18 +4460,21 @@ GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
 const char *
 GetConfigOptionResetString(const char *name)
 {
+  DBUG_TRACE;
   struct config_generic *record;
   static char buffer[256];
 
   record = find_option(name, false, false, ERROR);
   Assert(record != NULL);
 
-  if (!ConfigOptionIsVisible(record))
+  if (!ConfigOptionIsVisible(record)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to examine \"%s\"", name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to examine \"%s\"", name),
              errdetail("Only roles with privileges of the \"%s\" role may examine this parameter.",
                        "pg_read_all_settings")));
+  }
 
   switch (record->vartype) {
     case PGC_BOOL:
@@ -4409,6 +4530,7 @@ GetConfigOptionFlags(const char *name, bool missing_ok)
 static void
 write_auto_conf_file(int fd, const char *filename, ConfigVariable *head)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   ConfigVariable *item;
 
@@ -4481,6 +4603,7 @@ static void
 replace_auto_config_value(ConfigVariable **head_p, ConfigVariable **tail_p,
                           const char *name, const char *value)
 {
+  DBUG_TRACE;
   ConfigVariable *item,
                  *next,
                  *prev = NULL;
@@ -4550,6 +4673,7 @@ replace_auto_config_value(ConfigVariable **head_p, ConfigVariable **tail_p,
 void
 AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 {
+  DBUG_TRACE;
   char     *name;
   char     *value;
   bool    resetall = false;
@@ -4594,21 +4718,24 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
    * Check permission to run ALTER SYSTEM on the target variable
    */
   if (!superuser()) {
-    if (resetall)
+    if (resetall) {
+      DBUG_INSTANT_PRINT("info", "permission denied to perform ALTER SYSTEM RESET ALL");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to perform ALTER SYSTEM RESET ALL")));
-    else {
+    } else {
       AclResult aclresult;
 
       aclresult = pg_parameter_aclcheck(name, GetUserId(),
                                         ACL_ALTER_SYSTEM);
 
-      if (aclresult != ACLCHECK_OK)
+      if (aclresult != ACLCHECK_OK) {
+        DBUG_INSTANT_PRINT("info", "permission denied to set parameter \"%s\"", name);
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied to set parameter \"%s\"",
                         name)));
+      }
     }
   }
 
@@ -4990,6 +5117,7 @@ reapply_stacked_values(struct config_generic *variable,
                        GucContext curscontext, GucSource cursource,
                        Oid cursrole)
 {
+  DBUG_TRACE;
   const char *name = variable->name;
   GucStack   *oldvarstack = variable->stack;
 
@@ -5081,6 +5209,7 @@ DefineCustomBoolVariable(const char *name,
                          GucBoolAssignHook assign_hook,
                          GucShowHook show_hook)
 {
+  DBUG_TRACE;
   struct config_bool *var;
 
   var = (struct config_bool *)
@@ -5109,6 +5238,7 @@ DefineCustomIntVariable(const char *name,
                         GucIntAssignHook assign_hook,
                         GucShowHook show_hook)
 {
+  DBUG_TRACE;
   struct config_int *var;
 
   var = (struct config_int *)
@@ -5139,6 +5269,7 @@ DefineCustomRealVariable(const char *name,
                          GucRealAssignHook assign_hook,
                          GucShowHook show_hook)
 {
+  DBUG_TRACE;
   struct config_real *var;
 
   var = (struct config_real *)
@@ -5167,6 +5298,7 @@ DefineCustomStringVariable(const char *name,
                            GucStringAssignHook assign_hook,
                            GucShowHook show_hook)
 {
+  DBUG_TRACE;
   struct config_string *var;
 
   var = (struct config_string *)
@@ -5193,6 +5325,7 @@ DefineCustomEnumVariable(const char *name,
                          GucEnumAssignHook assign_hook,
                          GucShowHook show_hook)
 {
+  DBUG_TRACE;
   struct config_enum *var;
 
   var = (struct config_enum *)
@@ -5270,6 +5403,7 @@ MarkGUCPrefixReserved(const char *className)
 struct config_generic **
 get_explain_guc_options(int *num)
 {
+  DBUG_TRACE;
   struct config_generic **result;
   dlist_iter  iter;
 
@@ -5375,12 +5509,14 @@ GetConfigOptionByName(const char *name, const char **varname, bool missing_ok)
     return NULL;
   }
 
-  if (!ConfigOptionIsVisible(record))
+  if (!ConfigOptionIsVisible(record)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to examine \"%s\"", name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to examine \"%s\"", name),
              errdetail("Only roles with privileges of the \"%s\" role may examine this parameter.",
                        "pg_read_all_settings")));
+  }
 
   if (varname)
     *varname = record->name;
@@ -5398,6 +5534,7 @@ GetConfigOptionByName(const char *name, const char **varname, bool missing_ok)
 char *
 ShowGUCOption(struct config_generic *record, bool use_units)
 {
+  DBUG_TRACE;
   char    buffer[256];
   const char *val;
 
@@ -5511,6 +5648,7 @@ ShowGUCOption(struct config_generic *record, bool use_units)
 static void
 write_one_nondefault_variable(FILE *fp, struct config_generic *gconf)
 {
+  DBUG_TRACE;
   Assert(gconf->source != PGC_S_DEFAULT);
 
   fprintf(fp, "%s", gconf->name);
@@ -5574,6 +5712,7 @@ write_one_nondefault_variable(FILE *fp, struct config_generic *gconf)
 void
 write_nondefault_variables(GucContext context)
 {
+  DBUG_TRACE;
   int     elevel;
   FILE     *fp;
   dlist_iter  iter;
@@ -5659,6 +5798,7 @@ read_string_with_null(FILE *fp)
 void
 read_nondefault_variables(void)
 {
+  DBUG_TRACE;
   FILE     *fp;
   char     *varname,
            *varvalue,
@@ -5866,6 +6006,7 @@ estimate_variable_size(struct config_generic *gconf)
 Size
 EstimateGUCStateSpace(void)
 {
+  DBUG_TRACE;
   Size    size;
   dlist_iter  iter;
 
@@ -6011,6 +6152,7 @@ serialize_variable(char **destptr, Size *maxbytes,
 void
 SerializeGUCState(Size maxsize, char *start_address)
 {
+  DBUG_TRACE;
   char     *curptr;
   Size    actual_size;
   Size    bytes_left;
@@ -6102,6 +6244,7 @@ guc_restore_error_context_callback(void *arg)
 void
 RestoreGUCState(void *gucstate)
 {
+  DBUG_TRACE;
   char     *varname,
            *varvalue,
            *varsourcefile;
@@ -6281,6 +6424,7 @@ RestoreGUCState(void *gucstate)
 void
 ParseLongOption(const char *string, char **name, char **value)
 {
+  DBUG_TRACE;
   size_t    equal_pos;
   char     *cp;
 
@@ -6315,6 +6459,7 @@ ParseLongOption(const char *string, char **name, char **value)
 void
 TransformGUCArray(ArrayType *array, List **names, List **values)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(array != NULL);
@@ -6627,6 +6772,7 @@ validate_option_array_item(const char *name, const char *value,
                            bool skipIfNoPermissions)
 
 {
+  DBUG_TRACE;
   struct config_generic *gconf;
   bool    reset_custom;
 
@@ -6673,6 +6819,7 @@ validate_option_array_item(const char *name, const char *value,
     if (skipIfNoPermissions)
       return false;
 
+    DBUG_INSTANT_PRINT("info", "permission denied to set parameter \"%s\"", name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to set parameter \"%s\"", name)));
@@ -6724,9 +6871,13 @@ static bool
 call_bool_check_hook(struct config_bool *conf, bool *newval, void **extra,
                      GucSource source, int elevel)
 {
+  DBUG_TRACE;
+
   /* Quick success if no hook */
-  if (!conf->check_hook)
+  if (!conf->check_hook) {
+    DBUG_PRINT("info", "quick success if no hook");
     return true;
+  }
 
   /* Reset variables that might be set by hook */
   GUC_check_errcode_value = ERRCODE_INVALID_PARAMETER_VALUE;
@@ -6746,10 +6897,12 @@ call_bool_check_hook(struct config_bool *conf, bool *newval, void **extra,
              GUC_check_errhint_string ?
              errhint("%s", GUC_check_errhint_string) : 0));
     /* Flush any strings created in ErrorContext */
+    DBUG_PRINT("info", "flush any strings created in ErrorContext");
     FlushErrorState();
     return false;
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -6790,9 +6943,13 @@ static bool
 call_real_check_hook(struct config_real *conf, double *newval, void **extra,
                      GucSource source, int elevel)
 {
+  DBUG_TRACE;
+
   /* Quick success if no hook */
-  if (!conf->check_hook)
+  if (!conf->check_hook) {
+    DBUG_PRINT("info", "quick success if no hook");
     return true;
+  }
 
   /* Reset variables that might be set by hook */
   GUC_check_errcode_value = ERRCODE_INVALID_PARAMETER_VALUE;
@@ -6823,11 +6980,14 @@ static bool
 call_string_check_hook(struct config_string *conf, char **newval, void **extra,
                        GucSource source, int elevel)
 {
+  DBUG_TRACE;
   volatile bool result = true;
 
   /* Quick success if no hook */
-  if (!conf->check_hook)
+  if (!conf->check_hook) {
+    DBUG_PRINT("info", "quick success if no hook");
     return true;
+  }
 
   /*
    * If elevel is ERROR, or if the check_hook itself throws an elog
@@ -6872,9 +7032,13 @@ static bool
 call_enum_check_hook(struct config_enum *conf, int *newval, void **extra,
                      GucSource source, int elevel)
 {
+  DBUG_TRACE;
+
   /* Quick success if no hook */
-  if (!conf->check_hook)
+  if (!conf->check_hook) {
+    DBUG_PRINT("info", "quick success if no hook");
     return true;
+  }
 
   /* Reset variables that might be set by hook */
   GUC_check_errcode_value = ERRCODE_INVALID_PARAMETER_VALUE;

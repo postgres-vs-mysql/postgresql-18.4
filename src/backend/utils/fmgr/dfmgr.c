@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 
@@ -93,6 +94,7 @@ void *
 load_external_function(const char *filename, const char *funcname,
                        bool signalNotFound, void **filehandle)
 {
+  DBUG_TRACE;
   char     *fullname;
   void     *lib_handle;
   void     *retval;
@@ -113,6 +115,8 @@ load_external_function(const char *filename, const char *funcname,
 
   /* Expand the possibly-abbreviated filename to an exact path name */
   fullname = expand_dynamic_library_name(filename);
+  DBUG_PRINT("info", "load the specified dynamic-link library file, and look for a function named funcname in it");
+  DBUG_PRINT("info", "filename:%s, funcname:%s", filename, funcname);
 
   /* Load the shared library, unless we already did */
   lib_handle = internal_load_library(fullname);
@@ -122,6 +126,7 @@ load_external_function(const char *filename, const char *funcname,
     *filehandle = lib_handle;
 
   /* Look up the function within the library. */
+  DBUG_PRINT("info", "look up the function(%s) within the library", funcname);
   retval = dlsym(lib_handle, funcname);
 
   if (retval == NULL && signalNotFound)
@@ -145,6 +150,7 @@ load_external_function(const char *filename, const char *funcname,
 void
 load_file(const char *filename, bool restricted)
 {
+  DBUG_TRACE;
   char     *fullname;
 
   /* Apply security restriction if requested */
@@ -167,6 +173,8 @@ load_file(const char *filename, bool restricted)
 void *
 lookup_external_function(void *filehandle, const char *funcname)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "look up a function(%s) whose library file is already loaded", funcname);
   return dlsym(filehandle, funcname);
 }
 
@@ -185,11 +193,14 @@ lookup_external_function(void *filehandle, const char *funcname)
 static void *
 internal_load_library(const char *libname)
 {
+  DBUG_TRACE;
   DynamicFileList *file_scanner;
   PGModuleMagicFunction magic_func;
   char     *load_error;
   struct stat stat_buf;
   PG_init_t PG_init;
+
+  DBUG_PRINT("info", "load the specified dynamic-link library file(%s), unless it already is loaded", libname);
 
   /*
    * Scan the list of loaded FILES to see if the file has been loaded.
@@ -204,6 +215,8 @@ internal_load_library(const char *libname)
     /*
      * Check for same files - different paths (ie, symlink or link)
      */
+    DBUG_PRINT("info", "check for same files - different paths (ie, symlink or link)");
+
     if (stat(libname, &stat_buf) == -1)
       ereport(ERROR,
               (errcode_for_file_access(),
@@ -221,6 +234,7 @@ internal_load_library(const char *libname)
     /*
      * File not loaded yet.
      */
+    DBUG_PRINT("info", "file not loaded yet");
     file_scanner = (DynamicFileList *)
                    malloc(offsetof(DynamicFileList, filename) + strlen(libname) + 1);
 
@@ -250,6 +264,7 @@ internal_load_library(const char *libname)
     }
 
     /* Check the magic function to determine compatibility */
+    DBUG_PRINT("info", "check the magic function to determine compatibility");
     magic_func = (PGModuleMagicFunction)
                  dlsym(file_scanner->handle, PG_MAGIC_FUNCTION_NAME_STRING);
 
@@ -289,8 +304,10 @@ internal_load_library(const char *libname)
      */
     PG_init = (PG_init_t) dlsym(file_scanner->handle, "_PG_init");
 
-    if (PG_init)
+    if (PG_init) {
+      DBUG_PRINT("info", "if the library has a _PG_init() function, call it");
       (*PG_init) ();
+    }
 
     /* OK to link it into list */
     if (file_list == NULL)
@@ -311,6 +328,7 @@ static void
 incompatible_module_error(const char *libname,
                           const Pg_abi_values *module_magic_data)
 {
+  DBUG_TRACE;
   StringInfoData details;
 
   /*
@@ -462,6 +480,7 @@ get_loaded_module_details(DynamicFileList *dfptr,
 static char *
 expand_dynamic_library_name(const char *name)
 {
+  DBUG_TRACE;
   bool    have_slash;
   char     *new;
   char     *full;
@@ -517,6 +536,8 @@ expand_dynamic_library_name(const char *name)
 static void
 check_restricted_library_name(const char *name)
 {
+  DBUG_TRACE;
+
   if (strncmp(name, "$libdir/plugins/", 16) != 0 ||
       first_dir_separator(name + 16) != NULL)
     ereport(ERROR,
@@ -571,6 +592,7 @@ char *
 find_in_path(const char *basename, const char *path, const char *path_param,
              const char *macro, const char *macro_val)
 {
+  DBUG_TRACE;
   const char *p;
   size_t    baselen;
 
@@ -660,6 +682,7 @@ find_in_path(const char *basename, const char *path, const char *path_param,
 void    **
 find_rendezvous_variable(const char *varName)
 {
+  DBUG_TRACE;
   static HTAB *rendezvousHash = NULL;
 
   rendezvousHashEntry *hentry;
@@ -714,6 +737,7 @@ EstimateLibraryStateSpace(void)
 void
 SerializeLibraryState(Size maxsize, char *start_address)
 {
+  DBUG_TRACE;
   DynamicFileList *file_scanner;
 
   for (file_scanner = file_list;
@@ -736,6 +760,8 @@ SerializeLibraryState(Size maxsize, char *start_address)
 void
 RestoreLibraryState(char *start_address)
 {
+  DBUG_TRACE;
+
   while (*start_address != '\0') {
     internal_load_library(start_address);
     start_address += strlen(start_address) + 1;

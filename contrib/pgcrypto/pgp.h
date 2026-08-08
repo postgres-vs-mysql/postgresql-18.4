@@ -190,21 +190,20 @@ struct PGP_PubKey
   uint8   algo;
 
   /* public part */
-  union
-  {
-    struct
-    {
+  union {
+struct
+{
       PGP_MPI    *p;
       PGP_MPI    *g;
       PGP_MPI    *y;
     }     elg;
-    struct
-    {
+struct
+{
       PGP_MPI    *n;
       PGP_MPI    *e;
     }     rsa;
-    struct
-    {
+struct
+{
       PGP_MPI    *p;
       PGP_MPI    *q;
       PGP_MPI    *g;
@@ -213,21 +212,20 @@ struct PGP_PubKey
   }     pub;
 
   /* secret part */
-  union
-  {
-    struct
-    {
+  union {
+struct
+{
       PGP_MPI    *x;
     }     elg;
-    struct
-    {
+struct
+{
       PGP_MPI    *d;
       PGP_MPI    *p;
       PGP_MPI    *q;
       PGP_MPI    *u;
     }     rsa;
-    struct
-    {
+struct
+{
       PGP_MPI    *x;
     }     dsa;
   }     sec;

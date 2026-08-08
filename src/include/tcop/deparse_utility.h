@@ -48,56 +48,55 @@ typedef struct CollectedCommand
   bool    in_extension;
   Node     *parsetree;
 
-  union
-  {
+  union {
     /* most commands */
-    struct
-    {
+struct
+{
       ObjectAddress address;
       ObjectAddress secondaryObject;
     }     simple;
 
     /* ALTER TABLE, and internal uses thereof */
-    struct
-    {
+struct
+{
       Oid     objectId;
       Oid     classId;
       List     *subcmds;
     }     alterTable;
 
     /* GRANT / REVOKE */
-    struct
-    {
+struct
+{
       InternalGrant *istmt;
     }     grant;
 
     /* ALTER OPERATOR FAMILY */
-    struct
-    {
+struct
+{
       ObjectAddress address;
       List     *operators;
       List     *procedures;
     }     opfam;
 
     /* CREATE OPERATOR CLASS */
-    struct
-    {
+struct
+{
       ObjectAddress address;
       List     *operators;
       List     *procedures;
     }     createopc;
 
     /* ALTER TEXT SEARCH CONFIGURATION ADD/ALTER/DROP MAPPING */
-    struct
-    {
+struct
+{
       ObjectAddress address;
       Oid      *dictIds;
       int     ndicts;
     }     atscfg;
 
     /* ALTER DEFAULT PRIVILEGES */
-    struct
-    {
+struct
+{
       ObjectType  objtype;
     }     defprivs;
   }     d;

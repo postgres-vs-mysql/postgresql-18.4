@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "storage/bufmgr.h"
 #include "storage/fsm_internals.h"
@@ -159,6 +160,7 @@ int
 fsm_search_avail(Buffer buf, uint8 minvalue, bool advancenext,
                  bool exclusive_lock_held)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   FSMPage   fsmpage = (FSMPage) PageGetContents(page);
   int     nodeno;
@@ -171,8 +173,10 @@ restart:
    * Check the root first, and exit quickly if there's no leaf with enough
    * free space
    */
-  if (fsmpage->fp_nodes[0] < minvalue)
+  if (fsmpage->fp_nodes[0] < minvalue) {
+    DBUG_PRINT("info", "exit quickly if there's no leaf with enough free space:%u, minvalue:%u", fsmpage->fp_nodes[0], minvalue);
     return -1;
+  }
 
   /*
    * Start search using fp_next_slot.  It's just a hint, so check that it's
@@ -228,10 +232,13 @@ restart:
    *----------
    */
   nodeno = target;
+  DBUG_PRINT("info", "start the search from the target slot:%u", target);
 
   while (nodeno > 0) {
-    if (fsmpage->fp_nodes[nodeno] >= minvalue)
+    if (fsmpage->fp_nodes[nodeno] >= minvalue) {
+      DBUG_PRINT("info", "found nodeno:%u, value:%u, minvalue:%u", nodeno, fsmpage->fp_nodes[nodeno], minvalue);
       break;
+    }
 
     /*
      * Move to the right, wrapping around on same level if necessary, then
@@ -285,6 +292,7 @@ restart:
 
       fsm_rebuild_page(page);
       MarkBufferDirtyHint(buf, false);
+      DBUG_PRINT("info", "goto restart");
       goto restart;
     }
   }

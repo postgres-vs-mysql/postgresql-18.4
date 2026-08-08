@@ -14,6 +14,7 @@
 #ifndef SMGR_H
 #define SMGR_H
 
+#include "debug_trace.h"
 #include "lib/ilist.h"
 #include "storage/aio_types.h"
 #include "storage/block.h"
@@ -124,6 +125,7 @@ static inline void
 smgrread(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
          void *buffer)
 {
+  DBUG_TRACE;
   smgrreadv(reln, forknum, blocknum, &buffer, 1);
 }
 
@@ -131,6 +133,7 @@ static inline void
 smgrwrite(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
           const void *buffer, bool skipFsync)
 {
+  DBUG_TRACE;
   smgrwritev(reln, forknum, blocknum, &buffer, 1, skipFsync);
 }
 

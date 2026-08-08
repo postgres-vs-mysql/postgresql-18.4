@@ -18,6 +18,7 @@
 
 /* -- parts of this are adapted from D. Whitley's Genitor algorithm -- */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "optimizer/geqo_random.h"
@@ -33,6 +34,7 @@
 void
 init_tour(PlannerInfo *root, Gene *tour, int num_gene)
 {
+  DBUG_TRACE;
   int     i,
           j;
 

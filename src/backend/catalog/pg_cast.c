@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -50,6 +51,7 @@ CastCreate(Oid sourcetypeid, Oid targettypeid,
            Oid funcid, Oid incastid, Oid outcastid,
            char castcontext, char castmethod, DependencyType behavior)
 {
+  DBUG_TRACE;
   Relation  relation;
   HeapTuple tuple;
   Oid     castid;
@@ -70,12 +72,17 @@ CastCreate(Oid sourcetypeid, Oid targettypeid,
                           ObjectIdGetDatum(sourcetypeid),
                           ObjectIdGetDatum(targettypeid));
 
-  if (HeapTupleIsValid(tuple))
+  if (HeapTupleIsValid(tuple)) {
+    char *format1 = format_type_be(sourcetypeid);
+    char *format2 = format_type_be(targettypeid);
+    DBUG_INSTANT_PRINT("info", "cast from type %s to type %s already exists",
+                       format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("cast from type %s to type %s already exists",
-                    format_type_be(sourcetypeid),
-                    format_type_be(targettypeid))));
+                    format1,
+                    format2)));
+  }
 
   /* ready to go */
   castid = GetNewOidWithIndex(relation, CastOidIndexId, Anum_pg_cast_oid);

@@ -7,6 +7,7 @@
 #ifndef HASHFN_H
 #define HASHFN_H
 
+#include "debug_trace.h"
 
 /*
  * Rotate the high 32 bits and the low 32 bits separately.  The standard
@@ -42,13 +43,15 @@ hash_any_extended(const unsigned char *k, int keylen, uint64 seed)
 static inline Datum
 hash_uint32(uint32 k)
 {
-  return UInt32GetDatum(hash_bytes_uint32(k));
+  uint32 result = hash_bytes_uint32(k);
+  return UInt32GetDatum(result);
 }
 
 static inline Datum
 hash_uint32_extended(uint32 k, uint64 seed)
 {
-  return UInt64GetDatum(hash_bytes_uint32_extended(k, seed));
+  uint64 result = hash_bytes_uint32_extended(k, seed);
+  return UInt64GetDatum(result);
 }
 #endif
 

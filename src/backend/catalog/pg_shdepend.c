@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -124,6 +125,7 @@ recordSharedDependencyOn(ObjectAddress *depender,
                          ObjectAddress *referenced,
                          SharedDependencyType deptype)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
 
   /*
@@ -164,6 +166,7 @@ recordSharedDependencyOn(ObjectAddress *depender,
 void
 recordDependencyOnOwner(Oid classId, Oid objectId, Oid owner)
 {
+  DBUG_TRACE;
   ObjectAddress myself,
                 referenced;
 
@@ -205,6 +208,7 @@ shdepChangeDep(Relation sdepRel,
                Oid refclassid, Oid refobjid,
                SharedDependencyType deptype)
 {
+  DBUG_TRACE;
   Oid     dbid = classIdGetDbId(classid);
   HeapTuple oldtup = NULL;
   HeapTuple scantup;
@@ -308,6 +312,7 @@ shdepChangeDep(Relation sdepRel,
 void
 changeDependencyOnOwner(Oid classId, Oid objectId, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
 
   sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
@@ -362,6 +367,7 @@ changeDependencyOnOwner(Oid classId, Oid objectId, Oid newOwnerId)
 void
 recordDependencyOnTablespace(Oid classId, Oid objectId, Oid tablespace)
 {
+  DBUG_TRACE;
   ObjectAddress myself,
                 referenced;
 
@@ -383,6 +389,7 @@ recordDependencyOnTablespace(Oid classId, Oid objectId, Oid tablespace)
 void
 changeDependencyOnTablespace(Oid classId, Oid objectId, Oid newTablespaceId)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
 
   sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
@@ -413,6 +420,7 @@ changeDependencyOnTablespace(Oid classId, Oid objectId, Oid newTablespaceId)
 static void
 getOidListDiff(Oid *list1, int *nlist1, Oid *list2, int *nlist2)
 {
+  DBUG_TRACE;
   int     in1,
           in2,
           out1,
@@ -479,6 +487,7 @@ updateAclDependencies(Oid classId, Oid objectId, int32 objsubId,
                       int noldmembers, Oid *oldmembers,
                       int nnewmembers, Oid *newmembers)
 {
+  DBUG_TRACE;
   updateAclDependenciesWorker(classId, objectId, objsubId,
                               ownerId, SHARED_DEPENDENCY_ACL,
                               noldmembers, oldmembers,
@@ -499,6 +508,7 @@ updateInitAclDependencies(Oid classId, Oid objectId, int32 objsubId,
                           int noldmembers, Oid *oldmembers,
                           int nnewmembers, Oid *newmembers)
 {
+  DBUG_TRACE;
   updateAclDependenciesWorker(classId, objectId, objsubId,
                               InvalidOid, /* ownerId will not be consulted */
                               SHARED_DEPENDENCY_INITACL,
@@ -513,6 +523,7 @@ updateAclDependenciesWorker(Oid classId, Oid objectId, int32 objsubId,
                             int noldmembers, Oid *oldmembers,
                             int nnewmembers, Oid *newmembers)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   int     i;
 
@@ -663,6 +674,7 @@ bool
 checkSharedDependencies(Oid classId, Oid objectId,
                         char **detail_msg, char **detail_log_msg)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   ScanKeyData key[2];
   SysScanDesc scan;
@@ -678,16 +690,19 @@ checkSharedDependencies(Oid classId, Oid objectId,
   int     allocedobjects;
   StringInfoData descs;
   StringInfoData alldescs;
+  char *name_str;
 
   /* This case can be dispatched quickly */
   if (IsPinnedObject(classId, objectId)) {
     object.classId = classId;
     object.objectId = objectId;
     object.objectSubId = 0;
+    name_str = getObjectDescription(&object, false);
+    DBUG_INSTANT_PRINT("info", "cannot drop %s because it is required by the database system", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
              errmsg("cannot drop %s because it is required by the database system",
-                    getObjectDescription(&object, false))));
+                    name_str)));
   }
 
   /*
@@ -871,6 +886,7 @@ checkSharedDependencies(Oid classId, Oid objectId,
 void
 copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   TupleDesc sdepDesc;
   ScanKeyData key[1];
@@ -973,6 +989,7 @@ copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 void
 dropDatabaseDependencies(Oid databaseId)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   ScanKeyData key[1];
   SysScanDesc scan;
@@ -1020,6 +1037,7 @@ dropDatabaseDependencies(Oid databaseId)
 void
 deleteSharedDependencyRecordsFor(Oid classId, Oid objectId, int32 objectSubId)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
 
   sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
@@ -1045,6 +1063,7 @@ shdepAddDependency(Relation sdepRel,
                    Oid refclassId, Oid refobjId,
                    SharedDependencyType deptype)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Datum   values[Natts_pg_shdepend];
   bool    nulls[Natts_pg_shdepend];
@@ -1101,6 +1120,7 @@ shdepDropDependency(Relation sdepRel,
                     Oid refclassId, Oid refobjId,
                     SharedDependencyType deptype)
 {
+  DBUG_TRACE;
   ScanKeyData key[4];
   int     nkeys;
   SysScanDesc scan;
@@ -1164,6 +1184,7 @@ shdepDropDependency(Relation sdepRel,
 static Oid
 classIdGetDbId(Oid classId)
 {
+  DBUG_TRACE;
   Oid     dbId;
 
   if (IsSharedRelation(classId))
@@ -1185,16 +1206,19 @@ classIdGetDbId(Oid classId)
 void
 shdepLockAndCheckObject(Oid classId, Oid objectId)
 {
+  DBUG_TRACE;
   /* AccessShareLock should be OK, since we are not modifying the object */
   LockSharedObject(classId, objectId, 0, AccessShareLock);
 
   switch (classId) {
     case AuthIdRelationId:
-      if (!SearchSysCacheExists1(AUTHOID, ObjectIdGetDatum(objectId)))
+      if (!SearchSysCacheExists1(AUTHOID, ObjectIdGetDatum(objectId))) {
+        DBUG_INSTANT_PRINT("info", "role %u was concurrently dropped", objectId);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("role %u was concurrently dropped",
                         objectId)));
+      }
 
       break;
 
@@ -1202,11 +1226,13 @@ shdepLockAndCheckObject(Oid classId, Oid objectId)
       /* For lack of a syscache on pg_tablespace, do this: */
       char     *tablespace = get_tablespace_name(objectId);
 
-      if (tablespace == NULL)
+      if (tablespace == NULL) {
+        DBUG_INSTANT_PRINT("info", "tablespace %u was concurrently dropped", objectId);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("tablespace %u was concurrently dropped",
                         objectId)));
+      }
 
       pfree(tablespace);
       break;
@@ -1216,11 +1242,13 @@ shdepLockAndCheckObject(Oid classId, Oid objectId)
       /* For lack of a syscache on pg_database, do this: */
       char     *database = get_database_name(objectId);
 
-      if (database == NULL)
+      if (database == NULL) {
+        DBUG_INSTANT_PRINT("info", "database %u was concurrently dropped", objectId);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("database %u was concurrently dropped",
                         objectId)));
+      }
 
       pfree(database);
       break;
@@ -1254,6 +1282,7 @@ storeObjectDescription(StringInfo descs,
                        SharedDependencyType deptype,
                        int count)
 {
+  DBUG_TRACE;
   char     *objdesc = getObjectDescription(object, false);
 
   /*
@@ -1316,6 +1345,7 @@ storeObjectDescription(StringInfo descs,
 void
 shdepDropOwned(List *roleids, DropBehavior behavior)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   ListCell   *cell;
   ObjectAddresses *deleteobjs;
@@ -1342,16 +1372,20 @@ shdepDropOwned(List *roleids, DropBehavior behavior)
     /* Doesn't work for pinned objects */
     if (IsPinnedObject(AuthIdRelationId, roleid)) {
       ObjectAddress obj;
+      char *obj_descrip;
 
       obj.classId = AuthIdRelationId;
       obj.objectId = roleid;
       obj.objectSubId = 0;
 
+      obj_descrip = getObjectDescription(&obj, false);
+      DBUG_INSTANT_PRINT("info", "cannot drop objects owned by %s because they are required by the database system",
+                         obj_descrip);
       ereport(ERROR,
               (errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
                errmsg("cannot drop objects owned by %s because they are "
                       "required by the database system",
-                      getObjectDescription(&obj, false))));
+                      obj_descrip)));
     }
 
     ScanKeyInit(&key[0],
@@ -1505,8 +1539,10 @@ shdepDropOwned(List *roleids, DropBehavior behavior)
 void
 shdepReassignOwned(List *roleids, Oid newrole)
 {
+  DBUG_TRACE;
   Relation  sdepRel;
   ListCell   *cell;
+  char *obj_descrip;
 
   /*
    * We don't need this strong a lock here, but we'll call routines that
@@ -1529,10 +1565,13 @@ shdepReassignOwned(List *roleids, Oid newrole)
       obj.objectId = roleid;
       obj.objectSubId = 0;
 
+      obj_descrip = getObjectDescription(&obj, false);
+      DBUG_INSTANT_PRINT("info", "cannot reassign ownership of objects owned by %s because they are required by the database system",
+                         obj_descrip);
       ereport(ERROR,
               (errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
                errmsg("cannot reassign ownership of objects owned by %s because they are required by the database system",
-                      getObjectDescription(&obj, false))));
+                      obj_descrip)));
 
       /*
        * There's no need to tell the whole truth, which is that we
@@ -1621,6 +1660,8 @@ shdepReassignOwned(List *roleids, Oid newrole)
 static void
 shdepReassignOwned_Owner(Form_pg_shdepend sdepForm, Oid newrole)
 {
+  DBUG_TRACE;
+
   /* Issue the appropriate ALTER OWNER call */
   switch (sdepForm->classid) {
     case TypeRelationId:
@@ -1707,6 +1748,7 @@ shdepReassignOwned_Owner(Form_pg_shdepend sdepForm, Oid newrole)
 static void
 shdepReassignOwned_InitAcl(Form_pg_shdepend sdepForm, Oid oldrole, Oid newrole)
 {
+  DBUG_TRACE;
   /*
    * Currently, REASSIGN OWNED replaces mentions of oldrole with newrole in
    * pg_init_privs entries, just as it does in the object's regular ACL.

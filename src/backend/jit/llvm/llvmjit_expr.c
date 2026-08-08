@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <llvm-c/Core.h>
 #include <llvm-c/Target.h>
@@ -78,6 +79,7 @@ static LLVMValueRef create_LifetimeEnd(LLVMModuleRef mod);
 bool
 llvm_compile_expr(ExprState *state)
 {
+  DBUG_TRACE;
   PlanState  *parent = state->parent;
   char     *funcname;
 
@@ -2899,6 +2901,7 @@ llvm_compile_expr(ExprState *state)
 static Datum
 ExecRunCompiledExpr(ExprState *state, ExprContext *econtext, bool *isNull)
 {
+  DBUG_TRACE;
   CompiledExprState *cstate = state->evalfunc_private;
   ExprStateEvalFunc func;
 
@@ -2921,6 +2924,7 @@ BuildV1Call(LLVMJitContext *context, LLVMBuilderRef b,
             LLVMModuleRef mod, FunctionCallInfo fcinfo,
             LLVMValueRef *v_fcinfo_isnull)
 {
+  DBUG_TRACE;
   LLVMValueRef v_fn;
   LLVMValueRef v_fcinfo_isnullp;
   LLVMValueRef v_retval;
@@ -2973,6 +2977,7 @@ build_EvalXFuncInt(LLVMBuilderRef b, LLVMModuleRef mod, const char *funcname,
                    LLVMValueRef v_state, ExprEvalStep *op,
                    int nargs, LLVMValueRef *v_args)
 {
+  DBUG_TRACE;
   LLVMValueRef v_fn = llvm_pg_func(mod, funcname);
   LLVMValueRef *params;
   int     argno = 0;
@@ -3002,6 +3007,7 @@ build_EvalXFuncInt(LLVMBuilderRef b, LLVMModuleRef mod, const char *funcname,
 static LLVMValueRef
 create_LifetimeEnd(LLVMModuleRef mod)
 {
+  DBUG_TRACE;
   LLVMTypeRef sig;
   LLVMValueRef fn;
   LLVMTypeRef param_types[2];

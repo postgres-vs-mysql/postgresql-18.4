@@ -56,6 +56,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heaptoast.h"
 #include "access/htup_details.h"
@@ -128,6 +129,7 @@ tts_virtual_clear(TupleTableSlot *slot)
 static void
 tts_virtual_getsomeattrs(TupleTableSlot *slot, int natts)
 {
+  DBUG_TRACE;
   elog(ERROR, "getsomeattrs is not required to be called on a virtual tuple table slot");
 }
 
@@ -139,6 +141,7 @@ tts_virtual_getsomeattrs(TupleTableSlot *slot, int natts)
 static Datum
 tts_virtual_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   ereport(ERROR,
@@ -155,6 +158,7 @@ tts_virtual_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 static bool
 tts_virtual_is_current_xact_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   ereport(ERROR,
@@ -174,6 +178,7 @@ tts_virtual_is_current_xact_tuple(TupleTableSlot *slot)
 static void
 tts_virtual_materialize(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   VirtualTupleTableSlot *vslot = (VirtualTupleTableSlot *) slot;
   TupleDesc desc = slot->tts_tupleDescriptor;
   Size    sz = 0;
@@ -259,6 +264,7 @@ tts_virtual_materialize(TupleTableSlot *slot)
 static void
 tts_virtual_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 {
+  DBUG_TRACE;
   TupleDesc srcdesc = srcslot->tts_tupleDescriptor;
 
   tts_virtual_clear(dstslot);
@@ -280,6 +286,7 @@ tts_virtual_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 static HeapTuple
 tts_virtual_copy_heap_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   return heap_form_tuple(slot->tts_tupleDescriptor,
@@ -290,6 +297,7 @@ tts_virtual_copy_heap_tuple(TupleTableSlot *slot)
 static MinimalTuple
 tts_virtual_copy_minimal_tuple(TupleTableSlot *slot, Size extra)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   return heap_form_minimal_tuple(slot->tts_tupleDescriptor,
@@ -316,6 +324,7 @@ tts_heap_release(TupleTableSlot *slot)
 static void
 tts_heap_clear(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   /* Free the memory for the heap tuple if it's allowed. */
@@ -334,6 +343,7 @@ tts_heap_clear(TupleTableSlot *slot)
 static void
 tts_heap_getsomeattrs(TupleTableSlot *slot, int natts)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -344,6 +354,7 @@ tts_heap_getsomeattrs(TupleTableSlot *slot, int natts)
 static Datum
 tts_heap_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -364,6 +375,7 @@ tts_heap_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 static bool
 tts_heap_is_current_xact_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
   TransactionId xmin;
 
@@ -387,6 +399,7 @@ tts_heap_is_current_xact_tuple(TupleTableSlot *slot)
 static void
 tts_heap_materialize(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
   MemoryContext oldContext;
 
@@ -426,6 +439,7 @@ tts_heap_materialize(TupleTableSlot *slot)
 static void
 tts_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   MemoryContext oldcontext;
 
@@ -439,6 +453,7 @@ tts_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 static HeapTuple
 tts_heap_get_heap_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -452,6 +467,7 @@ tts_heap_get_heap_tuple(TupleTableSlot *slot)
 static HeapTuple
 tts_heap_copy_heap_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -465,6 +481,7 @@ tts_heap_copy_heap_tuple(TupleTableSlot *slot)
 static MinimalTuple
 tts_heap_copy_minimal_tuple(TupleTableSlot *slot, Size extra)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   if (!hslot->tuple)
@@ -476,6 +493,7 @@ tts_heap_copy_minimal_tuple(TupleTableSlot *slot, Size extra)
 static void
 tts_heap_store_tuple(TupleTableSlot *slot, HeapTuple tuple, bool shouldFree)
 {
+  DBUG_TRACE;
   HeapTupleTableSlot *hslot = (HeapTupleTableSlot *) slot;
 
   tts_heap_clear(slot);
@@ -498,6 +516,7 @@ tts_heap_store_tuple(TupleTableSlot *slot, HeapTuple tuple, bool shouldFree)
 static void
 tts_minimal_init(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MinimalTupleTableSlot *mslot = (MinimalTupleTableSlot *) slot;
 
   /*
@@ -532,6 +551,7 @@ tts_minimal_clear(TupleTableSlot *slot)
 static void
 tts_minimal_getsomeattrs(TupleTableSlot *slot, int natts)
 {
+  DBUG_TRACE;
   MinimalTupleTableSlot *mslot = (MinimalTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -546,6 +566,7 @@ tts_minimal_getsomeattrs(TupleTableSlot *slot, int natts)
 static Datum
 tts_minimal_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   ereport(ERROR,
@@ -563,6 +584,7 @@ tts_minimal_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 static bool
 tts_minimal_is_current_xact_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   Assert(!TTS_EMPTY(slot));
 
   ereport(ERROR,
@@ -575,6 +597,7 @@ tts_minimal_is_current_xact_tuple(TupleTableSlot *slot)
 static void
 tts_minimal_materialize(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MinimalTupleTableSlot *mslot = (MinimalTupleTableSlot *) slot;
   MemoryContext oldContext;
 
@@ -621,6 +644,7 @@ tts_minimal_materialize(TupleTableSlot *slot)
 static void
 tts_minimal_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   MinimalTuple mintuple;
 
@@ -634,6 +658,7 @@ tts_minimal_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 static MinimalTuple
 tts_minimal_get_minimal_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MinimalTupleTableSlot *mslot = (MinimalTupleTableSlot *) slot;
 
   if (!mslot->mintuple)
@@ -667,6 +692,7 @@ tts_minimal_copy_minimal_tuple(TupleTableSlot *slot, Size extra)
 static void
 tts_minimal_store_tuple(TupleTableSlot *slot, MinimalTuple mtup, bool shouldFree)
 {
+  DBUG_TRACE;
   MinimalTupleTableSlot *mslot = (MinimalTupleTableSlot *) slot;
 
   tts_minimal_clear(slot);
@@ -706,6 +732,7 @@ tts_buffer_heap_release(TupleTableSlot *slot)
 static void
 tts_buffer_heap_clear(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   /*
@@ -735,6 +762,7 @@ tts_buffer_heap_clear(TupleTableSlot *slot)
 static void
 tts_buffer_heap_getsomeattrs(TupleTableSlot *slot, int natts)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -745,6 +773,7 @@ tts_buffer_heap_getsomeattrs(TupleTableSlot *slot, int natts)
 static Datum
 tts_buffer_heap_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -765,6 +794,7 @@ tts_buffer_heap_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 static bool
 tts_buffer_is_current_xact_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   TransactionId xmin;
 
@@ -788,6 +818,7 @@ tts_buffer_is_current_xact_tuple(TupleTableSlot *slot)
 static void
 tts_buffer_heap_materialize(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
   MemoryContext oldContext;
 
@@ -845,6 +876,7 @@ tts_buffer_heap_materialize(TupleTableSlot *slot)
 static void
 tts_buffer_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bsrcslot = (BufferHeapTupleTableSlot *) srcslot;
   BufferHeapTupleTableSlot *bdstslot = (BufferHeapTupleTableSlot *) dstslot;
 
@@ -884,6 +916,7 @@ tts_buffer_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 static HeapTuple
 tts_buffer_heap_get_heap_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -897,6 +930,7 @@ tts_buffer_heap_get_heap_tuple(TupleTableSlot *slot)
 static HeapTuple
 tts_buffer_heap_copy_heap_tuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -910,6 +944,7 @@ tts_buffer_heap_copy_heap_tuple(TupleTableSlot *slot)
 static MinimalTuple
 tts_buffer_heap_copy_minimal_tuple(TupleTableSlot *slot, Size extra)
 {
+  DBUG_TRACE;
   BufferHeapTupleTableSlot *bslot = (BufferHeapTupleTableSlot *) slot;
 
   Assert(!TTS_EMPTY(slot));
@@ -996,6 +1031,7 @@ slot_deform_heap_tuple_internal(TupleTableSlot *slot, HeapTuple tuple,
                                 int attnum, int natts, bool slow,
                                 bool hasnulls, uint32 *offp, bool *slowp)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc = slot->tts_tupleDescriptor;
   Datum    *values = slot->tts_values;
   bool     *isnull = slot->tts_isnull;
@@ -1008,6 +1044,8 @@ slot_deform_heap_tuple_internal(TupleTableSlot *slot, HeapTuple tuple,
 
   for (; attnum < natts; attnum++) {
     CompactAttribute *thisatt = TupleDescCompactAttr(tupleDesc, attnum);
+
+    DBUG_PRINT("info",  "this attribute len:%d for attnum:%d", thisatt->attlen, attnum);
 
     if (hasnulls && att_isnull(attnum, bp)) {
       values[attnum] = (Datum) 0;
@@ -1164,6 +1202,7 @@ slot_deform_heap_tuple(TupleTableSlot *slot, HeapTuple tuple, uint32 *offp,
    */
   slot->tts_nvalid = attnum;
   *offp = off;
+  DBUG_PRINT("info", "save state for next execution, off:%u, attnum:%d", off, attnum);
 
   if (slow)
     slot->tts_flags |= TTS_FLAG_SLOW;
@@ -1265,6 +1304,7 @@ TupleTableSlot *
 MakeTupleTableSlot(TupleDesc tupleDesc,
                    const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   Size    basesz,
           allocsz;
   TupleTableSlot *slot;
@@ -1345,6 +1385,7 @@ void
 ExecResetTupleTable(List *tupleTable, /* tuple table */
                     bool shouldFree)  /* true if we should free memory */
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, tupleTable) {
@@ -1391,6 +1432,7 @@ TupleTableSlot *
 MakeSingleTupleTableSlot(TupleDesc tupdesc,
                          const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot = MakeTupleTableSlot(tupdesc, tts_ops);
 
   return slot;
@@ -1406,6 +1448,7 @@ MakeSingleTupleTableSlot(TupleDesc tupdesc,
 void
 ExecDropSingleTupleTableSlot(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   /* This should match ExecResetTupleTable's processing of one slot */
   Assert(IsA(slot, TupleTableSlot));
   ExecClearTuple(slot);
@@ -1445,6 +1488,7 @@ void
 ExecSetSlotDescriptor(TupleTableSlot *slot, /* slot to change */
                       TupleDesc tupdesc)  /* new tuple descriptor */
 {
+  DBUG_TRACE;
   Assert(!TTS_FIXED(slot));
 
   /* For safety, make sure slot is empty before changing it */
@@ -1510,6 +1554,7 @@ ExecStoreHeapTuple(HeapTuple tuple,
                    TupleTableSlot *slot,
                    bool shouldFree)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1551,6 +1596,12 @@ ExecStoreBufferHeapTuple(HeapTuple tuple,
                          TupleTableSlot *slot,
                          Buffer buffer)
 {
+  DBUG_TRACE;
+  BlockNumber blocknum = ItemPointerGetBlockNumber(&tuple->t_self);
+  OffsetNumber offsetnum = ItemPointerGetOffsetNumber(&tuple->t_self);
+
+  DBUG_PRINT("info", "store an on-disk physical tuple(blkno:%u, offset:%u) from a buffer", blocknum, offsetnum);
+
   /*
    * sanity checks
    */
@@ -1578,6 +1629,7 @@ ExecStorePinnedBufferHeapTuple(HeapTuple tuple,
                                TupleTableSlot *slot,
                                Buffer buffer)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1631,6 +1683,8 @@ ExecForceStoreHeapTuple(HeapTuple tuple,
                         TupleTableSlot *slot,
                         bool shouldFree)
 {
+  DBUG_TRACE;
+
   if (TTS_IS_HEAPTUPLE(slot)) {
     ExecStoreHeapTuple(tuple, slot, shouldFree);
   } else if (TTS_IS_BUFFERTUPLE(slot)) {
@@ -1668,6 +1722,8 @@ ExecForceStoreMinimalTuple(MinimalTuple mtup,
                            TupleTableSlot *slot,
                            bool shouldFree)
 {
+  DBUG_TRACE;
+
   if (TTS_IS_MINIMALTUPLE(slot)) {
     tts_minimal_store_tuple(slot, mtup, shouldFree);
   } else {
@@ -1702,6 +1758,7 @@ ExecForceStoreMinimalTuple(MinimalTuple mtup,
 TupleTableSlot *
 ExecStoreVirtualTuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1726,6 +1783,7 @@ ExecStoreVirtualTuple(TupleTableSlot *slot)
 TupleTableSlot *
 ExecStoreAllNullTuple(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1756,6 +1814,7 @@ ExecStoreAllNullTuple(TupleTableSlot *slot)
 void
 ExecStoreHeapTupleDatum(Datum data, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTupleData tuple = {0};
   HeapTupleHeader td;
 
@@ -1794,6 +1853,7 @@ ExecStoreHeapTupleDatum(Datum data, TupleTableSlot *slot)
 HeapTuple
 ExecFetchSlotHeapTuple(TupleTableSlot *slot, bool materialize, bool *shouldFree)
 {
+  DBUG_TRACE;
   /*
    * sanity checks
    */
@@ -1871,6 +1931,7 @@ ExecFetchSlotMinimalTuple(TupleTableSlot *slot,
 Datum
 ExecFetchSlotHeapTupleDatum(TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   TupleDesc tupdesc;
   bool    shouldFree;
@@ -1927,6 +1988,7 @@ ExecInitResultTypeTL(PlanState *planstate)
 void
 ExecInitResultSlot(PlanState *planstate, const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
 
   slot = ExecAllocTableSlot(&planstate->state->es_tupleTable,
@@ -1948,6 +2010,7 @@ void
 ExecInitResultTupleSlotTL(PlanState *planstate,
                           const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   ExecInitResultTypeTL(planstate);
   ExecInitResultSlot(planstate, tts_ops);
 }
@@ -1960,6 +2023,7 @@ void
 ExecInitScanTupleSlot(EState *estate, ScanState *scanstate,
                       TupleDesc tupledesc, const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   scanstate->ss_ScanTupleSlot = ExecAllocTableSlot(&estate->es_tupleTable,
                                 tupledesc, tts_ops);
   scanstate->ps.scandesc = tupledesc;
@@ -1981,6 +2045,7 @@ ExecInitExtraTupleSlot(EState *estate,
                        TupleDesc tupledesc,
                        const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   return ExecAllocTableSlot(&estate->es_tupleTable, tupledesc, tts_ops);
 }
 
@@ -2016,6 +2081,7 @@ ExecInitNullTupleSlot(EState *estate, TupleDesc tupType,
 void
 slot_getmissingattrs(TupleTableSlot *slot, int startAttNum, int lastAttNum)
 {
+  DBUG_TRACE;
   AttrMissing *attrmiss = NULL;
 
   if (slot->tts_tupleDescriptor->constr)
@@ -2046,6 +2112,7 @@ slot_getmissingattrs(TupleTableSlot *slot, int startAttNum, int lastAttNum)
 void
 slot_getsomeattrs_int(TupleTableSlot *slot, int attnum)
 {
+  DBUG_TRACE;
   /* Check for caller errors */
   Assert(slot->tts_nvalid < attnum);  /* checked in slot_getsomeattrs */
   Assert(attnum > 0);
@@ -2099,6 +2166,7 @@ ExecCleanTypeFromTL(List *targetList)
 static TupleDesc
 ExecTypeFromTLInternal(List *targetList, bool skipjunk)
 {
+  DBUG_TRACE;
   TupleDesc typeInfo;
   ListCell   *l;
   int     len;
@@ -2141,6 +2209,7 @@ ExecTypeFromTLInternal(List *targetList, bool skipjunk)
 TupleDesc
 ExecTypeFromExprList(List *exprList)
 {
+  DBUG_TRACE;
   TupleDesc typeInfo;
   ListCell   *lc;
   int     cur_resno = 1;
@@ -2173,6 +2242,7 @@ ExecTypeFromExprList(List *exprList)
 void
 ExecTypeSetColNames(TupleDesc typeInfo, List *namesList)
 {
+  DBUG_TRACE;
   int     colno = 0;
   ListCell   *lc;
 
@@ -2229,6 +2299,7 @@ BlessTupleDesc(TupleDesc tupdesc)
 AttInMetadata *
 TupleDescGetAttInMetadata(TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   int     natts = tupdesc->natts;
   int     i;
   Oid     atttypeid;
@@ -2277,6 +2348,7 @@ TupleDescGetAttInMetadata(TupleDesc tupdesc)
 HeapTuple
 BuildTupleFromCStrings(AttInMetadata *attinmeta, char **values)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = attinmeta->tupdesc;
   int     natts = tupdesc->natts;
   Datum    *dvalues;
@@ -2363,6 +2435,7 @@ BuildTupleFromCStrings(AttInMetadata *attinmeta, char **values)
 Datum
 HeapTupleHeaderGetDatum(HeapTupleHeader tuple)
 {
+  DBUG_TRACE;
   Datum   result;
   TupleDesc tupDesc;
 
@@ -2396,6 +2469,7 @@ begin_tup_output_tupdesc(DestReceiver *dest,
                          TupleDesc tupdesc,
                          const TupleTableSlotOps *tts_ops)
 {
+  DBUG_TRACE;
   TupOutputState *tstate;
 
   tstate = (TupOutputState *) palloc(sizeof(TupOutputState));
@@ -2414,6 +2488,7 @@ begin_tup_output_tupdesc(DestReceiver *dest,
 void
 do_tup_output(TupOutputState *tstate, const Datum *values, const bool *isnull)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot = tstate->slot;
   int     natts = slot->tts_tupleDescriptor->natts;
 
@@ -2442,6 +2517,7 @@ do_tup_output(TupOutputState *tstate, const Datum *values, const bool *isnull)
 void
 do_text_output_multiline(TupOutputState *tstate, const char *txt)
 {
+  DBUG_TRACE;
   Datum   values[1];
   bool    isnull[1] = {false};
 

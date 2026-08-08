@@ -31,6 +31,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -88,6 +89,7 @@ static void
 compute_return_type(TypeName *returnType, Oid languageOid,
                     Oid *prorettype_p, bool *returnsSet_p)
 {
+  DBUG_TRACE;
   Oid     rettype;
   Type    typtup;
   AclResult aclresult;
@@ -96,16 +98,19 @@ compute_return_type(TypeName *returnType, Oid languageOid,
 
   if (typtup) {
     if (!((Form_pg_type) GETSTRUCT(typtup))->typisdefined) {
-      if (languageOid == SQLlanguageId)
+      if (languageOid == SQLlanguageId) {
+        DBUG_INSTANT_PRINT("info", "SQL function cannot return shell type %s", TypeNameToString(returnType));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("SQL function cannot return shell type %s",
                         TypeNameToString(returnType))));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "return type %s is only a shell", TypeNameToString(returnType));
         ereport(NOTICE,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("return type %s is only a shell",
                         TypeNameToString(returnType))));
+      }
     }
 
     rettype = typeTypeId(typtup);
@@ -123,17 +128,21 @@ compute_return_type(TypeName *returnType, Oid languageOid,
      * definitions.
      */
     if (languageOid != INTERNALlanguageId &&
-        languageOid != ClanguageId)
+        languageOid != ClanguageId) {
+      DBUG_INSTANT_PRINT("info", "type \"%s\" does not exist", typnam);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("type \"%s\" does not exist", typnam)));
+    }
 
     /* Reject if there's typmod decoration, too */
-    if (returnType->typmods != NIL)
+    if (returnType->typmods != NIL) {
+      DBUG_INSTANT_PRINT("info", "type modifier cannot be specified for shell type \"%s\"", typnam);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("type modifier cannot be specified for shell type \"%s\"",
                       typnam)));
+    }
 
     /* Otherwise, go ahead and make a shell type */
     ereport(NOTICE,
@@ -194,6 +203,7 @@ interpret_function_parameter_list(ParseState *pstate,
                                   Oid *variadicArgType,
                                   Oid *requiredResultType)
 {
+  DBUG_TRACE;
   int     parameterCount = list_length(parameters);
   Oid      *inTypes;
   int     inCount = 0;
@@ -237,30 +247,36 @@ interpret_function_parameter_list(ParseState *pstate,
     if (typtup) {
       if (!((Form_pg_type) GETSTRUCT(typtup))->typisdefined) {
         /* As above, hard error if language is SQL */
-        if (languageOid == SQLlanguageId)
+        if (languageOid == SQLlanguageId) {
+          DBUG_INSTANT_PRINT("info", "SQL function cannot accept shell type %s", TypeNameToString(t));
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("SQL function cannot accept shell type %s",
                           TypeNameToString(t)),
                    parser_errposition(pstate, t->location)));
+        }
         /* We don't allow creating aggregates on shell types either */
-        else if (objtype == OBJECT_AGGREGATE)
+        else if (objtype == OBJECT_AGGREGATE) {
+          DBUG_INSTANT_PRINT("info", "aggregate cannot accept shell type %s", TypeNameToString(t));
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("aggregate cannot accept shell type %s",
                           TypeNameToString(t)),
                    parser_errposition(pstate, t->location)));
-        else
+        } else {
+          DBUG_PRINT("info", "argument type %s is only a shell", TypeNameToString(t));
           ereport(NOTICE,
                   (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                    errmsg("argument type %s is only a shell",
                           TypeNameToString(t)),
                    parser_errposition(pstate, t->location)));
+        }
       }
 
       toid = typeTypeId(typtup);
       ReleaseSysCache(typtup);
     } else {
+      DBUG_INSTANT_PRINT("info", "type %s does not exist", TypeNameToString(t));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("type %s does not exist",
@@ -275,31 +291,37 @@ interpret_function_parameter_list(ParseState *pstate,
       aclcheck_error_type(aclresult, toid);
 
     if (t->setof) {
-      if (objtype == OBJECT_AGGREGATE)
+      if (objtype == OBJECT_AGGREGATE) {
+        DBUG_INSTANT_PRINT("info", "aggregates cannot accept set arguments");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("aggregates cannot accept set arguments"),
                  parser_errposition(pstate, fp->location)));
-      else if (objtype == OBJECT_PROCEDURE)
+      } else if (objtype == OBJECT_PROCEDURE) {
+        DBUG_INSTANT_PRINT("info", "procedures cannot accept set arguments");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("procedures cannot accept set arguments"),
                  parser_errposition(pstate, fp->location)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "functions cannot accept set arguments");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("functions cannot accept set arguments"),
                  parser_errposition(pstate, fp->location)));
+      }
     }
 
     /* handle input parameters */
     if (fpmode != FUNC_PARAM_OUT && fpmode != FUNC_PARAM_TABLE) {
       /* other input parameters can't follow a VARIADIC parameter */
-      if (varCount > 0)
+      if (varCount > 0) {
+        DBUG_INSTANT_PRINT("info", "VARIADIC parameter must be the last input parameter");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("VARIADIC parameter must be the last input parameter"),
                  parser_errposition(pstate, fp->location)));
+      }
 
       inTypes[inCount++] = toid;
       isinput = true;
@@ -316,11 +338,13 @@ interpret_function_parameter_list(ParseState *pstate,
          * such a case causes no confusion in ordinary function calls,
          * it would cause confusion in a CALL statement.
          */
-        if (varCount > 0)
+        if (varCount > 0) {
+          DBUG_INSTANT_PRINT("info", "VARIADIC parameter must be the last parameter");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("VARIADIC parameter must be the last parameter"),
                    parser_errposition(pstate, fp->location)));
+        }
 
         /* Procedures with output parameters always return RECORD */
         *requiredResultType = RECORDOID;
@@ -343,11 +367,13 @@ interpret_function_parameter_list(ParseState *pstate,
           break;
 
         default:
-          if (!OidIsValid(get_element_type(toid)))
+          if (!OidIsValid(get_element_type(toid))) {
+            DBUG_INSTANT_PRINT("info", "VARIADIC parameter must be an array");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                      errmsg("VARIADIC parameter must be an array"),
                      parser_errposition(pstate, fp->location)));
+          }
 
           break;
       }
@@ -393,12 +419,14 @@ interpret_function_parameter_list(ParseState *pstate,
           continue;
 
         if (prevfp->name && prevfp->name[0] &&
-            strcmp(prevfp->name, fp->name) == 0)
+            strcmp(prevfp->name, fp->name) == 0) {
+          DBUG_INSTANT_PRINT("info", "parameter name \"%s\" used more than once", fp->name);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("parameter name \"%s\" used more than once",
                           fp->name),
                    parser_errposition(pstate, fp->location)));
+        }
       }
 
       paramNames[i] = CStringGetTextDatum(fp->name);
@@ -411,11 +439,13 @@ interpret_function_parameter_list(ParseState *pstate,
     if (fp->defexpr) {
       Node     *def;
 
-      if (!isinput)
+      if (!isinput) {
+        DBUG_INSTANT_PRINT("info", "only input parameters can have default values");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("only input parameters can have default values"),
                  parser_errposition(pstate, fp->location)));
+      }
 
       def = transformExpr(pstate, fp->defexpr,
                           EXPR_KIND_FUNCTION_DEFAULT);
@@ -427,11 +457,13 @@ interpret_function_parameter_list(ParseState *pstate,
        * code now that add_missing_from is history).
        */
       if (pstate->p_rtable != NIL ||
-          contain_var_clause(def))
+          contain_var_clause(def)) {
+        DBUG_INSTANT_PRINT("info", "cannot use table references in parameter default value");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  errmsg("cannot use table references in parameter default value"),
                  parser_errposition(pstate, fp->location)));
+      }
 
       /*
        * transformExpr() should have already rejected subqueries,
@@ -450,22 +482,26 @@ interpret_function_parameter_list(ParseState *pstate,
       *parameterDefaults = lappend(*parameterDefaults, def);
       have_defaults = true;
     } else {
-      if (isinput && have_defaults)
+      if (isinput && have_defaults) {
+        DBUG_INSTANT_PRINT("info", "input parameters after one with a default value must also have defaults");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("input parameters after one with a default value must also have defaults"),
                  parser_errposition(pstate, fp->location)));
+      }
 
       /*
        * For procedures, we also can't allow OUT parameters after one
        * with a default, because the same sort of confusion arises in a
        * CALL statement.
        */
-      if (objtype == OBJECT_PROCEDURE && have_defaults)
+      if (objtype == OBJECT_PROCEDURE && have_defaults) {
+        DBUG_INSTANT_PRINT("info", "procedure OUT parameters cannot appear after one with a default value");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("procedure OUT parameters cannot appear after one with a default value"),
                  parser_errposition(pstate, fp->location)));
+      }
     }
 
     i++;
@@ -591,6 +627,7 @@ compute_common_attribute(ParseState *pstate,
   return true;
 
 procedure_error:
+  DBUG_INSTANT_PRINT("info", "invalid attribute in procedure definition");
   ereport(ERROR,
           (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
            errmsg("invalid attribute in procedure definition"),
@@ -627,6 +664,7 @@ interpret_func_parallel(DefElem *defel)
   else if (strcmp(str, "restricted") == 0)
     return PROPARALLEL_RESTRICTED;
   else {
+    DBUG_INSTANT_PRINT("info", "parameter \"parallel\" must be SAFE, RESTRICTED, or UNSAFE");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("parameter \"parallel\" must be SAFE, RESTRICTED, or UNSAFE")));
@@ -665,6 +703,7 @@ update_proconfig_value(ArrayType *a, List *set_items)
 static Oid
 interpret_func_support(DefElem *defel)
 {
+  DBUG_TRACE;
   List     *procName = defGetQualifiedName(defel);
   Oid     procOid;
   Oid     argList[1];
@@ -677,27 +716,33 @@ interpret_func_support(DefElem *defel)
 
   procOid = LookupFuncName(procName, 1, argList, true);
 
-  if (!OidIsValid(procOid))
+  if (!OidIsValid(procOid)) {
+    DBUG_INSTANT_PRINT("info", "function %s does not exist", func_signature_string(procName, 1, NIL, argList));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function %s does not exist",
                     func_signature_string(procName, 1, NIL, argList))));
+  }
 
-  if (get_func_rettype(procOid) != INTERNALOID)
+  if (get_func_rettype(procOid) != INTERNALOID) {
+    DBUG_INSTANT_PRINT("info", "support function %s must return type internal", NameListToString(procName));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("support function %s must return type %s",
                     NameListToString(procName), "internal")));
+  }
 
   /*
    * Someday we might want an ACL check here; but for now, we insist that
    * you be superuser to specify a support function, so privilege on the
    * support function is moot.
    */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to specify a support function");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to specify a support function")));
+  }
 
   return procOid;
 }
@@ -725,6 +770,7 @@ compute_function_attributes(ParseState *pstate,
                             Oid *prosupport,
                             char *parallel_p)
 {
+  DBUG_TRACE;
   ListCell   *option;
   DefElem    *as_item = NULL;
   DefElem    *language_item = NULL;
@@ -762,11 +808,13 @@ compute_function_attributes(ParseState *pstate,
       if (windowfunc_item)
         errorConflictingDefElem(defel, pstate);
 
-      if (is_procedure)
+      if (is_procedure) {
+        DBUG_INSTANT_PRINT("info", "invalid attribute in procedure definition");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("invalid attribute in procedure definition"),
                  parser_errposition(pstate, defel->location)));
+      }
 
       windowfunc_item = defel;
     } else if (compute_common_attribute(pstate,
@@ -818,19 +866,23 @@ compute_function_attributes(ParseState *pstate,
   if (cost_item) {
     *procost = defGetNumeric(cost_item);
 
-    if (*procost <= 0)
+    if (*procost <= 0) {
+      DBUG_INSTANT_PRINT("info", "COST must be positive");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("COST must be positive")));
+    }
   }
 
   if (rows_item) {
     *prorows = defGetNumeric(rows_item);
 
-    if (*prorows <= 0)
+    if (*prorows <= 0) {
+      DBUG_INSTANT_PRINT("info", "ROWS must be positive");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("ROWS must be positive")));
+    }
   }
 
   if (support_item)
@@ -858,20 +910,28 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
                     Node **sql_body_out,
                     const char *queryString)
 {
-  if (!sql_body_in && !as)
+  DBUG_TRACE;
+
+  if (!sql_body_in && !as) {
+    DBUG_INSTANT_PRINT("info", "no function body specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("no function body specified")));
+  }
 
-  if (sql_body_in && as)
+  if (sql_body_in && as) {
+    DBUG_INSTANT_PRINT("info", "duplicate function body specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("duplicate function body specified")));
+  }
 
-  if (sql_body_in && languageOid != SQLlanguageId)
+  if (sql_body_in && languageOid != SQLlanguageId) {
+    DBUG_INSTANT_PRINT("info", "inline SQL function body only valid for language SQL");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("inline SQL function body only valid for language SQL")));
+  }
 
   *sql_body_out = NULL;
 
@@ -909,10 +969,12 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
 
       pinfo->argtypes[i] = list_nth_oid(parameterTypes, i);
 
-      if (IsPolymorphicType(pinfo->argtypes[i]))
+      if (IsPolymorphicType(pinfo->argtypes[i])) {
+        DBUG_INSTANT_PRINT("info", "SQL function with unquoted function body cannot have polymorphic arguments");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("SQL function with unquoted function body cannot have polymorphic arguments")));
+      }
 
       if (s[0] != '\0')
         pinfo->argnames[i] = s;
@@ -934,11 +996,14 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
         sql_fn_parser_setup(pstate, pinfo);
         q = transformStmt(pstate, stmt);
 
-        if (q->commandType == CMD_UTILITY)
+        if (q->commandType == CMD_UTILITY) {
+          DBUG_INSTANT_PRINT("info", "%s is not yet supported in unquoted SQL function body",
+                             GetCommandTagName(CreateCommandTag(q->utilityStmt)));
           ereport(ERROR,
                   errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                   errmsg("%s is not yet supported in unquoted SQL function body",
                          GetCommandTagName(CreateCommandTag(q->utilityStmt))));
+        }
 
         transformed_stmts = lappend(transformed_stmts, q);
         free_parsestate(pstate);
@@ -953,11 +1018,14 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
       sql_fn_parser_setup(pstate, pinfo);
       q = transformStmt(pstate, sql_body_in);
 
-      if (q->commandType == CMD_UTILITY)
+      if (q->commandType == CMD_UTILITY) {
+        DBUG_INSTANT_PRINT("info", "%s is not yet supported in unquoted SQL function body",
+                           GetCommandTagName(CreateCommandTag(q->utilityStmt)));
         ereport(ERROR,
                 errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                 errmsg("%s is not yet supported in unquoted SQL function body",
                        GetCommandTagName(CreateCommandTag(q->utilityStmt))));
+      }
 
       free_parsestate(pstate);
 
@@ -980,11 +1048,13 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
     *prosrc_str_p = strVal(linitial(as));
     *probin_str_p = NULL;
 
-    if (list_length(as) != 1)
+    if (list_length(as) != 1) {
+      DBUG_INSTANT_PRINT("info", "only one AS item needed for language \"%s\"", languageName);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only one AS item needed for language \"%s\"",
                       languageName)));
+    }
 
     if (languageOid == INTERNALlanguageId) {
       /*
@@ -1009,6 +1079,7 @@ interpret_AS_clause(Oid languageOid, const char *languageName,
 ObjectAddress
 CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 {
+  DBUG_TRACE;
   char     *probin_str;
   char     *prosrc_str;
   Node     *prosqlbody;
@@ -1085,21 +1156,25 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
   if (!language) {
     if (stmt->sql_body)
       language = "sql";
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "no language specified");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("no language specified")));
+    }
   }
 
   /* Look up the language and validate permissions */
   languageTuple = SearchSysCache1(LANGNAME, PointerGetDatum(language));
 
-  if (!HeapTupleIsValid(languageTuple))
+  if (!HeapTupleIsValid(languageTuple)) {
+    DBUG_INSTANT_PRINT("info", "language \"%s\" does not exist", language);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("language \"%s\" does not exist", language),
              (extension_file_exists(language) ?
               errhint("Use CREATE EXTENSION to load the language into the database.") : 0)));
+  }
 
   languageStruct = (Form_pg_language) GETSTRUCT(languageTuple);
   languageOid = languageStruct->oid;
@@ -1127,10 +1202,12 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
    * leakproof functions can see tuples which have not yet been filtered out
    * by security barrier views or row-level security policies.
    */
-  if (isLeakProof && !superuser())
+  if (isLeakProof && !superuser()) {
+    DBUG_INSTANT_PRINT("info", "only superuser can define a leakproof function");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("only superuser can define a leakproof function")));
+  }
 
   if (transformDefElem) {
     ListCell   *lc;
@@ -1175,16 +1252,20 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
     compute_return_type(stmt->returnType, languageOid,
                         &prorettype, &returnsSet);
 
-    if (OidIsValid(requiredResultType) && prorettype != requiredResultType)
+    if (OidIsValid(requiredResultType) && prorettype != requiredResultType) {
+      char *format1 = format_type_be(requiredResultType);
+      DBUG_INSTANT_PRINT("info", "function result type must be %s because of OUT parameters", format1);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("function result type must be %s because of OUT parameters",
-                      format_type_be(requiredResultType))));
+                      format1)));
+    }
   } else if (OidIsValid(requiredResultType)) {
     /* default RETURNS clause from OUT parameters */
     prorettype = requiredResultType;
     returnsSet = false;
   } else {
+    DBUG_INSTANT_PRINT("info", "function result type must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("function result type must be specified")));
@@ -1234,10 +1315,12 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
       prorows = 1000;
     else
       prorows = 0;    /* dummy value if not returnsSet */
-  } else if (!returnsSet)
+  } else if (!returnsSet) {
+    DBUG_INSTANT_PRINT("info", "ROWS is not applicable when function does not return a set");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("ROWS is not applicable when function does not return a set")));
+  }
 
   /*
    * And now that we have all the parameters, and know we're permitted to do
@@ -1282,6 +1365,7 @@ CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt)
 void
 RemoveFunctionById(Oid funcOid)
 {
+  DBUG_TRACE;
   Relation  relation;
   HeapTuple tup;
   char    prokind;
@@ -1333,6 +1417,7 @@ RemoveFunctionById(Oid funcOid)
 ObjectAddress
 AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Oid     funcOid;
   Form_pg_proc procForm;
@@ -1368,11 +1453,13 @@ AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt)
     aclcheck_error(ACLCHECK_NOT_OWNER, stmt->objtype,
                    NameListToString(stmt->func->objname));
 
-  if (procForm->prokind == PROKIND_AGGREGATE)
+  if (procForm->prokind == PROKIND_AGGREGATE) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is an aggregate function", NameListToString(stmt->func->objname));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is an aggregate function",
                     NameListToString(stmt->func->objname))));
+  }
 
   is_procedure = (procForm->prokind == PROKIND_PROCEDURE);
 
@@ -1407,33 +1494,41 @@ AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt)
   if (leakproof_item) {
     procForm->proleakproof = boolVal(leakproof_item->arg);
 
-    if (procForm->proleakproof && !superuser())
+    if (procForm->proleakproof && !superuser()) {
+      DBUG_INSTANT_PRINT("info", "only superuser can define a leakproof function");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("only superuser can define a leakproof function")));
+    }
   }
 
   if (cost_item) {
     procForm->procost = defGetNumeric(cost_item);
 
-    if (procForm->procost <= 0)
+    if (procForm->procost <= 0) {
+      DBUG_INSTANT_PRINT("info", "COST must be positive");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("COST must be positive")));
+    }
   }
 
   if (rows_item) {
     procForm->prorows = defGetNumeric(rows_item);
 
-    if (procForm->prorows <= 0)
+    if (procForm->prorows <= 0) {
+      DBUG_INSTANT_PRINT("info", "ROWS must be positive");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("ROWS must be positive")));
+    }
 
-    if (!procForm->proretset)
+    if (!procForm->proretset) {
+      DBUG_INSTANT_PRINT("info", "ROWS is not applicable when function does not return a set");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("ROWS is not applicable when function does not return a set")));
+    }
   }
 
   if (support_item) {
@@ -1444,9 +1539,11 @@ AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt)
     if (OidIsValid(procForm->prosupport)) {
       if (changeDependencyFor(ProcedureRelationId, funcOid,
                               ProcedureRelationId, procForm->prosupport,
-                              newsupport) != 1)
-        elog(ERROR, "could not change support dependency for function %s",
-             get_func_name(funcOid));
+                              newsupport) != 1) {
+        char *func_name = get_func_name(funcOid);
+        DBUG_INSTANT_PRINT("info", "could not change support dependency for function %s", func_name);
+        elog(ERROR, "could not change support dependency for function %s", func_name);
+      }
     } else {
       ObjectAddress referenced;
 
@@ -1513,6 +1610,7 @@ AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt)
 ObjectAddress
 CreateCast(CreateCastStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     sourcetypeid;
   Oid     targettypeid;
   char    sourcetyptype;
@@ -1533,26 +1631,34 @@ CreateCast(CreateCastStmt *stmt)
   targettyptype = get_typtype(targettypeid);
 
   /* No pseudo-types allowed */
-  if (sourcetyptype == TYPTYPE_PSEUDO)
+  if (sourcetyptype == TYPTYPE_PSEUDO) {
+    DBUG_INSTANT_PRINT("info", "source data type %s is a pseudo-type", TypeNameToString(stmt->sourcetype));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("source data type %s is a pseudo-type",
                     TypeNameToString(stmt->sourcetype))));
+  }
 
-  if (targettyptype == TYPTYPE_PSEUDO)
+  if (targettyptype == TYPTYPE_PSEUDO) {
+    DBUG_INSTANT_PRINT("info", "target data type %s is a pseudo-type", TypeNameToString(stmt->targettype));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("target data type %s is a pseudo-type",
                     TypeNameToString(stmt->targettype))));
+  }
 
   /* Permission check */
   if (!object_ownercheck(TypeRelationId, sourcetypeid, GetUserId())
-      && !object_ownercheck(TypeRelationId, targettypeid, GetUserId()))
+      && !object_ownercheck(TypeRelationId, targettypeid, GetUserId())) {
+    char *format1 = format_type_be(sourcetypeid);
+    char *format2 = format_type_be(targettypeid);
+    DBUG_INSTANT_PRINT("info", "must be owner of type %s or type %s", format1, format2);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be owner of type %s or type %s",
-                    format_type_be(sourcetypeid),
-                    format_type_be(targettypeid))));
+                    format1,
+                    format2)));
+  }
 
   aclresult = object_aclcheck(TypeRelationId, sourcetypeid, GetUserId(), ACL_USAGE);
 
@@ -1565,15 +1671,18 @@ CreateCast(CreateCastStmt *stmt)
     aclcheck_error_type(aclresult, targettypeid);
 
   /* Domains are allowed for historical reasons, but we warn */
-  if (sourcetyptype == TYPTYPE_DOMAIN)
+  if (sourcetyptype == TYPTYPE_DOMAIN) {
+    DBUG_INSTANT_PRINT("info", "cast will be ignored because the source data type is a domain");
     ereport(WARNING,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cast will be ignored because the source data type is a domain")));
 
-  else if (targettyptype == TYPTYPE_DOMAIN)
+  } else if (targettyptype == TYPTYPE_DOMAIN) {
+    DBUG_INSTANT_PRINT("info", "cast will be ignored because the target data type is a domain");
     ereport(WARNING,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("cast will be ignored because the target data type is a domain")));
+  }
 
   /* Determine the cast method */
   if (stmt->func != NULL)
@@ -1596,36 +1705,46 @@ CreateCast(CreateCastStmt *stmt)
     procstruct = (Form_pg_proc) GETSTRUCT(tuple);
     nargs = procstruct->pronargs;
 
-    if (nargs < 1 || nargs > 3)
+    if (nargs < 1 || nargs > 3) {
+      DBUG_INSTANT_PRINT("info", "cast function must take one to three arguments");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cast function must take one to three arguments")));
+    }
 
     if (!IsBinaryCoercibleWithCast(sourcetypeid,
                                    procstruct->proargtypes.values[0],
-                                   &incastid))
+                                   &incastid)) {
+      DBUG_INSTANT_PRINT("info", "argument of cast function must match or be binary-coercible from source data type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("argument of cast function must match or be binary-coercible from source data type")));
+    }
 
-    if (nargs > 1 && procstruct->proargtypes.values[1] != INT4OID)
+    if (nargs > 1 && procstruct->proargtypes.values[1] != INT4OID) {
+      DBUG_INSTANT_PRINT("info", "second argument of cast function must be type integer");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("second argument of cast function must be type %s",
                       "integer")));
+    }
 
-    if (nargs > 2 && procstruct->proargtypes.values[2] != BOOLOID)
+    if (nargs > 2 && procstruct->proargtypes.values[2] != BOOLOID) {
+      DBUG_INSTANT_PRINT("info", "third argument of cast function must be type boolean");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("third argument of cast function must be type %s",
                       "boolean")));
+    }
 
     if (!IsBinaryCoercibleWithCast(procstruct->prorettype,
                                    targettypeid,
-                                   &outcastid))
+                                   &outcastid)) {
+      DBUG_INSTANT_PRINT("info", "return data type of cast function must match or be binary-coercible to target data type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("return data type of cast function must match or be binary-coercible to target data type")));
+    }
 
     /*
      * Restricting the volatility of a cast function may or may not be a
@@ -1634,22 +1753,28 @@ CreateCast(CreateCastStmt *stmt)
      */
 #ifdef NOT_USED
 
-    if (procstruct->provolatile == PROVOLATILE_VOLATILE)
+    if (procstruct->provolatile == PROVOLATILE_VOLATILE) {
+      DBUG_INSTANT_PRINT("info", "cast function must not be volatile");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cast function must not be volatile")));
+    }
 
 #endif
 
-    if (procstruct->prokind != PROKIND_FUNCTION)
+    if (procstruct->prokind != PROKIND_FUNCTION) {
+      DBUG_INSTANT_PRINT("info", "cast function must be a normal function");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cast function must be a normal function")));
+    }
 
-    if (procstruct->proretset)
+    if (procstruct->proretset) {
+      DBUG_INSTANT_PRINT("info", "cast function must not return a set");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("cast function must not return a set")));
+    }
 
     ReleaseSysCache(tuple);
   } else {
@@ -1669,10 +1794,12 @@ CreateCast(CreateCastStmt *stmt)
      * Must be superuser to create binary-compatible casts, since
      * erroneous casts can easily crash the backend.
      */
-    if (!superuser())
+    if (!superuser()) {
+      DBUG_INSTANT_PRINT("info", "must be superuser to create a cast WITHOUT FUNCTION");
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("must be superuser to create a cast WITHOUT FUNCTION")));
+    }
 
     /*
      * Also, insist that the types match as to size, alignment, and
@@ -1685,10 +1812,12 @@ CreateCast(CreateCastStmt *stmt)
 
     if (typ1len != typ2len ||
         typ1byval != typ2byval ||
-        typ1align != typ2align)
+        typ1align != typ2align) {
+      DBUG_INSTANT_PRINT("info", "source and target data types are not physically compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("source and target data types are not physically compatible")));
+    }
 
     /*
      * We know that composite, array, range and enum types are never
@@ -1705,30 +1834,38 @@ CreateCast(CreateCastStmt *stmt)
      * all of these same checks to the contained type(s).
      */
     if (sourcetyptype == TYPTYPE_COMPOSITE ||
-        targettyptype == TYPTYPE_COMPOSITE)
+        targettyptype == TYPTYPE_COMPOSITE) {
+      DBUG_INSTANT_PRINT("info", "composite data types are not binary-compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("composite data types are not binary-compatible")));
+    }
 
     if (OidIsValid(get_element_type(sourcetypeid)) ||
-        OidIsValid(get_element_type(targettypeid)))
+        OidIsValid(get_element_type(targettypeid))) {
+      DBUG_INSTANT_PRINT("info", "array data types are not binary-compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("array data types are not binary-compatible")));
+    }
 
     if (sourcetyptype == TYPTYPE_RANGE ||
         targettyptype == TYPTYPE_RANGE ||
         sourcetyptype == TYPTYPE_MULTIRANGE ||
-        targettyptype == TYPTYPE_MULTIRANGE)
+        targettyptype == TYPTYPE_MULTIRANGE) {
+      DBUG_INSTANT_PRINT("info", "range data types are not binary-compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("range data types are not binary-compatible")));
+    }
 
     if (sourcetyptype == TYPTYPE_ENUM ||
-        targettyptype == TYPTYPE_ENUM)
+        targettyptype == TYPTYPE_ENUM) {
+      DBUG_INSTANT_PRINT("info", "enum data types are not binary-compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("enum data types are not binary-compatible")));
+    }
 
     /*
      * We also disallow creating binary-compatibility casts involving
@@ -1742,20 +1879,24 @@ CreateCast(CreateCastStmt *stmt)
      * base types.
      */
     if (sourcetyptype == TYPTYPE_DOMAIN ||
-        targettyptype == TYPTYPE_DOMAIN)
+        targettyptype == TYPTYPE_DOMAIN) {
+      DBUG_INSTANT_PRINT("info", "domain data types must not be marked binary-compatible");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("domain data types must not be marked binary-compatible")));
+    }
   }
 
   /*
    * Allow source and target types to be same only for length coercion
    * functions.  We assume a multi-arg function does length coercion.
    */
-  if (sourcetypeid == targettypeid && nargs < 2)
+  if (sourcetypeid == targettypeid && nargs < 2) {
+    DBUG_INSTANT_PRINT("info", "source data type and target data type are the same");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("source data type and target data type are the same")));
+  }
 
   /* convert CoercionContext enum to char value for castcontext */
   switch (stmt->context) {
@@ -1787,31 +1928,43 @@ CreateCast(CreateCastStmt *stmt)
 static void
 check_transform_function(Form_pg_proc procstruct)
 {
-  if (procstruct->provolatile == PROVOLATILE_VOLATILE)
+  DBUG_TRACE;
+
+  if (procstruct->provolatile == PROVOLATILE_VOLATILE) {
+    DBUG_INSTANT_PRINT("info", "transform function must not be volatile");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("transform function must not be volatile")));
+  }
 
-  if (procstruct->prokind != PROKIND_FUNCTION)
+  if (procstruct->prokind != PROKIND_FUNCTION) {
+    DBUG_INSTANT_PRINT("info", "transform function must be a normal function");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("transform function must be a normal function")));
+  }
 
-  if (procstruct->proretset)
+  if (procstruct->proretset) {
+    DBUG_INSTANT_PRINT("info", "transform function must not return a set");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("transform function must not return a set")));
+  }
 
-  if (procstruct->pronargs != 1)
+  if (procstruct->pronargs != 1) {
+    DBUG_INSTANT_PRINT("info", "transform function must take one argument");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("transform function must take one argument")));
+  }
 
-  if (procstruct->proargtypes.values[0] != INTERNALOID)
+  if (procstruct->proargtypes.values[0] != INTERNALOID) {
+    DBUG_INSTANT_PRINT("info", "first argument of transform function must be type internal");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("first argument of transform function must be type %s",
                     "internal")));
+  }
 }
 
 
@@ -1821,6 +1974,7 @@ check_transform_function(Form_pg_proc procstruct)
 ObjectAddress
 CreateTransform(CreateTransformStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     typeid;
   char    typtype;
   Oid     langid;
@@ -1846,17 +2000,21 @@ CreateTransform(CreateTransformStmt *stmt)
   typeid = typenameTypeId(NULL, stmt->type_name);
   typtype = get_typtype(typeid);
 
-  if (typtype == TYPTYPE_PSEUDO)
+  if (typtype == TYPTYPE_PSEUDO) {
+    DBUG_INSTANT_PRINT("info", "data type %s is a pseudo-type", TypeNameToString(stmt->type_name));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("data type %s is a pseudo-type",
                     TypeNameToString(stmt->type_name))));
+  }
 
-  if (typtype == TYPTYPE_DOMAIN)
+  if (typtype == TYPTYPE_DOMAIN) {
+    DBUG_INSTANT_PRINT("info", "data type %s is a domain", TypeNameToString(stmt->type_name));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("data type %s is a domain",
                     TypeNameToString(stmt->type_name))));
+  }
 
   if (!object_ownercheck(TypeRelationId, typeid, GetUserId()))
     aclcheck_error_type(ACLCHECK_NOT_OWNER, typeid);
@@ -1897,11 +2055,13 @@ CreateTransform(CreateTransformStmt *stmt)
 
     procstruct = (Form_pg_proc) GETSTRUCT(tuple);
 
-    if (procstruct->prorettype != INTERNALOID)
+    if (procstruct->prorettype != INTERNALOID) {
+      DBUG_INSTANT_PRINT("info", "return data type of FROM SQL function must be internal");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("return data type of FROM SQL function must be %s",
                       "internal")));
+    }
 
     check_transform_function(procstruct);
     ReleaseSysCache(tuple);
@@ -1926,10 +2086,12 @@ CreateTransform(CreateTransformStmt *stmt)
 
     procstruct = (Form_pg_proc) GETSTRUCT(tuple);
 
-    if (procstruct->prorettype != typeid)
+    if (procstruct->prorettype != typeid) {
+      DBUG_INSTANT_PRINT("info", "return data type of TO SQL function must be the transform data type");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("return data type of TO SQL function must be the transform data type")));
+    }
 
     check_transform_function(procstruct);
     ReleaseSysCache(tuple);
@@ -1953,12 +2115,15 @@ CreateTransform(CreateTransformStmt *stmt)
   if (HeapTupleIsValid(tuple)) {
     Form_pg_transform form = (Form_pg_transform) GETSTRUCT(tuple);
 
-    if (!stmt->replace)
+    if (!stmt->replace) {
+      char *format1 = format_type_be(typeid);
+      DBUG_INSTANT_PRINT("info", "transform for type %s language \"%s\" already exists", format1, stmt->lang);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("transform for type %s language \"%s\" already exists",
-                      format_type_be(typeid),
+                      format1,
                       stmt->lang)));
+    }
 
     replaces[Anum_pg_transform_trffromsql - 1] = true;
     replaces[Anum_pg_transform_trftosql - 1] = true;
@@ -2037,12 +2202,15 @@ get_transform_oid(Oid type_id, Oid lang_id, bool missing_ok)
                         ObjectIdGetDatum(type_id),
                         ObjectIdGetDatum(lang_id));
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    char *format1 = format_type_be(type_id);
+    char *language = get_language_name(lang_id, false);
+    DBUG_INSTANT_PRINT("info", "transform for type %s language \"%s\" does not exist", format1, language);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("transform for type %s language \"%s\" does not exist",
-                    format_type_be(type_id),
-                    get_language_name(lang_id, false))));
+                    format1, language)));
+  }
 
   return oid;
 }
@@ -2062,13 +2230,17 @@ IsThereFunctionInNamespace(const char *proname, int pronargs,
   if (SearchSysCacheExists3(PROCNAMEARGSNSP,
                             CStringGetDatum(proname),
                             PointerGetDatum(proargtypes),
-                            ObjectIdGetDatum(nspOid)))
+                            ObjectIdGetDatum(nspOid))) {
+    DBUG_INSTANT_PRINT("info", "function %s already exists in schema \"%s\"",
+                       funcname_signature_string(proname, pronargs, NIL, proargtypes->values),
+                       get_namespace_name(nspOid));
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_FUNCTION),
              errmsg("function %s already exists in schema \"%s\"",
                     funcname_signature_string(proname, pronargs,
                         NIL, proargtypes->values),
                     get_namespace_name(nspOid))));
+  }
 }
 
 /*
@@ -2080,6 +2252,7 @@ IsThereFunctionInNamespace(const char *proname, int pronargs,
 void
 ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic)
 {
+  DBUG_TRACE;
   InlineCodeBlock *codeblock = makeNode(InlineCodeBlock);
   ListCell   *arg;
   DefElem    *as_item = NULL;
@@ -2110,10 +2283,12 @@ ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic)
 
   if (as_item)
     codeblock->source_text = strVal(as_item->arg);
-  else
+  else {
+    DBUG_INSTANT_PRINT("info", "no inline code specified");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("no inline code specified")));
+  }
 
   /* if LANGUAGE option wasn't specified, use the default */
   if (language_item)
@@ -2124,12 +2299,14 @@ ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic)
   /* Look up the language and validate permissions */
   languageTuple = SearchSysCache1(LANGNAME, PointerGetDatum(language));
 
-  if (!HeapTupleIsValid(languageTuple))
+  if (!HeapTupleIsValid(languageTuple)) {
+    DBUG_INSTANT_PRINT("info", "language \"%s\" does not exist", language);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("language \"%s\" does not exist", language),
              (extension_file_exists(language) ?
               errhint("Use CREATE EXTENSION to load the language into the database.") : 0)));
+  }
 
   languageStruct = (Form_pg_language) GETSTRUCT(languageTuple);
   codeblock->langOid = languageStruct->oid;
@@ -2156,11 +2333,13 @@ ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic)
   /* get the handler function's OID */
   laninline = languageStruct->laninline;
 
-  if (!OidIsValid(laninline))
+  if (!OidIsValid(laninline)) {
+    DBUG_INSTANT_PRINT("info", "language \"%s\" does not support inline code execution", NameStr(languageStruct->lanname));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("language \"%s\" does not support inline code execution",
                     NameStr(languageStruct->lanname))));
+  }
 
   ReleaseSysCache(languageTuple);
 
@@ -2199,6 +2378,7 @@ ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic)
 void
 ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver *dest)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   ListCell   *lc;
   FuncExpr   *fexpr;
@@ -2254,13 +2434,15 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
   /* safety check; see ExecInitFunc() */
   nargs = list_length(fexpr->args);
 
-  if (nargs > FUNC_MAX_ARGS)
+  if (nargs > FUNC_MAX_ARGS) {
+    DBUG_INSTANT_PRINT("info", "cannot pass more than %d arguments to a procedure", FUNC_MAX_ARGS);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
              errmsg_plural("cannot pass more than %d argument to a procedure",
                            "cannot pass more than %d arguments to a procedure",
                            FUNC_MAX_ARGS,
                            FUNC_MAX_ARGS)));
+  }
 
   /* Initialize function call structure */
   InvokeFunctionExecuteHook(fexpr->funcid);
@@ -2375,6 +2557,7 @@ ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver 
 TupleDesc
 CallStmtResultDesc(CallStmt *stmt)
 {
+  DBUG_TRACE;
   FuncExpr   *fexpr;
   HeapTuple tuple;
   TupleDesc tupdesc;

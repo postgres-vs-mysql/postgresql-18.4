@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "miscadmin.h"
 #include "utils/acl.h"
@@ -32,6 +33,7 @@
 void
 SwitchToUntrustedUser(Oid userid, UserContext *context)
 {
+  DBUG_TRACE;
   /* Get the current user ID and security context. */
   GetUserIdAndSecContext(&context->save_userid,
                          &context->save_sec_context);
@@ -83,6 +85,8 @@ SwitchToUntrustedUser(Oid userid, UserContext *context)
 void
 RestoreUserContext(UserContext *context)
 {
+  DBUG_TRACE;
+
   if (context->save_nestlevel != -1)
     AtEOXact_GUC(false, context->save_nestlevel);
 

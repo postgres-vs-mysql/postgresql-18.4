@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "storage/buf_internals.h"
 
@@ -88,6 +89,7 @@ BufTableHashCode(BufferTag *tagPtr)
 int
 BufTableLookup(BufferTag *tagPtr, uint32 hashcode)
 {
+  DBUG_TRACE;
   BufferLookupEnt *result;
 
   result = (BufferLookupEnt *)
@@ -97,9 +99,13 @@ BufTableLookup(BufferTag *tagPtr, uint32 hashcode)
                                        HASH_FIND,
                                        NULL);
 
-  if (!result)
+  if (!result) {
+    DBUG_PRINT("info", "BufTableLookup failure");
     return -1;
+  }
 
+
+  DBUG_PRINT("info", "lookup the given BufferTag; return buffer id:%d", result->id);
   return result->id;
 }
 
@@ -116,6 +122,7 @@ BufTableLookup(BufferTag *tagPtr, uint32 hashcode)
 int
 BufTableInsert(BufferTag *tagPtr, uint32 hashcode, int buf_id)
 {
+  DBUG_TRACE;
   BufferLookupEnt *result;
   bool    found;
 
@@ -146,8 +153,10 @@ BufTableInsert(BufferTag *tagPtr, uint32 hashcode, int buf_id)
 void
 BufTableDelete(BufferTag *tagPtr, uint32 hashcode)
 {
+  DBUG_TRACE;
   BufferLookupEnt *result;
 
+  DBUG_PRINT("info", "delete the hashtable entry for blkno:%u", tagPtr->blockNum);
   result = (BufferLookupEnt *)
            hash_search_with_hash_value(SharedBufHash,
                                        tagPtr,

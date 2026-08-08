@@ -28,6 +28,7 @@
  *    ExecIndexScanInitializeWorker attach to DSM info in parallel worker
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/relscan.h"
@@ -78,6 +79,7 @@ static HeapTuple reorderqueue_pop(IndexScanState *node);
 static TupleTableSlot *
 IndexNext(IndexScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ExprContext *econtext;
   ScanDirection direction;
@@ -164,6 +166,7 @@ IndexNext(IndexScanState *node)
 static TupleTableSlot *
 IndexNextWithReorder(IndexScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ExprContext *econtext;
   IndexScanDesc scandesc;
@@ -346,6 +349,7 @@ next_indextuple:
 static void
 EvalOrderByExpressions(IndexScanState *node, ExprContext *econtext)
 {
+  DBUG_TRACE;
   int     i;
   ListCell   *l;
   MemoryContext oldContext;
@@ -372,6 +376,7 @@ EvalOrderByExpressions(IndexScanState *node, ExprContext *econtext)
 static bool
 IndexRecheck(IndexScanState *node, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   ExprContext *econtext;
 
   /*
@@ -428,6 +433,7 @@ static int
 reorderqueue_cmp(const pairingheap_node *a, const pairingheap_node *b,
                  void *arg)
 {
+  DBUG_TRACE;
   ReorderTuple *rta = (ReorderTuple *) a;
   ReorderTuple *rtb = (ReorderTuple *) b;
   IndexScanState *node = (IndexScanState *) arg;
@@ -445,6 +451,7 @@ static void
 reorderqueue_push(IndexScanState *node, TupleTableSlot *slot,
                   Datum *orderbyvals, bool *orderbynulls)
 {
+  DBUG_TRACE;
   IndexScanDesc scandesc = node->iss_ScanDesc;
   EState     *estate = node->ss.ps.state;
   MemoryContext oldContext = MemoryContextSwitchTo(estate->es_query_cxt);
@@ -480,6 +487,7 @@ reorderqueue_push(IndexScanState *node, TupleTableSlot *slot,
 static HeapTuple
 reorderqueue_pop(IndexScanState *node)
 {
+  DBUG_TRACE;
   HeapTuple result;
   ReorderTuple *topmost;
   int     i;
@@ -508,6 +516,7 @@ reorderqueue_pop(IndexScanState *node)
 static TupleTableSlot *
 ExecIndexScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   IndexScanState *node = castNode(IndexScanState, pstate);
 
   /*
@@ -540,6 +549,8 @@ ExecIndexScan(PlanState *pstate)
 void
 ExecReScanIndexScan(IndexScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * If we are doing runtime key calculations (ie, any of the index key
    * values weren't simple Consts), compute the new key values.  But first,
@@ -588,6 +599,7 @@ void
 ExecIndexEvalRuntimeKeys(ExprContext *econtext,
                          IndexRuntimeKeyInfo *runtimeKeys, int numRuntimeKeys)
 {
+  DBUG_TRACE;
   int     j;
   MemoryContext oldContext;
 
@@ -648,6 +660,7 @@ bool
 ExecIndexEvalArrayKeys(ExprContext *econtext,
                        IndexArrayKeyInfo *arrayKeys, int numArrayKeys)
 {
+  DBUG_TRACE;
   bool    result = true;
   int     j;
   MemoryContext oldContext;
@@ -728,6 +741,7 @@ ExecIndexEvalArrayKeys(ExprContext *econtext,
 bool
 ExecIndexAdvanceArrayKeys(IndexArrayKeyInfo *arrayKeys, int numArrayKeys)
 {
+  DBUG_TRACE;
   bool    found = false;
   int     j;
 
@@ -774,6 +788,7 @@ ExecIndexAdvanceArrayKeys(IndexArrayKeyInfo *arrayKeys, int numArrayKeys)
 void
 ExecEndIndexScan(IndexScanState *node)
 {
+  DBUG_TRACE;
   Relation  indexRelationDesc;
   IndexScanDesc indexScanDesc;
 
@@ -823,6 +838,7 @@ ExecEndIndexScan(IndexScanState *node)
 void
 ExecIndexMarkPos(IndexScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   EPQState   *epqstate = estate->es_epq_active;
 
@@ -860,6 +876,7 @@ ExecIndexMarkPos(IndexScanState *node)
 void
 ExecIndexRestrPos(IndexScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   EPQState   *epqstate = estate->es_epq_active;
 
@@ -896,6 +913,7 @@ ExecIndexRestrPos(IndexScanState *node)
 IndexScanState *
 ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   IndexScanState *indexstate;
   Relation  currentRelation;
   LOCKMODE  lockmode;
@@ -983,7 +1001,7 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
                          &indexstate->iss_NumScanKeys,
                          &indexstate->iss_RuntimeKeys,
                          &indexstate->iss_NumRuntimeKeys,
-                         NULL,  /* no ArrayKeys */
+                         NULL, /* no ArrayKeys */
                          NULL);
 
   /*
@@ -997,7 +1015,7 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
                          &indexstate->iss_NumOrderByKeys,
                          &indexstate->iss_RuntimeKeys,
                          &indexstate->iss_NumRuntimeKeys,
-                         NULL,  /* no ArrayKeys */
+                         NULL, /* no ArrayKeys */
                          NULL);
 
   /* Initialize sort support, if we need to re-check ORDER BY exprs */
@@ -1144,6 +1162,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
                        IndexRuntimeKeyInfo **runtimeKeys, int *numRuntimeKeys,
                        IndexArrayKeyInfo **arrayKeys, int *numArrayKeys)
 {
+  DBUG_TRACE;
   ListCell   *qual_cell;
   ScanKey   scan_keys;
   IndexRuntimeKeyInfo *runtime_keys;
@@ -1280,12 +1299,12 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
        */
       ScanKeyEntryInitialize(this_scan_key,
                              flags,
-                             varattno,  /* attribute number to scan */
+                             varattno, /* attribute number to scan */
                              op_strategy, /* op's strategy */
-                             op_righttype,  /* strategy subtype */
-                             ((OpExpr *) clause)->inputcollid,  /* collation */
-                             opfuncid,  /* reg proc to use */
-                             scanvalue);  /* constant */
+                             op_righttype, /* strategy subtype */
+                             ((OpExpr *) clause)->inputcollid, /* collation */
+                             opfuncid, /* reg proc to use */
+                             scanvalue); /* constant */
     } else if (IsA(clause, RowCompareExpr)) {
       /* (indexkey, indexkey, ...) op (expression, expression, ...) */
       RowCompareExpr *rc = (RowCompareExpr *) clause;
@@ -1398,12 +1417,12 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
          */
         ScanKeyEntryInitialize(this_sub_key,
                                flags,
-                               varattno,  /* attribute number */
+                               varattno, /* attribute number */
                                op_strategy, /* op's strategy */
-                               op_righttype,  /* strategy subtype */
-                               inputcollation,  /* collation */
-                               opfuncid,  /* reg proc to use */
-                               scanvalue);  /* constant */
+                               op_righttype, /* strategy subtype */
+                               inputcollation, /* collation */
+                               opfuncid, /* reg proc to use */
+                               scanvalue); /* constant */
         n_sub_key++;
       }
 
@@ -1525,12 +1544,12 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
        */
       ScanKeyEntryInitialize(this_scan_key,
                              flags,
-                             varattno,  /* attribute number to scan */
+                             varattno, /* attribute number to scan */
                              op_strategy, /* op's strategy */
-                             op_righttype,  /* strategy subtype */
-                             saop->inputcollid, /* collation */
-                             opfuncid,  /* reg proc to use */
-                             scanvalue);  /* constant */
+                             op_righttype, /* strategy subtype */
+                             saop->inputcollid,  /* collation */
+                             opfuncid, /* reg proc to use */
+                             scanvalue); /* constant */
     } else if (IsA(clause, NullTest)) {
       /* indexkey IS NULL or indexkey IS NOT NULL */
       NullTest   *ntest = (NullTest *) clause;
@@ -1575,12 +1594,12 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 
       ScanKeyEntryInitialize(this_scan_key,
                              flags,
-                             varattno,  /* attribute number to scan */
+                             varattno, /* attribute number to scan */
                              InvalidStrategy, /* no strategy */
-                             InvalidOid,  /* no strategy subtype */
-                             InvalidOid,  /* no collation */
-                             InvalidOid,  /* no reg proc for this */
-                             (Datum) 0);  /* constant */
+                             InvalidOid, /* no strategy subtype */
+                             InvalidOid, /* no collation */
+                             InvalidOid, /* no reg proc for this */
+                             (Datum) 0); /* constant */
     } else
       elog(ERROR, "unsupported indexqual type: %d",
            (int) nodeTag(clause));
@@ -1625,6 +1644,7 @@ void
 ExecIndexScanEstimate(IndexScanState *node,
                       ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   bool    instrument = node->ss.ps.instrument != NULL;
   bool    parallel_aware = node->ss.ps.plan->parallel_aware;
@@ -1654,6 +1674,7 @@ void
 ExecIndexScanInitializeDSM(IndexScanState *node,
                            ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   ParallelIndexScanDesc piscan;
   bool    instrument = node->ss.ps.instrument != NULL;
@@ -1719,6 +1740,7 @@ void
 ExecIndexScanInitializeWorker(IndexScanState *node,
                               ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   ParallelIndexScanDesc piscan;
   bool    instrument = node->ss.ps.instrument != NULL;
   bool    parallel_aware = node->ss.ps.plan->parallel_aware;

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/tableam.h"
@@ -38,6 +39,7 @@
 Datum
 unique_key_recheck(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   const char *funcname = "unique_key_recheck";
   ItemPointerData checktid;
@@ -55,18 +57,22 @@ unique_key_recheck(PG_FUNCTION_ARGS)
    * translatable error strings are shared with ri_triggers.c, so resist the
    * temptation to fold the function name into them.
    */
-  if (!CALLED_AS_TRIGGER(fcinfo))
+  if (!CALLED_AS_TRIGGER(fcinfo)) {
+    DBUG_INSTANT_PRINT("info", "function \"%s\" was not called by trigger manager", funcname);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("function \"%s\" was not called by trigger manager",
                     funcname)));
+  }
 
   if (!TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
-      !TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
+      !TRIGGER_FIRED_FOR_ROW(trigdata->tg_event)) {
+    DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired AFTER ROW", funcname);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("function \"%s\" must be fired AFTER ROW",
                     funcname)));
+  }
 
   /*
    * Get the new data that was inserted/updated.
@@ -76,6 +82,7 @@ unique_key_recheck(PG_FUNCTION_ARGS)
   else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
     checktid = trigdata->tg_newslot->tts_tid;
   else {
+    DBUG_INSTANT_PRINT("info", "function \"%s\" must be fired for INSERT or UPDATE", funcname);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("function \"%s\" must be fired for INSERT or UPDATE",

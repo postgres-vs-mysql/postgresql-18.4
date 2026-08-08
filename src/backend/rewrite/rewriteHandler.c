@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/sysattr.h"
@@ -145,6 +146,7 @@ AcquireRewriteLocks(Query *parsetree,
                     bool forExecute,
                     bool forUpdatePushedDown)
 {
+  DBUG_TRACE;
   ListCell   *l;
   int     rt_index;
   acquireLocksOnSubLinks_context context;
@@ -352,6 +354,7 @@ rewriteRuleAction(Query *parsetree,
                   CmdType event,
                   bool *returning_flag)
 {
+  DBUG_TRACE;
   int     current_varno,
           new_varno;
   int     rt_length;
@@ -741,6 +744,7 @@ rewriteRuleAction(Query *parsetree,
 static List *
 adjustJoinTreeList(Query *parsetree, bool removert, int rt_index)
 {
+  DBUG_TRACE;
   List     *newjointree = copyObject(parsetree->jointree->fromlist);
   ListCell   *l;
 
@@ -807,6 +811,7 @@ rewriteTargetListIU(List *targetList,
                     int values_rte_index,
                     Bitmapset **unused_values_attrnos)
 {
+  DBUG_TRACE;
   TargetEntry **new_tles;
   List     *new_tlist = NIL;
   List     *junk_tlist = NIL;
@@ -1205,6 +1210,8 @@ process_matched_tle(TargetEntry *src_tle,
 static Node *
 get_assignment_input(Node *node)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1232,6 +1239,7 @@ get_assignment_input(Node *node)
 Node *
 build_column_default(Relation rel, int attrno)
 {
+  DBUG_TRACE;
   TupleDesc rd_att = rel->rd_att;
   Form_pg_attribute att_tup = TupleDescAttr(rd_att, attrno - 1);
   Oid     atttype = att_tup->atttypid;
@@ -1303,6 +1311,7 @@ build_column_default(Relation rel, int attrno)
 static bool
 searchForDefault(RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, rte->values_lists) {
@@ -1328,6 +1337,7 @@ searchForDefault(RangeTblEntry *rte)
 static Bitmapset *
 findDefaultOnlyColumns(RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   Bitmapset  *default_only_cols = NULL;
   ListCell   *lc;
 
@@ -1416,6 +1426,7 @@ rewriteValuesRTE(Query *parsetree, RangeTblEntry *rte, int rti,
                  Relation target_relation,
                  Bitmapset *unused_cols)
 {
+  DBUG_TRACE;
   List     *newValues;
   ListCell   *lc;
   bool    isAutoUpdatableView;
@@ -1594,6 +1605,7 @@ rewriteValuesRTE(Query *parsetree, RangeTblEntry *rte, int rti,
 static void
 rewriteValuesRTEToNulls(Query *parsetree, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   List     *newValues;
   ListCell   *lc;
 
@@ -1635,6 +1647,7 @@ matchLocks(CmdType event,
            Query *parsetree,
            bool *hasUpdate)
 {
+  DBUG_TRACE;
   RuleLock   *rulelocks = relation->rd_rules;
   List     *matching_locks = NIL;
   int     nlocks;
@@ -1703,6 +1716,7 @@ ApplyRetrieveRule(Query *parsetree,
                   Relation relation,
                   List *activeRIRs)
 {
+  DBUG_TRACE;
   Query    *rule_action;
   RangeTblEntry *rte;
   RowMarkClause *rc;
@@ -1879,6 +1893,8 @@ markQueryForLocking(Query *qry, Node *jtnode,
                     LockClauseStrength strength, LockWaitPolicy waitPolicy,
                     bool pushedDown)
 {
+  DBUG_TRACE;
+
   if (jtnode == NULL)
     return;
 
@@ -1970,6 +1986,7 @@ fireRIRonSubLink(Node *node, fireRIRonSubLink_context *context)
 static Query *
 fireRIRrules(Query *parsetree, List *activeRIRs)
 {
+  DBUG_TRACE;
   int     origResultRelation = parsetree->resultRelation;
   int     rt_index;
   ListCell   *lc;
@@ -1980,6 +1997,11 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
    * This is just a convenient place to do this, since we are already
    * looking at each Query.
    */
+
+  if (parsetree->cteList) {
+    DBUG_PRINT("info", "expand SEARCH and CYCLE clauses in CTEs");
+  }
+
   foreach(lc, parsetree->cteList) {
     CommonTableExpr *cte = lfirst_node(CommonTableExpr, lc);
 
@@ -2013,6 +2035,7 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
      * subquery to expand any rule references in it.
      */
     if (rte->rtekind == RTE_SUBQUERY) {
+      DBUG_PRINT("info", "recurse into the subquery to expand any rule references in it");
       rte->subquery = fireRIRrules(rte->subquery, activeRIRs);
 
       /*
@@ -2085,6 +2108,7 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
     rules = rel->rd_rules;
 
     if (rules != NULL) {
+      DBUG_PRINT("info", "collect the RIR rules that we must apply");
       locks = NIL;
 
       for (i = 0; i < rules->numLocks; i++) {
@@ -2101,6 +2125,8 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
        */
       if (locks != NIL) {
         ListCell   *l;
+
+        DBUG_PRINT("info", "if we found any, apply them --- but first check for recursion!");
 
         if (list_member_oid(activeRIRs, RelationGetRelid(rel)))
           ereport(ERROR,
@@ -2128,6 +2154,10 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
   }
 
   /* Recurse into subqueries in WITH */
+  if (parsetree->cteList) {
+    DBUG_PRINT("info", "recurse into subqueries in WITH");
+  }
+
   foreach(lc, parsetree->cteList) {
     CommonTableExpr *cte = (CommonTableExpr *) lfirst(lc);
 
@@ -2148,6 +2178,8 @@ fireRIRrules(Query *parsetree, List *activeRIRs)
   if (parsetree->hasSubLinks) {
     fireRIRonSubLink_context context;
 
+
+    DBUG_PRINT("info", "recurse into sublink subqueries, too");
     context.activeRIRs = activeRIRs;
     context.hasRowSecurity = false;
 
@@ -2296,6 +2328,7 @@ CopyAndAddInvertedQual(Query *parsetree,
                        int rt_index,
                        CmdType event)
 {
+  DBUG_TRACE;
   /* Don't scribble on the passed qual (it's in the relcache!) */
   Node     *new_qual = copyObject(rule_qual);
   acquireLocksOnSubLinks_context context;
@@ -2403,6 +2436,7 @@ fireRules(Query *parsetree,
           bool *returning_flag,
           Query **qual_product)
 {
+  DBUG_TRACE;
   List     *results = NIL;
   ListCell   *l;
 
@@ -2482,6 +2516,7 @@ fireRules(Query *parsetree,
 Query *
 get_view_query(Relation view)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(view->rd_rel->relkind == RELKIND_VIEW);
@@ -2519,6 +2554,7 @@ get_view_query(Relation view)
 bool
 view_has_instead_trigger(Relation view, CmdType event, List *mergeActionList)
 {
+  DBUG_TRACE;
   TriggerDesc *trigDesc = view->trigdesc;
 
   switch (event) {
@@ -2596,6 +2632,7 @@ view_has_instead_trigger(Relation view, CmdType event, List *mergeActionList)
 static const char *
 view_col_is_auto_updatable(RangeTblRef *rtr, TargetEntry *tle)
 {
+  DBUG_TRACE;
   Var      *var = (Var *) tle->expr;
 
   /*
@@ -2644,6 +2681,7 @@ view_col_is_auto_updatable(RangeTblRef *rtr, TargetEntry *tle)
 const char *
 view_query_is_auto_updatable(Query *viewquery, bool check_cols)
 {
+  DBUG_TRACE;
   RangeTblRef *rtr;
   RangeTblEntry *base_rte;
 
@@ -2795,6 +2833,7 @@ view_cols_are_auto_updatable(Query *viewquery,
                              Bitmapset **updatable_cols,
                              char **non_updatable_col)
 {
+  DBUG_TRACE;
   RangeTblRef *rtr;
   AttrNumber  col;
   ListCell   *cell;
@@ -2877,6 +2916,7 @@ relation_is_updatable(Oid reloid,
                       bool include_triggers,
                       Bitmapset *include_cols)
 {
+  DBUG_TRACE;
   int     events = 0;
   Relation  rel;
   RuleLock   *rulelocks;
@@ -3047,6 +3087,7 @@ relation_is_updatable(Oid reloid,
 static Bitmapset *
 adjust_view_column_set(Bitmapset *cols, List *targetlist)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
   int     col;
 
@@ -3119,6 +3160,7 @@ error_view_not_updatable(Relation view,
                          List *mergeActionList,
                          const char *detail)
 {
+  DBUG_TRACE;
   TriggerDesc *trigDesc = view->trigdesc;
 
   switch (command) {
@@ -3219,6 +3261,7 @@ error_view_not_updatable(Relation view,
 static Query *
 rewriteTargetView(Query *parsetree, Relation view)
 {
+  DBUG_TRACE;
   Query    *viewquery;
   bool    insert_or_update;
   const char *auto_update_detail;
@@ -3865,6 +3908,7 @@ static List *
 RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
              int num_ctes_processed)
 {
+  DBUG_TRACE;
   CmdType   event = parsetree->commandType;
   bool    instead = false;
   bool    returning = false;
@@ -3898,6 +3942,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
     if (ctequery->commandType == CMD_SELECT)
       continue;
 
+    DBUG_PRINT("info", "recursively process any insert/update/delete/merge statements in WITH clauses");
     newstuff = RewriteQuery(ctequery, rewrite_events, 0, 0);
 
     /*
@@ -3976,6 +4021,8 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
     int     values_rte_index = 0;
     bool    defaults_remaining = false;
 
+    DBUG_PRINT("info", "the statement is an insert, update, delete, or merge");
+    DBUG_PRINT("info", "adjust its targetlist as needed, and then fire INSERT/UPDATE/DELETE rules on it");
     result_relation = parsetree->resultRelation;
     Assert(result_relation != 0);
     rt_entry = rt_fetch(result_relation, parsetree->rtable);
@@ -4021,6 +4068,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
       if (values_rte) {
         Bitmapset  *unused_values_attrnos = NULL;
 
+        DBUG_PRINT("info", "process the main targetlist");
         /* Process the main targetlist ... */
         parsetree->targetList = rewriteTargetListIU(parsetree->targetList,
                                 parsetree->commandType,
@@ -4029,14 +4077,16 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
                                 values_rte,
                                 values_rte_index,
                                 &unused_values_attrnos);
-
         /* ... and the VALUES expression lists */
+        DBUG_PRINT("info", "... and the VALUES expression lists");
+
         if (!rewriteValuesRTE(parsetree, values_rte, values_rte_index,
                               rt_entry_relation,
                               unused_values_attrnos))
           defaults_remaining = true;
       } else {
         /* Process just the main targetlist */
+        DBUG_PRINT("info", "process just the main targetlist");
         parsetree->targetList =
           rewriteTargetListIU(parsetree->targetList,
                               parsetree->commandType,
@@ -4068,6 +4118,8 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
       /*
        * Rewrite each action targetlist separately
        */
+      DBUG_PRINT("info", "rewrite each action targetlist separately");
+
       foreach(lc1, parsetree->mergeActionList) {
         MergeAction *action = (MergeAction *) lfirst(lc1);
 
@@ -4097,6 +4149,7 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
         }
       }
     } else if (event == CMD_DELETE) {
+      DBUG_PRINT("info", "nothing to do here");
       /* Nothing to do here */
     } else
       elog(ERROR, "unrecognized commandType: %d", (int) event);
@@ -4328,6 +4381,12 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
                errmsg("INSERT with ON CONFLICT clause cannot be used with table that has INSERT or UPDATE rules")));
 
     table_close(rt_entry_relation, NoLock);
+  } else {
+    if (event == CMD_SELECT) {
+      DBUG_PRINT("info", "SELECT rules are handled later when we have all the queries that should get executed");
+    } else {
+      DBUG_PRINT("info", "utilities aren't rewritten at all");
+    }
   }
 
   /*
@@ -4366,6 +4425,8 @@ RewriteQuery(Query *parsetree, List *rewrite_events, int orig_rt_length,
    */
   if (parsetree->cteList != NIL) {
     int     qcount = 0;
+
+    DBUG_PRINT("info", "the original query has a CTE list");
 
     foreach(lc1, rewritten) {
       Query    *q = (Query *) lfirst(lc1);
@@ -4520,6 +4581,7 @@ build_generation_expression(Relation rel, int attrno)
 List *
 QueryRewrite(Query *parsetree)
 {
+  DBUG_TRACE;
   int64   input_query_id = parsetree->queryId;
   List     *querylist;
   List     *results;

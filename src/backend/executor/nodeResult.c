@@ -44,6 +44,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeResult.h"
@@ -66,11 +67,13 @@
 static TupleTableSlot *
 ExecResult(PlanState *pstate)
 {
+  DBUG_TRACE;
   ResultState *node = castNode(ResultState, pstate);
   TupleTableSlot *outerTupleSlot;
   PlanState  *outerPlan;
   ExprContext *econtext;
 
+  DBUG_PRINT("info", "returns the tuples from the outer plan which satisfy the qualification clause");
   CHECK_FOR_INTERRUPTS();
 
   econtext = node->ps.ps_ExprContext;
@@ -84,6 +87,7 @@ ExecResult(PlanState *pstate)
     node->rs_checkqual = false;
 
     if (!qualResult) {
+      DBUG_PRINT("info", "we are done");
       node->rs_done = true;
       return NULL;
     }
@@ -108,10 +112,13 @@ ExecResult(PlanState *pstate)
       /*
        * retrieve tuples from the outer plan until there are no more.
        */
+      DBUG_PRINT("info", "retrieve tuples from the outer plan until there are no more");
       outerTupleSlot = ExecProcNode(outerPlan);
 
-      if (TupIsNull(outerTupleSlot))
+      if (TupIsNull(outerTupleSlot)) {
+        DBUG_PRINT("info", "return nullptr");
         return NULL;
+      }
 
       /*
        * prepare to compute projection expressions, which will expect to
@@ -123,6 +130,7 @@ ExecResult(PlanState *pstate)
        * if we don't have an outer plan, then we are just generating the
        * results from a constant target list.  Do it only once.
        */
+      DBUG_PRINT("info", "we don't have an outer plan and we are done");
       node->rs_done = true;
     }
 
@@ -140,6 +148,7 @@ ExecResult(PlanState *pstate)
 void
 ExecResultMarkPos(ResultState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   if (outerPlan != NULL)
@@ -155,6 +164,7 @@ ExecResultMarkPos(ResultState *node)
 void
 ExecResultRestrPos(ResultState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   if (outerPlan != NULL)
@@ -174,6 +184,7 @@ ExecResultRestrPos(ResultState *node)
 ResultState *
 ExecInitResult(Result *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   ResultState *resstate;
 
   /* check for unsupported flags */
@@ -234,6 +245,7 @@ ExecInitResult(Result *node, EState *estate, int eflags)
 void
 ExecEndResult(ResultState *node)
 {
+  DBUG_TRACE;
   /*
    * shut down subplans
    */
@@ -243,6 +255,7 @@ ExecEndResult(ResultState *node)
 void
 ExecReScanResult(ResultState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   node->rs_done = false;

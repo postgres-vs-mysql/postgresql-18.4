@@ -13,9 +13,14 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
+#include "parser/parsetree.h"
+#include "nodes/bitmapset.h"
+#include "nodes/pathnodes.h"
+#include "catalog/namespace.h" /* for get_namespace_name() */
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/appendinfo.h"
@@ -83,6 +88,43 @@ static void build_child_join_reltarget(PlannerInfo *root,
                                        int nappinfos,
                                        AppendRelInfo **appinfos);
 
+static void
+print_relids_tables(PlannerInfo *root, const char *prefix, Relids relids)
+{
+  int relid = -1;
+  RangeTblEntry *rte;
+
+  while ((relid = bms_next_member(relids, relid)) >= 0) {
+    rte = planner_rt_fetch(relid, root);
+
+    if (!rte) {
+      continue;
+    }
+
+    {
+      const char *alias = rte->eref ? rte->eref->aliasname : "(no alias)";
+
+      const char *relname = NULL;
+      const char *schemaname = NULL;
+      Oid nspid;
+
+      if (rte->rtekind == RTE_RELATION) {
+        relname = get_rel_name(rte->relid);
+        nspid = get_rel_namespace(rte->relid);
+        schemaname = get_namespace_name(nspid);
+      } else {
+        relname = "(subquery)";
+        schemaname = "(no schema)";
+      }
+
+      DBUG_PRINT("info", "%s (relid %d -> %s.%s (alias: %s))",
+                 prefix, relid,
+                 schemaname ? schemaname : "(null)",
+                 relname ? relname : "(null)",
+                 alias);
+    }
+  }
+}
 
 /*
  * setup_simple_rel_arrays
@@ -92,6 +134,7 @@ static void build_child_join_reltarget(PlannerInfo *root,
 void
 setup_simple_rel_arrays(PlannerInfo *root)
 {
+  DBUG_TRACE;
   int     size;
   Index   rti;
   ListCell   *lc;
@@ -159,6 +202,7 @@ setup_simple_rel_arrays(PlannerInfo *root)
 void
 expand_planner_arrays(PlannerInfo *root, int add_size)
 {
+  DBUG_TRACE;
   int     new_size;
 
   Assert(add_size > 0);
@@ -179,6 +223,7 @@ expand_planner_arrays(PlannerInfo *root, int add_size)
       palloc0_array(AppendRelInfo *, new_size);
 
   root->simple_rel_array_size = new_size;
+  DBUG_PRINT("info", "add_size:%d, new_size:%d", add_size, new_size);
 }
 
 /*
@@ -188,6 +233,7 @@ expand_planner_arrays(PlannerInfo *root, int add_size)
 RelOptInfo *
 build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 {
+  DBUG_TRACE;
   RelOptInfo *rel;
   RangeTblEntry *rte;
 
@@ -407,16 +453,20 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 RelOptInfo *
 find_base_rel(PlannerInfo *root, int relid)
 {
+  DBUG_TRACE;
   RelOptInfo *rel;
 
   /* use an unsigned comparison to prevent negative array element access */
   if ((uint32) relid < (uint32) root->simple_rel_array_size) {
     rel = root->simple_rel_array[relid];
 
-    if (rel)
+    if (rel) {
+      print_relids_tables(root, "base or otherrel relation", rel->relids);
       return rel;
+    }
   }
 
+  DBUG_PRINT("info", "no relation entry for relid index %d", relid);
   elog(ERROR, "no relation entry for relid %d", relid);
 
   return NULL;        /* keep compiler quiet */
@@ -429,6 +479,8 @@ find_base_rel(PlannerInfo *root, int relid)
 RelOptInfo *
 find_base_rel_noerr(PlannerInfo *root, int relid)
 {
+  DBUG_TRACE;
+
   /* use an unsigned comparison to prevent negative array element access */
   if ((uint32) relid < (uint32) root->simple_rel_array_size)
     return root->simple_rel_array[relid];
@@ -448,6 +500,8 @@ find_base_rel_noerr(PlannerInfo *root, int relid)
 RelOptInfo *
 find_base_rel_ignore_join(PlannerInfo *root, int relid)
 {
+  DBUG_TRACE;
+
   /* use an unsigned comparison to prevent negative array element access */
   if ((uint32) relid < (uint32) root->simple_rel_array_size) {
     RelOptInfo *rel;
@@ -481,10 +535,12 @@ find_base_rel_ignore_join(PlannerInfo *root, int relid)
 static void
 build_join_rel_hash(PlannerInfo *root)
 {
+  DBUG_TRACE;
   HTAB     *hashtab;
   HASHCTL   hash_ctl;
   ListCell   *l;
 
+  DBUG_PRINT("info", "construct the auxiliary hash table for join relations");
   /* Create the hash table */
   hash_ctl.keysize = sizeof(Relids);
   hash_ctl.entrysize = sizeof(JoinHashEntry);
@@ -513,20 +569,53 @@ build_join_rel_hash(PlannerInfo *root)
   root->join_rel_hash = hashtab;
 }
 
+static const char *get_rel_opt_kind(int type)
+{
+  switch(type) {
+    case RELOPT_BASEREL:
+      return "base rel";
+
+    case RELOPT_JOINREL:
+      return "join rel";
+
+    case RELOPT_OTHER_MEMBER_REL:
+      return "other member rel";
+
+    case RELOPT_OTHER_JOINREL:
+      return "other join rel";
+
+    case RELOPT_UPPER_REL:
+      return "upper rel";
+
+    case RELOPT_OTHER_UPPER_REL:
+      return "other upper rel";
+
+    default:
+      return "unknown";
+  }
+}
+
 /*
  * find_join_rel
  *    Returns relation entry corresponding to 'relids' (a set of RT indexes),
  *    or NULL if none exists.  This is for join relations.
  */
 RelOptInfo *
-find_join_rel(PlannerInfo *root, Relids relids)
+find_join_rel(PlannerInfo *root, Relids relids, int *dp_cache_visits)
 {
+  DBUG_TRACE;
+
+  DBUG_PRINT("info", "DP memoization: check cache first to avoid recomputation");
+  DBUG_PRINT("info", "join rel list length:%d", list_length(root->join_rel_list));
+
   /*
    * Switch to using hash lookup when list grows "too long".  The threshold
    * is arbitrary and is known only here.
    */
-  if (!root->join_rel_hash && list_length(root->join_rel_list) > 32)
+  if (!root->join_rel_hash && list_length(root->join_rel_list) > 32) {
+    DBUG_PRINT("info", "switch to using hash lookup when list grows too long%d", list_length(root->join_rel_list));
     build_join_rel_hash(root);
+  }
 
   /*
    * Use either hashtable lookup or linear search, as appropriate.
@@ -540,24 +629,49 @@ find_join_rel(PlannerInfo *root, Relids relids)
     Relids    hashkey = relids;
     JoinHashEntry *hentry;
 
+    DBUG_PRINT("info", "use hashtable lookup");
     hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
                                            &hashkey,
                                            HASH_FIND,
                                            NULL);
 
-    if (hentry)
+    if (hentry) {
+      if (dp_cache_visits) {
+        *dp_cache_visits = *dp_cache_visits + 1;
+        DBUG_PRINT("info", "dp cache hit:%d and return join rel", *dp_cache_visits);
+      } else {
+        DBUG_PRINT("info", "dp cache hit and return join rel");
+      }
+
       return hentry->join_rel;
+    }
   } else {
     ListCell   *l;
+    int count = 0;
+
+    DBUG_PRINT("info", "use linear search");
 
     foreach(l, root->join_rel_list) {
       RelOptInfo *rel = (RelOptInfo *) lfirst(l);
 
-      if (bms_equal(rel->relids, relids))
+      count++;
+
+      if (bms_equal(rel->relids, relids)) {
+        if (dp_cache_visits) {
+          *dp_cache_visits = *dp_cache_visits + 1;
+          DBUG_PRINT("info", "find the rel opt info, dp_cache_visits:%d, compared cnt:%d, rel type:%s",
+                     *dp_cache_visits, count, get_rel_opt_kind(rel->reloptkind));
+        } else {
+          DBUG_PRINT("info", "find the rel opt info, compared cnt:%d, rel type:%s",
+                     count, get_rel_opt_kind(rel->reloptkind));
+        }
+
         return rel;
+      }
     }
   }
 
+  DBUG_PRINT("info", "nullptr if none exists");
   return NULL;
 }
 
@@ -581,6 +695,8 @@ static void
 set_foreign_rel_properties(RelOptInfo *joinrel, RelOptInfo *outer_rel,
                            RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(outer_rel->serverid) &&
       inner_rel->serverid == outer_rel->serverid) {
     if (inner_rel->userid == outer_rel->userid) {
@@ -612,6 +728,8 @@ set_foreign_rel_properties(RelOptInfo *joinrel, RelOptInfo *outer_rel,
 static void
 add_join_rel(PlannerInfo *root, RelOptInfo *joinrel)
 {
+  DBUG_TRACE;
+  print_relids_tables(root, "joinrel", joinrel->relids);
   /* GEQO requires us to append the new joinrel to the end of the list! */
   root->join_rel_list = lappend(root->join_rel_list, joinrel);
 
@@ -653,10 +771,18 @@ build_join_rel(PlannerInfo *root,
                RelOptInfo *inner_rel,
                SpecialJoinInfo *sjinfo,
                List *pushed_down_joins,
-               List **restrictlist_ptr)
+               List **restrictlist_ptr, int *total_create_rel, int *dp_cache_visits)
 {
+  DBUG_TRACE;
   RelOptInfo *joinrel;
   List     *restrictlist;
+
+  if (outer_rel && inner_rel) {
+    print_relids_tables(root, "outer_rel", outer_rel->relids);
+    print_relids_tables(root, "inner_rel", inner_rel->relids);
+  } else {
+    DBUG_PRINT("info", "outer_rel or inner_rel is nullptr");
+  }
 
   /* This function should be used only for join between parents. */
   Assert(!IS_OTHER_REL(outer_rel) && !IS_OTHER_REL(inner_rel));
@@ -664,9 +790,11 @@ build_join_rel(PlannerInfo *root,
   /*
    * See if we already have a joinrel for this set of base rels.
    */
-  joinrel = find_join_rel(root, joinrelids);
+  joinrel = find_join_rel(root, joinrelids, dp_cache_visits);
 
   if (joinrel) {
+    DBUG_PRINT("info", "we already have a joinrel for this set of base rels");
+
     /*
      * Yes, so we only need to figure the restrictlist for this particular
      * pair of component relations.
@@ -679,6 +807,10 @@ build_join_rel(PlannerInfo *root,
                           sjinfo);
 
     return joinrel;
+  }
+
+  if (total_create_rel) {
+    *total_create_rel = (*total_create_rel) + 1;;
   }
 
   /*
@@ -870,6 +1002,7 @@ build_child_join_rel(PlannerInfo *root, RelOptInfo *outer_rel,
                      List *restrictlist, SpecialJoinInfo *sjinfo,
                      int nappinfos, AppendRelInfo **appinfos)
 {
+  DBUG_TRACE;
   RelOptInfo *joinrel = makeNode(RelOptInfo);
 
   /* Only joins between "other" relations land here. */
@@ -977,7 +1110,7 @@ build_child_join_rel(PlannerInfo *root, RelOptInfo *outer_rel,
                              sjinfo, restrictlist);
 
   /* We build the join only once. */
-  Assert(!find_join_rel(root, joinrel->relids));
+  Assert(!find_join_rel(root, joinrel->relids, NULL));
 
   /* Add the relation to the PlannerInfo. */
   add_join_rel(root, joinrel);
@@ -1010,6 +1143,7 @@ min_join_parameterization(PlannerInfo *root,
                           RelOptInfo *outer_rel,
                           RelOptInfo *inner_rel)
 {
+  DBUG_TRACE;
   Relids    result;
 
   /*
@@ -1089,6 +1223,7 @@ build_joinrel_tlist(PlannerInfo *root, RelOptInfo *joinrel,
                     List *pushed_down_joins,
                     bool can_null)
 {
+  DBUG_TRACE;
   Relids    relids = joinrel->relids;
   int64   tuple_width = joinrel->reltarget->width;
   ListCell   *vars;
@@ -1274,6 +1409,7 @@ build_joinrel_restrictlist(PlannerInfo *root,
                            RelOptInfo *inner_rel,
                            SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   List     *result;
   Relids    both_input_relids;
 
@@ -1329,6 +1465,7 @@ subbuild_joinrel_restrictlist(PlannerInfo *root,
                               Relids both_input_relids,
                               List *new_restrictlist)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, input_rel->joininfo) {
@@ -1388,6 +1525,7 @@ subbuild_joinrel_joinlist(RelOptInfo *joinrel,
                           List *joininfo_list,
                           List *new_joininfo)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /* Expected to be called only for join between parent relations. */
@@ -1434,6 +1572,7 @@ subbuild_joinrel_joinlist(RelOptInfo *joinrel,
 RelOptInfo *
 fetch_upper_rel(PlannerInfo *root, UpperRelationKind kind, Relids relids)
 {
+  DBUG_TRACE;
   RelOptInfo *upperrel;
   ListCell   *lc;
 
@@ -1484,6 +1623,7 @@ fetch_upper_rel(PlannerInfo *root, UpperRelationKind kind, Relids relids)
 Relids
 find_childrel_parents(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Relids    result = NULL;
 
   Assert(rel->reloptkind == RELOPT_OTHER_MEMBER_REL);
@@ -1970,6 +2110,7 @@ build_joinrel_partition_info(PlannerInfo *root,
                              RelOptInfo *inner_rel, SpecialJoinInfo *sjinfo,
                              List *restrictlist)
 {
+  DBUG_TRACE;
   PartitionScheme part_scheme;
 
   /* Nothing to do if partitionwise join technique is disabled. */
@@ -2040,6 +2181,7 @@ have_partkey_equi_join(PlannerInfo *root, RelOptInfo *joinrel,
                        RelOptInfo *rel1, RelOptInfo *rel2,
                        JoinType jointype, List *restrictlist)
 {
+  DBUG_TRACE;
   PartitionScheme part_scheme = rel1->part_scheme;
   bool    pk_known_equal[PARTITION_MAX_KEYS];
   int     num_equal_pks;
@@ -2277,6 +2419,7 @@ have_partkey_equi_join(PlannerInfo *root, RelOptInfo *joinrel,
 static int
 match_expr_to_partition_keys(Expr *expr, RelOptInfo *rel, bool strict_op)
 {
+  DBUG_TRACE;
   int     cnt;
 
   /* This function should be called only for partitioned relations. */
@@ -2325,6 +2468,7 @@ set_joinrel_partition_key_exprs(RelOptInfo *joinrel,
                                 RelOptInfo *outer_rel, RelOptInfo *inner_rel,
                                 JoinType jointype)
 {
+  DBUG_TRACE;
   PartitionScheme part_scheme = joinrel->part_scheme;
   int     partnatts = part_scheme->partnatts;
 
@@ -2468,6 +2612,7 @@ build_child_join_reltarget(PlannerInfo *root,
                            int nappinfos,
                            AppendRelInfo **appinfos)
 {
+  DBUG_TRACE;
   /* Build the targetlist */
   childrel->reltarget->exprs = (List *)
                                adjust_appendrel_attrs(root,

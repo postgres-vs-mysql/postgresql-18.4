@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "tsearch/ts_locale.h"
@@ -55,6 +56,7 @@ struct TSVectorParseStateData {
 TSVectorParseState
 init_tsvector_parser(char *input, int flags, Node *escontext)
 {
+  DBUG_TRACE;
   TSVectorParseState state;
 
   state = (TSVectorParseState) palloc(sizeof(struct TSVectorParseStateData));
@@ -177,6 +179,7 @@ gettoken_tsvector(TSVectorParseState state,
                   WordEntryPos **pos_ptr, int *poslen,
                   char **endptr)
 {
+  DBUG_TRACE;
   int     oldstate = 0;
   char     *curpos = state->word;
   int     statecode = WAITWORD;

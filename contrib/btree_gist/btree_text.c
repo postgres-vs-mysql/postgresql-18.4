@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_text.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "btree_gist.h"
 #include "btree_utils_var.h"
@@ -27,6 +28,7 @@ PG_FUNCTION_INFO_V1(gbt_bpchar_sortsupport);
 static bool
 gbt_textgt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(text_gt,
                       collation,
                       PointerGetDatum(a),
@@ -36,6 +38,7 @@ gbt_textgt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_textge(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(text_ge,
                       collation,
                       PointerGetDatum(a),
@@ -45,6 +48,7 @@ gbt_textge(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_texteq(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(texteq,
                       collation,
                       PointerGetDatum(a),
@@ -54,6 +58,7 @@ gbt_texteq(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_textle(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(text_le,
                       collation,
                       PointerGetDatum(a),
@@ -63,6 +68,7 @@ gbt_textle(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_textlt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(text_lt,
                       collation,
                       PointerGetDatum(a),
@@ -72,6 +78,7 @@ gbt_textlt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static int32
 gbt_textcmp(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetInt32(DirectFunctionCall2Coll(bttextcmp,
                        collation,
                        PointerGetDatum(a),
@@ -96,6 +103,7 @@ static gbtree_vinfo tinfo = {
 static bool
 gbt_bpchargt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(bpchargt,
                       collation,
                       PointerGetDatum(a),
@@ -105,6 +113,7 @@ gbt_bpchargt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_bpcharge(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(bpcharge,
                       collation,
                       PointerGetDatum(a),
@@ -114,6 +123,7 @@ gbt_bpcharge(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_bpchareq(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(bpchareq,
                       collation,
                       PointerGetDatum(a),
@@ -123,6 +133,7 @@ gbt_bpchareq(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_bpcharle(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(bpcharle,
                       collation,
                       PointerGetDatum(a),
@@ -132,6 +143,7 @@ gbt_bpcharle(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static bool
 gbt_bpcharlt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2Coll(bpcharlt,
                       collation,
                       PointerGetDatum(a),
@@ -141,6 +153,7 @@ gbt_bpcharlt(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 static int32
 gbt_bpcharcmp(const void *a, const void *b, Oid collation, FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   return DatumGetInt32(DirectFunctionCall2Coll(bpcharcmp,
                        collation,
                        PointerGetDatum(a),
@@ -168,6 +181,7 @@ static gbtree_vinfo bptinfo = {
 Datum
 gbt_text_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   if (tinfo.eml == 0) {
@@ -180,6 +194,7 @@ gbt_text_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_bpchar_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* This should never have been distinct from gbt_text_compress */
   return gbt_text_compress(fcinfo);
 }
@@ -187,6 +202,7 @@ gbt_bpchar_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_text_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   void     *query = DatumGetTextP(PG_GETARG_DATUM(1));
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -207,12 +223,19 @@ gbt_text_consistent(PG_FUNCTION_ARGS)
   retval = gbt_var_consistent(&r, query, strategy, PG_GET_COLLATION(),
                               GIST_LEAF(entry), &tinfo, fcinfo->flinfo);
 
+  if (retval) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_BOOL(retval);
 }
 
 Datum
 gbt_bpchar_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   void     *query = DatumGetTextP(PG_GETARG_DATUM(1));
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -232,12 +255,20 @@ gbt_bpchar_consistent(PG_FUNCTION_ARGS)
 
   retval = gbt_var_consistent(&r, query, strategy, PG_GET_COLLATION(),
                               GIST_LEAF(entry), &bptinfo, fcinfo->flinfo);
+
+  if (retval) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_BOOL(retval);
 }
 
 Datum
 gbt_text_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int32    *size = (int *) PG_GETARG_POINTER(1);
 
@@ -248,6 +279,7 @@ gbt_text_union(PG_FUNCTION_ARGS)
 Datum
 gbt_text_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
 
@@ -259,23 +291,32 @@ gbt_text_picksplit(PG_FUNCTION_ARGS)
 Datum
 gbt_text_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   d1 = PG_GETARG_DATUM(0);
   Datum   d2 = PG_GETARG_DATUM(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_var_same(d1, d2, PG_GET_COLLATION(), &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 
 Datum
 gbt_text_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *o = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *n = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *result = (float *) PG_GETARG_POINTER(2);
+  float *tmp = gbt_var_penalty(result, o, n, PG_GET_COLLATION(), &tinfo, fcinfo->flinfo);
 
-  PG_RETURN_POINTER(gbt_var_penalty(result, o, n, PG_GET_COLLATION(),
-                                    &tinfo, fcinfo->flinfo));
+  PG_RETURN_POINTER(tmp);
 }
 
 static int

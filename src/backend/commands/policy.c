@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup.h"
@@ -64,6 +65,7 @@ static void
 RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
                           void *arg)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_class classform;
   char    relkind;
@@ -81,17 +83,21 @@ RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
     aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relid)), rv->relname);
 
   /* No system table modifications unless explicitly allowed. */
-  if (!allowSystemTableMods && IsSystemClass(relid, classform))
+  if (!allowSystemTableMods && IsSystemClass(relid, classform)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", rv->relname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     rv->relname)));
+  }
 
   /* Relation type MUST be a table. */
-  if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE)
+  if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a table", rv->relname);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not a table", rv->relname)));
+  }
 
   ReleaseSysCache(tuple);
 }
@@ -108,6 +114,7 @@ RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 static char
 parse_policy_command(const char *cmd_name)
 {
+  DBUG_TRACE;
   char    polcmd;
 
   if (!cmd_name)
@@ -137,6 +144,7 @@ parse_policy_command(const char *cmd_name)
 static Datum *
 policy_role_list_to_array(List *roles, int *num_roles)
 {
+  DBUG_TRACE;
   Datum    *role_oids;
   ListCell   *cell;
   int     i = 0;
@@ -189,6 +197,7 @@ policy_role_list_to_array(List *roles, int *num_roles)
 void
 RelationBuildRowSecurity(Relation relation)
 {
+  DBUG_TRACE;
   MemoryContext rscxt;
   MemoryContext oldcxt = CurrentMemoryContext;
   RowSecurityDesc *rsdesc;
@@ -327,6 +336,7 @@ RelationBuildRowSecurity(Relation relation)
 void
 RemovePolicyById(Oid policy_id)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   SysScanDesc sscan;
   ScanKeyData skey[1];
@@ -364,17 +374,21 @@ RemovePolicyById(Oid policy_id)
   rel = table_open(relid, AccessExclusiveLock);
 
   if (rel->rd_rel->relkind != RELKIND_RELATION &&
-      rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+      rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a table", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not a table",
                     RelationGetRelationName(rel))));
+  }
 
-  if (!allowSystemTableMods && IsSystemRelation(rel))
+  if (!allowSystemTableMods && IsSystemRelation(rel)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     RelationGetRelationName(rel))));
+  }
 
   CatalogTupleDelete(pg_policy_rel, &tuple->t_self);
 
@@ -412,6 +426,7 @@ RemovePolicyById(Oid policy_id)
 bool
 RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   SysScanDesc sscan;
   ScanKeyData skey[1];
@@ -564,6 +579,7 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 ObjectAddress
 CreatePolicy(CreatePolicyStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   Oid     policy_id;
   Relation  target_table;
@@ -593,19 +609,23 @@ CreatePolicy(CreatePolicyStmt *stmt)
    * If the command is SELECT or DELETE then WITH CHECK should be NULL.
    */
   if ((polcmd == ACL_SELECT_CHR || polcmd == ACL_DELETE_CHR)
-      && stmt->with_check != NULL)
+      && stmt->with_check != NULL) {
+    DBUG_INSTANT_PRINT("info", "WITH CHECK cannot be applied to SELECT or DELETE");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("WITH CHECK cannot be applied to SELECT or DELETE")));
+  }
 
   /*
    * If the command is INSERT then WITH CHECK should be the only expression
    * provided.
    */
-  if (polcmd == ACL_INSERT_CHR && stmt->qual != NULL)
+  if (polcmd == ACL_INSERT_CHR && stmt->qual != NULL) {
+    DBUG_INSTANT_PRINT("info", "only WITH CHECK expression allowed for INSERT");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("only WITH CHECK expression allowed for INSERT")));
+  }
 
   /* Collect role ids */
   role_oids = policy_role_list_to_array(stmt->roles, &nitems);
@@ -676,11 +696,14 @@ CreatePolicy(CreatePolicyStmt *stmt)
   policy_tuple = systable_getnext(sscan);
 
   /* Complain if the policy name already exists for the table */
-  if (HeapTupleIsValid(policy_tuple))
+  if (HeapTupleIsValid(policy_tuple)) {
+    DBUG_INSTANT_PRINT("info", "policy \"%s\" for table \"%s\" already exists",
+                       stmt->policy_name, RelationGetRelationName(target_table));
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("policy \"%s\" for table \"%s\" already exists",
                     stmt->policy_name, RelationGetRelationName(target_table))));
+  }
 
   policy_id = GetNewOidWithIndex(pg_policy_rel, PolicyOidIndexId,
                                  Anum_pg_policy_oid);
@@ -764,6 +787,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 ObjectAddress
 AlterPolicy(AlterPolicyStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   Oid     policy_id;
   Relation  target_table;
@@ -875,12 +899,15 @@ AlterPolicy(AlterPolicyStmt *stmt)
   policy_tuple = systable_getnext(sscan);
 
   /* Check that the policy is found, raise an error if not. */
-  if (!HeapTupleIsValid(policy_tuple))
+  if (!HeapTupleIsValid(policy_tuple)) {
+    DBUG_INSTANT_PRINT("info", "policy \"%s\" for table \"%s\" does not exist",
+                       stmt->policy_name, RelationGetRelationName(target_table));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("policy \"%s\" for table \"%s\" does not exist",
                     stmt->policy_name,
                     RelationGetRelationName(target_table))));
+  }
 
   /* Get policy command */
   polcmd_datum = heap_getattr(policy_tuple, Anum_pg_policy_polcmd,
@@ -893,20 +920,24 @@ AlterPolicy(AlterPolicyStmt *stmt)
    * If the command is SELECT or DELETE then WITH CHECK should be NULL.
    */
   if ((polcmd == ACL_SELECT_CHR || polcmd == ACL_DELETE_CHR)
-      && stmt->with_check != NULL)
+      && stmt->with_check != NULL) {
+    DBUG_INSTANT_PRINT("info", "only USING expression allowed for SELECT, DELETE");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("only USING expression allowed for SELECT, DELETE")));
+  }
 
   /*
    * If the command is INSERT then WITH CHECK should be the only expression
    * provided.
    */
   if ((polcmd == ACL_INSERT_CHR)
-      && stmt->qual != NULL)
+      && stmt->qual != NULL) {
+    DBUG_INSTANT_PRINT("info", "only WITH CHECK expression allowed for INSERT");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("only WITH CHECK expression allowed for INSERT")));
+  }
 
   policy_id = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
 
@@ -1081,6 +1112,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 ObjectAddress
 rename_policy(RenameStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   Relation  target_table;
   Oid     table_id;
@@ -1118,11 +1150,14 @@ rename_policy(RenameStmt *stmt)
                              PolicyPolrelidPolnameIndexId, true, NULL, 2,
                              skey);
 
-  if (HeapTupleIsValid(systable_getnext(sscan)))
+  if (HeapTupleIsValid(systable_getnext(sscan))) {
+    DBUG_INSTANT_PRINT("info", "policy \"%s\" for table \"%s\" already exists",
+                       stmt->newname, RelationGetRelationName(target_table));
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("policy \"%s\" for table \"%s\" already exists",
                     stmt->newname, RelationGetRelationName(target_table))));
+  }
 
   systable_endscan(sscan);
 
@@ -1146,11 +1181,13 @@ rename_policy(RenameStmt *stmt)
   policy_tuple = systable_getnext(sscan);
 
   /* Complain if we did not find the policy */
-  if (!HeapTupleIsValid(policy_tuple))
+  if (!HeapTupleIsValid(policy_tuple)) {
+    DBUG_INSTANT_PRINT("info", "policy \"%s\" for table \"%s\" does not exist", stmt->subname, RelationGetRelationName(target_table));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("policy \"%s\" for table \"%s\" does not exist",
                     stmt->subname, RelationGetRelationName(target_table))));
+  }
 
   opoloid = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
 
@@ -1189,6 +1226,7 @@ rename_policy(RenameStmt *stmt)
 Oid
 get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  pg_policy_rel;
   ScanKeyData skey[2];
   SysScanDesc sscan;
@@ -1216,11 +1254,14 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
   policy_tuple = systable_getnext(sscan);
 
   if (!HeapTupleIsValid(policy_tuple)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      char *rel_name = get_rel_name(relid);
+      DBUG_INSTANT_PRINT("info", "policy \"%s\" for table \"%s\" does not exist", policy_name, rel_name);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("policy \"%s\" for table \"%s\" does not exist",
-                      policy_name, get_rel_name(relid))));
+                      policy_name, rel_name)));
+    }
 
     policy_oid = InvalidOid;
   } else
@@ -1239,6 +1280,7 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 bool
 relation_has_policies(Relation rel)
 {
+  DBUG_TRACE;
   Relation  catalog;
   ScanKeyData skey;
   SysScanDesc sscan;

@@ -72,6 +72,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/spgist.h"
 #include "access/spgist_private.h"
@@ -398,8 +399,10 @@ pointToRectBoxDistance(Point *point, RectBox *rect_box)
 Datum
 spg_box_quad_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
+  DBUG_PRINT("info", "SP-GiST config function");
   cfg->prefixType = BOXOID;
   cfg->labelType = VOIDOID; /* We don't need node labels. */
   cfg->canReturnData = true;
@@ -414,11 +417,13 @@ spg_box_quad_config(PG_FUNCTION_ARGS)
 Datum
 spg_box_quad_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   BOX      *centroid = DatumGetBoxP(in->prefixDatum),
             *box = DatumGetBoxP(in->leafDatum);
 
+  DBUG_PRINT("info", "SP-GiST choose function");
   out->resultType = spgMatchNode;
   out->result.matchNode.restDatum = BoxPGetDatum(box);
 
@@ -438,6 +443,7 @@ spg_box_quad_choose(PG_FUNCTION_ARGS)
 Datum
 spg_box_quad_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   BOX      *centroid;
@@ -447,6 +453,8 @@ spg_box_quad_picksplit(PG_FUNCTION_ARGS)
   float8     *highXs = palloc(sizeof(float8) * in->nTuples);
   float8     *lowYs = palloc(sizeof(float8) * in->nTuples);
   float8     *highYs = palloc(sizeof(float8) * in->nTuples);
+  DBUG_PRINT("info", "SP-GiST pick-split function");
+  DBUG_PRINT("info", "it splits a list of boxes into quadrants by choosing a central 4D point as the median of the coordinates of the boxes");
 
   /* Calculate median of all 4D coordinates */
   for (i = 0; i < in->nTuples; i++) {
@@ -547,6 +555,7 @@ spg_box_quad_get_scankey_bbox(ScanKey sk, bool *recheck)
 Datum
 spg_box_quad_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   int     i;
@@ -555,6 +564,7 @@ spg_box_quad_inner_consistent(PG_FUNCTION_ARGS)
   uint8   quadrant;
   RangeBox   *centroid,
              **queries;
+  DBUG_PRINT("info", "SP-GiST inner consistent function");
 
   /*
    * We are saving the traversal value or initialize it an unbounded one, if
@@ -725,12 +735,14 @@ spg_box_quad_inner_consistent(PG_FUNCTION_ARGS)
 Datum
 spg_box_quad_leaf_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
   spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
   Datum   leaf = in->leafDatum;
   bool    flag = true;
   int     i;
 
+  DBUG_PRINT("info", "SP-GiST inner consistent function");
   /* All tests are exact. */
   out->recheck = false;
 
@@ -829,6 +841,12 @@ spg_box_quad_leaf_consistent(PG_FUNCTION_ARGS)
     out->recheckDistances = distfnoid == F_DIST_POLYP;
   }
 
+  if (flag) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(flag);
 }
 
@@ -840,6 +858,7 @@ spg_box_quad_leaf_consistent(PG_FUNCTION_ARGS)
 Datum
 spg_bbox_quad_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
   cfg->prefixType = BOXOID; /* A type represented by its bounding box */
@@ -857,6 +876,7 @@ spg_bbox_quad_config(PG_FUNCTION_ARGS)
 Datum
 spg_poly_quad_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polygon = PG_GETARG_POLYGON_P(0);
   BOX      *box;
 

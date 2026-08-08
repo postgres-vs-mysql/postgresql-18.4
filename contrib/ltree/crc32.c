@@ -7,6 +7,7 @@
  * must stay backwards-compatible!
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 #include "ltree.h"
 
@@ -66,6 +67,7 @@ ltree_crc32_sz(const char *buf, int size)
 unsigned int
 ltree_crc32_sz(const char *buf, int size)
 {
+  DBUG_TRACE;
   pg_crc32  crc;
   const char *p = buf;
 
@@ -78,6 +80,7 @@ ltree_crc32_sz(const char *buf, int size)
   }
 
   FIN_TRADITIONAL_CRC32(crc);
+  DBUG_PRINT("ltree", "crc:%u", (unsigned int) crc);
   return (unsigned int) crc;
 }
 

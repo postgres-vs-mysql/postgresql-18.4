@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
@@ -92,6 +93,7 @@ static List *generate_setop_grouplist(SetOperationStmt *op, List *targetlist);
 RelOptInfo *
 plan_set_operations(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   SetOperationStmt *topop = castNode(SetOperationStmt, parse->setOperations);
   Node     *node;
@@ -102,6 +104,7 @@ plan_set_operations(PlannerInfo *root)
 
   Assert(topop);
 
+  DBUG_PRINT("info", "plans the queries for a tree of set operations");
   /* check for unsupported stuff */
   Assert(parse->jointree->fromlist == NIL);
   Assert(parse->jointree->quals == NULL);
@@ -212,8 +215,10 @@ recurse_set_operations(Node *setOp, PlannerInfo *root,
                        List **pTargetList,
                        bool *istrivial_tlist)
 {
+  DBUG_TRACE;
   RelOptInfo *rel;
 
+  DBUG_PRINT("info", "recursively handle one step in a tree of set operations");
   *istrivial_tlist = true;  /* for now */
 
   /* Guard against stack overflow due to overly complex setop nests */
@@ -351,6 +356,7 @@ generate_recursion_path(SetOperationStmt *setOp, PlannerInfo *root,
                         List *refnames_tlist,
                         List **pTargetList)
 {
+  DBUG_TRACE;
   RelOptInfo *result_rel;
   Path     *path;
   RelOptInfo *lrel,
@@ -364,6 +370,8 @@ generate_recursion_path(SetOperationStmt *setOp, PlannerInfo *root,
   List     *tlist;
   List     *groupList;
   double    dNumGroups;
+
+  DBUG_PRINT("info", "generate paths for a recursive UNION node");
 
   /* Parser should have rejected other cases */
   if (setOp->op != SETOP_UNION)
@@ -429,11 +437,13 @@ generate_recursion_path(SetOperationStmt *setOp, PlannerInfo *root,
     groupList = generate_setop_grouplist(setOp, tlist);
 
     /* We only support hashing here */
-    if (!grouping_is_hashable(groupList))
+    if (!grouping_is_hashable(groupList)) {
+      DBUG_INSTANT_PRINT("info", "could not implement recursive UNION");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("could not implement recursive UNION"),
                errdetail("All column datatypes must be hashable.")));
+    }
 
     /*
      * For the moment, take the number of distinct groups as equal to the
@@ -454,7 +464,7 @@ generate_recursion_path(SetOperationStmt *setOp, PlannerInfo *root,
          root->wt_param_id,
          dNumGroups);
 
-  add_path(result_rel, path);
+  add_path(root, result_rel, path);
   postprocess_setop_rel(root, result_rel);
   return result_rel;
 }
@@ -477,6 +487,7 @@ build_setop_child_paths(PlannerInfo *root, RelOptInfo *rel,
                         bool trivial_tlist, List *child_tlist,
                         List *interesting_pathkeys, double *pNumGroups)
 {
+  DBUG_TRACE;
   RelOptInfo *final_rel;
   List     *setop_pathkeys = rel->subroot->setop_pathkeys;
   ListCell   *lc;
@@ -524,7 +535,7 @@ build_setop_child_paths(PlannerInfo *root, RelOptInfo *rel,
                                            make_tlist_from_pathtarget(subpath->pathtarget));
 
       /* Generate outer path using this subpath */
-      add_path(rel, (Path *) create_subqueryscan_path(root,
+      add_path(root, rel, (Path *) create_subqueryscan_path(root,
                rel,
                subpath,
                trivial_tlist,
@@ -590,7 +601,7 @@ build_setop_child_paths(PlannerInfo *root, RelOptInfo *rel,
                                            make_tlist_from_pathtarget(subpath->pathtarget));
 
       /* Generate outer path using this subpath */
-      add_path(rel, (Path *) create_subqueryscan_path(root,
+      add_path(root, rel, (Path *) create_subqueryscan_path(root,
                rel,
                subpath,
                trivial_tlist,
@@ -618,7 +629,7 @@ build_setop_child_paths(PlannerInfo *root, RelOptInfo *rel,
                    create_subqueryscan_path(root, rel, partial_subpath,
                                             trivial_tlist,
                                             NIL, NULL);
-    add_partial_path(rel, partial_path);
+    add_partial_path(root, rel, partial_path);
   }
 
   postprocess_setop_rel(root, rel);
@@ -666,6 +677,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
                      List *refnames_tlist,
                      List **pTargetList)
 {
+  DBUG_TRACE;
   Relids    relids = NULL;
   RelOptInfo *result_rel;
   ListCell   *lc;
@@ -711,11 +723,13 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
 
   /* For UNIONs (not UNION ALL), try sorting, if sorting is possible */
   if (!op->all) {
+    DBUG_PRINT("info", "for UNIONs (not UNION ALL), try sorting");
     /* Identify the grouping semantics */
     groupList = generate_setop_grouplist(op, tlist);
 
     if (grouping_is_sortable(op->groupClauses)) {
       try_sorted = true;
+      DBUG_PRINT("info", "determine the pathkeys for sorting by the whole target list");
       /* Determine the pathkeys for sorting by the whole target list */
       union_pathkeys = make_pathkeys_for_sortclauses(root, groupList,
                        tlist);
@@ -728,16 +742,21 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
    * Now that we've got the append target list, we can build the union child
    * paths.
    */
+  DBUG_PRINT("info", "now that we've got the append target list, we can build the union child paths");
   forthree(lc, rellist, lc2, trivial_tlist_list, lc3, tlist_list) {
     RelOptInfo *rel = lfirst(lc);
     bool    trivial_tlist = lfirst_int(lc2);
     List     *child_tlist = lfirst_node(List, lc3);
 
     /* only build paths for the union children */
-    if (rel->rtekind == RTE_SUBQUERY)
+    if (rel->rtekind == RTE_SUBQUERY) {
+      DBUG_PRINT("info", "only build paths for the union children");
       build_setop_child_paths(root, rel, trivial_tlist, child_tlist,
                               union_pathkeys, NULL);
+    }
   }
+
+  DBUG_PRINT("info", "build path lists and relid set");
 
   /* Build path lists and relid set. */
   foreach(lc, rellist) {
@@ -791,6 +810,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
    * Append the child results together using the cheapest paths from each
    * union child.
    */
+  DBUG_PRINT("info", "append the child results together using the cheapest paths from each union child");
   apath = (Path *) create_append_path(root, result_rel, cheapest_pathlist,
                                       NIL, NIL, NULL, 0, false, -1);
 
@@ -805,9 +825,12 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
    * Now consider doing the same thing using the partial paths plus Append
    * plus Gather.
    */
+  DBUG_PRINT("info", "now consider doing the same thing using the partial paths plus Append plus Gather");
+
   if (partial_paths_valid) {
     Path     *papath;
     int     parallel_workers = 0;
+
 
     /* Find the highest number of workers requested for any subpath. */
     foreach(lc, partial_pathlist) {
@@ -817,6 +840,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
                              subpath->parallel_workers);
     }
 
+    DBUG_PRINT("info", "find the highest number of workers requested for any subpath:%d", parallel_workers);
     Assert(parallel_workers > 0);
 
     /*
@@ -866,6 +890,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
        * Try a hash aggregate plan on 'apath'.  This is the cheapest
        * available path containing each append child.
        */
+      DBUG_PRINT("info", "try a hash aggregate plan on 'apath'");
       path = (Path *) create_agg_path(root,
                                       result_rel,
                                       apath,
@@ -876,10 +901,11 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
                                       NIL,
                                       NULL,
                                       dNumGroups);
-      add_path(result_rel, path);
+      add_path(root, result_rel, path);
 
       /* Try hash aggregate on the Gather path, if valid */
       if (gpath != NULL) {
+        DBUG_PRINT("info", "hashed aggregate plan --- no sort needed");
         /* Hashed aggregate plan --- no sort needed */
         path = (Path *) create_agg_path(root,
                                         result_rel,
@@ -891,7 +917,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
                                         NIL,
                                         NULL,
                                         dNumGroups);
-        add_path(result_rel, path);
+        add_path(root, result_rel, path);
       }
     }
 
@@ -900,9 +926,11 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
 
       /* Try Sort -> Unique on the Append path */
       if (groupList != NIL)
-        path = (Path *) create_sort_path(root, result_rel, path,
-                                         make_pathkeys_for_sortclauses(root, groupList, tlist),
-                                         -1.0);
+        DBUG_PRINT("info", "try Sort -> Unique on the Append path");
+
+      path = (Path *) create_sort_path(root, result_rel, path,
+                                       make_pathkeys_for_sortclauses(root, groupList, tlist),
+                                       -1.0);
 
       path = (Path *) create_upper_unique_path(root,
              result_rel,
@@ -910,12 +938,13 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
              list_length(path->pathkeys),
              dNumGroups);
 
-      add_path(result_rel, path);
+      add_path(root, result_rel, path);
 
       /* Try Sort -> Unique on the Gather path, if set */
       if (gpath != NULL) {
         path = gpath;
 
+        DBUG_PRINT("info", "try Sort -> Unique on the Gather path");
         path = (Path *) create_sort_path(root, result_rel, path,
                                          make_pathkeys_for_sortclauses(root, groupList, tlist),
                                          -1.0);
@@ -925,7 +954,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
                path,
                list_length(path->pathkeys),
                dNumGroups);
-        add_path(result_rel, path);
+        add_path(root, result_rel, path);
       }
     }
 
@@ -936,6 +965,7 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
     if (try_sorted && groupList != NIL) {
       Path     *path;
 
+      DBUG_PRINT("info", "try making a MergeAppend path if we managed to find a path with the correct pathkeys in each union child query");
       path = (Path *) create_merge_append_path(root,
              result_rel,
              ordered_pathlist,
@@ -943,20 +973,21 @@ generate_union_paths(SetOperationStmt *op, PlannerInfo *root,
              NULL);
 
       /* and make the MergeAppend unique */
+      DBUG_PRINT("info", "and make the MergeAppend unique");
       path = (Path *) create_upper_unique_path(root,
              result_rel,
              path,
              list_length(tlist),
              dNumGroups);
 
-      add_path(result_rel, path);
+      add_path(root, result_rel, path);
     }
   } else {
     /* UNION ALL */
-    add_path(result_rel, apath);
+    add_path(root, result_rel, apath);
 
     if (gpath != NULL)
-      add_path(result_rel, gpath);
+      add_path(root, result_rel, gpath);
   }
 
   return result_rel;
@@ -970,6 +1001,7 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
                         List *refnames_tlist,
                         List **pTargetList)
 {
+  DBUG_TRACE;
   RelOptInfo *result_rel;
   RelOptInfo *lrel,
              *rrel;
@@ -993,12 +1025,14 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
   bool    can_hash;
   SetOpCmd  cmd;
 
+  DBUG_PRINT("info", "generate paths for an INTERSECT, INTERSECT ALL, EXCEPT, or EXCEPT ALL node");
   /*
    * Tell children to fetch all tuples.
    */
   root->tuple_fraction = 0.0;
 
   /* Recurse on children */
+  DBUG_PRINT("info", "recurse on children");
   lrel = recurse_set_operations(op->larg, root,
                                 op,
                                 op->colTypes, op->colCollations,
@@ -1020,6 +1054,7 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
    * concerned, but we must make it look real anyway for the benefit of the
    * next plan level up.
    */
+  DBUG_PRINT("info", "generate tlist for SetOp plan node");
   tlist = generate_setop_tlist(op->colTypes, op->colCollations,
                                0, false, lpath_tlist, refnames_tlist,
                                &result_trivial_tlist);
@@ -1036,16 +1071,19 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
   can_sort = grouping_is_sortable(groupList);
   can_hash = grouping_is_hashable(groupList);
 
-  if (!can_sort && !can_hash)
+  if (!can_sort && !can_hash) {
+    DBUG_INSTANT_PRINT("info", "could not implement %s", (op->op == SETOP_INTERSECT) ? "INTERSECT" : "EXCEPT");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              /* translator: %s is INTERSECT or EXCEPT */
              errmsg("could not implement %s",
                     (op->op == SETOP_INTERSECT) ? "INTERSECT" : "EXCEPT"),
              errdetail("Some of the datatypes only support hashing, while others only support sorting.")));
+  }
 
   if (can_sort) {
     /* Determine the pathkeys for sorting by the whole target list */
+    DBUG_PRINT("info", "determine the pathkeys for sorting by the whole target list");
     nonunion_pathkeys = make_pathkeys_for_sortclauses(root, groupList,
                         tlist);
 
@@ -1055,10 +1093,11 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
   /*
    * Now that we've got all that info, we can build the child paths.
    */
-  if (lrel->rtekind == RTE_SUBQUERY)
+  if (lrel->rtekind == RTE_SUBQUERY) {
+    DBUG_PRINT("info", "now that we've got all that info, we can build the child paths");
     build_setop_child_paths(root, lrel, lpath_trivial_tlist, lpath_tlist,
                             nonunion_pathkeys, &dLeftGroups);
-  else
+  } else
     dLeftGroups = lrel->rows;
 
   if (rrel->rtekind == RTE_SUBQUERY)
@@ -1150,7 +1189,7 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
                                       groupList,
                                       dNumGroups,
                                       dNumOutputRows);
-    add_path(result_rel, path);
+    add_path(root, result_rel, path);
   }
 
   /*
@@ -1217,7 +1256,7 @@ generate_nonunion_paths(SetOperationStmt *op, PlannerInfo *root,
                                       groupList,
                                       dNumGroups,
                                       dNumOutputRows);
-    add_path(result_rel, path);
+    add_path(root, result_rel, path);
   }
 
   return result_rel;
@@ -1242,6 +1281,7 @@ plan_union_children(PlannerInfo *root,
                     List **tlist_list,
                     List **istrivial_tlist)
 {
+  DBUG_TRACE;
   List     *pending_rels = list_make1(top_union);
   List     *result = NIL;
   List     *child_tlist;
@@ -1249,6 +1289,8 @@ plan_union_children(PlannerInfo *root,
 
   *tlist_list = NIL;
   *istrivial_tlist = NIL;
+
+  DBUG_PRINT("info", "pull up children of a UNION node that are identically-propertied UNIONs");
 
   while (pending_rels != NIL) {
     Node     *setOp = linitial(pending_rels);
@@ -1263,6 +1305,7 @@ plan_union_children(PlannerInfo *root,
           equal(op->colTypes, top_union->colTypes) &&
           equal(op->colCollations, top_union->colCollations)) {
         /* Same UNION, so fold children into parent */
+        DBUG_PRINT("info", "same UNION, so fold children into parent");
         pending_rels = lcons(op->rarg, pending_rels);
         pending_rels = lcons(op->larg, pending_rels);
         continue;
@@ -1277,6 +1320,7 @@ plan_union_children(PlannerInfo *root,
      * this isn't necessarily the child node's immediate SetOperationStmt
      * parent, but that's fine: it's the effective parent.
      */
+    DBUG_PRINT("info", "not same, so plan this child separately");
     result = lappend(result, recurse_set_operations(setOp, root,
                      top_union->all ? NULL : top_union,
                      top_union->colTypes,
@@ -1297,6 +1341,8 @@ plan_union_children(PlannerInfo *root,
 static void
 postprocess_setop_rel(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
+
   /*
    * We don't currently worry about allowing FDWs to contribute paths to
    * this relation, but give extensions a chance.
@@ -1306,7 +1352,7 @@ postprocess_setop_rel(PlannerInfo *root, RelOptInfo *rel)
                                 NULL, rel, NULL);
 
   /* Select cheapest path */
-  set_cheapest(rel);
+  set_cheapest(root, rel);
 }
 
 /*
@@ -1328,6 +1374,7 @@ generate_setop_tlist(List *colTypes, List *colCollations,
                      List *refnames_tlist,
                      bool *trivial_tlist)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   int     resno = 1;
   ListCell   *ctlc,
@@ -1337,6 +1384,7 @@ generate_setop_tlist(List *colTypes, List *colCollations,
   TargetEntry *tle;
   Node     *expr;
 
+  DBUG_PRINT("info", "generate targetlist for a set-operation plan node");
   *trivial_tlist = true;    /* until proven differently */
 
   forfour(ctlc, colTypes, cclc, colCollations,
@@ -1450,6 +1498,7 @@ generate_append_tlist(List *colTypes, List *colCollations,
                       List *input_tlists,
                       List *refnames_tlist)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   int     resno = 1;
   ListCell   *curColType;
@@ -1461,6 +1510,7 @@ generate_append_tlist(List *colTypes, List *colCollations,
   ListCell   *tlistl;
   int32    *colTypmods;
 
+  DBUG_PRINT("info", "generate targetlist for a set-operation Append node");
   /*
    * First extract typmods to use.
    *
@@ -1502,6 +1552,7 @@ generate_append_tlist(List *colTypes, List *colCollations,
     Assert(curColType == NULL);
   }
 
+  DBUG_PRINT("info", "generate paths for a UNION or UNION ALL node");
   /*
    * Now we can build the tlist for the Append.
    */
@@ -1555,10 +1606,12 @@ generate_append_tlist(List *colTypes, List *colCollations,
 static List *
 generate_setop_grouplist(SetOperationStmt *op, List *targetlist)
 {
+  DBUG_TRACE;
   List     *grouplist = copyObject(op->groupClauses);
   ListCell   *lg;
   ListCell   *lt;
 
+  DBUG_PRINT("info", "build a SortGroupClause list defining the sort/grouping properties of the setop's output columns");
   lg = list_head(grouplist);
 
   foreach(lt, targetlist) {

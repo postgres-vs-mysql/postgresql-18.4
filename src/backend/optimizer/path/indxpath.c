@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -235,6 +236,7 @@ static bool ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
 void
 create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *indexpaths;
   List     *bitindexpaths;
   List     *bitjoinpaths;
@@ -244,14 +246,20 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
   IndexClauseSet eclauseset;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "generate all interesting index paths for the given relation");
+
   /* Skip the whole mess if no indexes */
-  if (rel->indexlist == NIL)
+  if (rel->indexlist == NIL) {
+    DBUG_PRINT("info", "skip the whole mess if no indexes");
     return;
+  }
 
   /* Bitmap paths are collected and then dealt with at the end */
   bitindexpaths = bitjoinpaths = joinorclauses = NIL;
 
   /* Examine each index in turn */
+  DBUG_PRINT("info", "examine each index in turn");
+
   foreach(lc, rel->indexlist) {
     IndexOptInfo *index = (IndexOptInfo *) lfirst(lc);
 
@@ -263,12 +271,15 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
      * (generate_bitmap_or_paths() might be able to do something with
      * them, but that's of no concern here.)
      */
-    if (index->indpred != NIL && !index->predOK)
+    if (index->indpred != NIL && !index->predOK) {
+      DBUG_PRINT("info", "ignore partial indexes that do not match the query");
       continue;
+    }
 
     /*
      * Identify the restriction clauses that can match the index.
      */
+    DBUG_PRINT("info", "identify the restriction clauses that can match the index");
     MemSet(&rclauseset, 0, sizeof(rclauseset));
     match_restriction_clauses_to_index(root, index, &rclauseset);
 
@@ -294,6 +305,7 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
      * Look for EquivalenceClasses that can generate joinclauses matching
      * the index.
      */
+    DBUG_PRINT("info", "look for EquivalenceClasses that can generate joinclauses matching the index");
     MemSet(&eclauseset, 0, sizeof(eclauseset));
     match_eclass_clauses_to_index(root, index,
                                   &eclauseset);
@@ -302,18 +314,21 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
      * If we found any plain or eclass join clauses, build parameterized
      * index paths using them.
      */
-    if (jclauseset.nonempty || eclauseset.nonempty)
+    if (jclauseset.nonempty || eclauseset.nonempty) {
+      DBUG_PRINT("info", "build parameterized index paths using them");
       consider_index_join_clauses(root, rel, index,
                                   &rclauseset,
                                   &jclauseset,
                                   &eclauseset,
                                   &bitjoinpaths);
+    }
   }
 
   /*
    * Generate BitmapOrPaths for any suitable OR-clauses present in the
    * restriction list.  Add these to bitindexpaths.
    */
+  DBUG_PRINT("info", "generate BitmapOrPaths for any suitable OR-clauses present in the restriction list");
   indexpaths = generate_bitmap_or_paths(root, rel,
                                         rel->baserestrictinfo, NIL);
   bitindexpaths = list_concat(bitindexpaths, indexpaths);
@@ -338,13 +353,22 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
     BitmapHeapPath *bpath;
 
     bitmapqual = choose_bitmap_and(root, rel, bitindexpaths);
+    DBUG_PRINT("info", "generate a BitmapHeapPath for the most promising combination of restriction bitmap index paths");
     bpath = create_bitmap_heap_path(root, rel, bitmapqual,
                                     rel->lateral_relids, 1.0, 0);
-    add_path(rel, (Path *) bpath);
+    add_path(root, rel, (Path *) bpath);
 
     /* create a partial bitmap heap path */
-    if (rel->consider_parallel && rel->lateral_relids == NULL)
+    if (rel->consider_parallel && rel->lateral_relids == NULL) {
+      DBUG_PRINT("info", "create a partial bitmap heap path");
       create_partial_bitmap_paths(root, rel, bitmapqual);
+    } else {
+      if (!rel->consider_parallel) {
+        DBUG_PRINT("info", "rel's consider_parallel: false and we don't create a partial bitmap heap path");
+      } else {
+        DBUG_PRINT("info", "rel's lateral_relids: nullptr and we don't create a partial bitmap heap path");
+      }
+    }
   }
 
   /*
@@ -381,6 +405,7 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
       BitmapHeapPath *bpath;
       ListCell   *lcp;
 
+      DBUG_PRINT("info", "identify all the bitmap join paths needing no more than that");
       /* Identify all the bitmap join paths needing no more than that */
       this_path_set = NIL;
 
@@ -405,7 +430,7 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
       loop_count = get_loop_count(root, rel->relid, required_outer);
       bpath = create_bitmap_heap_path(root, rel, bitmapqual,
                                       required_outer, loop_count, 0);
-      add_path(rel, (Path *) bpath);
+      add_path(root, rel, (Path *) bpath);
     }
   }
 }
@@ -433,9 +458,12 @@ consider_index_join_clauses(PlannerInfo *root, RelOptInfo *rel,
                             IndexClauseSet *eclauseset,
                             List **bitindexpaths)
 {
+  DBUG_TRACE;
   int     considered_clauses = 0;
   List     *considered_relids = NIL;
   int     indexcol;
+
+  DBUG_PRINT("info", "given sets of join clauses for an index, decide which parameterized index paths to build");
 
   /*
    * The strategy here is to identify every potentially useful set of outer
@@ -501,9 +529,14 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
                                int considered_clauses,
                                List **considered_relids)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
+  const char *index_name = get_rel_name(index->indexoid);
+  DBUG_PRINT("info", "index:%s", index_name);
   /* Examine relids of each joinclause in the given list */
+  DBUG_PRINT("info", "examine relids of each joinclause in the given list");
+
   foreach(lc, indexjoinclauses) {
     IndexClause *iclause = (IndexClause *) lfirst(lc);
     Relids    clause_relids = iclause->rinfo->clause_relids;
@@ -511,8 +544,10 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
     int     num_considered_relids;
 
     /* If we already tried its relids set, no need to do so again */
-    if (list_member(*considered_relids, clause_relids))
+    if (list_member(*considered_relids, clause_relids)) {
+      DBUG_PRINT("info", "we already tried its relids set and no need to do so again");
       continue;
+    }
 
     /*
      * Generate the union of this clause's relids set with each
@@ -538,8 +573,10 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
        * cheap.  get_join_index_paths will check more carefully if we
        * already generated the same relids set.
        */
-      if (bms_subset_compare(clause_relids, oldrelids) != BMS_DIFFERENT)
+      if (bms_subset_compare(clause_relids, oldrelids) != BMS_DIFFERENT) {
+        DBUG_PRINT("info", "either is a subset of the other and no new set is possible");
         continue;
+      }
 
       /*
        * If this clause was derived from an equivalence class, the
@@ -551,18 +588,23 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
        */
       if (parent_ec &&
           eclass_already_used(parent_ec, oldrelids,
-                              indexjoinclauses))
+                              indexjoinclauses)) {
+        DBUG_PRINT("info", "skip");
         continue;
+      }
 
       /*
        * If the number of relid sets considered exceeds our heuristic
        * limit, stop considering combinations of clauses.  We'll still
        * consider the current clause alone, though (below this loop).
        */
-      if (list_length(*considered_relids) >= 10 * considered_clauses)
+      if (list_length(*considered_relids) >= 10 * considered_clauses) {
+        DBUG_PRINT("info", "stop considering combinations of clauses");
         break;
+      }
 
       /* OK, try the union set */
+      DBUG_PRINT("info", "try the union set");
       get_join_index_paths(root, rel, index,
                            rclauseset, jclauseset, eclauseset,
                            bitindexpaths,
@@ -570,12 +612,21 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
                            considered_relids);
     }
 
+    DBUG_PRINT("info", "try this set of relids by itself");
     /* Also try this set of relids by itself */
     get_join_index_paths(root, rel, index,
                          rclauseset, jclauseset, eclauseset,
                          bitindexpaths,
                          clause_relids,
                          considered_relids);
+  }
+
+  if (indexjoinclauses) {
+    if (indexjoinclauses->length == 0) {
+      DBUG_PRINT("info", "no index join clauses");
+    }
+  } else {
+    DBUG_PRINT("info", "no index join clauses");
   }
 }
 
@@ -602,8 +653,11 @@ get_join_index_paths(PlannerInfo *root, RelOptInfo *rel,
                      Relids relids,
                      List **considered_relids)
 {
+  DBUG_TRACE;
   IndexClauseSet clauseset;
   int     indexcol;
+
+  DBUG_PRINT("info", "generate index paths using clauses from the specified outer relations");
 
   /* If we already considered this relids set, don't repeat the work */
   if (list_member(*considered_relids, relids))
@@ -670,6 +724,7 @@ static bool
 eclass_already_used(EquivalenceClass *parent_ec, Relids oldrelids,
                     List *indexjoinclauses)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, indexjoinclauses) {
@@ -703,10 +758,12 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
                 IndexOptInfo *index, IndexClauseSet *clauses,
                 List **bitindexpaths)
 {
+  DBUG_TRACE;
   List     *indexpaths;
   bool    skip_nonnative_saop = false;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "given an index and a set of index clauses for it, construct IndexPaths");
   /*
    * Build simple index paths using the clauses.  Allow ScalarArrayOpExpr
    * clauses only if the index AM supports them natively.
@@ -733,7 +790,7 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
     IndexPath  *ipath = (IndexPath *) lfirst(lc);
 
     if (index->amhasgettuple)
-      add_path(rel, (Path *) ipath);
+      add_path(root, rel, (Path *) ipath);
 
     if (index->amhasgetbitmap &&
         (ipath->path.pathkeys == NIL ||
@@ -797,6 +854,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
                   ScanTypeControl scantype,
                   bool *skip_nonnative_saop)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   IndexPath  *ipath;
   List     *index_clauses;
@@ -811,6 +869,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
   bool    index_only_scan;
   int     indexcol;
 
+  DBUG_PRINT("info", "given an index and a set of index clauses for it, construct zero or more IndexPaths");
   Assert(skip_nonnative_saop != NULL || scantype == ST_BITMAPSCAN);
 
   /*
@@ -818,18 +877,23 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
    */
   switch (scantype) {
     case ST_INDEXSCAN:
-      if (!index->amhasgettuple)
+      if (!index->amhasgettuple) {
+        DBUG_PRINT("info", "index->amhasgettuple is NIL, returning NIL");
         return NIL;
+      }
 
       break;
 
     case ST_BITMAPSCAN:
-      if (!index->amhasgetbitmap)
+      if (!index->amhasgetbitmap) {
+        DBUG_PRINT("info", "index->amhasgetbitmap is NIL, returning NIL");
         return NIL;
+      }
 
       break;
 
     case ST_ANYSCAN:
+      DBUG_PRINT("info", "either or both are OK");
       /* either or both are OK */
       break;
   }
@@ -849,6 +913,8 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
   index_clauses = NIL;
   outer_relids = bms_copy(rel->lateral_relids);
 
+  DBUG_PRINT("info", "index->nkeycolumns:%d", index->nkeycolumns);
+
   for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++) {
     ListCell   *lc;
 
@@ -866,10 +932,13 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
          * We must omit this clause (and tell caller about it).
          */
         *skip_nonnative_saop = true;
+        DBUG_PRINT("info", "caller asked us to generate IndexPaths that omit any ScalarArrayOpExpr clauses when");
+        DBUG_PRINT("info", "the underlying index AM lacks native support");
         continue;
       }
 
       /* OK to include this clause */
+      DBUG_PRINT("info", "OK to include this clause");
       index_clauses = lappend(index_clauses, iclause);
       outer_relids = bms_add_members(outer_relids,
                                      rinfo->clause_relids);
@@ -883,8 +952,12 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
      * is always okay for columns after the first to not have any
      * clauses.)
      */
-    if (index_clauses == NIL && !index->amoptionalkey)
+    if (index_clauses == NIL && !index->amoptionalkey) {
+      DBUG_PRINT("info", "if no clauses match the first index column, check for amoptionalkey restriction");
+      DBUG_PRINT("info", "we can't generate a scan over an index with amoptionalkey = false unless there's at least one index clause");
+      DBUG_PRINT("info", "return NIL");
       return NIL;
+    }
   }
 
   /* We do not want the index's rel itself listed in outer_relids */
@@ -945,6 +1018,30 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
    * later merging or final output ordering, OR the index has a useful
    * predicate, OR an index-only scan is possible.
    */
+  if (index_clauses) {
+    DBUG_PRINT("info", "index_clauses is not null");
+  } else {
+    DBUG_PRINT("info", "index_clauses is null");
+  }
+
+  if (useful_pathkeys) {
+    DBUG_PRINT("info", "useful_pathkeys is not null");
+  } else {
+    DBUG_PRINT("info", "useful_pathkeysis null");
+  }
+
+  if (useful_predicate) {
+    DBUG_PRINT("info", "useful_predicate: true");
+  } else {
+    DBUG_PRINT("info", "useful_predicate: false");
+  }
+
+  if (index_only_scan) {
+    DBUG_PRINT("info", "index_only_scan: true");
+  } else {
+    DBUG_PRINT("info", "index_only_scan: false");
+  }
+
   if (index_clauses != NIL || useful_pathkeys != NIL || useful_predicate ||
       index_only_scan) {
     ipath = create_index_path(root, index,
@@ -966,6 +1063,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
     if (index->amcanparallel &&
         rel->consider_parallel && outer_relids == NULL &&
         scantype != ST_BITMAPSCAN) {
+      DBUG_PRINT("info", "consider parallel index scan");
       ipath = create_index_path(root, index,
                                 index_clauses,
                                 orderbyclauses,
@@ -981,17 +1079,33 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
        * if, after costing the path, we find that it's not worth using
        * parallel workers, just free it.
        */
-      if (ipath->path.parallel_workers > 0)
-        add_partial_path(rel, (Path *) ipath);
-      else
+      if (ipath->path.parallel_workers > 0) {
+        add_partial_path(root, rel, (Path *) ipath);
+      } else {
+        DBUG_PRINT("info", "it's not worth using parallel workers and just free it");
         pfree(ipath);
+      }
+    } else {
+      if (scantype == ST_BITMAPSCAN) {
+        DBUG_PRINT("info", "we don't allow parallel index scan for bitmap index scans");
+      } else {
+        if (!index->amcanparallel) {
+          DBUG_PRINT("info", "index's amcanparallel:false and we don't consider parallel index scan");
+        } else if (!rel->consider_parallel) {
+          DBUG_PRINT("info", "rel's consider_parallel:false and we don't consider parallel index scan");
+        } else {
+          DBUG_PRINT("info", "we don't consider parallel index scan");
+        }
+      }
     }
+  } else {
   }
 
   /*
    * 5. If the index is ordered, a backwards scan might be interesting.
    */
   if (index_is_ordered && pathkeys_possibly_useful) {
+    DBUG_PRINT("info", "if the index is ordered, a backwards scan might be interesting");
     index_pathkeys = build_index_pathkeys(root, index,
                                           BackwardScanDirection);
     useful_pathkeys = truncate_useless_pathkeys(root, rel,
@@ -1014,6 +1128,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
       if (index->amcanparallel &&
           rel->consider_parallel && outer_relids == NULL &&
           scantype != ST_BITMAPSCAN) {
+        DBUG_PRINT("info", "consider parallel index scan");
         ipath = create_index_path(root, index,
                                   index_clauses,
                                   NIL,
@@ -1030,13 +1145,30 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
          * using parallel workers, just free it.
          */
         if (ipath->path.parallel_workers > 0)
-          add_partial_path(rel, (Path *) ipath);
-        else
+          add_partial_path(root, rel, (Path *) ipath);
+        else {
+          DBUG_PRINT("info", "it's not worth using parallel workers and just free it");
           pfree(ipath);
+        }
+      } else {
+        if (scantype == ST_BITMAPSCAN) {
+          DBUG_PRINT("info", "we don't allow parallel index scan for bitmap index scans");
+        } else {
+          if (!index->amcanparallel) {
+            DBUG_PRINT("info", "index's amcanparallel:false and we don't consider parallel index scan");
+          } else if (!rel->consider_parallel) {
+            DBUG_PRINT("info", "rel's consider_parallel:false and we don't consider parallel index scan");
+          } else {
+            DBUG_PRINT("info", "we don't consider parallel index scan");
+          }
+        }
       }
     }
   }
 
+  if (result == NIL) {
+    DBUG_PRINT("info", "return NIL");
+  }
   return result;
 }
 
@@ -1070,6 +1202,7 @@ static List *
 build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
                    List *clauses, List *other_clauses)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   List     *all_clauses = NIL;  /* not computed till needed */
   ListCell   *lc;
@@ -1081,8 +1214,10 @@ build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
     bool    useful_predicate;
 
     /* Ignore index if it doesn't support bitmap scans */
-    if (!index->amhasgetbitmap)
+    if (!index->amhasgetbitmap) {
+      DBUG_PRINT("info", "ignore index when it doesn't support bitmap scans");
       continue;
+    }
 
     /*
      * Ignore partial indexes that do not match the query.  If a partial
@@ -1106,8 +1241,10 @@ build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
         if (all_clauses == NIL)
           all_clauses = list_concat_copy(clauses, other_clauses);
 
-        if (!predicate_implied_by(index->indpred, all_clauses, false))
+        if (!predicate_implied_by(index->indpred, all_clauses, false)) {
+          DBUG_PRINT("info", "can't use it at all");
           continue; /* can't use it at all */
+        }
 
         if (!predicate_implied_by(index->indpred, other_clauses, false))
           useful_predicate = true;
@@ -1117,6 +1254,7 @@ build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
     /*
      * Identify the restriction clauses that can match the index.
      */
+    DBUG_PRINT("info", "identify the restriction clauses that can match the index");
     MemSet(&clauseset, 0, sizeof(clauseset));
     match_clauses_to_index(root, clauses, index, &clauseset);
 
@@ -1124,12 +1262,15 @@ build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
      * If no matches so far, and the index predicate isn't useful, we
      * don't want it.
      */
-    if (!clauseset.nonempty && !useful_predicate)
+    if (!clauseset.nonempty && !useful_predicate) {
+      DBUG_PRINT("info", "if no matches so far, and the index predicate isn't useful, we don't want it");
       continue;
+    }
 
     /*
      * Add "other" restriction clauses to the clauseset.
      */
+    DBUG_PRINT("info", "add other restriction clauses to the clauseset");
     match_clauses_to_index(root, other_clauses, index, &clauseset);
 
     /*
@@ -1591,10 +1732,13 @@ static List *
 generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
                          List *clauses, List *other_clauses)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   List     *all_clauses;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "look through the list of clauses to find OR clauses");
+  DBUG_PRINT("info", "and generate a BitmapOrPath for each one we can handle that way");
   /*
    * We can use both the current and other clauses as context for
    * build_paths_for_OR; no need to remove ORs from the lists.
@@ -1610,8 +1754,10 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
     List     *inner_other_clauses = NIL;
 
     /* Ignore RestrictInfos that aren't ORs */
-    if (!restriction_is_or_clause(rinfo))
+    if (!restriction_is_or_clause(rinfo)) {
+      DBUG_PRINT("info", "ignore RestrictInfos that aren't ORs");
       continue;
+    }
 
     /*
      * We must be able to match at least one index to each of the arms of
@@ -1690,6 +1836,7 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
        * clause.
        */
       if (indlist == NIL) {
+        DBUG_PRINT("info", "nothing matched this arm and we can't do anything with this OR clause");
         pathlist = NIL;
         break;
       }
@@ -1698,6 +1845,7 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
        * OK, pick the most promising AND combination, and add it to
        * pathlist.
        */
+      DBUG_PRINT("info", "ok, pick the most promising AND combination, and add it to pathlist");
       bitmapqual = choose_bitmap_and(root, rel, indlist);
       pathlist = lappend(pathlist, bitmapqual);
     }
@@ -1710,6 +1858,7 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
      * BitmapOrPath, and add to result list.
      */
     if (pathlist != NIL) {
+      DBUG_PRINT("info", "when we have a match for every arm, turn them into a BitmapOrPath, and add to result list");
       bitmapqual = (Path *) create_bitmap_or_path(root, rel, pathlist);
       result = lappend(result, bitmapqual);
     }
@@ -1733,6 +1882,7 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 static Path *
 choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 {
+  DBUG_TRACE;
   int     npaths = list_length(paths);
   PathClauseUsage **pathinfoarray;
   PathClauseUsage *pathinfo;
@@ -1743,6 +1893,7 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
           j;
   ListCell   *l;
 
+  DBUG_PRINT("info", "given a nonempty list of bitmap paths, AND them into one path");
   Assert(npaths > 0);     /* else caller error */
 
   if (npaths == 1)
@@ -1934,6 +2085,7 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 static int
 path_usage_comparator(const void *a, const void *b)
 {
+  DBUG_TRACE;
   PathClauseUsage *pa = *(PathClauseUsage * const *) a;
   PathClauseUsage *pb = *(PathClauseUsage * const *) b;
   Cost    acost;
@@ -1969,6 +2121,7 @@ path_usage_comparator(const void *a, const void *b)
 static Cost
 bitmap_scan_cost_est(PlannerInfo *root, RelOptInfo *rel, Path *ipath)
 {
+  DBUG_TRACE;
   BitmapHeapPath bpath;
 
   /* Set up a dummy BitmapHeapPath */
@@ -2003,6 +2156,7 @@ bitmap_scan_cost_est(PlannerInfo *root, RelOptInfo *rel, Path *ipath)
 static Cost
 bitmap_and_cost_est(PlannerInfo *root, RelOptInfo *rel, List *paths)
 {
+  DBUG_TRACE;
   BitmapAndPath *apath;
 
   /*
@@ -2032,6 +2186,7 @@ bitmap_and_cost_est(PlannerInfo *root, RelOptInfo *rel, List *paths)
 static PathClauseUsage *
 classify_index_clause_usage(Path *path, List **clauselist)
 {
+  DBUG_TRACE;
   PathClauseUsage *result;
   Bitmapset  *clauseids;
   ListCell   *lc;
@@ -2100,6 +2255,8 @@ classify_index_clause_usage(Path *path, List **clauselist)
 static void
 find_indexpath_quals(Path *bitmapqual, List **quals, List **preds)
 {
+  DBUG_TRACE;
+
   if (IsA(bitmapqual, BitmapAndPath)) {
     BitmapAndPath *apath = (BitmapAndPath *) bitmapqual;
     ListCell   *l;
@@ -2166,15 +2323,20 @@ find_list_position(Node *node, List **nodelist)
 static bool
 check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 {
+  DBUG_TRACE;
   bool    result;
   Bitmapset  *attrs_used = NULL;
   Bitmapset  *index_canreturn_attrs = NULL;
   ListCell   *lc;
   int     i;
 
+  DBUG_PRINT("info", "determine whether an index-only scan is possible for this index");
+
   /* Index-only scans must be enabled */
-  if (!enable_indexonlyscan)
+  if (!enable_indexonlyscan) {
+    DBUG_PRINT("info", "Index-only scans is disabled");
     return false;
+  }
 
   /*
    * Check that all needed attributes of the relation are available from the
@@ -2231,6 +2393,12 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
   bms_free(attrs_used);
   bms_free(index_canreturn_attrs);
 
+  if (result) {
+    DBUG_PRINT("info", "an index-only scan is possible");
+  } else {
+    DBUG_PRINT("info", "an index-only scan is not possible");
+  }
+
   return result;
 }
 
@@ -2263,12 +2431,15 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 static double
 get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids)
 {
+  DBUG_TRACE;
   double    result;
   int     outer_relid;
 
   /* For a non-parameterized path, just return 1.0 quickly */
-  if (outer_relids == NULL)
+  if (outer_relids == NULL) {
+    DBUG_PRINT("info", "for a non-parameterized path, just return 1.0 quickly");
     return 1.0;
+  }
 
   result = 0.0;
   outer_relid = -1;
@@ -2306,6 +2477,7 @@ get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids)
       result = rowcount;
   }
 
+  DBUG_PRINT("info", "the loop count estimate to use for costing:%g", result);
   /* Return 1.0 if we found no valid relations (shouldn't happen) */
   return (result > 0.0) ? result : 1.0;
 }
@@ -2323,6 +2495,7 @@ adjust_rowcount_for_semijoins(PlannerInfo *root,
                               Index outer_relid,
                               double rowcount)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, root->join_info_list) {
@@ -2364,6 +2537,7 @@ adjust_rowcount_for_semijoins(PlannerInfo *root,
 static double
 approximate_joinrel_size(PlannerInfo *root, Relids relids)
 {
+  DBUG_TRACE;
   double    rowcount = 1.0;
   int     relid;
 
@@ -2394,6 +2568,7 @@ approximate_joinrel_size(PlannerInfo *root, Relids relids)
     rowcount *= rel->rows;
   }
 
+  DBUG_PRINT("info", "make an approximate estimate of the size of a joinrel:%g", rowcount);
   return rowcount;
 }
 
@@ -2413,6 +2588,7 @@ match_restriction_clauses_to_index(PlannerInfo *root,
                                    IndexClauseSet *clauseset)
 {
   /* We can ignore clauses that are implied by the index predicate */
+  DBUG_PRINT("info", "we can ignore clauses that are implied by the index predicate");
   match_clauses_to_index(root, index->indrestrictinfo, index, clauseset);
 }
 
@@ -2429,7 +2605,10 @@ match_join_clauses_to_index(PlannerInfo *root,
                             IndexClauseSet *clauseset,
                             List **joinorclauses)
 {
+  DBUG_TRACE;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "identify join clauses for the rel that match the index");
 
   /* Scan the rel's join clauses */
   foreach(lc, rel->joininfo) {
@@ -2460,11 +2639,14 @@ static void
 match_eclass_clauses_to_index(PlannerInfo *root, IndexOptInfo *index,
                               IndexClauseSet *clauseset)
 {
+  DBUG_TRACE;
   int     indexcol;
 
   /* No work if rel is not in any such ECs */
   if (!index->rel->has_eclass_joins)
     return;
+
+  DBUG_PRINT("info", "identify EquivalenceClass join clauses for the rel that match the index");
 
   for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++) {
     ec_member_matches_arg arg;
@@ -2484,6 +2666,7 @@ match_eclass_clauses_to_index(PlannerInfo *root, IndexOptInfo *index,
      * since for non-btree indexes the EC's equality operators might not
      * be in the index opclass (cf ec_member_matches_indexcol).
      */
+    DBUG_PRINT("info", "we have to check whether the results actually do match the index");
     match_clauses_to_index(root, clauses, index, clauseset);
   }
 }
@@ -2499,7 +2682,11 @@ match_clauses_to_index(PlannerInfo *root,
                        IndexOptInfo *index,
                        IndexClauseSet *clauseset)
 {
+  DBUG_TRACE;
   ListCell   *lc;
+
+  const char *index_name = get_rel_name(index->indexoid);
+  DBUG_PRINT("info", "match clauses to index:%s", index_name);
 
   foreach(lc, clauses) {
     RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
@@ -2531,7 +2718,10 @@ match_clause_to_index(PlannerInfo *root,
                       IndexOptInfo *index,
                       IndexClauseSet *clauseset)
 {
+  DBUG_TRACE;
   int     indexcol;
+
+  DBUG_PRINT("info", "test whether a qual clause can be used with an index");
 
   /*
    * Never match pseudoconstants to indexes.  (Normally a match could not
@@ -2539,15 +2729,19 @@ match_clause_to_index(PlannerInfo *root,
    * but what if someone builds an expression index on a constant? It's not
    * totally unreasonable to do so with a partial index, either.)
    */
-  if (rinfo->pseudoconstant)
+  if (rinfo->pseudoconstant) {
+    DBUG_PRINT("info", "never match pseudoconstants to indexes");
     return;
+  }
 
   /*
    * If clause can't be used as an indexqual because it must wait till after
    * some lower-security-level restriction clause, reject it.
    */
-  if (!restriction_is_securely_promotable(rinfo, index->rel))
+  if (!restriction_is_securely_promotable(rinfo, index->rel)) {
+    DBUG_PRINT("info", "reject it");
     return;
+  }
 
   /* OK, check each index key column for a match */
   for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++) {
@@ -2562,6 +2756,7 @@ match_clause_to_index(PlannerInfo *root,
         return;
     }
 
+    DBUG_PRINT("info", "ok, try to match the clause to the index column:%d", indexcol);
     /* OK, try to match the clause to the index column */
     iclause = match_clause_to_indexcol(root,
                                        rinfo,
@@ -2569,11 +2764,14 @@ match_clause_to_index(PlannerInfo *root,
                                        index);
 
     if (iclause) {
+      DBUG_PRINT("info", "success, so record it");
       /* Success, so record it */
       clauseset->indexclauses[indexcol] =
         lappend(clauseset->indexclauses[indexcol], iclause);
       clauseset->nonempty = true;
       return;
+    } else {
+      DBUG_PRINT("info", "failure, so we don't record it");
     }
   }
 }
@@ -2653,18 +2851,23 @@ match_clause_to_indexcol(PlannerInfo *root,
                          int indexcol,
                          IndexOptInfo *index)
 {
+  DBUG_TRACE;
   IndexClause *iclause;
   Expr     *clause = rinfo->clause;
   Oid     opfamily;
 
   Assert(indexcol < index->nkeycolumns);
 
+  DBUG_PRINT("info", "determine whether a restriction clause matches a column of an index");
+
   /*
    * Historically this code has coped with NULL clauses.  That's probably
    * not possible anymore, but we might as well continue to cope.
    */
-  if (clause == NULL)
+  if (clause == NULL) {
+    DBUG_PRINT("info", "that's probably not possible anymore, but we might as well continue to cope");
     return NULL;
+  }
 
   /* First check for boolean-index cases. */
   opfamily = index->opfamily[indexcol];
@@ -2672,8 +2875,10 @@ match_clause_to_indexcol(PlannerInfo *root,
   if (IsBooleanOpfamily(opfamily)) {
     iclause = match_boolean_index_clause(root, rinfo, indexcol, index);
 
-    if (iclause)
+    if (iclause) {
+      DBUG_PRINT("info", "return boolean-index clause");
       return iclause;
+    }
   }
 
   /*
@@ -2682,17 +2887,24 @@ match_clause_to_indexcol(PlannerInfo *root,
    * the index supports it, we can handle IS NULL/NOT NULL clauses.
    */
   if (IsA(clause, OpExpr)) {
+    DBUG_PRINT("info", "clause must be an opclause");
     return match_opclause_to_indexcol(root, rinfo, indexcol, index);
   } else if (IsA(clause, FuncExpr)) {
+    DBUG_PRINT("info", "clause must be a funcclause");
     return match_funcclause_to_indexcol(root, rinfo, indexcol, index);
   } else if (IsA(clause, ScalarArrayOpExpr)) {
+    DBUG_PRINT("info", "clause must be a ScalarArrayOpExpr");
     return match_saopclause_to_indexcol(root, rinfo, indexcol, index);
   } else if (IsA(clause, RowCompareExpr)) {
+    DBUG_PRINT("info", "clause must be a RowCompareExpr");
     return match_rowcompare_to_indexcol(root, rinfo, indexcol, index);
   } else if (restriction_is_or_clause(rinfo)) {
+    DBUG_PRINT("info", "clause must be an OR-clause");
     return match_orclause_to_indexcol(root, rinfo, indexcol, index);
   } else if (index->amsearchnulls && IsA(clause, NullTest)) {
     NullTest   *nt = (NullTest *) clause;
+
+    DBUG_PRINT("info", "the index supports it and we can handle IS NULL/NOT NULL clauses");
 
     if (!nt->argisrow &&
         match_index_to_operand((Node *) nt->arg, indexcol, index)) {
@@ -2748,8 +2960,11 @@ match_boolean_index_clause(PlannerInfo *root,
                            int indexcol,
                            IndexOptInfo *index)
 {
+  DBUG_TRACE;
   Node     *clause = (Node *) rinfo->clause;
   Expr     *op = NULL;
+
+  DBUG_PRINT("info", "recognize restriction clauses that can be matched to a boolean index");
 
   /* Direct match? */
   if (match_index_to_operand(clause, indexcol, index)) {
@@ -2827,6 +3042,7 @@ match_opclause_to_indexcol(PlannerInfo *root,
                            int indexcol,
                            IndexOptInfo *index)
 {
+  DBUG_TRACE;
   IndexClause *iclause;
   OpExpr     *clause = (OpExpr *) rinfo->clause;
   Node     *leftop,
@@ -2941,6 +3157,7 @@ match_funcclause_to_indexcol(PlannerInfo *root,
                              int indexcol,
                              IndexOptInfo *index)
 {
+  DBUG_TRACE;
   FuncExpr   *clause = (FuncExpr *) rinfo->clause;
   int     indexarg;
   ListCell   *lc;
@@ -2972,6 +3189,7 @@ match_funcclause_to_indexcol(PlannerInfo *root,
     indexarg++;
   }
 
+  DBUG_PRINT("info", "return nullptr");
   return NULL;
 }
 
@@ -2988,6 +3206,7 @@ get_index_clause_from_support(PlannerInfo *root,
                               int indexcol,
                               IndexOptInfo *index)
 {
+  DBUG_TRACE;
   Oid     prosupport = get_func_support(funcid);
   SupportRequestIndexCondition req;
   List     *sresult;
@@ -3050,6 +3269,7 @@ match_saopclause_to_indexcol(PlannerInfo *root,
                              int indexcol,
                              IndexOptInfo *index)
 {
+  DBUG_TRACE;
   ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) rinfo->clause;
   Node     *leftop,
            *rightop;
@@ -3117,6 +3337,7 @@ match_rowcompare_to_indexcol(PlannerInfo *root,
                              int indexcol,
                              IndexOptInfo *index)
 {
+  DBUG_TRACE;
   RowCompareExpr *clause = (RowCompareExpr *) rinfo->clause;
   Index   index_relid;
   Oid     opfamily;
@@ -3400,6 +3621,7 @@ expand_indexqual_rowcompare(PlannerInfo *root,
                             Oid expr_op,
                             bool var_on_left)
 {
+  DBUG_TRACE;
   IndexClause *iclause = makeNode(IndexClause);
   RowCompareExpr *clause = (RowCompareExpr *) rinfo->clause;
   int     op_strategy;
@@ -3611,14 +3833,18 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
                         List **orderby_clauses_p,
                         List **clause_columns_p)
 {
+  DBUG_TRACE;
   ListCell   *lc1;
 
+  DBUG_PRINT("info", "this attempts to find an ORDER BY and index column number for all items in the pathkey list");
   *orderby_clauses_p = NIL; /* set default results */
   *clause_columns_p = NIL;
 
   /* Only indexes with the amcanorderbyop property are interesting here */
-  if (!index->amcanorderbyop)
+  if (!index->amcanorderbyop) {
+    DBUG_PRINT("info", "only indexes with the amcanorderbyop property are interesting here");
     return;
+  }
 
   foreach(lc1, pathkeys) {
     PathKey    *pathkey = (PathKey *) lfirst(lc1);
@@ -3628,12 +3854,16 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 
 
     /* Pathkey must request default sort order for the target opfamily */
-    if (pathkey->pk_cmptype != COMPARE_LT || pathkey->pk_nulls_first)
+    if (pathkey->pk_cmptype != COMPARE_LT || pathkey->pk_nulls_first) {
+      DBUG_PRINT("info", "pathkey must request default sort order for the target opfamily");
       return;
+    }
 
     /* If eclass is volatile, no hope of using an indexscan */
-    if (pathkey->pk_eclass->ec_has_volatile)
+    if (pathkey->pk_eclass->ec_has_volatile) {
+      DBUG_PRINT("info", "if eclass is volatile, no hope of using an indexscan");
       return;
+    }
 
     /*
      * Try to match eclass member expression(s) to index.  Note that child
@@ -3650,8 +3880,10 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
       int     indexcol;
 
       /* No possibility of match if it references other relations */
-      if (!bms_equal(member->em_relids, index->rel->relids))
+      if (!bms_equal(member->em_relids, index->rel->relids)) {
+        DBUG_PRINT("info", "no possibility of match if it references other relations");
         continue;
+      }
 
       /*
        * We allow any column of the index to match each pathkey; they
@@ -3677,16 +3909,19 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
         }
       }
 
-      if (found)      /* don't want to look at remaining members */
+      if (found) {     /* don't want to look at remaining members */
+        DBUG_PRINT("info", "don't want to look at remaining members");
         break;
+      }
     }
 
     /*
      * Return the matches found so far when this pathkey couldn't be
      * matched to the index.
      */
-    if (!found)
+    if (!found) {
       return;
+    }
   }
 }
 
@@ -3721,6 +3956,7 @@ match_clause_to_ordering_op(IndexOptInfo *index,
                             Expr *clause,
                             Oid pk_opfamily)
 {
+  DBUG_TRACE;
   Oid     opfamily;
   Oid     idxcollation;
   Node     *leftop,
@@ -3732,6 +3968,7 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 
   Assert(indexcol < index->nkeycolumns);
 
+  DBUG_PRINT("info", "determines whether an ordering operator expression matches an index column");
   opfamily = index->opfamily[indexcol];
   idxcollation = index->indexcollations[indexcol];
 
@@ -3833,12 +4070,14 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 void
 check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *clauselist;
   bool    have_partial;
   bool    is_target_rel;
   Relids    otherrels;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "set the predicate-derived IndexOptInfo fields for each index of the specified relation");
   /* Indexes are available only on base or "other" member relations. */
   Assert(IS_SIMPLE_REL(rel));
 
@@ -3984,6 +4223,7 @@ ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
                            EquivalenceClass *ec, EquivalenceMember *em,
                            void *arg)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = ((ec_member_matches_arg *) arg)->index;
   int     indexcol = ((ec_member_matches_arg *) arg)->indexcol;
   Oid     curFamily;
@@ -3991,6 +4231,7 @@ ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
 
   Assert(indexcol < index->nkeycolumns);
 
+  DBUG_PRINT("info", "test whether an EquivalenceClass member matches an index column");
   curFamily = index->opfamily[indexcol];
   curCollation = index->indexcollations[indexcol];
 
@@ -4058,6 +4299,7 @@ relation_has_unique_index_ext(PlannerInfo *root, RelOptInfo *rel,
                               List *exprlist, List *oprlist,
                               List **extra_clauses)
 {
+  DBUG_TRACE;
   ListCell   *ic;
 
   Assert(list_length(exprlist) == list_length(oprlist));
@@ -4252,6 +4494,7 @@ indexcol_is_bool_constant_for_query(PlannerInfo *root,
                                     IndexOptInfo *index,
                                     int indexcol)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* If the index isn't boolean, we can't possibly get a match */
@@ -4302,7 +4545,11 @@ match_index_to_operand(Node *operand,
                        int indexcol,
                        IndexOptInfo *index)
 {
+  DBUG_TRACE;
   int     indkey;
+
+  DBUG_PRINT("info", "generalized test for a match between an index's key");
+  DBUG_PRINT("info", "and the operand on one side of a restriction or join clause");
 
   /*
    * Ignore any PlaceHolderVar node contained in the operand.  This is
@@ -4333,8 +4580,10 @@ match_index_to_operand(Node *operand,
     if (operand && IsA(operand, Var) &&
         index->rel->relid == ((Var *) operand)->varno &&
         indkey == ((Var *) operand)->varattno &&
-        ((Var *) operand)->varnullingrels == NULL)
+        ((Var *) operand)->varnullingrels == NULL) {
+      DBUG_PRINT("info", "simple index column; operand must be a matching Var");
       return true;
+    }
   } else {
     /*
      * Index expression; find the correct expression.  (This search could
@@ -4367,10 +4616,13 @@ match_index_to_operand(Node *operand,
     if (indexkey && IsA(indexkey, RelabelType))
       indexkey = (Node *) ((RelabelType *) indexkey)->arg;
 
-    if (equal(indexkey, operand))
+    if (equal(indexkey, operand)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -4410,6 +4662,8 @@ strip_phvs_in_index_operand(Node *operand)
 bool
 is_pseudo_constant_for_index(PlannerInfo *root, Node *expr, IndexOptInfo *index)
 {
+  DBUG_TRACE;
+
   /* pull_varnos is cheaper than volatility check, so do that first */
   if (bms_is_member(index->rel->relid, pull_varnos(root, expr)))
     return false;     /* no good, contains Var of table */

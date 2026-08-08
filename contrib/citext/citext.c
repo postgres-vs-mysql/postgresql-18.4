@@ -2,6 +2,7 @@
  * contrib/citext/citext.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation.h"
 #include "common/hashfn.h"
@@ -109,6 +110,7 @@ PG_FUNCTION_INFO_V1(citext_cmp);
 Datum
 citext_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   int32   result;
@@ -126,6 +128,7 @@ PG_FUNCTION_INFO_V1(citext_pattern_cmp);
 Datum
 citext_pattern_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   int32   result;
@@ -143,6 +146,7 @@ PG_FUNCTION_INFO_V1(citext_hash);
 Datum
 citext_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *txt = PG_GETARG_TEXT_PP(0);
   char     *str;
   Datum   result;
@@ -162,6 +166,7 @@ PG_FUNCTION_INFO_V1(citext_hash_extended);
 Datum
 citext_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *txt = PG_GETARG_TEXT_PP(0);
   uint64    seed = PG_GETARG_INT64(1);
   char     *str;
@@ -188,6 +193,7 @@ PG_FUNCTION_INFO_V1(citext_eq);
 Datum
 citext_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   char     *lcstr,
@@ -210,6 +216,12 @@ citext_eq(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -218,6 +230,7 @@ PG_FUNCTION_INFO_V1(citext_ne);
 Datum
 citext_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   char     *lcstr,
@@ -240,6 +253,12 @@ citext_ne(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -248,6 +267,7 @@ PG_FUNCTION_INFO_V1(citext_lt);
 Datum
 citext_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -257,6 +277,12 @@ citext_lt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -265,6 +291,7 @@ PG_FUNCTION_INFO_V1(citext_le);
 Datum
 citext_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -274,6 +301,12 @@ citext_le(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -282,6 +315,7 @@ PG_FUNCTION_INFO_V1(citext_gt);
 Datum
 citext_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -291,6 +325,12 @@ citext_gt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -299,6 +339,7 @@ PG_FUNCTION_INFO_V1(citext_ge);
 Datum
 citext_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -308,6 +349,12 @@ citext_ge(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -316,6 +363,7 @@ PG_FUNCTION_INFO_V1(citext_pattern_lt);
 Datum
 citext_pattern_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -325,6 +373,12 @@ citext_pattern_lt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -333,6 +387,7 @@ PG_FUNCTION_INFO_V1(citext_pattern_le);
 Datum
 citext_pattern_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -342,6 +397,12 @@ citext_pattern_le(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -350,6 +411,7 @@ PG_FUNCTION_INFO_V1(citext_pattern_gt);
 Datum
 citext_pattern_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -359,6 +421,12 @@ citext_pattern_gt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
 
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -367,6 +435,7 @@ PG_FUNCTION_INFO_V1(citext_pattern_ge);
 Datum
 citext_pattern_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -375,6 +444,12 @@ citext_pattern_ge(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(left, 0);
   PG_FREE_IF_COPY(right, 1);
+
+  if (result) {
+    DBUG_PRINT("citext", "return true");
+  } else {
+    DBUG_PRINT("citext", "return false");
+  }
 
   PG_RETURN_BOOL(result);
 }
@@ -390,6 +465,7 @@ PG_FUNCTION_INFO_V1(citext_smaller);
 Datum
 citext_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   text     *result;
@@ -403,6 +479,7 @@ PG_FUNCTION_INFO_V1(citext_larger);
 Datum
 citext_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *left = PG_GETARG_TEXT_PP(0);
   text     *right = PG_GETARG_TEXT_PP(1);
   text     *result;

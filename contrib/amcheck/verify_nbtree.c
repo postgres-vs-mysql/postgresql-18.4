@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heaptoast.h"
 #include "access/htup_details.h"
@@ -247,6 +248,7 @@ static inline ItemPointer BTreeTupleGetPointsToTID(IndexTuple itup);
 Datum
 bt_index_check(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indrelid = PG_GETARG_OID(0);
   BTCallbackState args;
 
@@ -254,6 +256,7 @@ bt_index_check(PG_FUNCTION_ARGS)
   args.rootdescend = false;
   args.parentcheck = false;
   args.checkunique = false;
+  DBUG_PRINT("amcheck", "verify integrity of B-Tree index(oid:%u)", indrelid);
 
   if (PG_NARGS() >= 2)
     args.heapallindexed = PG_GETARG_BOOL(1);
@@ -280,9 +283,11 @@ bt_index_check(PG_FUNCTION_ARGS)
 Datum
 bt_index_parent_check(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indrelid = PG_GETARG_OID(0);
   BTCallbackState args;
 
+  DBUG_PRINT("amcheck", "verify integrity of B-Tree index(oid:%u)", indrelid);
   args.heapallindexed = false;
   args.rootdescend = false;
   args.parentcheck = true;
@@ -310,6 +315,7 @@ bt_index_parent_check(PG_FUNCTION_ARGS)
 static void
 bt_index_check_callback(Relation indrel, Relation heaprel, void *state, bool readonly)
 {
+  DBUG_TRACE;
   BTCallbackState *args = (BTCallbackState *) state;
   bool    heapkeyspace,
           allequalimage;
@@ -378,18 +384,25 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
                      bool readonly, bool heapallindexed, bool rootdescend,
                      bool checkunique)
 {
+  DBUG_TRACE;
   BtreeCheckState *state;
   Page    metapage;
   BTMetaPageData *metad;
   uint32    previouslevel;
   BtreeLevel  current;
+  char *rel_name;
+  char *index_name;
 
-  if (!readonly)
+  rel_name = RelationGetRelationName(rel);
+  if (!readonly) {
+    DBUG_PRINT("amcheck", "verifying consistency of tree structure for index \"%s\"", rel_name);
     elog(DEBUG1, "verifying consistency of tree structure for index \"%s\"",
          RelationGetRelationName(rel));
-  else
+  } else {
+    DBUG_PRINT("amcheck", "verifying consistency of tree structure for index \"%s\" with cross-level checks", rel_name);
     elog(DEBUG1, "verifying consistency of tree structure for index \"%s\" with cross-level checks",
          RelationGetRelationName(rel));
+  }
 
   /*
    * This assertion matches the one in index_getnext_tid().  See page
@@ -454,11 +467,12 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
      */
     if (IsolationUsesXactSnapshot() && rel->rd_index->indcheckxmin &&
         !TransactionIdPrecedes(HeapTupleHeaderGetXmin(rel->rd_indextuple->t_data),
-                               state->snapshot->xmin))
+                               state->snapshot->xmin)) {
       ereport(ERROR,
               errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
               errmsg("index \"%s\" cannot be verified using transaction snapshot",
                      RelationGetRelationName(rel)));
+    }
   }
 
   /*
@@ -475,12 +489,13 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
 
   Assert(!state->rootdescend || state->readonly);
 
-  if (state->rootdescend && !state->heapkeyspace)
+  if (state->rootdescend && !state->heapkeyspace) {
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot verify that tuples from index \"%s\" can each be found by an independent index search",
                     RelationGetRelationName(rel)),
              errhint("Only B-Tree version 4 indexes support rootdescend verification.")));
+  }
 
   /* Create context for page */
   state->targetcontext = AllocSetContextCreate(CurrentMemoryContext,
@@ -489,6 +504,7 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
   state->checkstrategy = GetAccessStrategy(BAS_BULKREAD);
 
   /* Get true root block from meta-page */
+  DBUG_PRINT("amcheck", "get true root block from meta-page");
   metapage = palloc_btree_page(state, BTREE_METAPAGE);
   metad = BTPageGetMeta(metapage);
 
@@ -500,14 +516,15 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
    * scans.  This approach is more thorough, and removes the risk of
    * following a stale fast root from the meta page.
    */
-  if (metad->btm_fastroot != metad->btm_root)
+  if (metad->btm_fastroot != metad->btm_root) {
+    DBUG_PRINT("amcheck", "harmless fast root mismatch in index \"%s\"", rel_name);
     ereport(DEBUG1,
             (errcode(ERRCODE_NO_DATA),
-             errmsg_internal("harmless fast root mismatch in index \"%s\"",
-                             RelationGetRelationName(rel)),
+             errmsg_internal("harmless fast root mismatch in index \"%s\"", rel_name),
              errdetail_internal("Fast root block %u (level %u) differs from true root block %u (level %u).",
                                 metad->btm_fastroot, metad->btm_fastlevel,
                                 metad->btm_root, metad->btm_level)));
+  }
 
   /*
    * Starting at the root, verify every level.  Move left to right, top to
@@ -518,12 +535,15 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
   current.level = metad->btm_level;
   current.leftmost = metad->btm_root;
   current.istruerootlevel = true;
+  DBUG_PRINT("amcheck", "starting at the root(level:%d), verify every level", current.level);
+  DBUG_PRINT("amcheck", "move left to right, top to bottom");
 
   while (current.leftmost != P_NONE) {
     /*
      * Verify this level, and get left most page for next level down, if
      * not at leaf level
      */
+    DBUG_PRINT("amcheck", "verify this level(%d), and get left most page for next level down if not at leaf level", current.level);
     current = bt_check_level_from_leftmost(state, current);
 
     if (current.leftmost == InvalidBlockNumber)
@@ -538,6 +558,8 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
   /*
    * * Check whether heap contains unindexed/malformed tuples *
    */
+  DBUG_PRINT("amcheck", "check whether heap contains unindexed/malformed tuples");
+
   if (state->heapallindexed) {
     IndexInfo  *indexinfo = BuildIndexInfo(state->rel);
     TableScanDesc scan;
@@ -578,13 +600,18 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
     indexinfo->ii_ExclusionProcs = NULL;
     indexinfo->ii_ExclusionStrats = NULL;
 
-    elog(DEBUG1, "verifying that tuples from index \"%s\" are present in \"%s\"",
-         RelationGetRelationName(state->rel),
-         RelationGetRelationName(state->heaprel));
+    index_name = RelationGetRelationName(state->rel);
+    rel_name = RelationGetRelationName(state->heaprel);
+    DBUG_PRINT("amcheck", "verifying that tuples from index \"%s\" are present in \"%s\"", index_name, rel_name);
+    elog(DEBUG1, "verifying that tuples from index \"%s\" are present in \"%s\"", index_name, rel_name);
+
 
     table_index_build_scan(state->heaprel, state->rel, indexinfo, true, false,
                            bt_tuple_present_callback, state, scan);
 
+    rel_name = RelationGetRelationName(heaprel);
+    DBUG_PRINT("amcheck", "finished verifying presence of " INT64_FORMAT " tuples from table \"%s\" with bitset %.2f%% set",
+        state->heaptuplespresent, rel_name, 100.0 * bloom_prop_bits_set(state->filter));
     ereport(DEBUG1,
             (errmsg_internal("finished verifying presence of " INT64_FORMAT " tuples from table \"%s\" with bitset %.2f%% set",
                              state->heaptuplespresent, RelationGetRelationName(heaprel),
@@ -621,10 +648,12 @@ bt_check_every_level(Relation rel, Relation heaprel, bool heapkeyspace,
 static BtreeLevel
 bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
 {
+  DBUG_TRACE;
   /* State to establish early, concerning entire level */
   BTPageOpaque opaque;
   MemoryContext oldcontext;
   BtreeLevel  nextleveldown;
+  char *rel_name;
 
   /* Variables for iterating across level using right links */
   BlockNumber leftcurrent = P_NONE;
@@ -635,9 +664,11 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
   nextleveldown.level = InvalidBtreeLevel;
   nextleveldown.istruerootlevel = false;
 
+  DBUG_PRINT("amcheck", "given a left-most block at some level, move right, verifying each page individually");
   /* Use page-level context for duration of this call */
   oldcontext = MemoryContextSwitchTo(state->targetcontext);
 
+  DBUG_PRINT("amcheck", "verifying level %u%s", level.level, level.istruerootlevel ? " (true root level)" : level.level == 0 ? " (leaf level)" : "");
   elog(DEBUG1, "verifying level %u%s", level.level,
        level.istruerootlevel ?
        " (true root level)" : level.level == 0 ? " (leaf level)" : "");
@@ -681,11 +712,14 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
                 (errcode(ERRCODE_INDEX_CORRUPTED),
                  errmsg("block %u fell off the end of index \"%s\"",
                         current, RelationGetRelationName(state->rel))));
-      else
+      else {
+        rel_name = RelationGetRelationName(state->rel);
+        DBUG_PRINT("amcheck", "block %u of index \"%s\" concurrently deleted", current, rel_name);
         ereport(DEBUG1,
                 (errcode(ERRCODE_NO_DATA),
                  errmsg_internal("block %u of index \"%s\" concurrently deleted",
-                                 current, RelationGetRelationName(state->rel))));
+                                 current, rel_name)));
+      }
 
       goto nextpage;
     } else if (nextleveldown.leftmost == InvalidBlockNumber) {
@@ -770,6 +804,7 @@ bt_check_level_from_leftmost(BtreeCheckState *state, BtreeLevel level)
                                   current, level.level, opaque->btpo_level)));
 
     /* Verify invariants for page */
+    DBUG_PRINT("amcheck", "verify invariants for page");
     bt_target_page_check(state);
 
 nextpage:
@@ -838,6 +873,7 @@ nextpage:
 static bool
 heap_entry_is_visible(BtreeCheckState *state, ItemPointer tid)
 {
+  DBUG_TRACE;
   bool    tid_visible;
 
   TupleTableSlot *slot = table_slot_create(state->heaprel, NULL);
@@ -861,6 +897,7 @@ bt_report_duplicate(BtreeCheckState *state,
                     ItemPointer nexttid, BlockNumber nblock, OffsetNumber noffset,
                     int nposting)
 {
+  DBUG_TRACE;
   char     *htid,
            *nhtid,
            *itid,
@@ -900,9 +937,12 @@ bt_entry_unique_check(BtreeCheckState *state, IndexTuple itup,
                       BlockNumber targetblock, OffsetNumber offset,
                       BtreeLastVisibleEntry *lVis)
 {
+  DBUG_TRACE;
   ItemPointer tid;
   bool    has_visible_entry = false;
+  char *rel_name;
 
+  DBUG_PRINT("amcheck", "check if current nbtree leaf entry complies with UNIQUE constraint");
   Assert(targetblock != P_NONE);
 
   /*
@@ -928,8 +968,10 @@ bt_entry_unique_check(BtreeCheckState *state, IndexTuple itup,
          * between the posting list entries of the first tuple on the
          * page after cross-page check.
          */
-        if (lVis->blkno != targetblock && ItemPointerIsValid(lVis->tid))
+        if (lVis->blkno != targetblock && ItemPointerIsValid(lVis->tid)) {
+          DBUG_PRINT("amcheck", "prevent double reporting unique constraint violation");
           return;
+        }
 
         lVis->blkno = targetblock;
         lVis->offset = offset;
@@ -972,11 +1014,13 @@ bt_entry_unique_check(BtreeCheckState *state, IndexTuple itup,
     if (lVis->postingIndex >= 0)
       posting = psprintf(" posting %u", lVis->postingIndex);
 
+    rel_name = RelationGetRelationName(state->rel);
+    DBUG_PRINT("amcheck", "index uniqueness can not be checked for index tid=(%u,%u) in index \"%s\"", targetblock, offset, rel_name);
     ereport(DEBUG1,
             (errcode(ERRCODE_NO_DATA),
              errmsg("index uniqueness can not be checked for index tid=(%u,%u) in index \"%s\"",
                     targetblock, offset,
-                    RelationGetRelationName(state->rel)),
+                    rel_name),
              errdetail("It doesn't have visible heap tids and key is equal to the tid=(%u,%u)%s (points to heap tid=(%u,%u)).",
                        lVis->blkno, lVis->offset, posting,
                        ItemPointerGetBlockNumberNoCheck(lVis->tid),
@@ -996,10 +1040,13 @@ bt_leftmost_ignoring_half_dead(BtreeCheckState *state,
                                BlockNumber start,
                                BTPageOpaque start_opaque)
 {
+  DBUG_TRACE;
   BlockNumber reached = start_opaque->btpo_prev,
               reached_from = start;
   bool    all_half_dead = true;
+  char *rel_name;
 
+  DBUG_PRINT("amcheck", "accept an arbitrarily-long chain of  half-dead, sibling-linked pages to the left");
   /*
    * To handle the !readonly case, we'd need to accept BTP_DELETED pages and
    * potentially observe nbtree/README "Page deletion and backwards scans".
@@ -1024,12 +1071,13 @@ bt_leftmost_ignoring_half_dead(BtreeCheckState *state,
 
     if (all_half_dead) {
       XLogRecPtr  pagelsn = PageGetLSN(page);
-
+      rel_name = RelationGetRelationName(state->rel);
+      DBUG_PRINT("amcheck", "harmless interrupted page deletion detected in index \"%s\"", rel_name);
       /* pagelsn should point to an XLOG_BTREE_MARK_PAGE_HALFDEAD */
       ereport(DEBUG1,
               (errcode(ERRCODE_NO_DATA),
                errmsg_internal("harmless interrupted page deletion detected in index \"%s\"",
-                               RelationGetRelationName(state->rel)),
+                               rel_name),
                errdetail_internal("Block=%u right block=%u page lsn=%X/%X.",
                                   reached, reached_from,
                                   LSN_FORMAT_ARGS(pagelsn))));
@@ -1039,6 +1087,12 @@ bt_leftmost_ignoring_half_dead(BtreeCheckState *state,
     }
 
     pfree(page);
+  }
+
+  if (all_half_dead) {
+    DBUG_PRINT("amcheck", "return true");
+  } else {
+    DBUG_PRINT("amcheck", "return false");
   }
 
   return all_half_dead;
@@ -1084,6 +1138,7 @@ bt_recheck_sibling_links(BtreeCheckState *state,
                          BlockNumber btpo_prev_from_target,
                          BlockNumber leftcurrent)
 {
+  DBUG_TRACE;
   /* passing metapage to BTPageGetOpaque() would give irrelevant findings */
   Assert(leftcurrent != P_NONE);
 
@@ -1149,10 +1204,12 @@ bt_recheck_sibling_links(BtreeCheckState *state,
 
     if (btpo_prev_from_target == leftcurrent) {
       /* Report split in left sibling, not target (or new target) */
+      char *rel_name = RelationGetRelationName(state->rel);
+      DBUG_PRINT("amcheck", "harmless concurrent page split detected in index \"%s\"", rel_name);
+      DBUG_PRINT("amcheck", "block=%u new right sibling=%u original right sibling=%u", leftcurrent, newtargetblock, state->targetblock);
       ereport(DEBUG1,
               (errcode(ERRCODE_INTERNAL_ERROR),
-               errmsg_internal("harmless concurrent page split detected in index \"%s\"",
-                               RelationGetRelationName(state->rel)),
+               errmsg_internal("harmless concurrent page split detected in index \"%s\"", rel_name),
                errdetail_internal("Block=%u new right sibling=%u original right sibling=%u.",
                                   leftcurrent, newtargetblock,
                                   state->targetblock)));
@@ -1219,6 +1276,7 @@ bt_recheck_sibling_links(BtreeCheckState *state,
 static void
 bt_target_page_check(BtreeCheckState *state)
 {
+  DBUG_TRACE;
   OffsetNumber offset;
   OffsetNumber max;
   BTPageOpaque topaque;
@@ -1826,6 +1884,7 @@ bt_target_page_check(BtreeCheckState *state)
 static BTScanInsert
 bt_right_page_check_scankey(BtreeCheckState *state, OffsetNumber *rightfirstoffset)
 {
+  DBUG_TRACE;
   BTPageOpaque opaque;
   ItemId    rightitem;
   IndexTuple  firstitup;
@@ -2028,8 +2087,12 @@ bt_right_page_check_scankey(BtreeCheckState *state, OffsetNumber *rightfirstoffs
 static bool
 bt_pivot_tuple_identical(bool heapkeyspace, IndexTuple itup1, IndexTuple itup2)
 {
-  if (IndexTupleSize(itup1) != IndexTupleSize(itup2))
+  DBUG_TRACE;
+
+  if (IndexTupleSize(itup1) != IndexTupleSize(itup2)) {
+    DBUG_PRINT("amcheck", "return false");
     return false;
+  }
 
   if (heapkeyspace) {
     /*
@@ -2039,8 +2102,10 @@ bt_pivot_tuple_identical(bool heapkeyspace, IndexTuple itup1, IndexTuple itup2)
      */
     if (memcmp(&itup1->t_tid.ip_posid, &itup2->t_tid.ip_posid,
                IndexTupleSize(itup1) -
-               offsetof(ItemPointerData, ip_posid)) != 0)
+               offsetof(ItemPointerData, ip_posid)) != 0) {
+      DBUG_PRINT("amcheck", "return false");
       return false;
+    }
   } else {
     /*
      * Cannot rely on offset number field having consistent value across
@@ -2050,10 +2115,13 @@ bt_pivot_tuple_identical(bool heapkeyspace, IndexTuple itup1, IndexTuple itup2)
      */
     if (memcmp(&itup1->t_info, &itup2->t_info,
                IndexTupleSize(itup1) -
-               offsetof(IndexTupleData, t_info)) != 0)
+               offsetof(IndexTupleData, t_info)) != 0) {
+      DBUG_PRINT("amcheck", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("amcheck", "return true");
   return true;
 }
 
@@ -2101,6 +2169,7 @@ bt_child_highkey_check(BtreeCheckState *state,
                        Page loaded_child,
                        uint32 target_level)
 {
+  DBUG_TRACE;
   BlockNumber blkno = state->prevrightlink;
   Page    page;
   BTPageOpaque opaque;
@@ -2336,6 +2405,7 @@ static void
 bt_child_check(BtreeCheckState *state, BTScanInsert targetkey,
                OffsetNumber downlinkoffnum)
 {
+  DBUG_TRACE;
   ItemId    itemid;
   IndexTuple  itup;
   BlockNumber childblock;
@@ -2345,6 +2415,7 @@ bt_child_check(BtreeCheckState *state, BTScanInsert targetkey,
   BTPageOpaque copaque;
   BTPageOpaque topaque;
 
+  DBUG_PRINT("amcheck", "check one of target's downlink against its child page");
   itemid = PageGetItemIdCareful(state, state->targetblock,
                                 state->target, downlinkoffnum);
   itup = (IndexTuple) PageGetItem(state->target, itemid);
@@ -2500,6 +2571,7 @@ static void
 bt_downlink_missing_check(BtreeCheckState *state, bool rightsplit,
                           BlockNumber blkno, Page page)
 {
+  DBUG_TRACE;
   BTPageOpaque opaque = BTPageGetOpaque(page);
   ItemId    itemid;
   IndexTuple  itup;
@@ -2509,6 +2581,7 @@ bt_downlink_missing_check(BtreeCheckState *state, bool rightsplit,
   BlockNumber childblk;
   XLogRecPtr  pagelsn;
 
+  DBUG_PRINT("amcheck", "check if page is missing a downlink that it should have");
   Assert(state->readonly);
   Assert(!P_IGNORE(opaque));
 
@@ -2540,10 +2613,12 @@ bt_downlink_missing_check(BtreeCheckState *state, bool rightsplit,
    * _bt_pagedel() for full details.
    */
   if (rightsplit) {
+    char *rel_name = RelationGetRelationName(state->rel);
+    DBUG_PRINT("amcheck", "harmless interrupted page split detected in index \"%s\"", rel_name);
+    DBUG_PRINT("amcheck", "block=%u level=%u left sibling=%u page lsn=%X/%X", blkno, opaque->btpo_level, opaque->btpo_prev, LSN_FORMAT_ARGS(pagelsn));
     ereport(DEBUG1,
             (errcode(ERRCODE_NO_DATA),
-             errmsg_internal("harmless interrupted page split detected in index \"%s\"",
-                             RelationGetRelationName(state->rel)),
+             errmsg_internal("harmless interrupted page split detected in index \"%s\"", rel_name),
              errdetail_internal("Block=%u level=%u left sibling=%u page lsn=%X/%X.",
                                 blkno, opaque->btpo_level,
                                 opaque->btpo_prev,
@@ -2570,9 +2645,12 @@ bt_downlink_missing_check(BtreeCheckState *state, bool rightsplit,
                                 blkno,
                                 LSN_FORMAT_ARGS(pagelsn))));
 
-  /* Descend from the given page, which is an internal page */
-  elog(DEBUG1, "checking for interrupted multi-level deletion due to missing downlink in index \"%s\"",
-       RelationGetRelationName(state->rel));
+  {
+    char *rel_name = RelationGetRelationName(state->rel);
+    /* Descend from the given page, which is an internal page */
+    elog(DEBUG1, "checking for interrupted multi-level deletion due to missing downlink in index \"%s\"", rel_name);
+    DBUG_PRINT("amcheck", "checking for interrupted multi-level deletion due to missing downlink in index \"%s\"", rel_name);
+  }
 
   level = opaque->btpo_level;
   itemid = PageGetItemIdCareful(state, blkno, page, P_FIRSTDATAKEY(opaque));
@@ -2722,18 +2800,22 @@ static void
 bt_tuple_present_callback(Relation index, ItemPointer tid, Datum *values,
                           bool *isnull, bool tupleIsAlive, void *checkstate)
 {
+  DBUG_TRACE;
   BtreeCheckState *state = (BtreeCheckState *) checkstate;
   IndexTuple  itup,
               norm;
 
   Assert(state->heapallindexed);
 
+  DBUG_PRINT("amcheck", "generate a normalized index tuple for fingerprinting");
   /* Generate a normalized index tuple for fingerprinting */
   itup = index_form_tuple(RelationGetDescr(index), values, isnull);
   itup->t_tid = *tid;
   norm = bt_normalize_tuple(state, itup);
 
   /* Probe Bloom filter -- tuple should be present */
+  DBUG_PRINT("amcheck", "probe Bloom filter -- tuple should be present");
+
   if (bloom_lacks_element(state->filter, (unsigned char *) norm,
                           IndexTupleSize(norm)))
     ereport(ERROR,
@@ -2790,6 +2872,7 @@ bt_tuple_present_callback(Relation index, ItemPointer tid, Datum *values,
 static IndexTuple
 bt_normalize_tuple(BtreeCheckState *state, IndexTuple itup)
 {
+  DBUG_TRACE;
   TupleDesc tupleDescriptor = RelationGetDescr(state->rel);
   Datum   normalized[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];
@@ -2798,6 +2881,7 @@ bt_normalize_tuple(BtreeCheckState *state, IndexTuple itup)
   IndexTuple  reformed;
   int     i;
 
+  DBUG_PRINT("amcheck", "normalize an index tuple for fingerprinting");
   /* Caller should only pass "logical" non-pivot tuples here */
   Assert(!BTreeTupleIsPosting(itup) && !BTreeTupleIsPivot(itup));
 
@@ -2947,11 +3031,13 @@ bt_posting_plain_tuple(IndexTuple itup, int n)
 static bool
 bt_rootdescend(BtreeCheckState *state, IndexTuple itup)
 {
+  DBUG_TRACE;
   BTScanInsert key;
   BTStack   stack;
   Buffer    lbuf;
   bool    exists;
 
+  DBUG_PRINT("amcheck", "search for itup in index, starting from fast root page");
   key = _bt_mkscankey(state->rel, itup);
   Assert(key->heapkeyspace && key->scantid != NULL);
 

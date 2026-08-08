@@ -25,6 +25,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -122,6 +123,7 @@ static int  autoprewarm_interval = 300; /* dump interval */
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   DefineCustomIntVariable("pg_prewarm.autoprewarm_interval",
                           "Sets the interval between dumps of shared buffers",
                           "If set to zero, time-based dumping is disabled.",
@@ -163,6 +165,7 @@ _PG_init(void)
 void
 autoprewarm_main(Datum main_arg)
 {
+  DBUG_TRACE;
   bool    first_time = true;
   bool    final_dump_allowed = true;
   TimestampTz last_dump_time = 0;
@@ -282,6 +285,7 @@ autoprewarm_main(Datum main_arg)
 static void
 apw_load_buffers(void)
 {
+  DBUG_TRACE;
   FILE     *file = NULL;
   int     num_elements,
           i;
@@ -338,6 +342,7 @@ apw_load_buffers(void)
   blkinfo = (BlockInfoRecord *) dsm_segment_address(seg);
 
   /* Read records, one per line. */
+  DBUG_PRINT("prewarm", "read records, one per line(num_elements:%d)", num_elements);
   for (i = 0; i < num_elements; i++) {
     unsigned  forknum;
 
@@ -354,8 +359,25 @@ apw_load_buffers(void)
   FreeFile(file);
 
   /* Sort the blocks to be loaded. */
-  qsort(blkinfo, num_elements, sizeof(BlockInfoRecord),
+  if (num_elements > 100) {
+    bool tmp_trace_disabled = false;
+    if (!trace_disabled) {
+      if (!tmp_trace_disabled) {
+        tmp_trace_disabled = true;
+        set_trace_disabled();
+      }
+    }
+
+    qsort(blkinfo, num_elements, sizeof(BlockInfoRecord),
         apw_compare_blockinfo);
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+    }
+  } else {
+    qsort(blkinfo, num_elements, sizeof(BlockInfoRecord),
+        apw_compare_blockinfo);
+  }
 
   /* Populate shared memory state. */
   apw_state->block_info_handle = dsm_segment_handle(seg);
@@ -416,9 +438,11 @@ apw_load_buffers(void)
      * Start a per-database worker to load blocks for this database; this
      * function will return once the per-database worker exits.
      */
+    DBUG_PRINT("prewarm", "start a per-database worker to load blocks for this database");
     apw_start_database_worker();
 
     /* Prepare for next database. */
+    DBUG_PRINT("prewarm", "prepare for next database");
     apw_state->prewarm_start_idx = apw_state->prewarm_stop_idx;
   }
 
@@ -430,10 +454,12 @@ apw_load_buffers(void)
   LWLockRelease(&apw_state->lock);
 
   /* Report our success, if we were able to finish. */
-  if (!ShutdownRequestPending)
+  if (!ShutdownRequestPending) {
+    DBUG_PRINT("prewarm", "autoprewarm successfully prewarmed %d of %d previously-loaded blocks", apw_state->prewarmed_blocks, num_elements);
     ereport(LOG,
             (errmsg("autoprewarm successfully prewarmed %d of %d previously-loaded blocks",
                     apw_state->prewarmed_blocks, num_elements)));
+  }
 }
 
 /*
@@ -489,6 +515,7 @@ apw_read_stream_next_block(ReadStream *stream,
 void
 autoprewarm_database_main(Datum main_arg)
 {
+  DBUG_TRACE;
   BlockInfoRecord *block_info;
   int     i;
   BlockInfoRecord blk;
@@ -517,6 +544,7 @@ autoprewarm_database_main(Datum main_arg)
    * Loop until we run out of blocks to prewarm or until we run out of free
    * buffers.
    */
+  DBUG_PRINT("prewarm", "loop until we run out of blocks to prewarm or until we run out of free buffers");
   while (i < apw_state->prewarm_stop_idx && have_free_buffer()) {
     Oid     tablespace = blk.tablespace;
     RelFileNumber filenumber = blk.filenumber;
@@ -651,6 +679,7 @@ autoprewarm_database_main(Datum main_arg)
 static int
 apw_dump_now(bool is_bgworker, bool dump_unlogged)
 {
+  DBUG_TRACE;
   int     num_blocks;
   int     i;
   int     ret;
@@ -799,6 +828,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 Datum
 autoprewarm_start_worker(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pid_t   pid;
 
   if (!autoprewarm)
@@ -831,6 +861,7 @@ autoprewarm_start_worker(PG_FUNCTION_ARGS)
 Datum
 autoprewarm_dump_now(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     num_blocks;
 
   apw_init_shmem();
@@ -849,7 +880,7 @@ apw_init_state(void *ptr)
 {
   AutoPrewarmSharedState *state = (AutoPrewarmSharedState *) ptr;
 
-  LWLockInitialize(&state->lock, LWLockNewTrancheId());
+  LWLockInitialize(&state->lock, LWLockNewTrancheId(), 0);
   state->bgworker_pid = InvalidPid;
   state->pid_using_dumpfile = InvalidPid;
 }
@@ -862,6 +893,7 @@ apw_init_state(void *ptr)
 static bool
 apw_init_shmem(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   apw_state = GetNamedDSMSegment("autoprewarm",
@@ -879,6 +911,7 @@ apw_init_shmem(void)
 static void
 apw_detach_shmem(int code, Datum arg)
 {
+  DBUG_TRACE;
   LWLockAcquire(&apw_state->lock, LW_EXCLUSIVE);
 
   if (apw_state->pid_using_dumpfile == MyProcPid)
@@ -937,6 +970,7 @@ apw_start_leader_worker(void)
 static void
 apw_start_database_worker(void)
 {
+  DBUG_TRACE;
   BackgroundWorker worker = {0};
   BackgroundWorkerHandle *handle;
 
@@ -986,6 +1020,7 @@ do { \
 static int
 apw_compare_blockinfo(const void *p, const void *q)
 {
+  DBUG_TRACE;
   const BlockInfoRecord *a = (const BlockInfoRecord *) p;
   const BlockInfoRecord *b = (const BlockInfoRecord *) q;
 

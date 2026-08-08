@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xlog.h"
 #include "access/xlogrecovery.h"
@@ -216,6 +217,7 @@ StartupProcExit(int code, Datum arg)
 void
 StartupProcessMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   Assert(startup_data_len == 0);
 
   MyBackendType = B_STARTUP;

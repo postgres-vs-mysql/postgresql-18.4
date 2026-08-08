@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist_private.h"
 #include "access/hash.h"
@@ -90,6 +91,7 @@ static void pgstat_index_page(pgstattuple_type *stat, Page page,
 static Datum
 build_pgstattuple_type(pgstattuple_type *stat, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
 #define NCOLUMNS  9
 #define NCHARS    314
 
@@ -165,6 +167,7 @@ build_pgstattuple_type(pgstattuple_type *stat, FunctionCallInfo fcinfo)
 Datum
 pgstattuple(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   RangeVar   *relrv;
   Relation  rel;
@@ -191,6 +194,7 @@ pgstattuple(PG_FUNCTION_ARGS)
 Datum
 pgstattuple_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   RangeVar   *relrv;
   Relation  rel;
@@ -206,6 +210,7 @@ pgstattuple_v1_5(PG_FUNCTION_ARGS)
 Datum
 pgstattuplebyid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
@@ -224,6 +229,7 @@ pgstattuplebyid(PG_FUNCTION_ARGS)
 Datum
 pgstattuplebyid_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
@@ -239,6 +245,7 @@ pgstattuplebyid_v1_5(PG_FUNCTION_ARGS)
 static Datum
 pgstat_relation(Relation rel, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   const char *err;
 
   /*
@@ -313,6 +320,7 @@ pgstat_relation(Relation rel, FunctionCallInfo fcinfo)
 static Datum
 pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   TableScanDesc scan;
   HeapScanDesc hscan;
   HeapTuple tuple;
@@ -339,6 +347,8 @@ pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
   InitDirtySnapshot(SnapshotDirty);
 
   nblocks = hscan->rs_nblocks;  /* # blocks to be scanned */
+
+  DBUG_PRINT("pgstattuple", "blocks to be scanned:%u", nblocks);
 
   /* scan the relation */
   while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL) {
@@ -393,6 +403,9 @@ pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
 
   stat.table_len = (uint64) nblocks * BLCKSZ;
 
+  DBUG_PRINT("pgstattuple", "table_len:%lu, free_space;%lu", stat.table_len, stat.free_space);
+  DBUG_PRINT("pgstattuple", "tuple_count:%lu, tuple_len;%lu, dead_tuple_count:%lu, dead_tuple_len;%lu",
+             stat.table_len, stat.free_space, stat.dead_tuple_count, stat.dead_tuple_len);
   return build_pgstattuple_type(&stat, fcinfo);
 }
 
@@ -403,6 +416,7 @@ static void
 pgstat_btree_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
                   BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
 
@@ -440,6 +454,7 @@ static void
 pgstat_hash_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
                  BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
 
@@ -485,6 +500,7 @@ static void
 pgstat_gist_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
                  BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
 
@@ -514,6 +530,7 @@ static Datum
 pgstat_index(Relation rel, BlockNumber start, pgstat_page pagefn,
              FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   BlockNumber nblocks;
   BlockNumber blkno;
   BufferAccessStrategy bstrategy;
@@ -556,6 +573,7 @@ static void
 pgstat_index_page(pgstattuple_type *stat, Page page,
                   OffsetNumber minoff, OffsetNumber maxoff)
 {
+  DBUG_TRACE;
   OffsetNumber i;
 
   stat->free_space += PageGetExactFreeSpace(page);

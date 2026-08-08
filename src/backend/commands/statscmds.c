@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/table.h"
@@ -61,6 +62,7 @@ compare_int16(const void *a, const void *b)
 ObjectAddress
 CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
 {
+  DBUG_TRACE;
   int16   attnums[STATS_MAX_DIMENSIONS];
   int     nattnums = 0;
   int     numcols;
@@ -100,18 +102,22 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
    * syntax.  The grammar is already prepared for that, so we have to check
    * here that what we got is what we can support.
    */
-  if (list_length(stmt->relations) != 1)
+  if (list_length(stmt->relations) != 1) {
+    DBUG_INSTANT_PRINT("info", "only a single relation is allowed in CREATE STATISTICS");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("only a single relation is allowed in CREATE STATISTICS")));
+  }
 
   foreach(cell, stmt->relations) {
     Node     *rln = (Node *) lfirst(cell);
 
-    if (!IsA(rln, RangeVar))
+    if (!IsA(rln, RangeVar)) {
+      DBUG_INSTANT_PRINT("info", "only a single relation is allowed in CREATE STATISTICS");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("only a single relation is allowed in CREATE STATISTICS")));
+    }
 
     /*
      * CREATE STATISTICS will influence future execution plans but does
@@ -126,12 +132,14 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
     if (rel->rd_rel->relkind != RELKIND_RELATION &&
         rel->rd_rel->relkind != RELKIND_MATVIEW &&
         rel->rd_rel->relkind != RELKIND_FOREIGN_TABLE &&
-        rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+        rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+      DBUG_INSTANT_PRINT("info", "cannot define statistics for relation \"%s\"", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot define statistics for relation \"%s\"",
                       RelationGetRelationName(rel)),
                errdetail_relkind_not_supported(rel->rd_rel->relkind)));
+    }
 
     /*
      * You must own the relation to create stats on it.
@@ -145,11 +153,13 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
                      RelationGetRelationName(rel));
 
     /* Creating statistics on system catalogs is not allowed */
-    if (!allowSystemTableMods && IsSystemRelation(rel))
+    if (!allowSystemTableMods && IsSystemRelation(rel)) {
+      DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied: \"%s\" is a system catalog",
                       RelationGetRelationName(rel))));
+    }
   }
 
   Assert(rel);
@@ -200,6 +210,7 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
        * Since stats objects aren't members of extensions (see comments
        * below), no need for checkMembershipInCurrentExtension here.
        */
+      DBUG_PRINT("info", "statistics object \"%s\" already exists, skipping", namestr);
       ereport(NOTICE,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("statistics object \"%s\" already exists, skipping",
@@ -208,6 +219,7 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
       return InvalidObjectAddress;
     }
 
+    DBUG_INSTANT_PRINT("info", "statistics object \"%s\" already exists", namestr);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("statistics object \"%s\" already exists", namestr)));
@@ -219,11 +231,13 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
    */
   numcols = list_length(stmt->exprs);
 
-  if (numcols > STATS_MAX_DIMENSIONS)
+  if (numcols > STATS_MAX_DIMENSIONS) {
+    DBUG_INSTANT_PRINT("info", "cannot have more than %d columns in statistics", STATS_MAX_DIMENSIONS);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("cannot have more than %d columns in statistics",
                     STATS_MAX_DIMENSIONS)));
+  }
 
   /*
    * Convert the expression list to a simple array of attnums, but also keep
@@ -251,34 +265,44 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
 
       atttuple = SearchSysCacheAttName(relid, attname);
 
-      if (!HeapTupleIsValid(atttuple))
+      if (!HeapTupleIsValid(atttuple)) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" does not exist", attname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("column \"%s\" does not exist",
                         attname)));
+      }
 
       attForm = (Form_pg_attribute) GETSTRUCT(atttuple);
 
       /* Disallow use of system attributes in extended stats */
-      if (attForm->attnum <= 0)
+      if (attForm->attnum <= 0) {
+        DBUG_INSTANT_PRINT("info", "statistics creation on system columns is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("statistics creation on system columns is not supported")));
+      }
 
       /* Disallow use of virtual generated columns in extended stats */
-      if (attForm->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+      if (attForm->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL) {
+        DBUG_INSTANT_PRINT("info", "statistics creation on virtual generated columns is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("statistics creation on virtual generated columns is not supported")));
+      }
 
       /* Disallow data types without a less-than operator */
       type = lookup_type_cache(attForm->atttypid, TYPECACHE_LT_OPR);
 
-      if (type->lt_opr == InvalidOid)
+      if (type->lt_opr == InvalidOid) {
+        char *format1 = format_type_be(attForm->atttypid);
+        DBUG_INSTANT_PRINT("info", "column \"%s\" cannot be used in statistics because its type %s has no default btree operator class",
+                           attname, format1);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("column \"%s\" cannot be used in statistics because its type %s has no default btree operator class",
-                        attname, format_type_be(attForm->atttypid))));
+                        attname, format1)));
+      }
 
       attnums[nattnums] = attForm->attnum;
       nattnums++;
@@ -288,25 +312,33 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
       TypeCacheEntry *type;
 
       /* Disallow use of system attributes in extended stats */
-      if (var->varattno <= 0)
+      if (var->varattno <= 0) {
+        DBUG_INSTANT_PRINT("info", "statistics creation on system columns is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("statistics creation on system columns is not supported")));
+      }
 
       /* Disallow use of virtual generated columns in extended stats */
-      if (get_attgenerated(relid, var->varattno) == ATTRIBUTE_GENERATED_VIRTUAL)
+      if (get_attgenerated(relid, var->varattno) == ATTRIBUTE_GENERATED_VIRTUAL) {
+        DBUG_INSTANT_PRINT("info", "statistics creation on virtual generated columns is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("statistics creation on virtual generated columns is not supported")));
+      }
 
       /* Disallow data types without a less-than operator */
       type = lookup_type_cache(var->vartype, TYPECACHE_LT_OPR);
 
-      if (type->lt_opr == InvalidOid)
+      if (type->lt_opr == InvalidOid) {
+        char *format1 = format_type_be(var->vartype);
+        DBUG_INSTANT_PRINT("info", "column \"%s\" cannot be used in statistics because its type %s has no default btree operator class",
+                           get_attname(relid, var->varattno, false), format1);
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("column \"%s\" cannot be used in statistics because its type %s has no default btree operator class",
-                        get_attname(relid, var->varattno, false), format_type_be(var->vartype))));
+                        get_attname(relid, var->varattno, false), format1)));
+      }
 
       attnums[nattnums] = var->varattno;
       nattnums++;
@@ -327,16 +359,20 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
         AttrNumber  attnum = k + FirstLowInvalidHeapAttributeNumber;
 
         /* Disallow expressions referencing system attributes. */
-        if (attnum <= 0)
+        if (attnum <= 0) {
+          DBUG_INSTANT_PRINT("info", "statistics creation on system columns is not supported");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("statistics creation on system columns is not supported")));
+        }
 
         /* Disallow use of virtual generated columns in extended stats */
-        if (get_attgenerated(relid, attnum) == ATTRIBUTE_GENERATED_VIRTUAL)
+        if (get_attgenerated(relid, attnum) == ATTRIBUTE_GENERATED_VIRTUAL) {
+          DBUG_INSTANT_PRINT("info", "statistics creation on irtual generated columns is not supported");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("statistics creation on virtual generated columns is not supported")));
+        }
       }
 
       /*
@@ -350,11 +386,15 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
         atttype = exprType(expr);
         type = lookup_type_cache(atttype, TYPECACHE_LT_OPR);
 
-        if (type->lt_opr == InvalidOid)
+        if (type->lt_opr == InvalidOid) {
+          char *format1 = format_type_be(atttype);
+          DBUG_INSTANT_PRINT("info", "expression cannot be used in multivariate statistics because its type %s has no default btree operator class",
+                             format1);
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("expression cannot be used in multivariate statistics because its type %s has no default btree operator class",
-                          format_type_be(atttype))));
+                          format1)));
+        }
       }
 
       stxexprs = lappend(stxexprs, expr);
@@ -370,10 +410,12 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
    */
   if ((list_length(stmt->exprs) == 1) && (list_length(stxexprs) == 1)) {
     /* statistics kinds not specified */
-    if (stmt->stat_types != NIL)
+    if (stmt->stat_types != NIL) {
+      DBUG_INSTANT_PRINT("info", "when building statistics on a single expression, statistics kinds may not be specified");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("when building statistics on a single expression, statistics kinds may not be specified")));
+    }
   }
 
   /* OK, let's check that we recognize the statistics kinds. */
@@ -393,11 +435,13 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
     } else if (strcmp(type, "mcv") == 0) {
       build_mcv = true;
       requested_type = true;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized statistics kind \"%s\"", type);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized statistics kind \"%s\"",
                       type)));
+    }
   }
 
   /*
@@ -421,10 +465,12 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
    * Check that at least two columns were specified in the statement, or
    * that we're building statistics on a single expression.
    */
-  if ((numcols < 2) && (list_length(stxexprs) != 1))
+  if ((numcols < 2) && (list_length(stxexprs) != 1)) {
+    DBUG_INSTANT_PRINT("info", "extended statistics require at least 2 columns");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("extended statistics require at least 2 columns")));
+  }
 
   /*
    * Sort the attnums, which makes detecting duplicates somewhat easier, and
@@ -438,10 +484,12 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
    * just check consecutive elements.
    */
   for (i = 1; i < nattnums; i++) {
-    if (attnums[i] == attnums[i - 1])
+    if (attnums[i] == attnums[i - 1]) {
+      DBUG_INSTANT_PRINT("info", "duplicate column name in statistics definition");
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_COLUMN),
                errmsg("duplicate column name in statistics definition")));
+    }
   }
 
   /*
@@ -471,10 +519,12 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
     /* every expression should find at least itself */
     Assert(cnt >= 1);
 
-    if (cnt > 1)
+    if (cnt > 1) {
+      DBUG_INSTANT_PRINT("info", "duplicate expression in statistics definition");
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_COLUMN),
                errmsg("duplicate expression in statistics definition")));
+    }
   }
 
   /* Form an int2vector representation of the sorted column list */
@@ -624,6 +674,7 @@ CreateStatistics(CreateStatsStmt *stmt, bool check_rights)
 ObjectAddress
 AlterStatistics(AlterStatsStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   Oid     stxoid;
   HeapTuple oldtup;
@@ -645,12 +696,14 @@ AlterStatistics(AlterStatsStmt *stmt)
   if (!newtarget_default) {
     /* Limit statistics target to a sane range */
     if (newtarget < 0) {
+      DBUG_INSTANT_PRINT("info", "statistics target %d is too low", newtarget);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("statistics target %d is too low",
                       newtarget)));
     } else if (newtarget > MAX_STATISTICS_TARGET) {
       newtarget = MAX_STATISTICS_TARGET;
+      DBUG_INSTANT_PRINT("info", "lowering statistics target to %d", newtarget);
       ereport(WARNING,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("lowering statistics target to %d",
@@ -742,6 +795,7 @@ AlterStatistics(AlterStatsStmt *stmt)
 void
 RemoveStatisticsDataById(Oid statsOid, bool inh)
 {
+  DBUG_TRACE;
   Relation  relation;
   HeapTuple tup;
 
@@ -766,6 +820,7 @@ RemoveStatisticsDataById(Oid statsOid, bool inh)
 void
 RemoveStatisticsById(Oid statsOid)
 {
+  DBUG_TRACE;
   Relation  relation;
   Relation  rel;
   HeapTuple tup;
@@ -829,6 +884,7 @@ static char *
 ChooseExtendedStatisticName(const char *name1, const char *name2,
                             const char *label, Oid namespaceid)
 {
+  DBUG_TRACE;
   int     pass = 0;
   char     *stxname = NULL;
   char    modlabel[NAMEDATALEN];
@@ -870,6 +926,7 @@ ChooseExtendedStatisticName(const char *name1, const char *name2,
 static char *
 ChooseExtendedStatisticNameAddition(List *exprs)
 {
+  DBUG_TRACE;
   char    buf[NAMEDATALEN * 2];
   int     buflen = 0;
   ListCell   *lc;
@@ -919,6 +976,7 @@ ChooseExtendedStatisticNameAddition(List *exprs)
 Oid
 StatisticsGetRelation(Oid statId, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_statistic_ext stx;
   Oid     result;

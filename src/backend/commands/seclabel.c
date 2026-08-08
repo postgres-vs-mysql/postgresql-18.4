@@ -9,6 +9,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -112,6 +113,7 @@ SecLabelSupportsObjectType(ObjectType objtype)
 ObjectAddress
 ExecSecLabelStmt(SecLabelStmt *stmt)
 {
+  DBUG_TRACE;
   LabelProvider *provider = NULL;
   ObjectAddress address;
   Relation  relation;
@@ -122,15 +124,19 @@ ExecSecLabelStmt(SecLabelStmt *stmt)
    * there's exactly one, and if so use it.
    */
   if (stmt->provider == NULL) {
-    if (label_provider_list == NIL)
+    if (label_provider_list == NIL) {
+      DBUG_INSTANT_PRINT("info", "no security label providers have been loaded");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("no security label providers have been loaded")));
+    }
 
-    if (list_length(label_provider_list) != 1)
+    if (list_length(label_provider_list) != 1) {
+      DBUG_INSTANT_PRINT("info", "must specify provider when multiple security label providers have been loaded");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("must specify provider when multiple security label providers have been loaded")));
+    }
 
     provider = (LabelProvider *) linitial(label_provider_list);
   } else {
@@ -143,17 +149,21 @@ ExecSecLabelStmt(SecLabelStmt *stmt)
       }
     }
 
-    if (provider == NULL)
+    if (provider == NULL) {
+      DBUG_INSTANT_PRINT("info", "security label provider \"%s\" is not loaded", stmt->provider);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                errmsg("security label provider \"%s\" is not loaded",
                       stmt->provider)));
+    }
   }
 
-  if (!SecLabelSupportsObjectType(stmt->objtype))
+  if (!SecLabelSupportsObjectType(stmt->objtype)) {
+    DBUG_INSTANT_PRINT("info", "security labels are not supported for this type of object");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("security labels are not supported for this type of object")));
+  }
 
   /*
    * Translate the parser representation which identifies this object into
@@ -183,12 +193,13 @@ ExecSecLabelStmt(SecLabelStmt *stmt)
           relation->rd_rel->relkind != RELKIND_COMPOSITE_TYPE &&
           relation->rd_rel->relkind != RELKIND_FOREIGN_TABLE &&
           relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
-        ereport(ERROR,
-                (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-                 errmsg("cannot set security label on relation \"%s\"",
-                        RelationGetRelationName(relation)),
-                 errdetail_relkind_not_supported(relation->rd_rel->relkind)));
+        DBUG_INSTANT_PRINT("info", "cannot set security label on relation \"%s\"", RelationGetRelationName(relation));
 
+      ereport(ERROR,
+              (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+               errmsg("cannot set security label on relation \"%s\"",
+                      RelationGetRelationName(relation)),
+               errdetail_relkind_not_supported(relation->rd_rel->relkind)));
       break;
 
     default:
@@ -220,6 +231,7 @@ ExecSecLabelStmt(SecLabelStmt *stmt)
 static char *
 GetSharedSecurityLabel(const ObjectAddress *object, const char *provider)
 {
+  DBUG_TRACE;
   Relation  pg_shseclabel;
   ScanKeyData keys[3];
   SysScanDesc scan;
@@ -270,6 +282,7 @@ GetSharedSecurityLabel(const ObjectAddress *object, const char *provider)
 char *
 GetSecurityLabel(const ObjectAddress *object, const char *provider)
 {
+  DBUG_TRACE;
   Relation  pg_seclabel;
   ScanKeyData keys[4];
   SysScanDesc scan;
@@ -330,6 +343,7 @@ static void
 SetSharedSecurityLabel(const ObjectAddress *object,
                        const char *provider, const char *label)
 {
+  DBUG_TRACE;
   Relation  pg_shseclabel;
   ScanKeyData keys[4];
   SysScanDesc scan;
@@ -405,6 +419,7 @@ void
 SetSecurityLabel(const ObjectAddress *object,
                  const char *provider, const char *label)
 {
+  DBUG_TRACE;
   Relation  pg_seclabel;
   ScanKeyData keys[4];
   SysScanDesc scan;
@@ -490,6 +505,7 @@ SetSecurityLabel(const ObjectAddress *object,
 void
 DeleteSharedSecurityLabel(Oid objectId, Oid classId)
 {
+  DBUG_TRACE;
   Relation  pg_shseclabel;
   ScanKeyData skey[2];
   SysScanDesc scan;
@@ -524,6 +540,7 @@ DeleteSharedSecurityLabel(Oid objectId, Oid classId)
 void
 DeleteSecurityLabel(const ObjectAddress *object)
 {
+  DBUG_TRACE;
   Relation  pg_seclabel;
   ScanKeyData skey[3];
   SysScanDesc scan;
@@ -571,6 +588,7 @@ DeleteSecurityLabel(const ObjectAddress *object)
 void
 register_label_provider(const char *provider_name, check_object_relabel_type hook)
 {
+  DBUG_TRACE;
   LabelProvider *provider;
   MemoryContext oldcxt;
 

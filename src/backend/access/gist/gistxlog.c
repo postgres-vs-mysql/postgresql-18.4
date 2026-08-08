@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/gist_private.h"
@@ -39,6 +40,7 @@ static MemoryContext opCtx;   /* working memory for operations */
 static void
 gistRedoClearFollowRight(XLogReaderState *record, uint8 block_id)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buffer;
   Page    page;
@@ -70,10 +72,13 @@ gistRedoClearFollowRight(XLogReaderState *record, uint8 block_id)
 static void
 gistRedoPageUpdateRecord(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   gistxlogPageUpdate *xldata = (gistxlogPageUpdate *) XLogRecGetData(record);
   Buffer    buffer;
   Page    page;
+
+  DBUG_PRINT("info", " redo any page update (except page split)");
 
   if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO) {
     char     *begin;
@@ -171,11 +176,14 @@ gistRedoPageUpdateRecord(XLogReaderState *record)
 static void
 gistRedoDeleteRecord(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   gistxlogDelete *xldata = (gistxlogDelete *) XLogRecGetData(record);
   Buffer    buffer;
   Page    page;
   OffsetNumber *toDelete = xldata->offsets;
+
+  DBUG_PRINT("info", "redo delete on gist index page to remove tuples marked as DEAD during index tuple insertion");
 
   /*
    * If we have any conflict processing to do, it must happen before we
@@ -220,6 +228,7 @@ gistRedoDeleteRecord(XLogReaderState *record)
 static IndexTuple *
 decodePageSplitRecord(char *begin, int len, int *n)
 {
+  DBUG_TRACE;
   char     *ptr;
   int     i = 0;
   IndexTuple *tuples;
@@ -244,6 +253,7 @@ decodePageSplitRecord(char *begin, int len, int *n)
 static void
 gistRedoPageSplitRecord(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   gistxlogPageSplit *xldata = (gistxlogPageSplit *) XLogRecGetData(record);
   Buffer    firstbuffer = InvalidBuffer;
@@ -261,6 +271,8 @@ gistRedoPageSplitRecord(XLogReaderState *record)
    */
 
   /* loop around all pages */
+  DBUG_PRINT("info", "loop around all pages (xldata->npage:%d)", xldata->npage);
+
   for (i = 0; i < xldata->npage; i++) {
     int     flags;
     char     *data;
@@ -336,10 +348,13 @@ gistRedoPageSplitRecord(XLogReaderState *record)
 static void
 gistRedoPageDelete(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   gistxlogPageDelete *xldata = (gistxlogPageDelete *) XLogRecGetData(record);
   Buffer    parentBuffer;
   Buffer    leafBuffer;
+
+  DBUG_PRINT("info", "redo page deletion");
 
   if (XLogReadBufferForRedo(record, 0, &leafBuffer) == BLK_NEEDS_REDO) {
     Page    page = (Page) BufferGetPage(leafBuffer);
@@ -369,6 +384,7 @@ gistRedoPageDelete(XLogReaderState *record)
 static void
 gistRedoPageReuse(XLogReaderState *record)
 {
+  DBUG_TRACE;
   gistxlogPageReuse *xlrec = (gistxlogPageReuse *) XLogRecGetData(record);
 
   /*
@@ -390,6 +406,7 @@ gistRedoPageReuse(XLogReaderState *record)
 void
 gist_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
   MemoryContext oldCxt;
 
@@ -400,6 +417,8 @@ gist_redo(XLogReaderState *record)
    */
 
   oldCxt = MemoryContextSwitchTo(opCtx);
+
+  DBUG_PRINT("info", "gist_identify:'%s'", gist_identify(info));
 
   switch (info) {
     case XLOG_GIST_PAGE_UPDATE:
@@ -437,12 +456,14 @@ gist_redo(XLogReaderState *record)
 void
 gist_xlog_startup(void)
 {
+  DBUG_TRACE;
   opCtx = createTempGistContext();
 }
 
 void
 gist_xlog_cleanup(void)
 {
+  DBUG_TRACE;
   MemoryContextDelete(opCtx);
 }
 
@@ -452,6 +473,7 @@ gist_xlog_cleanup(void)
 void
 gist_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
 
   mask_page_lsn_and_checksum(page);
@@ -496,6 +518,7 @@ gistXLogSplit(bool page_is_leaf,
               BlockNumber origrlink, GistNSN orignsn,
               Buffer leftchildbuf, bool markfollowright)
 {
+  DBUG_TRACE;
   gistxlogPageSplit xlrec;
   SplitPageLayout *ptr;
   int     npage = 0;
@@ -505,6 +528,7 @@ gistXLogSplit(bool page_is_leaf,
   for (ptr = dist; ptr; ptr = ptr->next)
     npage++;
 
+  DBUG_PRINT("info", "write WAL record of a page split(npage:%d)", npage);
   xlrec.origrlink = origrlink;
   xlrec.orignsn = orignsn;
   xlrec.origleaf = page_is_leaf;
@@ -551,6 +575,7 @@ XLogRecPtr
 gistXLogPageDelete(Buffer buffer, FullTransactionId xid,
                    Buffer parentBuffer, OffsetNumber downlinkOffset)
 {
+  DBUG_TRACE;
   gistxlogPageDelete xlrec;
   XLogRecPtr  recptr;
 
@@ -574,6 +599,7 @@ gistXLogPageDelete(Buffer buffer, FullTransactionId xid,
 XLogRecPtr
 gistXLogAssignLSN(void)
 {
+  DBUG_TRACE;
   int     dummy = 0;
 
   /*
@@ -593,6 +619,7 @@ void
 gistXLogPageReuse(Relation rel, Relation heaprel,
                   BlockNumber blkno, FullTransactionId deleteXid)
 {
+  DBUG_TRACE;
   gistxlogPageReuse xlrec_reuse;
 
   /*
@@ -630,6 +657,7 @@ gistXLogUpdate(Buffer buffer,
                IndexTuple *itup, int ituplen,
                Buffer leftchildbuf)
 {
+  DBUG_TRACE;
   gistxlogPageUpdate xlrec;
   int     i;
   XLogRecPtr  recptr;
@@ -669,6 +697,7 @@ XLogRecPtr
 gistXLogDelete(Buffer buffer, OffsetNumber *todelete, int ntodelete,
                TransactionId snapshotConflictHorizon, Relation heaprel)
 {
+  DBUG_TRACE;
   gistxlogDelete xlrec;
   XLogRecPtr  recptr;
 

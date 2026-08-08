@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/execScan.h"
@@ -48,6 +49,7 @@ ExecScan(ScanState *node,
          ExecScanAccessMtd accessMtd, /* function returning a tuple */
          ExecScanRecheckMtd recheckMtd)
 {
+  DBUG_TRACE;
   EPQState   *epqstate;
   ExprState  *qual;
   ProjectionInfo *projInfo;
@@ -80,6 +82,7 @@ ExecScan(ScanState *node,
 void
 ExecAssignScanProjectionInfo(ScanState *node)
 {
+  DBUG_TRACE;
   Scan     *scan = (Scan *) node->ps.plan;
   TupleDesc tupdesc = node->ss_ScanTupleSlot->tts_tupleDescriptor;
 
@@ -107,6 +110,7 @@ ExecAssignScanProjectionInfoWithVarno(ScanState *node, int varno)
 void
 ExecScanReScan(ScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate = node->ps.state;
 
   /*

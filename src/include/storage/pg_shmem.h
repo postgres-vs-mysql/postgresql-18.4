@@ -26,8 +26,8 @@
 
 #include "storage/dsm_impl.h"
 
-typedef struct PGShmemHeader  /* standard header for all Postgres shmem */
-{
+typedef struct PGShmemHeader
+{ /* standard header for all Postgres shmem */
   int32   magic;      /* magic # to identify Postgres segments */
 #define PGShmemMagic  679834894
   pid_t   creatorPID;   /* PID of creating process (set but unread) */

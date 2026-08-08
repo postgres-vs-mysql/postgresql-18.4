@@ -9,6 +9,7 @@
  *    src/backend/access/brin/brin_pageops.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_page.h"
 #include "access/brin_pageops.h"
@@ -57,6 +58,7 @@ brin_doupdate(Relation idxrel, BlockNumber pagesPerRange,
               const BrinTuple *newtup, Size newsz,
               bool samepage)
 {
+  DBUG_TRACE;
   Page    oldpage;
   ItemId    oldlp;
   BrinTuple  *oldtup;
@@ -317,6 +319,7 @@ brin_doupdate(Relation idxrel, BlockNumber pagesPerRange,
 bool
 brin_can_do_samepage_update(Buffer buffer, Size origsz, Size newsz)
 {
+  DBUG_TRACE;
   return
     ((newsz <= origsz) ||
      PageGetExactFreeSpace(BufferGetPage(buffer)) >= (newsz - origsz));
@@ -338,6 +341,7 @@ brin_doinsert(Relation idxrel, BlockNumber pagesPerRange,
               BrinRevmap *revmap, Buffer *buffer, BlockNumber heapBlk,
               BrinTuple *tup, Size itemsz)
 {
+  DBUG_TRACE;
   Page    page;
   BlockNumber blk;
   OffsetNumber off;
@@ -468,6 +472,7 @@ brin_doinsert(Relation idxrel, BlockNumber pagesPerRange,
 void
 brin_page_init(Page page, uint16 type)
 {
+  DBUG_TRACE;
   PageInit(page, BLCKSZ, sizeof(BrinSpecialSpace));
 
   BrinPageType(page) = type;
@@ -479,6 +484,7 @@ brin_page_init(Page page, uint16 type)
 void
 brin_metapage_init(Page page, BlockNumber pagesPerRange, uint16 version)
 {
+  DBUG_TRACE;
   BrinMetaPageData *metadata;
 
   brin_page_init(page, BRIN_PAGETYPE_META);
@@ -517,6 +523,7 @@ brin_metapage_init(Page page, BlockNumber pagesPerRange, uint16 version)
 bool
 brin_start_evacuating_page(Relation idxRel, Buffer buf)
 {
+  DBUG_TRACE;
   OffsetNumber off;
   OffsetNumber maxoff;
   Page    page;
@@ -559,6 +566,7 @@ void
 brin_evacuate_page(Relation idxRel, BlockNumber pagesPerRange,
                    BrinRevmap *revmap, Buffer buf)
 {
+  DBUG_TRACE;
   OffsetNumber off;
   OffsetNumber maxoff;
   Page    page;
@@ -618,6 +626,7 @@ brin_evacuate_page(Relation idxRel, BlockNumber pagesPerRange,
 void
 brin_page_cleanup(Relation idxrel, Buffer buf)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
 
   /*
@@ -685,6 +694,7 @@ static Buffer
 brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
                      bool *extended)
 {
+  DBUG_TRACE;
   BlockNumber oldblk;
   BlockNumber newblk;
   Page    page;
@@ -870,6 +880,7 @@ brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
 static void
 brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer)
 {
+  DBUG_TRACE;
   Page    page;
 
   BRIN_elog((DEBUG2,
@@ -906,6 +917,8 @@ brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer)
 static Size
 br_page_get_freespace(Page page)
 {
+  DBUG_TRACE;
+
   if (!BRIN_IS_REGULAR_PAGE(page) ||
       (BrinPageFlags(page) & BRIN_EVACUATE_PAGE) != 0)
     return 0;

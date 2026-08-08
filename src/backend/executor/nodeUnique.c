@@ -32,6 +32,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeUnique.h"
@@ -45,6 +46,7 @@
 static TupleTableSlot *     /* return: a tuple or NULL */
 ExecUnique(PlanState *pstate)
 {
+  DBUG_TRACE;
   UniqueState *node = castNode(UniqueState, pstate);
   ExprContext *econtext = node->ps.ps_ExprContext;
   TupleTableSlot *resultTupleSlot;
@@ -64,13 +66,17 @@ ExecUnique(PlanState *pstate)
    * tuples arrive in sorted order so we can detect duplicates easily. The
    * first tuple of each group is returned.
    */
+  DBUG_PRINT("info", "noow loop, returning only non-duplicate tuple");
+
   for (;;) {
     /*
      * fetch a tuple from the outer subplan
      */
+    DBUG_PRINT("info", "fetch a tuple from the outer subplan");
     slot = ExecProcNode(outerPlan);
 
     if (TupIsNull(slot)) {
+      DBUG_PRINT("info", "end of subplan, so we're done");
       /* end of subplan, so we're done */
       ExecClearTuple(resultTupleSlot);
       return NULL;
@@ -79,8 +85,9 @@ ExecUnique(PlanState *pstate)
     /*
      * Always return the first tuple from the subplan.
      */
-    if (TupIsNull(resultTupleSlot))
+    if (TupIsNull(resultTupleSlot)) {
       break;
+    }
 
     /*
      * Else test if the new tuple and the previously returned tuple match.
@@ -94,6 +101,7 @@ ExecUnique(PlanState *pstate)
       break;
   }
 
+  DBUG_PRINT("info", "we have a new tuple different from the previous saved tuple");
   /*
    * We have a new tuple different from the previous saved tuple (if any).
    * Save it and return it.  We must copy it because the source subplan
@@ -113,6 +121,7 @@ ExecUnique(PlanState *pstate)
 UniqueState *
 ExecInitUnique(Unique *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   UniqueState *uniquestate;
 
   /* check for unsupported flags */
@@ -167,6 +176,7 @@ ExecInitUnique(Unique *node, EState *estate, int eflags)
 void
 ExecEndUnique(UniqueState *node)
 {
+  DBUG_TRACE;
   ExecEndNode(outerPlanState(node));
 }
 
@@ -174,6 +184,7 @@ ExecEndUnique(UniqueState *node)
 void
 ExecReScanUnique(UniqueState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /* must clear result tuple so first input tuple is returned */

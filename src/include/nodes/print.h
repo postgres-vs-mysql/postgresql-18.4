@@ -20,6 +20,7 @@
 #define nodeDisplay(x)    pprint(x)
 
 extern void print(const void *obj);
+extern void pprint_for_tracing(const void *obj);
 extern void pprint(const void *obj);
 extern void elog_node_display(int lev, const char *title,
                               const void *obj, bool pretty);

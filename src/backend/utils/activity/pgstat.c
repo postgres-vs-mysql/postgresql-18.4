@@ -100,6 +100,7 @@
  * ----------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -687,6 +688,7 @@ pgstat_initialize(void)
 long
 pgstat_report_stat(bool force)
 {
+  DBUG_TRACE;
   static TimestampTz pending_since = 0;
   static TimestampTz last_flush = 0;
   bool    partial_flush;
@@ -1100,6 +1102,7 @@ pgstat_prep_snapshot(void)
 static void
 pgstat_build_snapshot(void)
 {
+  DBUG_TRACE;
   dshash_seq_status hstat;
   PgStatShared_HashEntry *p;
 
@@ -1534,6 +1537,7 @@ write_chunk(FILE *fpout, void *ptr, size_t len)
 static void
 pgstat_write_statsfile(void)
 {
+  DBUG_TRACE;
   FILE     *fpout;
   int32   format_id;
   const char *tmpfile = PGSTAT_STAT_PERMANENT_TMPFILE;
@@ -1711,16 +1715,21 @@ read_chunk(FILE *fpin, void *ptr, size_t len)
 static void
 pgstat_read_statsfile(void)
 {
+  DBUG_TRACE;
   FILE     *fpin;
   int32   format_id;
   bool    found;
   const char *statfile = PGSTAT_STAT_PERMANENT_FILENAME;
   PgStat_ShmemControl *shmem = pgStatLocal.shmem;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   /* shouldn't be called from postmaster */
   Assert(IsUnderPostmaster || !IsPostmasterEnvironment);
 
   elog(DEBUG2, "reading stats file \"%s\"", statfile);
+
+  DBUG_PRINT("info", "reading stats file \"%s\"", statfile);
 
   /*
    * Try to open the stats file. If it doesn't exist, the backends simply
@@ -1762,6 +1771,17 @@ pgstat_read_statsfile(void)
    */
   for (;;) {
     int     t = fgetc(fpin);
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
 
     switch (t) {
       case PGSTAT_FILE_ENTRY_FIXED: {
@@ -1955,6 +1975,14 @@ pgstat_read_statsfile(void)
     }
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
 done:
   FreeFile(fpin);
 
@@ -1964,6 +1992,15 @@ done:
   return;
 
 error:
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   ereport(LOG,
           (errmsg("corrupted statistics file \"%s\"", statfile)));
 

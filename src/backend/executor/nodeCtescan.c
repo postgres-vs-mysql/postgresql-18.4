@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeCtescan.h"
@@ -30,6 +31,7 @@ static TupleTableSlot *CteScanNext(CteScanState *node);
 static TupleTableSlot *
 CteScanNext(CteScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ScanDirection dir;
   bool    forward;
@@ -157,6 +159,7 @@ CteScanRecheck(CteScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecCteScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   CteScanState *node = castNode(CteScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -172,6 +175,7 @@ ExecCteScan(PlanState *pstate)
 CteScanState *
 ExecInitCteScan(CteScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   CteScanState *scanstate;
   ParamExecData *prmdata;
 
@@ -283,6 +287,8 @@ ExecInitCteScan(CteScan *node, EState *estate, int eflags)
 void
 ExecEndCteScan(CteScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * If I am the leader, free the tuplestore.
    */
@@ -301,6 +307,7 @@ ExecEndCteScan(CteScanState *node)
 void
 ExecReScanCteScan(CteScanState *node)
 {
+  DBUG_TRACE;
   Tuplestorestate *tuplestorestate = node->leader->cte_table;
 
   if (node->ss.ps.ps_ResultTupleSlot)

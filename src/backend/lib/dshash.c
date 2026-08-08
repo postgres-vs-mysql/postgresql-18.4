@@ -29,6 +29,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "common/hashfn.h"
@@ -201,6 +202,7 @@ static inline void copy_key(dshash_table *hash_table, void *dest,
 dshash_table *
 dshash_create(dsa_area *area, const dshash_parameters *params, void *arg)
 {
+  DBUG_TRACE;
   dshash_table *hash_table;
   dsa_pointer control;
 
@@ -226,7 +228,7 @@ dshash_create(dsa_area *area, const dshash_parameters *params, void *arg)
     int     i;
 
     for (i = 0; i < DSHASH_NUM_PARTITIONS; ++i) {
-      LWLockInitialize(&partitions[i].lock, tranche_id);
+      LWLockInitialize(&partitions[i].lock, tranche_id, i);
       partitions[i].count = 0;
     }
   }
@@ -266,6 +268,7 @@ dshash_table *
 dshash_attach(dsa_area *area, const dshash_parameters *params,
               dshash_table_handle handle, void *arg)
 {
+  DBUG_TRACE;
   dshash_table *hash_table;
   dsa_pointer control;
 
@@ -302,6 +305,7 @@ dshash_attach(dsa_area *area, const dshash_parameters *params,
 void
 dshash_detach(dshash_table *hash_table)
 {
+  DBUG_TRACE;
   ASSERT_NO_PARTITION_LOCKS_HELD_BY_ME(hash_table);
 
   /* The hash table may have been destroyed.  Just free local memory. */
@@ -318,6 +322,7 @@ dshash_detach(dshash_table *hash_table)
 void
 dshash_destroy(dshash_table *hash_table)
 {
+  DBUG_TRACE;
   size_t    size;
   size_t    i;
 
@@ -384,6 +389,7 @@ dshash_get_hash_table_handle(dshash_table *hash_table)
 void *
 dshash_find(dshash_table *hash_table, const void *key, bool exclusive)
 {
+  DBUG_TRACE;
   dshash_hash hash;
   size_t    partition;
   dshash_table_item *item;
@@ -426,6 +432,7 @@ dshash_find_or_insert(dshash_table *hash_table,
                       const void *key,
                       bool *found)
 {
+  DBUG_TRACE;
   dshash_hash hash;
   size_t    partition_index;
   dshash_partition *partition;
@@ -492,6 +499,7 @@ restart:
 bool
 dshash_delete_key(dshash_table *hash_table, const void *key)
 {
+  DBUG_TRACE;
   dshash_hash hash;
   size_t    partition;
   bool    found;
@@ -528,6 +536,7 @@ dshash_delete_key(dshash_table *hash_table, const void *key)
 void
 dshash_delete_entry(dshash_table *hash_table, void *entry)
 {
+  DBUG_TRACE;
   dshash_table_item *item = ITEM_FROM_ENTRY(entry);
   size_t    partition = PARTITION_FOR_HASH(item->hash);
 
@@ -545,6 +554,7 @@ dshash_delete_entry(dshash_table *hash_table, void *entry)
 void
 dshash_release_lock(dshash_table *hash_table, void *entry)
 {
+  DBUG_TRACE;
   dshash_table_item *item = ITEM_FROM_ENTRY(entry);
   size_t    partition_index = PARTITION_FOR_HASH(item->hash);
 
@@ -729,6 +739,8 @@ dshash_seq_next(dshash_seq_status *status)
 void
 dshash_seq_term(dshash_seq_status *status)
 {
+  DBUG_TRACE;
+
   if (status->curpartition >= 0)
     LWLockRelease(PARTITION_LOCK(status->hash_table, status->curpartition));
 }
@@ -739,6 +751,7 @@ dshash_seq_term(dshash_seq_status *status)
 void
 dshash_delete_current(dshash_seq_status *status)
 {
+  DBUG_TRACE;
   dshash_table *hash_table = status->hash_table;
   dshash_table_item *item = status->curitem;
   size_t    partition PG_USED_FOR_ASSERTS_ONLY;
@@ -835,6 +848,7 @@ delete_item(dshash_table *hash_table, dshash_table_item *item)
 static void
 resize(dshash_table *hash_table, size_t new_size_log2)
 {
+  DBUG_TRACE;
   dsa_pointer old_buckets;
   dsa_pointer new_buckets_shared;
   dsa_pointer *new_buckets;

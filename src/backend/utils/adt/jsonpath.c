@@ -61,6 +61,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
@@ -97,6 +98,7 @@ static int  operationPriority(JsonPathItemType op);
 Datum
 jsonpath_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *in = PG_GETARG_CSTRING(0);
   int     len = strlen(in);
 
@@ -114,6 +116,7 @@ jsonpath_in(PG_FUNCTION_ARGS)
 Datum
 jsonpath_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     version = pq_getmsgint(buf, 1);
   char     *str;
@@ -133,6 +136,7 @@ jsonpath_recv(PG_FUNCTION_ARGS)
 Datum
 jsonpath_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonPath   *in = PG_GETARG_JSONPATH_P(0);
 
   PG_RETURN_CSTRING(jsonPathToCstring(NULL, in, VARSIZE(in)));
@@ -146,6 +150,7 @@ jsonpath_out(PG_FUNCTION_ARGS)
 Datum
 jsonpath_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonPath   *in = PG_GETARG_JSONPATH_P(0);
   StringInfoData buf;
   StringInfoData jtext;
@@ -213,6 +218,7 @@ jsonPathFromCstring(char *in, int len, struct Node *escontext)
 static char *
 jsonPathToCstring(StringInfo out, JsonPath *in, int estimated_len)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   JsonPathItem v;
 
@@ -241,6 +247,7 @@ flattenJsonPathParseItem(StringInfo buf, int *result, struct Node *escontext,
                          JsonPathParseItem *item, int nestingLevel,
                          bool insideArraySubscript)
 {
+  DBUG_TRACE;
   /* position from beginning of jsonpath data */
   int32   pos = buf->len - JSONPATH_HDRSZ;
   int32   chld;
@@ -540,6 +547,7 @@ static void
 printJsonPathItem(StringInfo buf, JsonPathItem *v, bool inKey,
                   bool printBracketes)
 {
+  DBUG_TRACE;
   JsonPathItem elem;
   int     i;
   int32   len;
@@ -1034,11 +1042,15 @@ jspOperationName(JsonPathItemType type)
 static int
 operationPriority(JsonPathItemType op)
 {
+  DBUG_TRACE;
+
   switch (op) {
     case jpiOr:
+      DBUG_PRINT("info", "return 0");
       return 0;
 
     case jpiAnd:
+      DBUG_PRINT("info", "return 1");
       return 1;
 
     case jpiEqual:
@@ -1048,22 +1060,27 @@ operationPriority(JsonPathItemType op)
     case jpiLessOrEqual:
     case jpiGreaterOrEqual:
     case jpiStartsWith:
+      DBUG_PRINT("info", "return 2");
       return 2;
 
     case jpiAdd:
     case jpiSub:
+      DBUG_PRINT("info", "return 3");
       return 3;
 
     case jpiMul:
     case jpiDiv:
     case jpiMod:
+      DBUG_PRINT("info", "return 4");
       return 4;
 
     case jpiPlus:
     case jpiMinus:
+      DBUG_PRINT("info", "return 5");
       return 5;
 
     default:
+      DBUG_PRINT("info", "return 6");
       return 6;
   }
 }
@@ -1401,6 +1418,7 @@ static enum JsonPathDatatypeStatus jspIsMutableWalker(JsonPathItem *jpi,
 bool
 jspIsMutable(JsonPath *path, List *varnames, List *varexprs)
 {
+  DBUG_TRACE;
   struct JsonPathMutableContext cxt;
   JsonPathItem jpi;
 
@@ -1421,6 +1439,7 @@ jspIsMutable(JsonPath *path, List *varnames, List *varexprs)
  */
 static enum JsonPathDatatypeStatus
 jspIsMutableWalker(JsonPathItem *jpi, struct JsonPathMutableContext *cxt) {
+  DBUG_TRACE;
   JsonPathItem next;
   enum JsonPathDatatypeStatus status = jpdsNonDateTime;
 

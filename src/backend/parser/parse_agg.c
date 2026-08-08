@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_aggregate.h"
@@ -110,6 +111,7 @@ void
 transformAggregateCall(ParseState *pstate, Aggref *agg,
                        List *args, List *aggorder, bool agg_distinct)
 {
+  DBUG_TRACE;
   List     *argtypes = NIL;
   List     *tlist = NIL;
   List     *torder = NIL;
@@ -117,6 +119,8 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
   AttrNumber  attno = 1;
   int     save_next_resno;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "finish initial transformation of an aggregate call");
 
   if (AGGKIND_IS_ORDERED_SET(agg->aggkind)) {
     /*
@@ -202,11 +206,13 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 
         if (!OidIsValid(sortcl->sortop)) {
           Node     *expr = get_sortgroupclause_expr(sortcl, tlist);
+          char *format1 = format_type_be(exprType(expr));
 
+          DBUG_INSTANT_PRINT("info", "could not identify an ordering operator for type %s", format1);
           ereport(ERROR,
                   (errcode(ERRCODE_UNDEFINED_FUNCTION),
                    errmsg("could not identify an ordering operator for type %s",
-                          format_type_be(exprType(expr))),
+                          format1),
                    errdetail("Aggregates with DISTINCT must be able to sort their inputs."),
                    parser_errposition(pstate, exprLocation(expr))));
         }
@@ -258,16 +264,21 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 Node *
 transformGroupingFunc(ParseState *pstate, GroupingFunc *p)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   List     *args = p->args;
   List     *result_list = NIL;
   GroupingFunc *result = makeNode(GroupingFunc);
 
-  if (list_length(args) > 31)
+  if (list_length(args) > 31) {
+    DBUG_INSTANT_PRINT("info", "GROUPING must have fewer than 32 arguments");
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
              errmsg("GROUPING must have fewer than 32 arguments"),
              parser_errposition(pstate, p->location)));
+  }
+
+  DBUG_PRINT("info", "transform a GROUPING expression");
 
   foreach(lc, args) {
     Node     *current_result;
@@ -296,6 +307,7 @@ transformGroupingFunc(ParseState *pstate, GroupingFunc *p)
 static void
 check_agglevels_and_constraints(ParseState *pstate, Node *expr)
 {
+  DBUG_TRACE;
   List     *directargs = NIL;
   List     *args = NIL;
   Expr     *filter = NULL;
@@ -614,19 +626,24 @@ check_agglevels_and_constraints(ParseState *pstate, Node *expr)
        */
   }
 
-  if (err)
+  if (err) {
+    DBUG_INSTANT_PRINT("info", "%s", err);
     ereport(ERROR,
             (errcode(ERRCODE_GROUPING_ERROR),
              errmsg_internal("%s", err),
              parser_errposition(pstate, location)));
+  }
 
   if (errkind) {
-    if (isAgg)
+    if (isAgg) {
       /* translator: %s is name of a SQL construct, eg GROUP BY */
+      DBUG_INSTANT_PRINT("info", "aggregate functions are not allowed in %s", ParseExprKindName(pstate->p_expr_kind));
       err = _("aggregate functions are not allowed in %s");
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "grouping operations are not allowed in %s", ParseExprKindName(pstate->p_expr_kind));
       /* translator: %s is name of a SQL construct, eg GROUP BY */
       err = _("grouping operations are not allowed in %s");
+    }
 
     ereport(ERROR,
             (errcode(ERRCODE_GROUPING_ERROR),
@@ -668,6 +685,7 @@ check_agg_arguments(ParseState *pstate,
                     Expr *filter,
                     int agglocation)
 {
+  DBUG_TRACE;
   int     agglevel;
   check_agg_arguments_context context;
 
@@ -706,6 +724,7 @@ check_agg_arguments(ParseState *pstate,
     if (aggloc < 0)
       aggloc = locate_agg_of_level((Node *) filter, agglevel);
 
+    DBUG_INSTANT_PRINT("info", "aggregate function calls cannot be nested");
     ereport(ERROR,
             (errcode(ERRCODE_GROUPING_ERROR),
              errmsg("aggregate function calls cannot be nested"),
@@ -718,13 +737,15 @@ check_agg_arguments(ParseState *pstate,
    * (treating the CTE reference like a Var seems wrong), and it's also
    * unclear whether there is a real-world use for such cases.
    */
-  if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
+  if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel) {
+    DBUG_INSTANT_PRINT("info", "outer-level aggregate cannot use a nested CTE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("outer-level aggregate cannot use a nested CTE"),
              errdetail("CTE \"%s\" is below the aggregate's semantic level.",
                        context.min_cte->eref->aliasname),
              parser_errposition(pstate, agglocation)));
+  }
 
   /*
    * Now check for vars/aggs in the direct arguments, and throw error if
@@ -741,31 +762,38 @@ check_agg_arguments(ParseState *pstate,
     context.min_ctelevel = -1;
     (void) check_agg_arguments_walker((Node *) directargs, &context);
 
-    if (context.min_varlevel >= 0 && context.min_varlevel < agglevel)
+    if (context.min_varlevel >= 0 && context.min_varlevel < agglevel) {
+      DBUG_INSTANT_PRINT("info", "outer-level aggregate cannot contain a lower-level variable in its direct arguments");
       ereport(ERROR,
               (errcode(ERRCODE_GROUPING_ERROR),
                errmsg("outer-level aggregate cannot contain a lower-level variable in its direct arguments"),
                parser_errposition(pstate,
                                   locate_var_of_level((Node *) directargs,
                                       context.min_varlevel))));
+    }
 
-    if (context.min_agglevel >= 0 && context.min_agglevel <= agglevel)
+    if (context.min_agglevel >= 0 && context.min_agglevel <= agglevel) {
+      DBUG_INSTANT_PRINT("info", "aggregate function calls cannot be nested");
       ereport(ERROR,
               (errcode(ERRCODE_GROUPING_ERROR),
                errmsg("aggregate function calls cannot be nested"),
                parser_errposition(pstate,
                                   locate_agg_of_level((Node *) directargs,
                                       context.min_agglevel))));
+    }
 
-    if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
+    if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel) {
+      DBUG_INSTANT_PRINT("info", "outer-level aggregate cannot use a nested CTE");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("outer-level aggregate cannot use a nested CTE"),
                errdetail("CTE \"%s\" is below the aggregate's semantic level.",
                          context.min_cte->eref->aliasname),
                parser_errposition(pstate, agglocation)));
+    }
   }
 
+  DBUG_PRINT("info", "scan the arguments of an aggregate function:%d", agglevel);
   return agglevel;
 }
 
@@ -773,8 +801,12 @@ static bool
 check_agg_arguments_walker(Node *node,
                            check_agg_arguments_context *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   if (IsA(node, Var)) {
     int     varlevelsup = ((Var *) node)->varlevelsup;
@@ -789,6 +821,7 @@ check_agg_arguments_walker(Node *node,
         context->min_varlevel = varlevelsup;
     }
 
+    DBUG_PRINT("info", "return false");
     return false;
   }
 
@@ -831,19 +864,23 @@ check_agg_arguments_walker(Node *node,
    */
   if (context->sublevels_up == 0) {
     if ((IsA(node, FuncExpr) && ((FuncExpr *) node)->funcretset) ||
-        (IsA(node, OpExpr) && ((OpExpr *) node)->opretset))
+        (IsA(node, OpExpr) && ((OpExpr *) node)->opretset)) {
+      DBUG_INSTANT_PRINT("info", "aggregate function calls cannot contain set-returning function calls");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("aggregate function calls cannot contain set-returning function calls"),
                errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
                parser_errposition(context->pstate, exprLocation(node))));
+    }
 
-    if (IsA(node, WindowFunc))
+    if (IsA(node, WindowFunc)) {
+      DBUG_INSTANT_PRINT("info", "aggregate function calls cannot contain window function calls");
       ereport(ERROR,
               (errcode(ERRCODE_GROUPING_ERROR),
                errmsg("aggregate function calls cannot contain window function calls"),
                parser_errposition(context->pstate,
                                   ((WindowFunc *) node)->location)));
+    }
   }
 
   if (IsA(node, RangeTblEntry)) {
@@ -878,12 +915,31 @@ check_agg_arguments_walker(Node *node,
                                context,
                                QTW_EXAMINE_RTES_BEFORE);
     context->sublevels_up--;
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
     return result;
   }
 
-  return expression_tree_walker(node,
-                                check_agg_arguments_walker,
-                                context);
+  {
+    bool result = false;
+    result = expression_tree_walker(node,
+                                    check_agg_arguments_walker,
+                                    context);
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    return result;
+  }
+
 }
 
 /*
@@ -901,8 +957,11 @@ void
 transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
                         WindowDef *windef)
 {
+  DBUG_TRACE;
   const char *err;
   bool    errkind;
+
+  DBUG_PRINT("info", "finish initial transformation of a window function call");
 
   /*
    * A window function call can't contain another one (but aggs are OK). XXX
@@ -913,12 +972,14 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
    * already rejected any window funcs or aggs within the filter.
    */
   if (pstate->p_hasWindowFuncs &&
-      contain_windowfuncs((Node *) wfunc->args))
+      contain_windowfuncs((Node *) wfunc->args)) {
+    DBUG_INSTANT_PRINT("info", "window function calls cannot be nested");
     ereport(ERROR,
             (errcode(ERRCODE_WINDOWING_ERROR),
              errmsg("window function calls cannot be nested"),
              parser_errposition(pstate,
                                 locate_windowfunc((Node *) wfunc->args))));
+  }
 
   /*
    * Check to see if the window function is in an invalid place within the
@@ -1088,19 +1149,23 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
        */
   }
 
-  if (err)
+  if (err) {
+    DBUG_INSTANT_PRINT("info", "%s", err);
     ereport(ERROR,
             (errcode(ERRCODE_WINDOWING_ERROR),
              errmsg_internal("%s", err),
              parser_errposition(pstate, wfunc->location)));
+  }
 
-  if (errkind)
+  if (errkind) {
+    DBUG_INSTANT_PRINT("info", "window functions are not allowed in %s", ParseExprKindName(pstate->p_expr_kind));
     ereport(ERROR,
             (errcode(ERRCODE_WINDOWING_ERROR),
              /* translator: %s is name of a SQL construct, eg GROUP BY */
              errmsg("window functions are not allowed in %s",
                     ParseExprKindName(pstate->p_expr_kind)),
              parser_errposition(pstate, wfunc->location)));
+  }
 
   /*
    * If the OVER clause just specifies a window name, find that WINDOW
@@ -1128,11 +1193,13 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
       }
     }
 
-    if (lc == NULL)     /* didn't find it? */
+    if (lc == NULL)  {    /* didn't find it? */
+      DBUG_INSTANT_PRINT("info", "window \"%s\" does not exist", windef->name);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("window \"%s\" does not exist", windef->name),
                parser_errposition(pstate, windef->location)));
+    }
   } else {
     Index   winref = 0;
     ListCell   *lc;
@@ -1190,6 +1257,7 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
 void
 parseCheckAggregates(ParseState *pstate, Query *qry)
 {
+  DBUG_TRACE;
   List     *gset_common = NIL;
   List     *groupClauses = NIL;
   List     *groupClauseCommonVars = NIL;
@@ -1200,6 +1268,7 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
   bool    hasSelfRefRTEs;
   Node     *clause;
 
+  DBUG_PRINT("info", "check for aggregates where they shouldn't be and improper grouping");
   /* This should only be called if we found aggregates or grouping */
   Assert(pstate->p_hasAggs || qry->groupClause || qry->havingQual || qry->groupingSets);
 
@@ -1214,7 +1283,8 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
      */
     List     *gsets = expand_grouping_sets(qry->groupingSets, qry->groupDistinct, 4096);
 
-    if (!gsets)
+    if (!gsets) {
+      DBUG_INSTANT_PRINT("info", "too many grouping sets present (maximum 4096)");
       ereport(ERROR,
               (errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
                errmsg("too many grouping sets present (maximum 4096)"),
@@ -1222,6 +1292,7 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
                                   qry->groupClause
                                   ? exprLocation((Node *) qry->groupClause)
                                   : exprLocation((Node *) qry->groupingSets))));
+    }
 
     /*
      * The intersection will often be empty, so help things along by
@@ -1376,12 +1447,14 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
   /*
    * Per spec, aggregates can't appear in a recursive term.
    */
-  if (pstate->p_hasAggs && hasSelfRefRTEs)
+  if (pstate->p_hasAggs && hasSelfRefRTEs) {
+    DBUG_INSTANT_PRINT("info", "aggregate functions are not allowed in a recursive query's recursive term");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_RECURSION),
              errmsg("aggregate functions are not allowed in a recursive query's recursive term"),
              parser_errposition(pstate,
                                 locate_agg_of_level((Node *) qry, 0))));
+  }
 }
 
 /*
@@ -1591,7 +1664,9 @@ substitute_grouped_columns_mutator(Node *node,
     /* Found an ungrouped local variable; generate error message */
     attname = get_rte_attribute_name(rte, var->varattno);
 
-    if (context->sublevels_up == 0)
+    if (context->sublevels_up == 0) {
+      DBUG_INSTANT_PRINT("info", "column \"%s.%s\" must appear in the GROUP BY clause or be used in an aggregate function",
+                         rte->eref->aliasname, attname);
       ereport(ERROR,
               (errcode(ERRCODE_GROUPING_ERROR),
                errmsg("column \"%s.%s\" must appear in the GROUP BY clause or be used in an aggregate function",
@@ -1599,12 +1674,14 @@ substitute_grouped_columns_mutator(Node *node,
                context->in_agg_direct_args ?
                errdetail("Direct arguments of an ordered-set aggregate must use only grouped columns.") : 0,
                parser_errposition(context->pstate, var->location)));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "subquery uses ungrouped column \"%s.%s\" from outer query", rte->eref->aliasname, attname);
       ereport(ERROR,
               (errcode(ERRCODE_GROUPING_ERROR),
                errmsg("subquery uses ungrouped column \"%s.%s\" from outer query",
                       rte->eref->aliasname, attname),
                parser_errposition(context->pstate, var->location)));
+    }
   }
 
   if (IsA(node, Query)) {
@@ -1640,8 +1717,11 @@ finalize_grouping_exprs(Node *node, ParseState *pstate, Query *qry,
                         List *groupClauses, bool hasJoinRTEs,
                         bool have_non_var_grouping)
 {
+  DBUG_TRACE;
   substitute_grouped_columns_context context;
 
+  DBUG_PRINT("info", "scan the given expression tree for GROUPING() and related calls");
+  DBUG_PRINT("info", "and validate and process their arguments");
   context.pstate = pstate;
   context.qry = qry;
   context.hasJoinRTEs = hasJoinRTEs;
@@ -1659,6 +1739,7 @@ static bool
 finalize_grouping_exprs_walker(Node *node,
                                substitute_grouped_columns_context *context)
 {
+  DBUG_TRACE;
   ListCell   *gl;
 
   if (node == NULL)
@@ -1752,12 +1833,14 @@ finalize_grouping_exprs_walker(Node *node,
           }
         }
 
-        if (ref == 0)
+        if (ref == 0) {
+          DBUG_INSTANT_PRINT("info", "arguments to GROUPING must be grouping expressions of the associated query level");
           ereport(ERROR,
                   (errcode(ERRCODE_GROUPING_ERROR),
                    errmsg("arguments to GROUPING must be grouping expressions of the associated query level"),
                    parser_errposition(context->pstate,
                                       exprLocation(expr))));
+        }
 
         ref_list = lappend_int(ref_list, ref);
       }
@@ -1969,6 +2052,7 @@ cmp_list_len_contents_asc(const ListCell *a, const ListCell *b)
 List *
 expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 {
+  DBUG_TRACE;
   List     *expanded_groups = NIL;
   List     *result = NIL;
   double    numsets = 1;
@@ -1976,6 +2060,8 @@ expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 
   if (groupingSets == NIL)
     return NIL;
+
+  DBUG_PRINT("info", "expand a groupingSets clause to a flat list of grouping sets");
 
   foreach(lc, groupingSets) {
     List     *current_result = NIL;
@@ -2204,10 +2290,12 @@ build_aggregate_transfn_expr(Oid *agg_input_types,
                              Expr **transfnexpr,
                              Expr **invtransfnexpr)
 {
+  DBUG_TRACE;
   List     *args;
   FuncExpr   *fexpr;
   int     i;
 
+  DBUG_PRINT("info", "create an expression tree for the transition function of an aggregate");
   /*
    * Build arg list to use in the transfn FuncExpr node.
    */
@@ -2253,9 +2341,11 @@ void
 build_aggregate_serialfn_expr(Oid serialfn_oid,
                               Expr **serialfnexpr)
 {
+  DBUG_TRACE;
   List     *args;
   FuncExpr   *fexpr;
 
+  DBUG_PRINT("info", "create an expression tree for the serialization function of an aggregate");
   /* serialfn always takes INTERNAL and returns BYTEA */
   args = list_make1(make_agg_arg(INTERNALOID, InvalidOid));
 
@@ -2276,9 +2366,11 @@ void
 build_aggregate_deserialfn_expr(Oid deserialfn_oid,
                                 Expr **deserialfnexpr)
 {
+  DBUG_TRACE;
   List     *args;
   FuncExpr   *fexpr;
 
+  DBUG_PRINT("info", "create an expression tree for the deserialization function of an aggregate");
   /* deserialfn always takes BYTEA, INTERNAL and returns INTERNAL */
   args = list_make2(make_agg_arg(BYTEAOID, InvalidOid),
                     make_agg_arg(INTERNALOID, InvalidOid));
@@ -2305,9 +2397,11 @@ build_aggregate_finalfn_expr(Oid *agg_input_types,
                              Oid finalfn_oid,
                              Expr **finalfnexpr)
 {
+  DBUG_TRACE;
   List     *args;
   int     i;
 
+  DBUG_PRINT("info", "create an expression tree for the final function of an aggregate");
   /*
    * Build expr tree for final function
    */

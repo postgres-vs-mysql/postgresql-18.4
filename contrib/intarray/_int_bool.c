@@ -2,6 +2,7 @@
  * contrib/intarray/_int_bool.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "_int.h"
 #include "miscadmin.h"
@@ -147,6 +148,7 @@ pushquery(WORKSTATE *state, int32 type, int32 val)
 static int32
 makepol(WORKSTATE *state)
 {
+  DBUG_TRACE;
   int32   val,
           type;
   int32   stack[STACKDEPTH];
@@ -265,6 +267,7 @@ static bool
 execute(ITEM *curitem, void *checkval, void *options, bool calcnot,
         bool (*chkcond) (void *checkval, ITEM *item, void *options))
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
 
@@ -294,23 +297,40 @@ execute(ITEM *curitem, void *checkval, void *options, bool calcnot,
 bool
 signconsistent(QUERYTYPE *query, BITVECP sign, int siglen, bool calcnot)
 {
-  return execute(GETQUERY(query) + query->size - 1,
+  DBUG_TRACE;
+  bool result = execute(GETQUERY(query) + query->size - 1,
                  sign, (void *) (intptr_t) siglen, calcnot,
                  checkcondition_bit);
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
+  return result;
 }
 
 /* Array must be sorted! */
 bool
 execconsistent(QUERYTYPE *query, ArrayType *array, bool calcnot)
 {
+  DBUG_TRACE;
   CHKVAL    chkval;
+  bool result;
 
   CHECKARRVALID(array);
   chkval.arrb = ARRPTR(array);
   chkval.arre = chkval.arrb + ARRNELEMS(array);
-  return execute(GETQUERY(query) + query->size - 1,
+  result = execute(GETQUERY(query) + query->size - 1,
                  &chkval, NULL, calcnot,
                  checkcondition_arr);
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
+  return result;
 }
 
 typedef struct {
@@ -321,18 +341,30 @@ typedef struct {
 static bool
 checkcondition_gin(void *checkval, ITEM *item, void *options)
 {
+  DBUG_TRACE;
   GinChkVal  *gcv = (GinChkVal *) checkval;
+  bool result;
 
-  return gcv->mapped_check[item - gcv->first];
+  result = gcv->mapped_check[item - gcv->first];
+
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
+  return result;
 }
 
 bool
 gin_bool_consistent(QUERYTYPE *query, bool *check)
 {
+  DBUG_TRACE;
   GinChkVal gcv;
   ITEM     *items = GETQUERY(query);
   int     i,
           j = 0;
+  bool result;
 
   if (query->size <= 0)
     return false;
@@ -349,49 +381,88 @@ gin_bool_consistent(QUERYTYPE *query, bool *check)
       gcv.mapped_check[i] = check[j++];
   }
 
-  return execute(GETQUERY(query) + query->size - 1,
+  result = execute(GETQUERY(query) + query->size - 1,
                  &gcv, NULL, true,
                  checkcondition_gin);
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
+  return result;
+
 }
 
 static bool
 contains_required_value(ITEM *curitem)
 {
+  DBUG_TRACE;
+  bool result;
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
 
-  if (curitem->type == VAL)
+  if (curitem->type == VAL) {
+    DBUG_PRINT("intarray", "return true");
     return true;
-  else if (curitem->val == (int32) '!') {
+  } else if (curitem->val == (int32) '!') {
     /*
      * Assume anything under a NOT is non-required.  For some cases with
      * nested NOTs, we could prove there's a required value, but it seems
      * unlikely to be worth the trouble.
      */
+    DBUG_PRINT("intarray", "return false");
     return false;
   } else if (curitem->val == (int32) '&') {
     /* If either side has a required value, we're good */
-    if (contains_required_value(curitem + curitem->left))
+    if (contains_required_value(curitem + curitem->left)) {
+      DBUG_PRINT("intarray", "return true");
       return true;
-    else
-      return contains_required_value(curitem - 1);
+    } else {
+      result = contains_required_value(curitem - 1);
+      if (result) {
+        DBUG_PRINT("intarray", "return true");
+      } else {
+        DBUG_PRINT("intarray", "return false");
+      }
+      return result;
+    }
   } else {
     /* |-operator */
     /* Both sides must have required values */
-    if (contains_required_value(curitem + curitem->left))
-      return contains_required_value(curitem - 1);
-    else
+    if (contains_required_value(curitem + curitem->left)) {
+      result = contains_required_value(curitem - 1);
+      if (result) {
+        DBUG_PRINT("intarray", "return true");
+      } else {
+        DBUG_PRINT("intarray", "return false");
+      }
+      return result;
+
+    } else {
+      DBUG_PRINT("intarray", "return false");
       return false;
+    }
   }
 }
 
 bool
 query_has_required_values(QUERYTYPE *query)
 {
-  if (query->size <= 0)
+  DBUG_TRACE;
+  bool result;
+  if (query->size <= 0) {
+    DBUG_PRINT("intarray", "return false");
     return false;
+  }
 
-  return contains_required_value(GETQUERY(query) + query->size - 1);
+  result = contains_required_value(GETQUERY(query) + query->size - 1);
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+  return result;
 }
 
 /*
@@ -400,6 +471,8 @@ query_has_required_values(QUERYTYPE *query)
 Datum
 rboolop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("intarray", "just reverse the operands");
   /* just reverse the operands */
   return DirectFunctionCall2(boolop,
                              PG_GETARG_DATUM(1),
@@ -409,6 +482,7 @@ rboolop(PG_FUNCTION_ARGS)
 Datum
 boolop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *val = PG_GETARG_ARRAYTYPE_P_COPY(0);
   QUERYTYPE  *query = PG_GETARG_QUERYTYPE_P(1);
   CHKVAL    chkval;
@@ -424,6 +498,13 @@ boolop(PG_FUNCTION_ARGS)
   pfree(val);
 
   PG_FREE_IF_COPY(query, 1);
+
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -507,6 +588,7 @@ findoprnd(WORKSTATE *state, ITEM *ptr, int32 *pos)
 Datum
 bqarr_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *buf = (char *) PG_GETARG_POINTER(0);
   WORKSTATE state;
   int32   i;
@@ -678,6 +760,7 @@ infix(INFIX *in, bool first)
 Datum
 bqarr_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   QUERYTYPE  *query = PG_GETARG_QUERYTYPE_P(0);
   INFIX   nrm;
 
@@ -701,6 +784,7 @@ bqarr_out(PG_FUNCTION_ARGS)
 Datum
 querytree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   elog(ERROR, "querytree is no longer implemented");
   PG_RETURN_NULL();
 }

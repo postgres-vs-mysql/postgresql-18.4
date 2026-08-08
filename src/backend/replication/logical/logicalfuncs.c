@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -97,6 +98,7 @@ LogicalOutputWrite(LogicalDecodingContext *ctx, XLogRecPtr lsn, TransactionId xi
 static Datum
 pg_logical_slot_get_changes_guts(FunctionCallInfo fcinfo, bool confirm, bool binary)
 {
+  DBUG_TRACE;
   Name    name;
   XLogRecPtr  upto_lsn;
   int32   upto_nchanges;
@@ -327,6 +329,7 @@ pg_logical_slot_get_changes_guts(FunctionCallInfo fcinfo, bool confirm, bool bin
 Datum
 pg_logical_slot_get_changes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_logical_slot_get_changes_guts(fcinfo, true, false);
 }
 
@@ -336,6 +339,7 @@ pg_logical_slot_get_changes(PG_FUNCTION_ARGS)
 Datum
 pg_logical_slot_peek_changes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_logical_slot_get_changes_guts(fcinfo, false, false);
 }
 
@@ -345,6 +349,7 @@ pg_logical_slot_peek_changes(PG_FUNCTION_ARGS)
 Datum
 pg_logical_slot_get_binary_changes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_logical_slot_get_changes_guts(fcinfo, true, true);
 }
 
@@ -354,6 +359,7 @@ pg_logical_slot_get_binary_changes(PG_FUNCTION_ARGS)
 Datum
 pg_logical_slot_peek_binary_changes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_logical_slot_get_changes_guts(fcinfo, false, true);
 }
 
@@ -364,6 +370,7 @@ pg_logical_slot_peek_binary_changes(PG_FUNCTION_ARGS)
 Datum
 pg_logical_emit_message_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    transactional = PG_GETARG_BOOL(0);
   char     *prefix = text_to_cstring(PG_GETARG_TEXT_PP(1));
   bytea    *data = PG_GETARG_BYTEA_PP(2);
@@ -378,6 +385,7 @@ pg_logical_emit_message_bytea(PG_FUNCTION_ARGS)
 Datum
 pg_logical_emit_message_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* bytea and text are compatible */
   return pg_logical_emit_message_bytea(fcinfo);
 }

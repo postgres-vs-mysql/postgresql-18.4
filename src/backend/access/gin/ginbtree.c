@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/ginxlog.h"
@@ -38,6 +39,7 @@ static void ginFinishOldSplit(GinBtree btree, GinBtreeStack *stack,
 int
 ginTraverseLock(Buffer buffer, bool searchMode)
 {
+  DBUG_TRACE;
   Page    page;
   int     access = GIN_SHARE;
 
@@ -80,6 +82,7 @@ GinBtreeStack *
 ginFindLeafPage(GinBtree btree, bool searchMode,
                 bool rootConflictCheck)
 {
+  DBUG_TRACE;
   GinBtreeStack *stack;
 
   stack = (GinBtreeStack *) palloc(sizeof(GinBtreeStack));
@@ -168,6 +171,7 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 Buffer
 ginStepRight(Buffer buffer, Relation index, int lockmode)
 {
+  DBUG_TRACE;
   Buffer    nextbuffer;
   Page    page = BufferGetPage(buffer);
   bool    isLeaf = GinPageIsLeaf(page);
@@ -190,6 +194,8 @@ ginStepRight(Buffer buffer, Relation index, int lockmode)
 void
 freeGinBtreeStack(GinBtreeStack *stack)
 {
+  DBUG_TRACE;
+
   while (stack) {
     GinBtreeStack *tmp = stack->parent;
 
@@ -209,6 +215,7 @@ freeGinBtreeStack(GinBtreeStack *stack)
 static void
 ginFindParents(GinBtree btree, GinBtreeStack *stack)
 {
+  DBUG_TRACE;
   Page    page;
   Buffer    buffer;
   BlockNumber blkno,
@@ -329,6 +336,7 @@ ginPlaceToPage(GinBtree btree, GinBtreeStack *stack,
                void *insertdata, BlockNumber updateblkno,
                Buffer childbuf, GinStatsData *buildStats)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(stack->buffer);
   bool    result;
   GinPlaceToPageRC rc;
@@ -340,6 +348,7 @@ ginPlaceToPage(GinBtree btree, GinBtreeStack *stack,
   MemoryContext tmpCxt;
   MemoryContext oldCxt;
 
+  DBUG_PRINT("info", "insert a new item to a page");
   /*
    * We do all the work of this function and its subfunctions in a temporary
    * memory context.  This avoids leakages and simplifies APIs, since some
@@ -642,6 +651,7 @@ static void
 ginFinishSplit(GinBtree btree, GinBtreeStack *stack, bool freestack,
                GinStatsData *buildStats)
 {
+  DBUG_TRACE;
   Page    page;
   bool    done;
   bool    first = true;
@@ -749,6 +759,7 @@ ginFinishSplit(GinBtree btree, GinBtreeStack *stack, bool freestack,
 static void
 ginFinishOldSplit(GinBtree btree, GinBtreeStack *stack, GinStatsData *buildStats, int access)
 {
+  DBUG_TRACE;
   INJECTION_POINT("gin-finish-incomplete-split", NULL);
   elog(DEBUG1, "finishing incomplete split of block %u in gin index \"%s\"",
        stack->blkno, RelationGetRelationName(btree->index));
@@ -785,6 +796,7 @@ void
 ginInsertValue(GinBtree btree, GinBtreeStack *stack, void *insertdata,
                GinStatsData *buildStats)
 {
+  DBUG_TRACE;
   bool    done;
 
   /* If the leaf page was incompletely split, finish the split first */

@@ -93,6 +93,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -348,9 +349,11 @@ string_compare(const char *key1, const char *key2, Size keysize)
 HTAB *
 hash_create(const char *tabname, long nelem, const HASHCTL *info, int flags)
 {
+  DBUG_TRACE;
   HTAB     *hashp;
   HASHHDR    *hctl;
 
+  DBUG_PRINT("info", "talname:%s, nelem:%ld", tabname, nelem);
   /*
    * Hash tables now allocate space for key and data, but you have to say
    * how much space to allocate.

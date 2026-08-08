@@ -26,6 +26,7 @@
  *
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeSubqueryscan.h"
@@ -82,6 +83,7 @@ SubqueryRecheck(SubqueryScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecSubqueryScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   SubqueryScanState *node = castNode(SubqueryScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -96,6 +98,7 @@ ExecSubqueryScan(PlanState *pstate)
 SubqueryScanState *
 ExecInitSubqueryScan(SubqueryScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   SubqueryScanState *subquerystate;
 
   /* check for unsupported flags */
@@ -182,6 +185,7 @@ ExecEndSubqueryScan(SubqueryScanState *node)
 void
 ExecReScanSubqueryScan(SubqueryScanState *node)
 {
+  DBUG_TRACE;
   ExecScanReScan(&node->ss);
 
   /*

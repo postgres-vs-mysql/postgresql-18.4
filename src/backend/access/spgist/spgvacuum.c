@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/spgist_private.h"
@@ -61,6 +62,7 @@ typedef struct spgBulkDeleteState {
 static void
 spgAddPendingTID(spgBulkDeleteState *bds, ItemPointer tid)
 {
+  DBUG_TRACE;
   spgVacPendingItem *pitem;
   spgVacPendingItem **listLink;
 
@@ -90,6 +92,7 @@ spgAddPendingTID(spgBulkDeleteState *bds, ItemPointer tid)
 static void
 spgClearPendingList(spgBulkDeleteState *bds)
 {
+  DBUG_TRACE;
   spgVacPendingItem *pitem;
   spgVacPendingItem *nitem;
 
@@ -127,6 +130,7 @@ static void
 vacuumLeafPage(spgBulkDeleteState *bds, Relation index, Buffer buffer,
                bool forPending)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   spgxlogVacuumLeaf xlrec;
   OffsetNumber toDead[MaxIndexTuplesPerPage];
@@ -391,6 +395,7 @@ vacuumLeafPage(spgBulkDeleteState *bds, Relation index, Buffer buffer,
 static void
 vacuumLeafRoot(spgBulkDeleteState *bds, Relation index, Buffer buffer)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   spgxlogVacuumRoot xlrec;
   OffsetNumber toDelete[MaxIndexTuplesPerPage];
@@ -469,6 +474,7 @@ vacuumLeafRoot(spgBulkDeleteState *bds, Relation index, Buffer buffer)
 static void
 vacuumRedirectAndPlaceholder(Relation index, Relation heaprel, Buffer buffer)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   SpGistPageOpaque opaque = SpGistPageGetOpaque(page);
   OffsetNumber i,
@@ -590,6 +596,7 @@ vacuumRedirectAndPlaceholder(Relation index, Relation heaprel, Buffer buffer)
 static void
 spgvacuumpage(spgBulkDeleteState *bds, Buffer buffer)
 {
+  DBUG_TRACE;
   Relation  index = bds->info->index;
   BlockNumber blkno = BufferGetBlockNumber(buffer);
   Page    page;
@@ -642,6 +649,7 @@ spgvacuumpage(spgBulkDeleteState *bds, Buffer buffer)
 static void
 spgprocesspending(spgBulkDeleteState *bds)
 {
+  DBUG_TRACE;
   Relation  index = bds->info->index;
   spgVacPendingItem *pitem;
   spgVacPendingItem *nitem;
@@ -742,6 +750,7 @@ spgprocesspending(spgBulkDeleteState *bds)
 static void
 spgvacuumscan(spgBulkDeleteState *bds)
 {
+  DBUG_TRACE;
   Relation  index = bds->info->index;
   bool    needLock;
   BlockNumber num_pages;
@@ -894,6 +903,7 @@ IndexBulkDeleteResult *
 spgbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
               IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   spgBulkDeleteState bds;
 
   /* allocate stats if first time through, else re-use existing struct */
@@ -925,6 +935,7 @@ dummy_callback(ItemPointer itemptr, void *state)
 IndexBulkDeleteResult *
 spgvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   spgBulkDeleteState bds;
 
   /* No-op in ANALYZE ONLY mode */

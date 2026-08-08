@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/parallel.h"
@@ -445,12 +446,15 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
    * We check the catalog name and then ignore it.
    */
   if (relation->catalogname) {
-    if (strcmp(relation->catalogname, get_database_name(MyDatabaseId)) != 0)
+    if (strcmp(relation->catalogname, get_database_name(MyDatabaseId)) != 0) {
+      DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: \"%s.%s.%s\"",
+                         relation->catalogname, relation->schemaname, relation->relname);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cross-database references are not implemented: \"%s.%s.%s\"",
                       relation->catalogname, relation->schemaname,
                       relation->relname)));
+    }
   }
 
   /*
@@ -498,10 +502,12 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
            * For missing_ok, allow a non-existent schema name to
            * return InvalidOid.
            */
-          if (namespaceId != myTempNamespace)
+          if (namespaceId != myTempNamespace) {
+            DBUG_INSTANT_PRINT("info", "temporary tables cannot specify a schema name");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                      errmsg("temporary tables cannot specify a schema name")));
+          }
         }
 
         relId = get_relname_relid(relation->relname, myTempNamespace);
@@ -575,16 +581,20 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
     else if (!ConditionalLockRelationOid(relId, lockmode)) {
       int     elevel = (flags & RVR_SKIP_LOCKED) ? DEBUG1 : ERROR;
 
-      if (relation->schemaname)
+      if (relation->schemaname) {
+        DBUG_INSTANT_PRINT("info", "could not obtain lock on relation \"%s.%s\"",
+                           relation->schemaname, relation->relname);
         ereport(elevel,
                 (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                  errmsg("could not obtain lock on relation \"%s.%s\"",
                         relation->schemaname, relation->relname)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "could not obtain lock on relation \"%s\"", relation->relname);
         ereport(elevel,
                 (errcode(ERRCODE_LOCK_NOT_AVAILABLE),
                  errmsg("could not obtain lock on relation \"%s\"",
                         relation->relname)));
+      }
 
       return InvalidOid;
     }
@@ -607,16 +617,19 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
   if (!OidIsValid(relId)) {
     int     elevel = missing_ok ? DEBUG1 : ERROR;
 
-    if (relation->schemaname)
+    if (relation->schemaname) {
+      DBUG_INSTANT_PRINT("info", "relation \"%s.%s\" does not exist", relation->schemaname, relation->relname);
       ereport(elevel,
               (errcode(ERRCODE_UNDEFINED_TABLE),
                errmsg("relation \"%s.%s\" does not exist",
                       relation->schemaname, relation->relname)));
-    else
+    } else {
+      DBUG_INSTANT_PRINT("info", "relation \"%s\" does not exist", relation->relname);
       ereport(elevel,
               (errcode(ERRCODE_UNDEFINED_TABLE),
                errmsg("relation \"%s\" does not exist",
                       relation->relname)));
+    }
   }
 
   return relId;
@@ -640,12 +653,15 @@ RangeVarGetCreationNamespace(const RangeVar *newRelation)
    * We check the catalog name and then ignore it.
    */
   if (newRelation->catalogname) {
-    if (strcmp(newRelation->catalogname, get_database_name(MyDatabaseId)) != 0)
+    if (strcmp(newRelation->catalogname, get_database_name(MyDatabaseId)) != 0) {
+      DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: \"%s.%s.%s\"",
+                         newRelation->catalogname, newRelation->schemaname, newRelation->relname);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cross-database references are not implemented: \"%s.%s.%s\"",
                       newRelation->catalogname, newRelation->schemaname,
                       newRelation->relname)));
+    }
   }
 
   if (newRelation->schemaname) {
@@ -675,10 +691,12 @@ RangeVarGetCreationNamespace(const RangeVar *newRelation)
 
     namespaceId = activeCreationNamespace;
 
-    if (!OidIsValid(namespaceId))
+    if (!OidIsValid(namespaceId)) {
+      DBUG_INSTANT_PRINT("info", "no schema has been selected to create in");
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_SCHEMA),
                errmsg("no schema has been selected to create in")));
+    }
   }
 
   /* Note: callers will check for CREATE rights when appropriate */
@@ -728,12 +746,15 @@ RangeVarGetAndCheckCreationNamespace(RangeVar *relation,
    * We check the catalog name and then ignore it.
    */
   if (relation->catalogname) {
-    if (strcmp(relation->catalogname, get_database_name(MyDatabaseId)) != 0)
+    if (strcmp(relation->catalogname, get_database_name(MyDatabaseId)) != 0) {
+      DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: \"%s.%s.%s\"",
+                         relation->catalogname, relation->schemaname, relation->relname);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cross-database references are not implemented: \"%s.%s.%s\"",
                       relation->catalogname, relation->schemaname,
                       relation->relname)));
+    }
   }
 
   /*
@@ -828,14 +849,17 @@ RangeVarAdjustRelationPersistence(RangeVar *newRelation, Oid nspid)
   switch (newRelation->relpersistence) {
     case RELPERSISTENCE_TEMP:
       if (!isTempOrTempToastNamespace(nspid)) {
-        if (isAnyTempNamespace(nspid))
+        if (isAnyTempNamespace(nspid)) {
+          DBUG_INSTANT_PRINT("info", "cannot create relations in temporary schemas of other sessions");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                    errmsg("cannot create relations in temporary schemas of other sessions")));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "cannot create temporary relation in non-temporary schema");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                    errmsg("cannot create temporary relation in non-temporary schema")));
+        }
       }
 
       break;
@@ -843,18 +867,22 @@ RangeVarAdjustRelationPersistence(RangeVar *newRelation, Oid nspid)
     case RELPERSISTENCE_PERMANENT:
       if (isTempOrTempToastNamespace(nspid))
         newRelation->relpersistence = RELPERSISTENCE_TEMP;
-      else if (isAnyTempNamespace(nspid))
+      else if (isAnyTempNamespace(nspid)) {
+        DBUG_INSTANT_PRINT("info", "cannot create relations in temporary schemas of other sessions");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                  errmsg("cannot create relations in temporary schemas of other sessions")));
+      }
 
       break;
 
     default:
-      if (isAnyTempNamespace(nspid))
+      if (isAnyTempNamespace(nspid)) {
+        DBUG_INSTANT_PRINT("info", "only temporary relations may be created in temporary schemas");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                  errmsg("only temporary relations may be created in temporary schemas")));
+      }
   }
 }
 
@@ -906,11 +934,13 @@ RelationIsVisible(Oid relid)
 static bool
 RelationIsVisibleExt(Oid relid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple reltup;
   Form_pg_class relform;
   Oid     relnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "relid:%u", relid);
   reltup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 
   if (!HeapTupleIsValid(reltup)) {
@@ -1033,11 +1063,13 @@ TypeIsVisible(Oid typid)
 static bool
 TypeIsVisibleExt(Oid typid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple typtup;
   Form_pg_type typform;
   Oid     typnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "typid:%u", typid);
   typtup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
 
   if (!HeapTupleIsValid(typtup)) {
@@ -1175,6 +1207,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
                       bool expand_variadic, bool expand_defaults,
                       bool include_out_arguments, bool missing_ok)
 {
+  DBUG_TRACE;
   FuncCandidateList resultList = NULL;
   bool    any_special = false;
   char     *schemaname;
@@ -1191,6 +1224,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 
   if (schemaname) {
     /* use exact schema given */
+    DBUG_PRINT("info", "use exact schema given:'%s'", schemaname);
     namespaceId = LookupExplicitNamespace(schemaname, missing_ok);
 
     if (!OidIsValid(namespaceId))
@@ -1202,6 +1236,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
   }
 
   /* Search syscache by name only */
+  DBUG_PRINT("info", "search syscache by name only:'%s'", funcname);
   catlist = SearchSysCacheList1(PROCNAMEARGSNSP, CStringGetDatum(funcname));
 
   for (i = 0; i < catlist->n_members; i++) {
@@ -1537,6 +1572,7 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
                bool include_out_arguments, int pronargs,
                int **argnumbers)
 {
+  DBUG_TRACE;
   Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
   int     numposargs = nargs - list_length(argnames);
   int     pronallargs;
@@ -1661,11 +1697,13 @@ FunctionIsVisible(Oid funcid)
 static bool
 FunctionIsVisibleExt(Oid funcid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple proctup;
   Form_pg_proc procform;
   Oid     pronamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "funcid:%u", funcid);
   proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
 
   if (!HeapTupleIsValid(proctup)) {
@@ -1737,6 +1775,7 @@ FunctionIsVisibleExt(Oid funcid, bool *is_missing)
 Oid
 OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *opername;
   CatCList   *catlist;
@@ -1749,11 +1788,13 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
     /* search only in exact schema given */
     Oid     namespaceId;
 
+    DBUG_PRINT("info", "search only in exact schema given:'%s'", schemaname);
     namespaceId = LookupExplicitNamespace(schemaname, true);
 
     if (OidIsValid(namespaceId)) {
       HeapTuple opertup;
 
+      DBUG_PRINT("info", "opername:'%s'", opername);
       opertup = SearchSysCache4(OPERNAMENSP,
                                 CStringGetDatum(opername),
                                 ObjectIdGetDatum(oprleft),
@@ -1765,14 +1806,17 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
         Oid     result = operclass->oid;
 
         ReleaseSysCache(opertup);
+        DBUG_PRINT("info", "it returns oid:%u", result);
         return result;
       }
     }
 
+    DBUG_PRINT("info", "it returns InvalidOid if not found");
     return InvalidOid;
   }
 
   /* Search syscache by name and argument types */
+  DBUG_PRINT("info", "search syscache by name('%s') and argument types", opername);
   catlist = SearchSysCacheList3(OPERNAMENSP,
                                 CStringGetDatum(opername),
                                 ObjectIdGetDatum(oprleft),
@@ -1781,6 +1825,7 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
   if (catlist->n_members == 0) {
     /* no hope, fall out early */
     ReleaseSysCacheList(catlist);
+    DBUG_PRINT("info", "no hope, fall out early");
     return InvalidOid;
   }
 
@@ -1806,12 +1851,15 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
         Oid     result = operform->oid;
 
         ReleaseSysCacheList(catlist);
+        DBUG_PRINT("info", "it returns oid:%u", result);
         return result;
       }
     }
   }
 
   ReleaseSysCacheList(catlist);
+
+  DBUG_PRINT("info", "it returns InvalidOid if not found");
   return InvalidOid;
 }
 
@@ -1835,6 +1883,7 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
 FuncCandidateList
 OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 {
+  DBUG_TRACE;
   FuncCandidateList resultList = NULL;
   char     *resultSpace = NULL;
   int     nextResult = 0;
@@ -2001,11 +2050,13 @@ OperatorIsVisible(Oid oprid)
 static bool
 OperatorIsVisibleExt(Oid oprid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple oprtup;
   Form_pg_operator oprform;
   Oid     oprnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "oprid:%u", oprid);
   oprtup = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
 
   if (!HeapTupleIsValid(oprtup)) {
@@ -2062,6 +2113,7 @@ OperatorIsVisibleExt(Oid oprid, bool *is_missing)
 Oid
 OpclassnameGetOpcid(Oid amid, const char *opcname)
 {
+  DBUG_TRACE;
   Oid     opcid;
   ListCell   *l;
 
@@ -2107,11 +2159,13 @@ OpclassIsVisible(Oid opcid)
 static bool
 OpclassIsVisibleExt(Oid opcid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple opctup;
   Form_pg_opclass opcform;
   Oid     opcnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "opcid:%u", opcid);
   opctup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opcid));
 
   if (!HeapTupleIsValid(opctup)) {
@@ -2165,6 +2219,7 @@ OpclassIsVisibleExt(Oid opcid, bool *is_missing)
 Oid
 OpfamilynameGetOpfid(Oid amid, const char *opfname)
 {
+  DBUG_TRACE;
   Oid     opfid;
   ListCell   *l;
 
@@ -2210,11 +2265,13 @@ OpfamilyIsVisible(Oid opfid)
 static bool
 OpfamilyIsVisibleExt(Oid opfid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple opftup;
   Form_pg_opfamily opfform;
   Oid     opfnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "opfid:%u", opfid);
   opftup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfid));
 
   if (!HeapTupleIsValid(opftup)) {
@@ -2265,6 +2322,7 @@ OpfamilyIsVisibleExt(Oid opfid, bool *is_missing)
 static Oid
 lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 {
+  DBUG_TRACE;
   Oid     collid;
   HeapTuple colltup;
   Form_pg_collation collform;
@@ -2318,6 +2376,7 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 Oid
 CollationGetCollid(const char *collname)
 {
+  DBUG_TRACE;
   int32   dbencoding = GetDatabaseEncoding();
   ListCell   *l;
 
@@ -2364,11 +2423,13 @@ CollationIsVisible(Oid collid)
 static bool
 CollationIsVisibleExt(Oid collid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple colltup;
   Form_pg_collation collform;
   Oid     collnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "collid:%u", collid);
   colltup = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
 
   if (!HeapTupleIsValid(colltup)) {
@@ -2423,6 +2484,7 @@ CollationIsVisibleExt(Oid collid, bool *is_missing)
 Oid
 ConversionGetConid(const char *conname)
 {
+  DBUG_TRACE;
   Oid     conid;
   ListCell   *l;
 
@@ -2467,11 +2529,13 @@ ConversionIsVisible(Oid conid)
 static bool
 ConversionIsVisibleExt(Oid conid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple contup;
   Form_pg_conversion conform;
   Oid     connamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "conid:%u", conid);
   contup = SearchSysCache1(CONVOID, ObjectIdGetDatum(conid));
 
   if (!HeapTupleIsValid(contup)) {
@@ -2522,6 +2586,7 @@ ConversionIsVisibleExt(Oid conid, bool *is_missing)
 Oid
 get_statistics_object_oid(List *names, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *stats_name;
   Oid     namespaceId;
@@ -2560,11 +2625,13 @@ get_statistics_object_oid(List *names, bool missing_ok)
     }
   }
 
-  if (!OidIsValid(stats_oid) && !missing_ok)
+  if (!OidIsValid(stats_oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "statistics object \"%s\" does not exist", NameListToString(names));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("statistics object \"%s\" does not exist",
                     NameListToString(names))));
+  }
 
   return stats_oid;
 }
@@ -2590,11 +2657,13 @@ StatisticsObjIsVisible(Oid stxid)
 static bool
 StatisticsObjIsVisibleExt(Oid stxid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple stxtup;
   Form_pg_statistic_ext stxform;
   Oid     stxnamespace;
   bool    visible;
 
+  DBUG_PRINT("info", "stxid:%u", stxid);
   stxtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(stxid));
 
   if (!HeapTupleIsValid(stxtup)) {
@@ -2665,6 +2734,7 @@ StatisticsObjIsVisibleExt(Oid stxid, bool *is_missing)
 Oid
 get_ts_parser_oid(List *names, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *parser_name;
   Oid     namespaceId;
@@ -2703,11 +2773,13 @@ get_ts_parser_oid(List *names, bool missing_ok)
     }
   }
 
-  if (!OidIsValid(prsoid) && !missing_ok)
+  if (!OidIsValid(prsoid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "text search parser \"%s\" does not exist", NameListToString(names));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("text search parser \"%s\" does not exist",
                     NameListToString(names))));
+  }
 
   return prsoid;
 }
@@ -2733,11 +2805,13 @@ TSParserIsVisible(Oid prsId)
 static bool
 TSParserIsVisibleExt(Oid prsId, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_ts_parser form;
   Oid     namespace;
   bool    visible;
 
+  DBUG_PRINT("info", "prsId:%u", prsId);
   tup = SearchSysCache1(TSPARSEROID, ObjectIdGetDatum(prsId));
 
   if (!HeapTupleIsValid(tup)) {
@@ -2808,6 +2882,7 @@ TSParserIsVisibleExt(Oid prsId, bool *is_missing)
 Oid
 get_ts_dict_oid(List *names, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *dict_name;
   Oid     namespaceId;
@@ -2846,11 +2921,13 @@ get_ts_dict_oid(List *names, bool missing_ok)
     }
   }
 
-  if (!OidIsValid(dictoid) && !missing_ok)
+  if (!OidIsValid(dictoid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "text search dictionary \"%s\" does not exist", NameListToString(names));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("text search dictionary \"%s\" does not exist",
                     NameListToString(names))));
+  }
 
   return dictoid;
 }
@@ -2876,11 +2953,13 @@ TSDictionaryIsVisible(Oid dictId)
 static bool
 TSDictionaryIsVisibleExt(Oid dictId, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_ts_dict form;
   Oid     namespace;
   bool    visible;
 
+  DBUG_PRINT("info", "dictId:%u", dictId);
   tup = SearchSysCache1(TSDICTOID, ObjectIdGetDatum(dictId));
 
   if (!HeapTupleIsValid(tup)) {
@@ -2952,6 +3031,7 @@ TSDictionaryIsVisibleExt(Oid dictId, bool *is_missing)
 Oid
 get_ts_template_oid(List *names, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *template_name;
   Oid     namespaceId;
@@ -2990,11 +3070,13 @@ get_ts_template_oid(List *names, bool missing_ok)
     }
   }
 
-  if (!OidIsValid(tmploid) && !missing_ok)
+  if (!OidIsValid(tmploid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "text search template \"%s\" does not exist", NameListToString(names));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("text search template \"%s\" does not exist",
                     NameListToString(names))));
+  }
 
   return tmploid;
 }
@@ -3020,11 +3102,13 @@ TSTemplateIsVisible(Oid tmplId)
 static bool
 TSTemplateIsVisibleExt(Oid tmplId, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_ts_template form;
   Oid     namespace;
   bool    visible;
 
+  DBUG_PRINT("info", "tmplId:%u", tmplId);
   tup = SearchSysCache1(TSTEMPLATEOID, ObjectIdGetDatum(tmplId));
 
   if (!HeapTupleIsValid(tup)) {
@@ -3095,6 +3179,7 @@ TSTemplateIsVisibleExt(Oid tmplId, bool *is_missing)
 Oid
 get_ts_config_oid(List *names, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *config_name;
   Oid     namespaceId;
@@ -3133,11 +3218,13 @@ get_ts_config_oid(List *names, bool missing_ok)
     }
   }
 
-  if (!OidIsValid(cfgoid) && !missing_ok)
+  if (!OidIsValid(cfgoid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "text search configuration \"%s\" does not exist", NameListToString(names));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("text search configuration \"%s\" does not exist",
                     NameListToString(names))));
+  }
 
   return cfgoid;
 }
@@ -3163,11 +3250,13 @@ TSConfigIsVisible(Oid cfgid)
 static bool
 TSConfigIsVisibleExt(Oid cfgid, bool *is_missing)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_ts_config form;
   Oid     namespace;
   bool    visible;
 
+  DBUG_PRINT("info", "cfgid:%u", cfgid);
   tup = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgid));
 
   if (!HeapTupleIsValid(tup)) {
@@ -3266,15 +3355,19 @@ DeconstructQualifiedName(const List *names,
       /*
        * We check the catalog name and then ignore it.
        */
-      if (strcmp(catalogname, get_database_name(MyDatabaseId)) != 0)
+      if (strcmp(catalogname, get_database_name(MyDatabaseId)) != 0) {
+        DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: %s",
+                           NameListToString(names));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("cross-database references are not implemented: %s",
                         NameListToString(names))));
+      }
 
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "improper qualified name (too many dotted names): %s", NameListToString(names));
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("improper qualified name (too many dotted names): %s",
@@ -3299,6 +3392,8 @@ DeconstructQualifiedName(const List *names,
 Oid
 LookupNamespaceNoError(const char *nspname)
 {
+  DBUG_TRACE;
+
   /* check for pg_temp alias */
   if (strcmp(nspname, "pg_temp") == 0) {
     if (OidIsValid(myTempNamespace)) {
@@ -3327,8 +3422,11 @@ LookupNamespaceNoError(const char *nspname)
 Oid
 LookupExplicitNamespace(const char *nspname, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     namespaceId;
   AclResult aclresult;
+
+  DBUG_PRINT("info", "nsp name:%s", nspname);
 
   /* check for pg_temp alias */
   if (strcmp(nspname, "pg_temp") == 0) {
@@ -3372,6 +3470,7 @@ LookupExplicitNamespace(const char *nspname, bool missing_ok)
 Oid
 LookupCreationNamespace(const char *nspname)
 {
+  DBUG_TRACE;
   Oid     namespaceId;
   AclResult aclresult;
 
@@ -3403,17 +3502,23 @@ LookupCreationNamespace(const char *nspname)
 void
 CheckSetNamespace(Oid oldNspOid, Oid nspOid)
 {
+  DBUG_TRACE;
+
   /* disallow renaming into or out of temp schemas */
-  if (isAnyTempNamespace(nspOid) || isAnyTempNamespace(oldNspOid))
+  if (isAnyTempNamespace(nspOid) || isAnyTempNamespace(oldNspOid)) {
+    DBUG_INSTANT_PRINT("info", "cannot move objects into or out of temporary schemas");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot move objects into or out of temporary schemas")));
+  }
 
   /* same for TOAST schema */
-  if (nspOid == PG_TOAST_NAMESPACE || oldNspOid == PG_TOAST_NAMESPACE)
+  if (nspOid == PG_TOAST_NAMESPACE || oldNspOid == PG_TOAST_NAMESPACE) {
+    DBUG_INSTANT_PRINT("info", "cannot move objects into or out of TOAST schema");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot move objects into or out of TOAST schema")));
+  }
 }
 
 /*
@@ -3431,6 +3536,7 @@ CheckSetNamespace(Oid oldNspOid, Oid nspOid)
 Oid
 QualifiedNameGetCreationNamespace(const List *names, char **objname_p)
 {
+  DBUG_TRACE;
   char     *schemaname;
   Oid     namespaceId;
 
@@ -3460,10 +3566,12 @@ QualifiedNameGetCreationNamespace(const List *names, char **objname_p)
 
     namespaceId = activeCreationNamespace;
 
-    if (!OidIsValid(namespaceId))
+    if (!OidIsValid(namespaceId)) {
+      DBUG_INSTANT_PRINT("info", "no schema has been selected to create in");
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_SCHEMA),
                errmsg("no schema has been selected to create in")));
+    }
   }
 
   return namespaceId;
@@ -3483,10 +3591,12 @@ get_namespace_oid(const char *nspname, bool missing_ok)
   oid = GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid,
                         CStringGetDatum(nspname));
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "schema \"%s\" does not exist", nspname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_SCHEMA),
              errmsg("schema \"%s\" does not exist", nspname)));
+  }
 
   return oid;
 }
@@ -3498,6 +3608,7 @@ get_namespace_oid(const char *nspname, bool missing_ok)
 RangeVar *
 makeRangeVarFromNameList(const List *names)
 {
+  DBUG_TRACE;
   RangeVar   *rel = makeRangeVar(NULL, NULL, -1);
 
   switch (list_length(names)) {
@@ -3517,6 +3628,7 @@ makeRangeVarFromNameList(const List *names)
       break;
 
     default:
+      DBUG_INSTANT_PRINT("info", "improper relation name (too many dotted names): %s", NameListToString(names));
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("improper relation name (too many dotted names): %s",
@@ -3573,6 +3685,7 @@ NameListToString(const List *names)
 char *
 NameListToQuotedString(const List *names)
 {
+  DBUG_TRACE;
   StringInfoData string;
   ListCell   *l;
 
@@ -3594,6 +3707,8 @@ NameListToQuotedString(const List *names)
 bool
 isTempNamespace(Oid namespaceId)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(myTempNamespace) && myTempNamespace == namespaceId)
     return true;
 
@@ -3607,6 +3722,8 @@ isTempNamespace(Oid namespaceId)
 bool
 isTempToastNamespace(Oid namespaceId)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(myTempToastNamespace) && myTempToastNamespace == namespaceId)
     return true;
 
@@ -3620,6 +3737,8 @@ isTempToastNamespace(Oid namespaceId)
 bool
 isTempOrTempToastNamespace(Oid namespaceId)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(myTempNamespace) &&
       (myTempNamespace == namespaceId || myTempToastNamespace == namespaceId))
     return true;
@@ -3635,6 +3754,7 @@ isTempOrTempToastNamespace(Oid namespaceId)
 bool
 isAnyTempNamespace(Oid namespaceId)
 {
+  DBUG_TRACE;
   bool    result;
   char     *nspname;
 
@@ -3660,6 +3780,8 @@ isAnyTempNamespace(Oid namespaceId)
 bool
 isOtherTempNamespace(Oid namespaceId)
 {
+  DBUG_TRACE;
+
   /* If it's my own temp namespace, say "false" */
   if (isTempOrTempToastNamespace(namespaceId))
     return false;
@@ -3680,6 +3802,7 @@ isOtherTempNamespace(Oid namespaceId)
 TempNamespaceStatus
 checkTempNamespaceStatus(Oid namespaceId)
 {
+  DBUG_TRACE;
   PGPROC     *proc;
   ProcNumber  procNumber;
 
@@ -3718,6 +3841,7 @@ checkTempNamespaceStatus(Oid namespaceId)
 ProcNumber
 GetTempNamespaceProcNumber(Oid namespaceId)
 {
+  DBUG_TRACE;
   int     result;
   char     *nspname;
 
@@ -3746,6 +3870,7 @@ GetTempNamespaceProcNumber(Oid namespaceId)
 Oid
 GetTempToastNamespace(void)
 {
+  DBUG_TRACE;
   Assert(OidIsValid(myTempToastNamespace));
   return myTempToastNamespace;
 }
@@ -3760,6 +3885,7 @@ GetTempToastNamespace(void)
 void
 GetTempNamespaceState(Oid *tempNamespaceId, Oid *tempToastNamespaceId)
 {
+  DBUG_TRACE;
   /* Return namespace OIDs, or 0 if session has not created temp namespace */
   *tempNamespaceId = myTempNamespace;
   *tempToastNamespaceId = myTempToastNamespace;
@@ -3776,6 +3902,7 @@ GetTempNamespaceState(Oid *tempNamespaceId, Oid *tempToastNamespaceId)
 void
 SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 {
+  DBUG_TRACE;
   /* Worker should not have created its own namespaces ... */
   Assert(myTempNamespace == InvalidOid);
   Assert(myTempToastNamespace == InvalidOid);
@@ -3807,6 +3934,7 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 SearchPathMatcher *
 GetSearchPathMatcher(MemoryContext context)
 {
+  DBUG_TRACE;
   SearchPathMatcher *result;
   List     *schemas;
   MemoryContext oldcxt;
@@ -3845,6 +3973,7 @@ GetSearchPathMatcher(MemoryContext context)
 SearchPathMatcher *
 CopySearchPathMatcher(SearchPathMatcher *path)
 {
+  DBUG_TRACE;
   SearchPathMatcher *result;
 
   result = (SearchPathMatcher *) palloc(sizeof(SearchPathMatcher));
@@ -3867,6 +3996,7 @@ CopySearchPathMatcher(SearchPathMatcher *path)
 bool
 SearchPathMatchesCurrentEnvironment(SearchPathMatcher *path)
 {
+  DBUG_TRACE;
   ListCell   *lc,
              *lcp;
 
@@ -3928,6 +4058,7 @@ SearchPathMatchesCurrentEnvironment(SearchPathMatcher *path)
 Oid
 get_collation_oid(List *collname, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *collation_name;
   int32   dbencoding = GetDatabaseEncoding();
@@ -3967,11 +4098,14 @@ get_collation_oid(List *collname, bool missing_ok)
   }
 
   /* Not found in path */
-  if (!missing_ok)
+  if (!missing_ok) {
+    DBUG_INSTANT_PRINT("info", "collation \"%s\" for encoding \"%s\" does not exist",
+                       NameListToString(collname), GetDatabaseEncodingName());
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("collation \"%s\" for encoding \"%s\" does not exist",
                     NameListToString(collname), GetDatabaseEncodingName())));
+  }
 
   return InvalidOid;
 }
@@ -3982,6 +4116,7 @@ get_collation_oid(List *collname, bool missing_ok)
 Oid
 get_conversion_oid(List *conname, bool missing_ok)
 {
+  DBUG_TRACE;
   char     *schemaname;
   char     *conversion_name;
   Oid     namespaceId;
@@ -4021,11 +4156,13 @@ get_conversion_oid(List *conname, bool missing_ok)
   }
 
   /* Not found in path */
-  if (!OidIsValid(conoid) && !missing_ok)
+  if (!OidIsValid(conoid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "conversion \"%s\" does not exist, NameListToString(conname)", NameListToString(conname));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("conversion \"%s\" does not exist",
                     NameListToString(conname))));
+  }
 
   return conoid;
 }
@@ -4036,6 +4173,7 @@ get_conversion_oid(List *conname, bool missing_ok)
 Oid
 FindDefaultConversionProc(int32 for_encoding, int32 to_encoding)
 {
+  DBUG_TRACE;
   Oid     proc;
   ListCell   *l;
 
@@ -4064,6 +4202,7 @@ static List *
 preprocessNamespacePath(const char *searchPath, Oid roleid,
                         bool *temp_missing)
 {
+  DBUG_TRACE;
   char     *rawname;
   List     *namelist;
   List     *oidlist;
@@ -4096,6 +4235,7 @@ preprocessNamespacePath(const char *searchPath, Oid roleid,
       /* $user --- substitute namespace matching user name, if any */
       HeapTuple tuple;
 
+      DBUG_PRINT("info", "roleid:%u", roleid);
       tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 
       if (HeapTupleIsValid(tuple)) {
@@ -4149,6 +4289,7 @@ preprocessNamespacePath(const char *searchPath, Oid roleid,
 static List *
 finalNamespacePath(List *oidlist, Oid *firstNS)
 {
+  DBUG_TRACE;
   List     *finalPath = NIL;
   ListCell   *lc;
 
@@ -4193,6 +4334,7 @@ finalNamespacePath(List *oidlist, Oid *firstNS)
 static const SearchPathCacheEntry *
 cachedNamespacePath(const char *searchPath, Oid roleid)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   SearchPathCacheEntry *entry;
 
@@ -4246,6 +4388,7 @@ cachedNamespacePath(const char *searchPath, Oid roleid)
 static void
 recomputeNamespacePath(void)
 {
+  DBUG_TRACE;
   Oid     roleid = GetUserId();
   bool    pathChanged;
   const SearchPathCacheEntry *entry;
@@ -4291,8 +4434,9 @@ recomputeNamespacePath(void)
    * Bump the generation only if something actually changed.  (Notice that
    * what we compared to was the old state of the base path variables.)
    */
-  if (pathChanged)
+  if (pathChanged) {
     activePathGeneration++;
+  }
 }
 
 /*
@@ -4306,6 +4450,7 @@ recomputeNamespacePath(void)
 static void
 AccessTempTableNamespace(bool force)
 {
+  DBUG_TRACE;
   /*
    * Make note that this temporary namespace has been accessed in this
    * transaction.
@@ -4334,6 +4479,7 @@ AccessTempTableNamespace(bool force)
 static void
 InitTempTableNamespace(void)
 {
+  DBUG_TRACE;
   char    namespaceName[NAMEDATALEN];
   Oid     namespaceId;
   Oid     toastspaceId;
@@ -4351,11 +4497,14 @@ InitTempTableNamespace(void)
    * temp table creation request is made by someone with appropriate rights.
    */
   if (object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(),
-                      ACL_CREATE_TEMP) != ACLCHECK_OK)
+                      ACL_CREATE_TEMP) != ACLCHECK_OK) {
+    char *database_name = get_database_name(MyDatabaseId);
+    DBUG_INSTANT_PRINT("info", "permission denied to create temporary tables in database \"%s\"", database_name);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create temporary tables in database \"%s\"",
-                    get_database_name(MyDatabaseId))));
+                    database_name)));
+  }
 
   /*
    * Do not allow a Hot Standby session to make temp tables.  Aside from
@@ -4367,16 +4516,20 @@ InitTempTableNamespace(void)
    * operations that allow XactReadOnly transactions to modify temp tables;
    * they'd need RecoveryInProgress checks if not for this.
    */
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_INSTANT_PRINT("info", "cannot create temporary tables during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
              errmsg("cannot create temporary tables during recovery")));
+  }
 
   /* Parallel workers can't create temporary tables, either. */
-  if (IsParallelWorker())
+  if (IsParallelWorker()) {
+    DBUG_INSTANT_PRINT("info", "cannot create temporary tables during a parallel operation");
     ereport(ERROR,
             (errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
              errmsg("cannot create temporary tables during a parallel operation")));
+  }
 
   snprintf(namespaceName, sizeof(namespaceName), "pg_temp_%d", MyProcNumber);
 
@@ -4500,6 +4653,7 @@ void
 AtEOSubXact_Namespace(bool isCommit, SubTransactionId mySubid,
                       SubTransactionId parentSubid)
 {
+  DBUG_TRACE;
 
   if (myTempNamespaceSubID == mySubid) {
     if (isCommit)
@@ -4537,6 +4691,7 @@ AtEOSubXact_Namespace(bool isCommit, SubTransactionId mySubid,
 static void
 RemoveTempRelations(Oid tempNamespaceId)
 {
+  DBUG_TRACE;
   ObjectAddress object;
 
   /*
@@ -4563,6 +4718,8 @@ RemoveTempRelations(Oid tempNamespaceId)
 static void
 RemoveTempRelationsCallback(int code, Datum arg)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(myTempNamespace)) { /* should always be true */
     /* Need to ensure we have a usable transaction. */
     AbortOutOfAnyTransaction();
@@ -4582,6 +4739,8 @@ RemoveTempRelationsCallback(int code, Datum arg)
 void
 ResetTempTableNamespace(void)
 {
+  DBUG_TRACE;
+
   if (OidIsValid(myTempNamespace))
     RemoveTempRelations(myTempNamespace);
 }
@@ -4595,6 +4754,7 @@ ResetTempTableNamespace(void)
 bool
 check_search_path(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   Oid     roleid = InvalidOid;
   const char *searchPath = *newval;
   char     *rawname;
@@ -4650,6 +4810,7 @@ check_search_path(char **newval, void **extra, GucSource source)
 void
 assign_search_path(const char *newval, void *extra)
 {
+  DBUG_TRACE;
   /* don't access search_path during bootstrap */
   Assert(!IsBootstrapProcessingMode());
 
@@ -4673,6 +4834,8 @@ assign_search_path(const char *newval, void *extra)
 void
 InitializeSearchPath(void)
 {
+  DBUG_TRACE;
+
   if (IsBootstrapProcessingMode()) {
     /*
      * In bootstrap mode, the search path must be 'pg_catalog' so that
@@ -4753,6 +4916,7 @@ InvalidationCallback(Datum arg, int cacheid, uint32 hashvalue)
 List *
 fetch_search_path(bool includeImplicit)
 {
+  DBUG_TRACE;
   List     *result;
 
   recomputeNamespacePath();
@@ -4792,6 +4956,7 @@ fetch_search_path(bool includeImplicit)
 int
 fetch_search_path_array(Oid *sarray, int sarray_len)
 {
+  DBUG_TRACE;
   int     count = 0;
   ListCell   *l;
 
@@ -4809,6 +4974,7 @@ fetch_search_path_array(Oid *sarray, int sarray_len)
     count++;
   }
 
+  DBUG_PRINT("info", "return the number of path entries:%d", count);
   return count;
 }
 
@@ -4827,6 +4993,7 @@ fetch_search_path_array(Oid *sarray, int sarray_len)
 Datum
 pg_table_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4836,12 +5003,19 @@ pg_table_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_type_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4851,12 +5025,19 @@ pg_type_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_function_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4866,12 +5047,19 @@ pg_function_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_operator_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4881,12 +5069,19 @@ pg_operator_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_opclass_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4896,12 +5091,19 @@ pg_opclass_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_opfamily_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4911,12 +5113,19 @@ pg_opfamily_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_collation_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4926,12 +5135,19 @@ pg_collation_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_conversion_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4941,12 +5157,19 @@ pg_conversion_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_statistics_obj_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4956,12 +5179,19 @@ pg_statistics_obj_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_ts_parser_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4971,12 +5201,19 @@ pg_ts_parser_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_ts_dict_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -4986,12 +5223,19 @@ pg_ts_dict_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_ts_template_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -5001,12 +5245,19 @@ pg_ts_template_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_ts_config_is_visible(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
   bool    result;
   bool    is_missing = false;
@@ -5016,19 +5267,35 @@ pg_ts_config_is_visible(PG_FUNCTION_ARGS)
   if (is_missing)
     PG_RETURN_NULL();
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 pg_my_temp_schema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_OID(myTempNamespace);
 }
 
 Datum
 pg_is_other_temp_schema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     oid = PG_GETARG_OID(0);
 
-  PG_RETURN_BOOL(isOtherTempNamespace(oid));
+  bool result = isOtherTempNamespace(oid);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }

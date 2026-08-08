@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/printtup.h"
 #include "libpq/pqformat.h"
@@ -109,6 +110,7 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 static void
 printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
+  DBUG_TRACE;
   DR_printtup *myState = (DR_printtup *) self;
   Portal    portal = myState->portal;
 
@@ -132,11 +134,13 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
    * If we are supposed to emit row descriptions, then send the tuple
    * descriptor of the tuples.
    */
-  if (myState->sendDescrip)
+  if (myState->sendDescrip) {
+    DBUG_PRINT("info", "send the tuple descriptor of the tuples");
     SendRowDescriptionMessage(&myState->buf,
                               typeinfo,
                               FetchPortalTargetList(portal),
                               portal->formats);
+  }
 
   /* ----------------
    * We could set up the derived attr info at this time, but we postpone it
@@ -165,6 +169,7 @@ void
 SendRowDescriptionMessage(StringInfo buf, TupleDesc typeinfo,
                           List *targetlist, int16 *formats)
 {
+  DBUG_TRACE;
   int     natts = typeinfo->natts;
   int     i;
   ListCell   *tlist_item = list_head(targetlist);
@@ -190,6 +195,8 @@ SendRowDescriptionMessage(StringInfo buf, TupleDesc typeinfo,
                           + sizeof(int32) /* attypmod */
                           + sizeof(int16) /* format */
                          ) * natts);
+
+  DBUG_PRINT("info", "send a RowDescription(number of attributes:%d) message to the frontend", natts);
 
   for (i = 0; i < natts; ++i) {
     Form_pg_attribute att = TupleDescAttr(typeinfo, i);
@@ -297,12 +304,15 @@ printtup_prepare_info(DR_printtup *myState, TupleDesc typeinfo, int numAttrs)
 static bool
 printtup(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TupleDesc typeinfo = slot->tts_tupleDescriptor;
   DR_printtup *myState = (DR_printtup *) self;
   MemoryContext oldcontext;
   StringInfo  buf = &myState->buf;
   int     natts = typeinfo->natts;
   int     i;
+
+  DBUG_PRINT("info", "send a tuple to the client");
 
   /* Set or update my derived attribute info, if needed */
   if (myState->attrinfo != typeinfo || myState->nattrs != natts)
@@ -320,6 +330,8 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
   pq_beginmessage_reuse(buf, PqMsg_DataRow);
 
   pq_sendint16(buf, natts);
+
+  DBUG_PRINT("info", "send the attributes of this tuple:%d", natts);
 
   /*
    * send the attributes of this tuple
@@ -348,12 +360,15 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
       /* Text output */
       char     *outputstr;
 
+      DBUG_PRINT("info", "text output for index:%d", i);
+
       outputstr = OutputFunctionCall(&thisState->finfo, attr);
       pq_sendcountedtext(buf, outputstr, strlen(outputstr));
     } else {
       /* Binary output */
       bytea    *outputbytes;
 
+      DBUG_PRINT("info", "binary output for index:%d", i);
       outputbytes = SendFunctionCall(&thisState->finfo, attr);
       pq_sendint32(buf, VARSIZE(outputbytes) - VARHDRSZ);
       pq_sendbytes(buf, VARDATA(outputbytes),
@@ -377,6 +392,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 static void
 printtup_shutdown(DestReceiver *self)
 {
+  DBUG_TRACE;
   DR_printtup *myState = (DR_printtup *) self;
 
   if (myState->myinfo)
@@ -404,6 +420,7 @@ printtup_shutdown(DestReceiver *self)
 static void
 printtup_destroy(DestReceiver *self)
 {
+  DBUG_TRACE;
   pfree(self);
 }
 
@@ -454,6 +471,7 @@ debugStartup(DestReceiver *self, int operation, TupleDesc typeinfo)
 bool
 debugtup(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TupleDesc typeinfo = slot->tts_tupleDescriptor;
   int     natts = typeinfo->natts;
   int     i;

@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #ifdef USE_LZ4
@@ -39,6 +40,7 @@ int     default_toast_compression = TOAST_PGLZ_COMPRESSION;
 struct varlena *
 pglz_compress_datum(const struct varlena *value)
 {
+  DBUG_TRACE;
   int32   valsize,
           len;
   struct varlena *tmp = NULL;
@@ -81,6 +83,7 @@ pglz_compress_datum(const struct varlena *value)
 struct varlena *
 pglz_decompress_datum(const struct varlena *value)
 {
+  DBUG_TRACE;
   struct varlena *result;
   int32   rawsize;
 
@@ -110,6 +113,7 @@ struct varlena *
 pglz_decompress_datum_slice(const struct varlena *value,
                             int32 slicelength)
 {
+  DBUG_TRACE;
   struct varlena *result;
   int32   rawsize;
 
@@ -140,6 +144,7 @@ pglz_decompress_datum_slice(const struct varlena *value,
 struct varlena *
 lz4_compress_datum(const struct varlena *value)
 {
+  DBUG_TRACE;
 #ifndef USE_LZ4
   NO_LZ4_SUPPORT();
   return NULL;        /* keep compiler quiet */
@@ -183,6 +188,7 @@ lz4_compress_datum(const struct varlena *value)
 struct varlena *
 lz4_decompress_datum(const struct varlena *value)
 {
+  DBUG_TRACE;
 #ifndef USE_LZ4
   NO_LZ4_SUPPORT();
   return NULL;        /* keep compiler quiet */
@@ -217,6 +223,7 @@ lz4_decompress_datum(const struct varlena *value)
 struct varlena *
 lz4_decompress_datum_slice(const struct varlena *value, int32 slicelength)
 {
+  DBUG_TRACE;
 #ifndef USE_LZ4
   NO_LZ4_SUPPORT();
   return NULL;        /* keep compiler quiet */
@@ -257,6 +264,7 @@ lz4_decompress_datum_slice(const struct varlena *value, int32 slicelength)
 ToastCompressionId
 toast_get_compression_id(struct varlena *attr)
 {
+  DBUG_TRACE;
   ToastCompressionId cmid = TOAST_INVALID_COMPRESSION_ID;
 
   /*
@@ -304,6 +312,8 @@ CompressionNameToMethod(const char *compression)
 const char *
 GetCompressionMethodName(char method)
 {
+  DBUG_TRACE;
+
   switch (method) {
     case TOAST_PGLZ_COMPRESSION:
       return "pglz";

@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/xloginsert.h"
@@ -135,6 +136,7 @@ static bool fsm_does_block_exist(Relation rel, BlockNumber blknumber);
 BlockNumber
 GetPageWithFreeSpace(Relation rel, Size spaceNeeded)
 {
+  DBUG_TRACE;
   uint8   min_cat = fsm_space_needed_to_cat(spaceNeeded);
 
   return fsm_search(rel, min_cat);
@@ -153,10 +155,11 @@ BlockNumber
 RecordAndGetPageWithFreeSpace(Relation rel, BlockNumber oldPage,
                               Size oldSpaceAvail, Size spaceNeeded)
 {
+  DBUG_TRACE;
   int     old_cat = fsm_space_avail_to_cat(oldSpaceAvail);
   int     search_cat = fsm_space_needed_to_cat(spaceNeeded);
   FSMAddress  addr;
-  uint16    slot;
+  uint16    slot = 0;
   int     search_slot;
 
   /* Get the location of the FSM byte representing the heap block */
@@ -192,6 +195,7 @@ RecordAndGetPageWithFreeSpace(Relation rel, BlockNumber oldPage,
 void
 RecordPageWithFreeSpace(Relation rel, BlockNumber heapBlk, Size spaceAvail)
 {
+  DBUG_TRACE;
   int     new_cat = fsm_space_avail_to_cat(spaceAvail);
   FSMAddress  addr;
   uint16    slot;
@@ -210,6 +214,7 @@ void
 XLogRecordPageWithFreeSpace(RelFileLocator rlocator, BlockNumber heapBlk,
                             Size spaceAvail)
 {
+  DBUG_TRACE;
   int     new_cat = fsm_space_avail_to_cat(spaceAvail);
   FSMAddress  addr;
   uint16    slot;
@@ -254,6 +259,7 @@ XLogRecordPageWithFreeSpace(RelFileLocator rlocator, BlockNumber heapBlk,
 Size
 GetRecordedFreeSpace(Relation rel, BlockNumber heapBlk)
 {
+  DBUG_TRACE;
   FSMAddress  addr;
   uint16    slot;
   Buffer    buf;
@@ -287,6 +293,7 @@ GetRecordedFreeSpace(Relation rel, BlockNumber heapBlk)
 BlockNumber
 FreeSpaceMapPrepareTruncateRel(Relation rel, BlockNumber nblocks)
 {
+  DBUG_TRACE;
   BlockNumber new_nfsmblocks;
   FSMAddress  first_removed_address;
   uint16    first_removed_slot;
@@ -390,7 +397,10 @@ FreeSpaceMapVacuum(Relation rel)
 void
 FreeSpaceMapVacuumRange(Relation rel, BlockNumber start, BlockNumber end)
 {
+  DBUG_TRACE;
   bool    dummy;
+
+  DBUG_PRINT("info", "start:%u, end:%u", start, end);
 
   /* Recursively scan the tree, starting at the root */
   if (end > start)
@@ -691,6 +701,7 @@ fsm_set_and_search(Relation rel, FSMAddress addr, uint16 slot,
 static BlockNumber
 fsm_search(Relation rel, uint8 min_cat)
 {
+  DBUG_TRACE;
   int     restarts = 0;
   FSMAddress  addr = FSM_ROOT_ADDRESS;
 
@@ -710,14 +721,18 @@ fsm_search(Relation rel, uint8 min_cat)
                               false);
 
       if (slot == -1) {
+        DBUG_PRINT("info", "fsm_search_avail return slot:-1");
         max_avail = fsm_get_max_avail(BufferGetPage(buf));
         UnlockReleaseBuffer(buf);
       } else {
+        DBUG_PRINT("info", "fsm_search_avail return slot:%d", slot);
         /* Keep the pin for possible update below */
         LockBuffer(buf, BUFFER_LOCK_UNLOCK);
       }
-    } else
+    } else {
       slot = -1;
+      DBUG_PRINT("info", "buffer is invalid and set slot:%d", slot);
+    }
 
     if (slot != -1) {
       /*
@@ -730,6 +745,7 @@ fsm_search(Relation rel, uint8 min_cat)
 
         if (fsm_does_block_exist(rel, blkno)) {
           ReleaseBuffer(buf);
+          DBUG_PRINT("info", "we are at the bottom and return the found block:%u", blkno);
           return blkno;
         }
 
@@ -747,8 +763,10 @@ fsm_search(Relation rel, uint8 min_cat)
         MarkBufferDirtyHint(buf, false);
         UnlockReleaseBuffer(buf);
 
-        if (restarts++ > 10000) /* same rationale as below */
+        if (restarts++ > 10000) { /* same rationale as below */
+          DBUG_PRINT("info", "block is past the end of the relation(restarts:%d) and return InvalidBlockNumber", restarts);
           return InvalidBlockNumber;
+        }
 
         addr = FSM_ROOT_ADDRESS;
       } else {
@@ -761,6 +779,7 @@ fsm_search(Relation rel, uint8 min_cat)
        * At the root, failure means there's no page with enough free
        * space in the FSM. Give up.
        */
+      DBUG_PRINT("info", "at the root, failure means there's no page with enough free space in the FSM. give up");
       return InvalidBlockNumber;
     } else {
       uint16    parentslot;
@@ -788,8 +807,10 @@ fsm_search(Relation rel, uint8 min_cat)
        * indefinitely is nevertheless scary, so provide an emergency
        * valve.
        */
-      if (restarts++ > 10000)
+      if (restarts++ > 10000) {
+        DBUG_PRINT("info", "here, restarts:%d and return InvalidBlockNumber:%u", restarts, InvalidBlockNumber);
         return InvalidBlockNumber;
+      }
 
       /* Start search all over from the root */
       addr = FSM_ROOT_ADDRESS;
@@ -816,6 +837,7 @@ fsm_vacuum_page(Relation rel, FSMAddress addr,
                 BlockNumber start, BlockNumber end,
                 bool *eof_p)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
   uint8   max_avail;

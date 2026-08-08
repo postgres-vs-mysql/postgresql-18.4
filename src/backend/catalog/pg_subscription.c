@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -69,6 +70,7 @@ GetPublicationsStr(List *publications, StringInfo dest, bool quote_literal)
 Subscription *
 GetSubscription(Oid subid, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Subscription *sub;
   Form_pg_subscription subform;
@@ -151,6 +153,7 @@ GetSubscription(Oid subid, bool missing_ok)
 int
 CountDBSubscriptions(Oid dbid)
 {
+  DBUG_TRACE;
   int     nsubs = 0;
   Relation  rel;
   ScanKeyData scankey;
@@ -183,6 +186,7 @@ CountDBSubscriptions(Oid dbid)
 void
 FreeSubscription(Subscription *sub)
 {
+  DBUG_TRACE;
   pfree(sub->name);
   pfree(sub->conninfo);
 
@@ -199,6 +203,7 @@ FreeSubscription(Subscription *sub)
 void
 DisableSubscription(Oid subid)
 {
+  DBUG_TRACE;
   Relation  rel;
   bool    nulls[Natts_pg_subscription];
   bool    replaces[Natts_pg_subscription];
@@ -240,6 +245,7 @@ DisableSubscription(Oid subid)
 static List *
 textarray_to_stringlist(ArrayType *textarray)
 {
+  DBUG_TRACE;
   Datum    *elems;
   int     nelems,
           i;
@@ -267,6 +273,7 @@ void
 AddSubscriptionRelState(Oid subid, Oid relid, char state,
                         XLogRecPtr sublsn, bool retain_lock)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   bool    nulls[Natts_pg_subscription_rel];
@@ -320,6 +327,7 @@ void
 UpdateSubscriptionRelState(Oid subid, Oid relid, char state,
                            XLogRecPtr sublsn, bool already_locked)
 {
+  DBUG_TRACE;
   Relation  rel;
   HeapTuple tup;
   bool    nulls[Natts_pg_subscription_rel];
@@ -384,6 +392,7 @@ UpdateSubscriptionRelState(Oid subid, Oid relid, char state,
 char
 GetSubscriptionRelState(Oid subid, Oid relid, XLogRecPtr *sublsn)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   char    substate;
   bool    isnull;
@@ -434,6 +443,7 @@ GetSubscriptionRelState(Oid subid, Oid relid, XLogRecPtr *sublsn)
 void
 RemoveSubscriptionRel(Oid subid, Oid relid)
 {
+  DBUG_TRACE;
   Relation  rel;
   TableScanDesc scan;
   ScanKeyData skey[2];
@@ -507,6 +517,7 @@ RemoveSubscriptionRel(Oid subid, Oid relid)
 bool
 HasSubscriptionRelations(Oid subid)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData skey[1];
   SysScanDesc scan;
@@ -542,6 +553,7 @@ HasSubscriptionRelations(Oid subid)
 List *
 GetSubscriptionRelations(Oid subid, bool not_ready)
 {
+  DBUG_TRACE;
   List     *res = NIL;
   Relation  rel;
   HeapTuple tup;

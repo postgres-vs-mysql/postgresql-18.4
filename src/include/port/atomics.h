@@ -592,14 +592,12 @@ pg_atomic_monotonic_advance_u64(volatile pg_atomic_uint64 *ptr, uint64 target)
 
   currval = pg_atomic_read_u64_impl(ptr);
 
-  if (currval >= target)
-  {
+  if (currval >= target) {
     pg_memory_barrier();
     return currval;
   }
 
-  while (currval < target)
-  {
+  while (currval < target) {
     if (pg_atomic_compare_exchange_u64(ptr, &currval, target))
       return target;
   }

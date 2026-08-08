@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "lib/qunique.h"
 #include "tsearch/ts_utils.h"
@@ -22,6 +23,7 @@
 Datum
 tsquery_numnode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   int     nnode = query->size;
 
@@ -32,9 +34,11 @@ tsquery_numnode(PG_FUNCTION_ARGS)
 static QTNode *
 join_tsqueries(TSQuery a, TSQuery b, int8 operator, uint16 distance)
 {
+  DBUG_TRACE;
   QTNode     *res = (QTNode *) palloc0(sizeof(QTNode));
 
   res->flags |= QTN_NEEDFREE;
+  DBUG_PRINT("info", "operator:%d, distance:%u", operator, distance);
 
   res->valnode = (QueryItem *) palloc0(sizeof(QueryItem));
   res->valnode->type = QI_OPR;
@@ -54,6 +58,7 @@ join_tsqueries(TSQuery a, TSQuery b, int8 operator, uint16 distance)
 Datum
 tsquery_and(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   a = PG_GETARG_TSQUERY_COPY(0);
   TSQuery   b = PG_GETARG_TSQUERY_COPY(1);
   QTNode     *res;
@@ -81,6 +86,7 @@ tsquery_and(PG_FUNCTION_ARGS)
 Datum
 tsquery_or(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   a = PG_GETARG_TSQUERY_COPY(0);
   TSQuery   b = PG_GETARG_TSQUERY_COPY(1);
   QTNode     *res;
@@ -108,17 +114,20 @@ tsquery_or(PG_FUNCTION_ARGS)
 Datum
 tsquery_phrase_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   a = PG_GETARG_TSQUERY_COPY(0);
   TSQuery   b = PG_GETARG_TSQUERY_COPY(1);
   QTNode     *res;
   TSQuery   query;
   int32   distance = PG_GETARG_INT32(2);
 
-  if (distance < 0 || distance > MAXENTRYPOS)
+  if (distance < 0 || distance > MAXENTRYPOS) {
+    DBUG_INSTANT_PRINT("info", "distance in phrase operator must be an integer value between zero and %d inclusive", MAXENTRYPOS);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("distance in phrase operator must be an integer value between zero and %d inclusive",
                     MAXENTRYPOS)));
+  }
 
   if (a->size == 0) {
     PG_FREE_IF_COPY(a, 1);
@@ -142,6 +151,7 @@ tsquery_phrase_distance(PG_FUNCTION_ARGS)
 Datum
 tsquery_phrase(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall3(tsquery_phrase_distance,
                                       PG_GETARG_DATUM(0),
                                       PG_GETARG_DATUM(1),
@@ -151,6 +161,7 @@ tsquery_phrase(PG_FUNCTION_ARGS)
 Datum
 tsquery_not(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   a = PG_GETARG_TSQUERY_COPY(0);
   QTNode     *res;
   TSQuery   query;
@@ -202,6 +213,7 @@ CompareTSQ(TSQuery a, TSQuery b)
 Datum
 tsquery_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   a = PG_GETARG_TSQUERY_COPY(0);
   TSQuery   b = PG_GETARG_TSQUERY_COPY(1);
   int     res = CompareTSQ(a, b);
@@ -254,6 +266,7 @@ makeTSQuerySign(TSQuery a)
 static char **
 collectTSQueryValues(TSQuery a, int *nvalues_p)
 {
+  DBUG_TRACE;
   QueryItem  *ptr = GETQUERY(a);
   char     *operand = GETOPERAND(a);
   char    **values;
@@ -293,6 +306,7 @@ cmp_string(const void *a, const void *b)
 Datum
 tsq_mcontains(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   TSQuery   ex = PG_GETARG_TSQUERY(1);
   char    **query_values;
@@ -337,6 +351,7 @@ tsq_mcontains(PG_FUNCTION_ARGS)
 Datum
 tsq_mcontained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(tsq_mcontains,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)));

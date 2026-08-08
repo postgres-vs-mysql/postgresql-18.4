@@ -38,6 +38,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/spgist.h"
 #include "catalog/pg_type.h"
@@ -94,6 +95,7 @@ typedef struct spgNodePtr {
 Datum
 spg_text_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
@@ -177,6 +179,7 @@ searchChar(Datum *nodeLabels, int nNodes, int16 c, int *i)
 Datum
 spg_text_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   text     *inText = DatumGetTextPP(in->datum);
@@ -311,6 +314,7 @@ cmpNodePtr(const void *a, const void *b)
 Datum
 spg_text_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   text     *text0 = DatumGetTextPP(in->datums[0]);
@@ -399,6 +403,7 @@ spg_text_picksplit(PG_FUNCTION_ARGS)
 Datum
 spg_text_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   bool    collate_is_c = pg_newlocale_from_collation(PG_GET_COLLATION())->collate_is_c;
@@ -551,6 +556,7 @@ spg_text_inner_consistent(PG_FUNCTION_ARGS)
 Datum
 spg_text_leaf_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
   spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
   int     level = in->level;
@@ -673,6 +679,12 @@ spg_text_leaf_consistent(PG_FUNCTION_ARGS)
 
     if (!res)
       break;        /* no need to consider remaining conditions */
+  }
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   PG_RETURN_BOOL(res);

@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/config_info.h"
 #include "funcapi.h"
@@ -22,6 +23,7 @@
 Datum
 pg_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   ConfigData *configdata;
   size_t    configdata_len;

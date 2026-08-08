@@ -14,6 +14,7 @@
 #ifndef TUPTABLE_H
 #define TUPTABLE_H
 
+#include "debug_trace.h"
 #include "access/htup.h"
 #include "access/htup_details.h"
 #include "access/sysattr.h"
@@ -111,7 +112,7 @@ struct TupleTableSlotOps;
 typedef struct TupleTableSlotOps TupleTableSlotOps;
 
 /* base tuple table slot type */
-typedef struct TupleTableSlot
+typedef struct TupleTableSlot 
 {
   NodeTag   type;
 #define FIELDNO_TUPLETABLESLOT_FLAGS 1
@@ -399,7 +400,10 @@ static inline Datum
 slot_getattr(TupleTableSlot *slot, int attnum,
              bool *isnull)
 {
+  DBUG_TRACE;
   Assert(attnum > 0);
+
+  DBUG_PRINT("info", "fetch one attribute of the slot's contents (attnum:%d)", attnum);
 
   if (attnum > slot->tts_nvalid)
     slot_getsomeattrs(slot, attnum);
@@ -421,13 +425,10 @@ slot_getsysattr(TupleTableSlot *slot, int attnum, bool *isnull)
 {
   Assert(attnum < 0);     /* caller error */
 
-  if (attnum == TableOidAttributeNumber)
-  {
+  if (attnum == TableOidAttributeNumber) {
     *isnull = false;
     return ObjectIdGetDatum(slot->tts_tableOid);
-  }
-  else if (attnum == SelfItemPointerAttributeNumber)
-  {
+  } else if (attnum == SelfItemPointerAttributeNumber) {
     *isnull = false;
     return PointerGetDatum(&slot->tts_tid);
   }

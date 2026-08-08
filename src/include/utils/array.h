@@ -174,8 +174,7 @@ typedef struct ExpandedArrayHeader
  * alignment on 64-bit, but it's often used for an ArrayType having 4-byte
  * alignment.  UBSan complains about referencing "flt" in such cases.
  */
-typedef union AnyArrayType
-{
+typedef union AnyArrayType {
   ArrayType flt;
   ExpandedArrayHeader xpn;
 } AnyArrayType;

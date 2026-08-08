@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_float8.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "btree_gist.h"
 #include "btree_utils_num.h"
@@ -121,6 +122,7 @@ float8_dist(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_compress(entry, &tinfo));
@@ -129,6 +131,7 @@ gbt_float8_compress(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_fetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
 
   PG_RETURN_POINTER(gbt_num_fetch(entry, &tinfo));
@@ -137,11 +140,13 @@ gbt_float8_fetch(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   float8    query = PG_GETARG_FLOAT8(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
   /* Oid    subtype = PG_GETARG_OID(3); */
+  bool result;
   bool     *recheck = (bool *) PG_GETARG_POINTER(4);
   float8KEY  *kkk = (float8KEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
@@ -152,9 +157,15 @@ gbt_float8_consistent(PG_FUNCTION_ARGS)
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_BOOL(gbt_num_consistent(&key, &query, &strategy,
+  result = (gbt_num_consistent(&key, &query, &strategy,
                                     GIST_LEAF(entry), &tinfo,
                                     fcinfo->flinfo));
+  if (result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -166,17 +177,22 @@ gbt_float8_distance(PG_FUNCTION_ARGS)
   /* Oid    subtype = PG_GETARG_OID(3); */
   float8KEY  *kkk = (float8KEY *) DatumGetPointer(entry->key);
   GBT_NUMKEY_R key;
+  float8 result;
 
   key.lower = (GBT_NUMKEY *) &kkk->lower;
   key.upper = (GBT_NUMKEY *) &kkk->upper;
 
-  PG_RETURN_FLOAT8(gbt_num_distance(&key, &query, GIST_LEAF(entry),
+  result = (gbt_num_distance(&key, &query, GIST_LEAF(entry),
                                     &tinfo, fcinfo->flinfo));
+
+  DBUG_PRINT("btree_gist", "distance:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 gbt_float8_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   void     *out = palloc(sizeof(float8KEY));
 
@@ -187,6 +203,7 @@ gbt_float8_union(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8KEY  *origentry = (float8KEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   float8KEY  *newentry = (float8KEY *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -199,6 +216,7 @@ gbt_float8_penalty(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(gbt_num_picksplit((GistEntryVector *) PG_GETARG_POINTER(0),
                                       (GIST_SPLITVEC *) PG_GETARG_POINTER(1),
                                       &tinfo, fcinfo->flinfo));
@@ -207,11 +225,19 @@ gbt_float8_picksplit(PG_FUNCTION_ARGS)
 Datum
 gbt_float8_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8KEY  *b1 = (float8KEY *) PG_GETARG_POINTER(0);
   float8KEY  *b2 = (float8KEY *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
 
   *result = gbt_num_same((void *) b1, (void *) b2, &tinfo, fcinfo->flinfo);
+
+  if (*result) {
+    DBUG_PRINT("btree_gist", "return true");
+  } else {
+    DBUG_PRINT("btree_gist", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 

@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "utils/builtins.h"
@@ -24,6 +25,7 @@
 Datum
 quote_ident(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t = PG_GETARG_TEXT_PP(0);
   const char *qstr;
   char     *str;
@@ -77,6 +79,7 @@ quote_literal_internal(char *dst, const char *src, size_t len)
 Datum
 quote_literal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t = PG_GETARG_TEXT_PP(0);
   text     *result;
   char     *cp1;
@@ -129,6 +132,8 @@ quote_literal_cstr(const char *rawstr)
 Datum
 quote_nullable(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_ARGISNULL(0))
     PG_RETURN_TEXT_P(cstring_to_text("NULL"));
   else

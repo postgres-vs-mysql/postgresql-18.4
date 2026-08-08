@@ -21,6 +21,7 @@
  *    ExecReScanFunctionScan  rescans the function
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "executor/nodeFunctionscan.h"
@@ -57,6 +58,7 @@ static TupleTableSlot *FunctionNext(FunctionScanState *node);
 static TupleTableSlot *
 FunctionNext(FunctionScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ScanDirection direction;
   TupleTableSlot *scanslot;
@@ -255,6 +257,7 @@ FunctionRecheck(FunctionScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecFunctionScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   FunctionScanState *node = castNode(FunctionScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -269,6 +272,7 @@ ExecFunctionScan(PlanState *pstate)
 FunctionScanState *
 ExecInitFunctionScan(FunctionScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   FunctionScanState *scanstate;
   int     nfuncs = list_length(node->functions);
   TupleDesc scan_tupdesc;
@@ -506,6 +510,7 @@ ExecInitFunctionScan(FunctionScan *node, EState *estate, int eflags)
 void
 ExecEndFunctionScan(FunctionScanState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -530,6 +535,7 @@ ExecEndFunctionScan(FunctionScanState *node)
 void
 ExecReScanFunctionScan(FunctionScanState *node)
 {
+  DBUG_TRACE;
   FunctionScan *scan = (FunctionScan *) node->ss.ps.plan;
   int     i;
   Bitmapset  *chgparam = node->ss.ps.chgParam;

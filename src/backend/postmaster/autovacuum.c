@@ -61,6 +61,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <signal.h>
 #include <sys/time.h>
@@ -359,7 +360,10 @@ static void check_av_worker_gucs(void);
 void
 AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   Assert(startup_data_len == 0);
 
@@ -372,6 +376,7 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
   MyBackendType = B_AUTOVAC_LAUNCHER;
   init_ps_display(NULL);
 
+  DBUG_PRINT("info", "autovacuum launcher started");
   ereport(DEBUG1,
           (errmsg_internal("autovacuum launcher started")));
 
@@ -567,6 +572,23 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
     TimestampTz current_time = 0;
     bool    can_launch;
 
+    if ((count % 60) != 0) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    } else {
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - 1);
+        count = 0;
+      }
+    }
+
     /*
      * This loop is a bit different from the normal use of WaitLatch,
      * because we'd like to sleep before the first launch of a child
@@ -576,6 +598,8 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
 
     launcher_determine_sleep(av_worker_available(), false, &nap);
 
+    DBUG_PRINT("info", "wait until naptime expires or we get some type of signal");
+    count++;
     /*
      * Wait until naptime expires or we get some type of signal (all the
      * signal handlers will wake us by calling SetLatch).
@@ -675,6 +699,7 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
           dclist_push_head(&AutoVacuumShmem->av_freeWorkers,
                            &worker->wi_links);
           AutoVacuumShmem->av_startingWorker = NULL;
+          DBUG_INSTANT_PRINT("info", "autovacuum worker took too long to start; canceled");
           ereport(WARNING,
                   errmsg("autovacuum worker took too long to start; canceled"));
         }
@@ -685,12 +710,16 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
     LWLockRelease(AutovacuumLock);  /* either shared or exclusive */
 
     /* if we can't do anything, just go back to sleep */
-    if (!can_launch)
+    if (!can_launch) {
+      DBUG_PRINT("info", "if we can't do anything, just go back to sleep");
       continue;
+    }
 
+    DBUG_PRINT("info", "we're OK to start a new worker");
     /* We're OK to start a new worker */
 
     if (dlist_is_empty(&DatabaseList)) {
+      DBUG_PRINT("info", "special case when the list is empty: start a worker right away");
       /*
        * Special case when the list is empty: start a worker right away.
        * This covers the initial case, when no database is in pgstats
@@ -715,9 +744,18 @@ AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
        * past
        */
       if (TimestampDifferenceExceeds(avdb->adl_next_worker,
-                                     current_time, 0))
+                                     current_time, 0)) {
+        DBUG_PRINT("info", "launch a worker if next_worker is right now or it is in the past");
         launch_worker(current_time);
+      }
     }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - 1);
   }
 
   AutoVacLauncherShutdown();
@@ -773,6 +811,8 @@ ProcessAutoVacLauncherInterrupts(void)
 static void
 AutoVacLauncherShutdown(void)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "autovacuum launcher shutting down");
   ereport(DEBUG1,
           (errmsg_internal("autovacuum launcher shutting down")));
   AutoVacuumShmem->av_launcherpid = 0;
@@ -790,6 +830,8 @@ AutoVacLauncherShutdown(void)
 static void
 launcher_determine_sleep(bool canlaunch, bool recursing, struct timeval *nap)
 {
+  DBUG_TRACE;
+
   /*
    * We sleep until the next scheduled vacuum.  We trust that when the
    * database list was built, care was taken so that no entries have times
@@ -867,6 +909,7 @@ launcher_determine_sleep(bool canlaunch, bool recursing, struct timeval *nap)
 static void
 rebuild_database_list(Oid newdb)
 {
+  DBUG_TRACE;
   List     *dblist;
   ListCell   *cell;
   MemoryContext newcxt;
@@ -1066,6 +1109,7 @@ db_comparator(const void *a, const void *b)
 static Oid
 do_start_worker(void)
 {
+  DBUG_TRACE;
   List     *dblist;
   ListCell   *cell;
   TransactionId xidForceLimit;
@@ -1227,6 +1271,7 @@ do_start_worker(void)
     WorkerInfo  worker;
     dlist_node *wptr;
 
+    DBUG_PRINT("info", "found a database -- process it");
     LWLockAcquire(AutovacuumLock, LW_EXCLUSIVE);
 
     /*
@@ -1275,6 +1320,7 @@ do_start_worker(void)
 static void
 launch_worker(TimestampTz now)
 {
+  DBUG_TRACE;
   Oid     dbid;
   dlist_iter  iter;
 
@@ -1347,10 +1393,24 @@ avl_sigusr2_handler(SIGNAL_ARGS)
 void
 AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   Oid     dbid;
+  bool tmp_trace_disabled = false;
+
 
   Assert(startup_data_len == 0);
+
+  DBUG_PRINT("info", "main entry point for autovacuum worker processes");
+
+  if (!trace_disabled) {
+    if (!enable_autovacuum_trace) {
+      if (!tmp_trace_disabled) {
+        tmp_trace_disabled = true;
+        set_trace_disabled();
+      }
+    }
+  }
 
   /* Release postmaster's working memory context */
   if (PostmasterContext) {
@@ -1509,10 +1569,14 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
     on_shmem_exit(FreeWorkerInfo, 0);
 
     /* wake up the launcher */
+    DBUG_PRINT("info", "wake up the launcher");
+
     if (AutoVacuumShmem->av_launcherpid != 0)
       kill(AutoVacuumShmem->av_launcherpid, SIGUSR2);
   } else {
     /* no worker entry for me, go away */
+    DBUG_PRINT("info", "no worker entry for me, go away");
+    DBUG_INSTANT_PRINT("info", "autovacuum worker started without a worker entry");
     elog(WARNING, "autovacuum worker started without a worker entry");
     dbid = InvalidOid;
     LWLockRelease(AutovacuumLock);
@@ -1520,7 +1584,6 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
 
   if (OidIsValid(dbid)) {
     char    dbname[NAMEDATALEN];
-
     /*
      * Report autovac startup to the cumulative stats system.  We
      * deliberately do this before InitPostgres, so that the
@@ -1544,6 +1607,7 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
                  dbname);
     SetProcessingMode(NormalProcessing);
     set_ps_display(dbname);
+    DBUG_PRINT("info", "autovacuum: processing database \"%s\"", dbname);
     ereport(DEBUG1,
             (errmsg_internal("autovacuum: processing database \"%s\"", dbname)));
 
@@ -1553,7 +1617,9 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
     /* And do an appropriate amount of work */
     recentXid = ReadNextTransactionId();
     recentMulti = ReadNextMultiXactId();
+
     do_autovacuum();
+
   }
 
   /*
@@ -1561,7 +1627,20 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
    * to get a worker slot at all
    */
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "internal details, including do_autovacuum, are omitted");
+  }
+
   /* All done, go away */
+  DBUG_INSTANT_PRINT("info", "all done, go away");
+
+  if (tmp_trace_disabled) {
+    tmp_trace_disabled = false;
+    set_trace_disabled();
+  }
+
   proc_exit(0);
 }
 
@@ -1571,6 +1650,8 @@ AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
 static void
 FreeWorkerInfo(int code, Datum arg)
 {
+  DBUG_TRACE;
+
   if (MyWorkerInfo != NULL) {
     LWLockAcquire(AutovacuumLock, LW_EXCLUSIVE);
 
@@ -1618,6 +1699,8 @@ FreeWorkerInfo(int code, Datum arg)
 void
 VacuumUpdateCosts(void)
 {
+  DBUG_TRACE;
+
   if (MyWorkerInfo) {
     if (av_storage_param_cost_delay >= 0)
       vacuum_cost_delay = av_storage_param_cost_delay;
@@ -1632,6 +1715,7 @@ VacuumUpdateCosts(void)
     /* Must be explicit VACUUM or ANALYZE */
     vacuum_cost_delay = VacuumCostDelay;
     vacuum_cost_limit = VacuumCostLimit;
+    DBUG_PRINT("info", "must be explicit VACUUM or ANALYZE");
   }
 
   /*
@@ -1662,12 +1746,21 @@ VacuumUpdateCosts(void)
     tableoid = MyWorkerInfo->wi_tableoid;
     LWLockRelease(AutovacuumLock);
 
+    DBUG_PRINT("info", "Autovacuum VacuumUpdateCosts(db=%u, rel=%u, dobalance=%s, cost_limit=%d, cost_delay=%g active=%s failsafe=%s",
+               dboid, tableoid, pg_atomic_unlocked_test_flag(&MyWorkerInfo->wi_dobalance) ? "no" : "yes",
+               vacuum_cost_limit, vacuum_cost_delay,
+               vacuum_cost_delay > 0 ? "yes" : "no",
+               VacuumFailsafeActive ? "yes" : "no");
     elog(DEBUG2,
          "Autovacuum VacuumUpdateCosts(db=%u, rel=%u, dobalance=%s, cost_limit=%d, cost_delay=%g active=%s failsafe=%s)",
          dboid, tableoid, pg_atomic_unlocked_test_flag(&MyWorkerInfo->wi_dobalance) ? "no" : "yes",
          vacuum_cost_limit, vacuum_cost_delay,
          vacuum_cost_delay > 0 ? "yes" : "no",
          VacuumFailsafeActive ? "yes" : "no");
+  } else {
+    DBUG_PRINT("info", "Autovacuum VacuumUpdateCosts(cost_limit=%d, cost_delay=%g)",
+               vacuum_cost_limit, vacuum_cost_delay);
+
   }
 }
 
@@ -1682,6 +1775,8 @@ VacuumUpdateCosts(void)
 void
 AutoVacuumUpdateCostLimit(void)
 {
+  DBUG_TRACE;
+
   if (!MyWorkerInfo)
     return;
 
@@ -1709,11 +1804,16 @@ AutoVacuumUpdateCostLimit(void)
     nworkers_for_balance = pg_atomic_read_u32(&AutoVacuumShmem->av_nworkersForBalance);
 
     /* There is at least 1 autovac worker (this worker) */
-    if (nworkers_for_balance <= 0)
+    if (nworkers_for_balance <= 0) {
+      DBUG_INSTANT_PRINT("info", "nworkers_for_balance must be > 0");
       elog(ERROR, "nworkers_for_balance must be > 0");
+    }
 
     vacuum_cost_limit = Max(vacuum_cost_limit / nworkers_for_balance, 1);
   }
+
+
+  DBUG_PRINT("info", "update vacuum_cost_limit with the correct value for an autovacuum worker:%d", vacuum_cost_limit);
 }
 
 /*
@@ -1727,6 +1827,7 @@ AutoVacuumUpdateCostLimit(void)
 static void
 autovac_recalculate_workers_for_balance(void)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   int     orig_nworkers_for_balance;
   int     nworkers_for_balance = 0;
@@ -1766,6 +1867,7 @@ autovac_recalculate_workers_for_balance(void)
 static List *
 get_database_list(void)
 {
+  DBUG_TRACE;
   List     *dblist = NIL;
   Relation  rel;
   TableScanDesc scan;
@@ -1793,6 +1895,7 @@ get_database_list(void)
      * vacuum it.
      */
     if (database_is_invalid_form(pgdatabase)) {
+      DBUG_PRINT("info", "autovacuum: skipping invalid database \"%s\"", NameStr(pgdatabase->datname));
       elog(DEBUG2,
            "autovacuum: skipping invalid database \"%s\"",
            NameStr(pgdatabase->datname));
@@ -1831,6 +1934,15 @@ get_database_list(void)
   return dblist;
 }
 
+static ulong getusec()
+{
+  struct timeval tp;
+  ulong sec;
+  gettimeofday(&tp, NULL);
+  sec = tp.tv_sec * 1000000 + tp.tv_usec;
+  return sec;
+}
+
 /*
  * Process a database table-by-table
  *
@@ -1840,6 +1952,7 @@ get_database_list(void)
 static void
 do_autovacuum(void)
 {
+  DBUG_TRACE;
   Relation  classRel;
   HeapTuple tuple;
   TableScanDesc relScan;
@@ -1855,7 +1968,15 @@ do_autovacuum(void)
   int     effective_multixact_freeze_max_age;
   bool    did_vacuum = false;
   bool    found_concurrent_worker = false;
+  bool tmp_trace_disabled = false;
   int     i;
+  size_t count = 0;
+  ulong       start, end;
+
+  char *database_name;
+  char *namespace_name;
+
+  start = getusec();
 
   /*
    * StartTransactionCommand and CommitTransactionCommand will automatically
@@ -1890,8 +2011,10 @@ do_autovacuum(void)
    */
   tuple = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for database %u", MyDatabaseId);
     elog(ERROR, "cache lookup failed for database %u", MyDatabaseId);
+  }
 
   dbForm = (Form_pg_database) GETSTRUCT(tuple);
 
@@ -1946,6 +2069,8 @@ do_autovacuum(void)
    * On the first pass, we collect main tables to vacuum, and also the main
    * table relid to TOAST relid mapping.
    */
+  DBUG_PRINT("info", "on the first pass, we collect main tables to vacuum, and also the main table relid to TOAST relid mapping");
+
   while ((tuple = heap_getnext(relScan, ForwardScanDirection)) != NULL) {
     Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
     PgStat_StatTabEntry *tabentry;
@@ -1959,7 +2084,17 @@ do_autovacuum(void)
         classForm->relkind != RELKIND_MATVIEW)
       continue;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     relid = classForm->oid;
+    count++;
 
     /*
      * Check if it is a temp table (presumably, of some other backend's).
@@ -2033,6 +2168,14 @@ do_autovacuum(void)
       pfree(tabentry);
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   table_endscan(relScan);
 
   /* second pass: check TOAST tables */
@@ -2042,6 +2185,8 @@ do_autovacuum(void)
               CharGetDatum(RELKIND_TOASTVALUE));
 
   relScan = table_beginscan_catalog(classRel, 1, &key);
+
+  count = 0;
 
   while ((tuple = heap_getnext(relScan, ForwardScanDirection)) != NULL) {
     Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
@@ -2059,7 +2204,17 @@ do_autovacuum(void)
     if (classForm->relpersistence == RELPERSISTENCE_TEMP)
       continue;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     relid = classForm->oid;
+    count++;
 
     /*
      * fetch reloptions -- if this toast table does not have them, try the
@@ -2099,6 +2254,14 @@ do_autovacuum(void)
       pfree(tabentry);
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   table_endscan(relScan);
   table_close(classRel, AccessShareLock);
 
@@ -2111,15 +2274,28 @@ do_autovacuum(void)
    * don't bloat the lock table if there are many temp tables to be dropped,
    * and it ensures that we don't lose work if a deletion attempt fails.
    */
+  DBUG_PRINT("info", "recheck orphan temporary tables, and if they still seem orphaned, drop them");
+  count = 0;
+
   foreach(cell, orphan_oids) {
     Oid     relid = lfirst_oid(cell);
     Form_pg_class classForm;
     ObjectAddress object;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /*
      * Check for user-requested abort.
      */
     CHECK_FOR_INTERRUPTS();
+    count++;
 
     /*
      * Try to lock the table.  If we can't get the lock immediately,
@@ -2179,10 +2355,14 @@ do_autovacuum(void)
     }
 
     /* OK, let's delete it */
+    database_name = get_database_name(MyDatabaseId);
+    namespace_name = get_namespace_name(classForm->relnamespace);
+    DBUG_PRINT("info", "autovacuum: dropping orphan temp table \"%s.%s.%s\"", database_name,
+               namespace_name, NameStr(classForm->relname));
     ereport(LOG,
             (errmsg("autovacuum: dropping orphan temp table \"%s.%s.%s\"",
-                    get_database_name(MyDatabaseId),
-                    get_namespace_name(classForm->relnamespace),
+                    database_name,
+                    namespace_name,
                     NameStr(classForm->relname))));
 
     /*
@@ -2209,6 +2389,14 @@ do_autovacuum(void)
 
     /* StartTransactionCommand changed current memory context */
     MemoryContextSwitchTo(AutovacMemCxt);
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /*
@@ -2239,6 +2427,10 @@ do_autovacuum(void)
   /*
    * Perform operations on collected tables.
    */
+  DBUG_PRINT("info", "perform operations on collected tables");
+
+  count = 0;
+
   foreach(cell, table_oids) {
     Oid     relid = lfirst_oid(cell);
     HeapTuple classTup;
@@ -2247,7 +2439,18 @@ do_autovacuum(void)
     bool    skipit;
     dlist_iter  iter;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     CHECK_FOR_INTERRUPTS();
+
+    count++;
 
     /*
      * Check for config changes before processing each collected table.
@@ -2313,6 +2516,7 @@ do_autovacuum(void)
     LWLockRelease(AutovacuumLock);
 
     if (skipit) {
+      DBUG_PRINT("info", "the table is being vacuumed concurrently by another worker:%d", relid);
       LWLockRelease(AutovacuumScheduleLock);
       continue;
     }
@@ -2339,6 +2543,7 @@ do_autovacuum(void)
 
     if (tab == NULL) {
       /* someone else vacuumed the table, or it went away */
+      DBUG_PRINT("info", "someone else vacuumed the table, or it went away");
       LWLockAcquire(AutovacuumScheduleLock, LW_EXCLUSIVE);
       MyWorkerInfo->wi_tableoid = InvalidOid;
       MyWorkerInfo->wi_sharedrel = false;
@@ -2479,13 +2684,36 @@ deleted:
 
   list_free(table_oids);
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   /*
    * Perform additional work items, as requested by backends.
    */
   LWLockAcquire(AutovacuumLock, LW_EXCLUSIVE);
 
+  DBUG_PRINT("info", "perform additional work items, as requested by backends");
+
+  count = 0;
+
   for (i = 0; i < NUM_WORKITEMS; i++) {
     AutoVacuumWorkItem *workitem = &AutoVacuumShmem->av_workItems[i];
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
 
     if (!workitem->avw_used)
       continue;
@@ -2524,8 +2752,15 @@ deleted:
     workitem->avw_used = false;
   }
 
-  LWLockRelease(AutovacuumLock);
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
 
+  LWLockRelease(AutovacuumLock);
   /*
    * We leak table_toast_map here (among other things), but since we're
    * going away soon, it's not a problem.
@@ -2556,6 +2791,8 @@ deleted:
 
   /* Finally close out the last transaction. */
   CommitTransactionCommand();
+  end = getusec();
+  DBUG_INSTANT_PRINT("info", "do_autovacuum:%lu", end - start);
 }
 
 /*
@@ -2564,6 +2801,7 @@ deleted:
 static void
 perform_work_item(AutoVacuumWorkItem *workitem)
 {
+  DBUG_TRACE;
   char     *cur_datname = NULL;
   char     *cur_nspname = NULL;
   char     *cur_relname = NULL;
@@ -2615,6 +2853,7 @@ perform_work_item(AutoVacuumWorkItem *workitem)
         break;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unrecognized work item found: type %d", workitem->avw_type);
         elog(WARNING, "unrecognized work item found: type %d",
              workitem->avw_type);
         break;
@@ -2682,6 +2921,7 @@ deleted2:
 static AutoVacOpts *
 extract_autovac_opts(HeapTuple tup, TupleDesc pg_class_desc)
 {
+  DBUG_TRACE;
   bytea    *relopts;
   AutoVacOpts *av;
 
@@ -2715,6 +2955,7 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
                       TupleDesc pg_class_desc,
                       int effective_multixact_freeze_max_age)
 {
+  DBUG_TRACE;
   Form_pg_class classForm;
   HeapTuple classTup;
   bool    dovacuum;
@@ -2724,6 +2965,7 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
   AutoVacOpts *avopts;
   bool    free_avopts = false;
 
+  DBUG_PRINT("info", "recheck whether a table still needs vacuum or analyze");
   /* fetch the relation's relcache entry */
   classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
 
@@ -2763,6 +3005,7 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
     int     multixact_freeze_table_age;
     int     log_min_duration;
 
+    DBUG_PRINT("info", "ok, it needs something done");
     /*
      * Calculate the vacuum cost parameters and the freeze ages.  If there
      * are options set in pg_class.reloptions, use them; in the case of a
@@ -2873,6 +3116,7 @@ recheck_relation_needs_vacanalyze(Oid relid,
                                   bool *doanalyze,
                                   bool *wraparound)
 {
+  DBUG_TRACE;
   PgStat_StatTabEntry *tabentry;
 
   /* fetch the pgstat table entry */
@@ -2942,6 +3186,7 @@ relation_needs_vacanalyze(Oid relid,
                           bool *doanalyze,
                           bool *wraparound)
 {
+  DBUG_TRACE;
   bool    force_vacuum;
   bool    av_enabled;
 
@@ -2970,6 +3215,15 @@ relation_needs_vacanalyze(Oid relid,
   TransactionId xidForceLimit;
   TransactionId relfrozenxid;
   MultiXactId multiForceLimit;
+  char *cur_relname;
+
+
+  cur_relname = get_rel_name(relid);
+
+  if (cur_relname) {
+    DBUG_PRINT("info", "check whether a relation needs to be vacuumed or analyzed:%s", cur_relname);
+    pfree(cur_relname);
+  }
 
   Assert(classForm != NULL);
   Assert(OidIsValid(relid));
@@ -3043,10 +3297,15 @@ relation_needs_vacanalyze(Oid relid,
                    MultiXactIdPrecedes(relminmxid, multiForceLimit);
   }
 
+  if (force_vacuum) {
+    DBUG_PRINT("info", "force vacuum when table is at risk of wraparound");
+  }
+
   *wraparound = force_vacuum;
 
   /* User disabled it in pg_class.reloptions?  (But ignore if at risk) */
   if (!av_enabled && !force_vacuum) {
+    DBUG_PRINT("info", "user disabled it");
     *doanalyze = false;
     *dovacuum = false;
     return;
@@ -3068,10 +3327,14 @@ relation_needs_vacanalyze(Oid relid,
     vactuples = tabentry->dead_tuples;
     instuples = tabentry->ins_since_vacuum;
     anltuples = tabentry->mod_since_analyze;
+    DBUG_PRINT("info", "dead tuples:%g;insert since vacuum:%g;modify since analyze:%g for relid:%d",
+               vactuples, instuples, anltuples, relid);
 
     /* If the table hasn't yet been vacuumed, take reltuples as zero */
-    if (reltuples < 0)
+    if (reltuples < 0) {
+      DBUG_PRINT("info", "the table hasn't yet been vacuumed and take reltuples as zero");
       reltuples = 0;
+    }
 
     /*
      * If we have data for relallfrozen, calculate the unfrozen percentage
@@ -3103,20 +3366,40 @@ relation_needs_vacanalyze(Oid relid,
      * reset, because if that happens, the last vacuum and analyze counts
      * will be reset too.
      */
-    if (vac_ins_base_thresh >= 0)
+    if (vac_ins_base_thresh >= 0) {
+      DBUG_PRINT("info", "%s: vac: %g (threshold %g), ins: %g (threshold %g), anl: %g (threshold %g)",
+                 NameStr(classForm->relname), vactuples, vacthresh, instuples, vacinsthresh, anltuples, anlthresh);
       elog(DEBUG3, "%s: vac: %.0f (threshold %.0f), ins: %.0f (threshold %.0f), anl: %.0f (threshold %.0f)",
            NameStr(classForm->relname),
            vactuples, vacthresh, instuples, vacinsthresh, anltuples, anlthresh);
-    else
+    } else {
+      DBUG_PRINT("info", "%s: vac: %g (threshold %g), ins: (disabled), anl: %g (threshold %g)",
+                 NameStr(classForm->relname), vactuples, vacthresh, anltuples, anlthresh);
       elog(DEBUG3, "%s: vac: %.0f (threshold %.0f), ins: (disabled), anl: %.0f (threshold %.0f)",
            NameStr(classForm->relname),
            vactuples, vacthresh, anltuples, anlthresh);
+    }
 
     /* Determine if this table needs vacuum or analyze. */
     *dovacuum = force_vacuum || (vactuples > vacthresh) ||
                 (vac_ins_base_thresh >= 0 && instuples > vacinsthresh);
     *doanalyze = (anltuples > anlthresh);
+
+    if (*dovacuum) {
+      DBUG_PRINT("info", "dovacuum:true and vacthresh:%0.2f, vac_base_thresh:%d, vac_scale_factor:%g, reltuples:%g",
+                 vacthresh, vac_base_thresh, vac_scale_factor, reltuples);
+    } else {
+      DBUG_PRINT("info", "dovacuum:false and vacthresh:%0.2f, vac_base_thresh:%d, vac_scale_factor:%g, reltuples:%g",
+                 vacthresh, vac_base_thresh, vac_scale_factor, reltuples);
+    }
+
+    if (*doanalyze) {
+      DBUG_PRINT("info", "doanalyze is true");
+    } else {
+      DBUG_PRINT("info", "doanalyze is false");
+    }
   } else {
+    DBUG_PRINT("info", "skip a table not found in stat hash, unless we have to force vacuum for anti-wrap purposes");
     /*
      * Skip a table not found in stat hash, unless we have to force vacuum
      * for anti-wrap purposes.  If it's not acted upon, there's no need to
@@ -3127,8 +3410,16 @@ relation_needs_vacanalyze(Oid relid,
   }
 
   /* ANALYZE refuses to work with pg_statistic */
-  if (relid == StatisticRelationId)
+  if (relid == StatisticRelationId) {
+    DBUG_PRINT("info", "ANALYZE refuses to work with pg_statistic");
     *doanalyze = false;
+  }
+
+  if (*dovacuum) {
+    DBUG_PRINT("info", "relid:%d needs to be vacuumed", relid);
+  } else {
+    DBUG_PRINT("info", "relid:%d needs not to be vacuumed", relid);
+  }
 }
 
 /*
@@ -3141,6 +3432,7 @@ relation_needs_vacanalyze(Oid relid,
 static void
 autovacuum_do_vac_analyze(autovac_table *tab, BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   RangeVar   *rangevar;
   VacuumRelation *rel;
   List     *rel_list;
@@ -3217,6 +3509,7 @@ static void
 autovac_report_workitem(AutoVacuumWorkItem *workitem,
                         const char *nspname, const char *relname)
 {
+  DBUG_TRACE;
   char    activity[MAX_AUTOVAC_ACTIV_LEN + 12 + 2];
   char    blk[12 + 2];
   int     len;
@@ -3269,6 +3562,7 @@ bool
 AutoVacuumRequestWork(AutoVacuumWorkItemType type, Oid relationId,
                       BlockNumber blkno)
 {
+  DBUG_TRACE;
   int     i;
   bool    result = false;
 
@@ -3309,14 +3603,18 @@ AutoVacuumRequestWork(AutoVacuumWorkItemType type, Oid relationId,
 void
 autovac_init(void)
 {
+  DBUG_TRACE;
+
   if (!autovacuum_start_daemon)
     return;
-  else if (!pgstat_track_counts)
+  else if (!pgstat_track_counts) {
+    DBUG_INSTANT_PRINT("info", "autovacuum not started because of misconfiguration");
     ereport(WARNING,
             (errmsg("autovacuum not started because of misconfiguration"),
              errhint("Enable the \"track_counts\" option.")));
-  else
+  } else {
     check_av_worker_gucs();
+  }
 }
 
 /*
@@ -3326,6 +3624,7 @@ autovac_init(void)
 Size
 AutoVacuumShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   /*
@@ -3335,6 +3634,7 @@ AutoVacuumShmemSize(void)
   size = MAXALIGN(size);
   size = add_size(size, mul_size(autovacuum_worker_slots,
                                  sizeof(WorkerInfoData)));
+  DBUG_PRINT("info", "compute space needed for autovacuum-related shared memory:%lu", size);
   return size;
 }
 
@@ -3345,6 +3645,7 @@ AutoVacuumShmemSize(void)
 void
 AutoVacuumShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   AutoVacuumShmem = (AutoVacuumShmemStruct *)
@@ -3387,6 +3688,8 @@ AutoVacuumShmemInit(void)
 bool
 check_autovacuum_work_mem(int *newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   /*
    * -1 indicates fallback.
    *

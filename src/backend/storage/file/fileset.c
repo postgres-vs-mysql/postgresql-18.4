@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -51,6 +52,7 @@ static Oid  ChooseTablespace(const FileSet *fileset, const char *name);
 void
 FileSetInit(FileSet *fileset)
 {
+  DBUG_TRACE;
   static uint32 counter = 0;
 
   fileset->creator_pid = MyProcPid;
@@ -88,6 +90,7 @@ FileSetInit(FileSet *fileset)
 File
 FileSetCreate(FileSet *fileset, const char *name)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   File    file;
 
@@ -114,6 +117,7 @@ FileSetCreate(FileSet *fileset, const char *name)
 File
 FileSetOpen(FileSet *fileset, const char *name, int mode)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   File    file;
 
@@ -132,6 +136,7 @@ bool
 FileSetDelete(FileSet *fileset, const char *name,
               bool error_on_failure)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
 
   FilePath(path, fileset, name);
@@ -145,6 +150,7 @@ FileSetDelete(FileSet *fileset, const char *name,
 void
 FileSetDeleteAll(FileSet *fileset)
 {
+  DBUG_TRACE;
   char    dirpath[MAXPGPATH];
   int     i;
 
@@ -166,6 +172,7 @@ FileSetDeleteAll(FileSet *fileset)
 static void
 FileSetPath(char *path, FileSet *fileset, Oid tablespace)
 {
+  DBUG_TRACE;
   char    tempdirpath[MAXPGPATH];
 
   TempTablespacePath(tempdirpath, tablespace);
@@ -180,6 +187,7 @@ FileSetPath(char *path, FileSet *fileset, Oid tablespace)
 static Oid
 ChooseTablespace(const FileSet *fileset, const char *name)
 {
+  DBUG_TRACE;
   uint32    hash = hash_any((const unsigned char *) name, strlen(name));
 
   return fileset->tablespaces[hash % fileset->ntablespaces];
@@ -191,6 +199,7 @@ ChooseTablespace(const FileSet *fileset, const char *name)
 static void
 FilePath(char *path, FileSet *fileset, const char *name)
 {
+  DBUG_TRACE;
   char    dirpath[MAXPGPATH];
 
   FileSetPath(dirpath, fileset, ChooseTablespace(fileset, name));

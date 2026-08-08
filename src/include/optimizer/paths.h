@@ -102,9 +102,9 @@ extern void add_paths_to_joinrel(PlannerInfo *root, RelOptInfo *joinrel,
  * joinrels.c
  *    routines to determine which relations to join
  */
-extern void join_search_one_level(PlannerInfo *root, int level);
+extern void join_search_one_level(PlannerInfo *root, int level, int *total_create_rel, int *dp_cache_visits);
 extern RelOptInfo *make_join_rel(PlannerInfo *root,
-                                 RelOptInfo *rel1, RelOptInfo *rel2);
+                                 RelOptInfo *rel1, RelOptInfo *rel2, int *total_create_rel, int *dp_cache_visits);
 extern Relids add_outer_joins_to_relids(PlannerInfo *root, Relids input_relids,
                                         SpecialJoinInfo *sjinfo,
                                         List **pushed_down_joins);

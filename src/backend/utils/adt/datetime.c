@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -5205,6 +5206,7 @@ FetchDynamicTimeZone(TimeZoneAbbrevTable *tbl, const datetkn *tp,
 Datum
 pg_timezone_abbrevs_zone(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   int      *pindex;
   Datum   result;
@@ -5416,6 +5418,7 @@ pg_timezone_abbrevs_abbrevs(PG_FUNCTION_ARGS)
 Datum
 pg_timezone_names(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   pg_tzenum  *tzenum;
   pg_tz    *tz;

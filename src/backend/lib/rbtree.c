@@ -24,6 +24,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "lib/rbtree.h"
@@ -104,6 +105,7 @@ rbt_create(Size node_size,
            rbt_freefunc freefunc,
            void *arg)
 {
+  DBUG_TRACE;
   RBTree     *tree = (RBTree *) palloc(sizeof(RBTree));
 
   Assert(node_size > sizeof(RBTNode));
@@ -142,6 +144,7 @@ rbt_copy_data(RBTree *rbt, RBTNode *dest, const RBTNode *src)
 RBTNode *
 rbt_find(RBTree *rbt, const RBTNode *data)
 {
+  DBUG_TRACE;
   RBTNode    *node = rbt->root;
 
   while (node != RBTNIL) {
@@ -168,6 +171,7 @@ rbt_find(RBTree *rbt, const RBTNode *data)
 RBTNode *
 rbt_find_great(RBTree *rbt, const RBTNode *data, bool equal_match)
 {
+  DBUG_TRACE;
   RBTNode    *node = rbt->root;
   RBTNode    *greater = NULL;
 
@@ -196,6 +200,7 @@ rbt_find_great(RBTree *rbt, const RBTNode *data, bool equal_match)
 RBTNode *
 rbt_find_less(RBTree *rbt, const RBTNode *data, bool equal_match)
 {
+  DBUG_TRACE;
   RBTNode    *node = rbt->root;
   RBTNode    *lesser = NULL;
 
@@ -225,6 +230,7 @@ rbt_find_less(RBTree *rbt, const RBTNode *data, bool equal_match)
 RBTNode *
 rbt_leftmost(RBTree *rbt)
 {
+  DBUG_TRACE;
   RBTNode    *node = rbt->root;
   RBTNode    *leftmost = rbt->root;
 
@@ -252,6 +258,7 @@ rbt_leftmost(RBTree *rbt)
 static void
 rbt_rotate_left(RBTree *rbt, RBTNode *x)
 {
+  DBUG_TRACE;
   RBTNode    *y = x->right;
 
   /* establish x->right link */
@@ -289,6 +296,7 @@ rbt_rotate_left(RBTree *rbt, RBTNode *x)
 static void
 rbt_rotate_right(RBTree *rbt, RBTNode *x)
 {
+  DBUG_TRACE;
   RBTNode    *y = x->left;
 
   /* establish x->left link */
@@ -333,6 +341,8 @@ rbt_rotate_right(RBTree *rbt, RBTNode *x)
 static void
 rbt_insert_fixup(RBTree *rbt, RBTNode *x)
 {
+  DBUG_TRACE;
+
   /*
    * x is always a red node.  Initially, it is the newly inserted node. Each
    * iteration of this loop moves it higher up in the tree.
@@ -431,6 +441,7 @@ rbt_insert_fixup(RBTree *rbt, RBTNode *x)
 RBTNode *
 rbt_insert(RBTree *rbt, const RBTNode *data, bool *isNew)
 {
+  DBUG_TRACE;
   RBTNode    *current,
              *parent,
              *x;
@@ -496,6 +507,8 @@ rbt_insert(RBTree *rbt, const RBTNode *data, bool *isNew)
 static void
 rbt_delete_fixup(RBTree *rbt, RBTNode *x)
 {
+  DBUG_TRACE;
+
   /*
    * x is always a black node.  Initially, it is the former child of the
    * deleted node.  Each iteration of this loop moves it higher up in the
@@ -583,6 +596,7 @@ rbt_delete_fixup(RBTree *rbt, RBTNode *x)
 static void
 rbt_delete_node(RBTree *rbt, RBTNode *z)
 {
+  DBUG_TRACE;
   RBTNode    *x,
              *y;
 
@@ -655,6 +669,7 @@ rbt_delete_node(RBTree *rbt, RBTNode *z)
 void
 rbt_delete(RBTree *rbt, RBTNode *node)
 {
+  DBUG_TRACE;
   rbt_delete_node(rbt, node);
 }
 
@@ -665,6 +680,8 @@ rbt_delete(RBTree *rbt, RBTNode *node)
 static RBTNode *
 rbt_left_right_iterator(RBTreeIterator *iter)
 {
+  DBUG_TRACE;
+
   if (iter->last_visited == NULL) {
     iter->last_visited = iter->rbt->root;
 
@@ -707,6 +724,8 @@ rbt_left_right_iterator(RBTreeIterator *iter)
 static RBTNode *
 rbt_right_left_iterator(RBTreeIterator *iter)
 {
+  DBUG_TRACE;
+
   if (iter->last_visited == NULL) {
     iter->last_visited = iter->rbt->root;
 
@@ -762,6 +781,7 @@ rbt_right_left_iterator(RBTreeIterator *iter)
 void
 rbt_begin_iterate(RBTree *rbt, RBTOrderControl ctrl, RBTreeIterator *iter)
 {
+  DBUG_TRACE;
   /* Common initialization for all traversal orders */
   iter->rbt = rbt;
   iter->last_visited = NULL;
@@ -787,6 +807,8 @@ rbt_begin_iterate(RBTree *rbt, RBTOrderControl ctrl, RBTreeIterator *iter)
 RBTNode *
 rbt_iterate(RBTreeIterator *iter)
 {
+  DBUG_TRACE;
+
   if (iter->is_over)
     return NULL;
 

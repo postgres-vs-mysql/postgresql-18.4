@@ -17,6 +17,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/hash_xlog.h"
@@ -56,6 +57,7 @@ static void hashbuildCallback(Relation index,
 Datum
 hashhandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
   amroutine->amstrategies = HTMaxStrategyNumber;
@@ -120,6 +122,7 @@ hashhandler(PG_FUNCTION_ARGS)
 IndexBuildResult *
 hashbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   BlockNumber relpages;
   double    reltuples;
@@ -220,6 +223,7 @@ hashbuildCallback(Relation index,
                   bool tupleIsAlive,
                   void *state)
 {
+  DBUG_TRACE;
   HashBuildState *buildstate = (HashBuildState *) state;
   Datum   index_values[1];
   bool    index_isnull[1];
@@ -259,6 +263,7 @@ hashinsert(Relation rel, Datum *values, bool *isnull,
            bool indexUnchanged,
            IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   Datum   index_values[1];
   bool    index_isnull[1];
   IndexTuple  itup;
@@ -287,6 +292,7 @@ hashinsert(Relation rel, Datum *values, bool *isnull,
 bool
 hashgettuple(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   bool    res;
 
@@ -337,6 +343,7 @@ hashgettuple(IndexScanDesc scan, ScanDirection dir)
 int64
 hashgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   bool    res;
   int64   ntids = 0;
@@ -368,6 +375,7 @@ hashgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 IndexScanDesc
 hashbeginscan(Relation rel, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   HashScanOpaque so;
 
@@ -399,6 +407,7 @@ void
 hashrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
            ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
 
@@ -427,6 +436,7 @@ hashrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 hashendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
 
@@ -459,6 +469,7 @@ IndexBulkDeleteResult *
 hashbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   double    tuples_removed;
   double    num_index_tuples;
@@ -640,6 +651,7 @@ loop_top:
 IndexBulkDeleteResult *
 hashvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   BlockNumber num_pages;
 
@@ -684,6 +696,7 @@ hashbucketcleanup(Relation rel, Bucket cur_bucket, Buffer bucket_buf,
                   bool split_cleanup,
                   IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   BlockNumber blkno;
   Buffer    buf;
   Bucket    new_bucket PG_USED_FOR_ASSERTS_ONLY = InvalidBucket;

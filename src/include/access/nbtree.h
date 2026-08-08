@@ -14,6 +14,7 @@
 #ifndef NBTREE_H
 #define NBTREE_H
 
+#include "debug_trace.h"
 #include "access/amapi.h"
 #include "access/itup.h"
 #include "access/sdir.h"
@@ -291,7 +292,9 @@ BTPageGetDeleteXid(Page page)
 static inline bool
 BTPageIsRecyclable(Page page, Relation heaprel)
 {
+  DBUG_TRACE;
   BTPageOpaque opaque;
+  bool result;
 
   Assert(!PageIsNew(page));
   Assert(heaprel != NULL);
@@ -299,8 +302,7 @@ BTPageIsRecyclable(Page page, Relation heaprel)
   /* Recycling okay iff page is deleted and safexid is old enough */
   opaque = BTPageGetOpaque(page);
 
-  if (P_ISDELETED(opaque))
-  {
+  if (P_ISDELETED(opaque)) {
     FullTransactionId safexid = BTPageGetDeleteXid(page);
 
     /*
@@ -313,9 +315,18 @@ BTPageIsRecyclable(Page page, Relation heaprel)
      * anyone. If not, then no scan that's still in progress could have
      * seen its downlink, and we can recycle it.
      */
-    return GlobalVisCheckRemovableFullXid(heaprel, safexid);
+    result = GlobalVisCheckRemovableFullXid(heaprel, safexid);
+
+    if (result) {
+      DBUG_PRINT("info", "result: true");
+    } else {
+      DBUG_PRINT("info", "result: false");
+    }
+
+    return result;
   }
 
+  DBUG_PRINT("info", "result: false");
   return false;
 }
 
@@ -641,8 +652,7 @@ BTreeTupleSetTopParent(IndexTuple leafhikey, BlockNumber blkno)
 static inline ItemPointer
 BTreeTupleGetHeapTID(IndexTuple itup)
 {
-  if (BTreeTupleIsPivot(itup))
-  {
+  if (BTreeTupleIsPivot(itup)) {
     /* Pivot tuple heap TID representation? */
     if ((ItemPointerGetOffsetNumberNoCheck(&itup->t_tid) &
          BT_PIVOT_HEAP_TID_ATTR) != 0)
@@ -651,8 +661,7 @@ BTreeTupleGetHeapTID(IndexTuple itup)
 
     /* Heap TID attribute was truncated */
     return NULL;
-  }
-  else if (BTreeTupleIsPosting(itup))
+  } else if (BTreeTupleIsPosting(itup))
     return BTreeTupleGetPosting(itup);
 
   return &itup->t_tid;
@@ -669,8 +678,7 @@ BTreeTupleGetMaxHeapTID(IndexTuple itup)
 {
   Assert(!BTreeTupleIsPivot(itup));
 
-  if (BTreeTupleIsPosting(itup))
-  {
+  if (BTreeTupleIsPosting(itup)) {
     uint16    nposting = BTreeTupleGetNPosting(itup);
 
     return BTreeTupleGetPostingN(itup, nposting - 1);
@@ -955,8 +963,8 @@ typedef BTVacuumPostingData *BTVacuumPosting;
  * tuple.
  */
 
-typedef struct BTScanPosItem  /* what we remember about each match */
-{
+typedef struct BTScanPosItem
+{ /* what we remember about each match */
   ItemPointerData heapTid;  /* TID of referenced heap item */
   OffsetNumber indexOffset; /* index item's location within page */
   LocationIndex tupleOffset;  /* IndexTuple's offset in workspace, if any */

@@ -6,6 +6,7 @@
  * src/backend/access/transam/rmgr.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/rmgr.h"
 #include "access/xlog_internal.h"
@@ -57,13 +58,20 @@ RmgrData  RmgrTable[RM_MAX_ID + 1] = {
 void
 RmgrStartup(void)
 {
+  DBUG_TRACE;
+  int count = 0;
+
   for (int rmid = 0; rmid <= RM_MAX_ID; rmid++) {
     if (!RmgrIdExists(rmid))
       continue;
 
-    if (RmgrTable[rmid].rm_startup != NULL)
+    if (RmgrTable[rmid].rm_startup != NULL) {
+      count++;
       RmgrTable[rmid].rm_startup();
+    }
   }
+
+  DBUG_PRINT("info", "start up all resource managers:%d", count);
 }
 
 /*
@@ -72,13 +80,20 @@ RmgrStartup(void)
 void
 RmgrCleanup(void)
 {
+  DBUG_TRACE;
+  int count = 0;
+
   for (int rmid = 0; rmid <= RM_MAX_ID; rmid++) {
     if (!RmgrIdExists(rmid))
       continue;
 
-    if (RmgrTable[rmid].rm_cleanup != NULL)
+    if (RmgrTable[rmid].rm_cleanup != NULL) {
+      count++;
       RmgrTable[rmid].rm_cleanup();
+    }
   }
+
+  DBUG_PRINT("info", "clean up all resource managers:%d", count);
 }
 
 /*
@@ -88,6 +103,7 @@ RmgrCleanup(void)
 void
 RmgrNotFound(RmgrId rmid)
 {
+  DBUG_INSTANT_PRINT("info", "resource manager with ID %d not registered", rmid);
   ereport(ERROR, (errmsg("resource manager with ID %d not registered", rmid),
                   errhint("Include the extension module that implements this resource manager in \"shared_preload_libraries\".")));
 }
@@ -104,38 +120,55 @@ RmgrNotFound(RmgrId rmid)
 void
 RegisterCustomRmgr(RmgrId rmid, const RmgrData *rmgr)
 {
-  if (rmgr->rm_name == NULL || strlen(rmgr->rm_name) == 0)
+  DBUG_TRACE;
+
+  if (rmgr->rm_name == NULL || strlen(rmgr->rm_name) == 0) {
+    DBUG_INSTANT_PRINT("info", "custom resource manager name is invalid");
     ereport(ERROR, (errmsg("custom resource manager name is invalid"),
                     errhint("Provide a non-empty name for the custom resource manager.")));
+  }
 
-  if (!RmgrIdIsCustom(rmid))
+  DBUG_PRINT("info", "register a new custom WAL resource manager:%s", rmgr->rm_name);
+
+  if (!RmgrIdIsCustom(rmid)) {
+    DBUG_INSTANT_PRINT("info", "custom resource manager ID %d is out of range", rmid);
     ereport(ERROR, (errmsg("custom resource manager ID %d is out of range", rmid),
                     errhint("Provide a custom resource manager ID between %d and %d.",
                             RM_MIN_CUSTOM_ID, RM_MAX_CUSTOM_ID)));
+  }
 
-  if (!process_shared_preload_libraries_in_progress)
+  if (!process_shared_preload_libraries_in_progress) {
+    DBUG_INSTANT_PRINT("info", "failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid);
     ereport(ERROR,
             (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
              errdetail("Custom resource manager must be registered while initializing modules in \"shared_preload_libraries\".")));
+  }
 
-  if (RmgrTable[rmid].rm_name != NULL)
+  if (RmgrTable[rmid].rm_name != NULL) {
+    DBUG_INSTANT_PRINT("info", "failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid);
     ereport(ERROR,
             (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
              errdetail("Custom resource manager \"%s\" already registered with the same ID.",
                        RmgrTable[rmid].rm_name)));
+  }
 
   /* check for existing rmgr with the same name */
+  DBUG_PRINT("info", "check for existing rmgr with the same name");
+
   for (int existing_rmid = 0; existing_rmid <= RM_MAX_ID; existing_rmid++) {
     if (!RmgrIdExists(existing_rmid))
       continue;
 
-    if (!pg_strcasecmp(RmgrTable[existing_rmid].rm_name, rmgr->rm_name))
+    if (!pg_strcasecmp(RmgrTable[existing_rmid].rm_name, rmgr->rm_name)) {
+      DBUG_INSTANT_PRINT("info", "failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid);
       ereport(ERROR,
               (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
                errdetail("Existing resource manager with ID %d has the same name.", existing_rmid)));
+    }
   }
 
   /* register it */
+  DBUG_PRINT("info", "registered custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid);
   RmgrTable[rmid] = *rmgr;
   ereport(LOG,
           (errmsg("registered custom resource manager \"%s\" with ID %d",
@@ -146,6 +179,7 @@ RegisterCustomRmgr(RmgrId rmid, const RmgrData *rmgr)
 Datum
 pg_get_wal_resource_managers(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_GET_RESOURCE_MANAGERS_COLS 3
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Datum   values[PG_GET_RESOURCE_MANAGERS_COLS];

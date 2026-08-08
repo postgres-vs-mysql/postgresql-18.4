@@ -58,10 +58,9 @@ typedef struct PgAioWaitRef
  *
  * b) Describe the object the IO is performed on in log / error messages.
  */
-typedef union PgAioTargetData
+typedef union PgAioTargetData {
+struct
 {
-  struct
-  {
     RelFileLocator rlocator;  /* physical relation identifier */
     BlockNumber blockNum; /* blknum relative to begin of reln */
     BlockNumber nblocks;

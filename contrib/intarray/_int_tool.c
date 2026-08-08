@@ -1,6 +1,7 @@
 /*
  * contrib/intarray/_int_tool.c
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -14,6 +15,7 @@
 bool
 inner_int_contains(ArrayType *a, ArrayType *b)
 {
+  DBUG_TRACE;
   int     na,
           nb;
   int     i,
@@ -40,6 +42,12 @@ inner_int_contains(ArrayType *a, ArrayType *b)
       break;        /* db[j] is not in da */
   }
 
+  if (n == nb) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   return (n == nb);
 }
 
@@ -47,6 +55,7 @@ inner_int_contains(ArrayType *a, ArrayType *b)
 bool
 inner_int_overlap(ArrayType *a, ArrayType *b)
 {
+  DBUG_TRACE;
   int     na,
           nb;
   int     i,
@@ -64,18 +73,21 @@ inner_int_overlap(ArrayType *a, ArrayType *b)
   while (i < na && j < nb) {
     if (da[i] < db[j])
       i++;
-    else if (da[i] == db[j])
+    else if (da[i] == db[j]) {
+      DBUG_PRINT("intarray", "return true");
       return true;
-    else
+    } else
       j++;
   }
 
+  DBUG_PRINT("intarray", "return false");
   return false;
 }
 
 ArrayType *
 inner_int_union(ArrayType *a, ArrayType *b)
 {
+  DBUG_TRACE;
   ArrayType  *r = NULL;
 
   CHECKARRVALID(a);
@@ -133,6 +145,7 @@ inner_int_union(ArrayType *a, ArrayType *b)
 ArrayType *
 inner_int_inter(ArrayType *a, ArrayType *b)
 {
+  DBUG_TRACE;
   ArrayType  *r;
   int     na,
           nb;
@@ -218,6 +231,7 @@ isort_cmp(const void *a, const void *b, void *arg)
 ArrayType *
 new_intArrayType(int num)
 {
+  DBUG_TRACE;
   ArrayType  *r;
   int     nbytes;
 
@@ -245,6 +259,7 @@ new_intArrayType(int num)
 ArrayType *
 resize_intArrayType(ArrayType *a, int num)
 {
+  DBUG_TRACE;
   int     nbytes;
   int     i;
 
@@ -288,6 +303,7 @@ copy_intArrayType(ArrayType *a)
 int
 internal_size(int *a, int len)
 {
+  DBUG_TRACE;
   int     i;
   int64   size = 0;
 
@@ -306,6 +322,7 @@ internal_size(int *a, int len)
 ArrayType *
 _int_unique(ArrayType *r)
 {
+  DBUG_TRACE;
   int     num = ARRNELEMS(r);
   bool    ascending = true;
 
@@ -330,6 +347,7 @@ gensign(BITVECP sign, int *a, int len, int siglen)
 int32
 intarray_match_first(ArrayType *a, int32 elem)
 {
+  DBUG_TRACE;
   int32    *aa,
            c,
            i;
@@ -348,6 +366,7 @@ intarray_match_first(ArrayType *a, int32 elem)
 ArrayType *
 intarray_add_elem(ArrayType *a, int32 elem)
 {
+  DBUG_TRACE;
   ArrayType  *result;
   int32    *r;
   int32   c;
@@ -367,6 +386,7 @@ intarray_add_elem(ArrayType *a, int32 elem)
 ArrayType *
 intarray_concat_arrays(ArrayType *a, ArrayType *b)
 {
+  DBUG_TRACE;
   ArrayType  *result;
   int32   ac = ARRNELEMS(a);
   int32   bc = ARRNELEMS(b);
@@ -387,6 +407,7 @@ intarray_concat_arrays(ArrayType *a, ArrayType *b)
 ArrayType *
 int_to_intset(int32 elem)
 {
+  DBUG_TRACE;
   ArrayType  *result;
   int32    *aa;
 

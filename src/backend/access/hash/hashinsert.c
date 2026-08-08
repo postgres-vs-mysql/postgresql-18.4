@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/hash_xlog.h"
@@ -37,6 +38,7 @@ static void _hash_vacuum_one_page(Relation rel, Relation hrel,
 void
 _hash_doinsert(Relation rel, IndexTuple itup, Relation heapRel, bool sorted)
 {
+  DBUG_TRACE;
   Buffer    buf = InvalidBuffer;
   Buffer    bucket_buf;
   Buffer    metabuf;
@@ -59,7 +61,7 @@ _hash_doinsert(Relation rel, IndexTuple itup, Relation heapRel, bool sorted)
   /* compute item size too */
   itemsz = IndexTupleSize(itup);
   itemsz = MAXALIGN(itemsz);  /* be safe, PageAddItem will do this but we
-                 * need to be consistent */
+                               * need to be consistent */
 
 restart_insert:
 
@@ -269,6 +271,7 @@ OffsetNumber
 _hash_pgaddtup(Relation rel, Buffer buf, Size itemsize, IndexTuple itup,
                bool appendtup)
 {
+  DBUG_TRACE;
   OffsetNumber itup_off;
   Page    page;
 
@@ -324,6 +327,7 @@ void
 _hash_pgaddmultitup(Relation rel, Buffer buf, IndexTuple *itups,
                     OffsetNumber *itup_offsets, uint16 nitups)
 {
+  DBUG_TRACE;
   OffsetNumber itup_off;
   Page    page;
   uint32    hashkey;
@@ -361,6 +365,7 @@ _hash_pgaddmultitup(Relation rel, Buffer buf, IndexTuple *itups,
 static void
 _hash_vacuum_one_page(Relation rel, Relation hrel, Buffer metabuf, Buffer buf)
 {
+  DBUG_TRACE;
   OffsetNumber deletable[MaxOffsetNumber];
   int     ndeletable = 0;
   OffsetNumber offnum,

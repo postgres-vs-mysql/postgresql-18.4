@@ -14,6 +14,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <limits.h>
@@ -44,6 +45,7 @@ static bool displayStruct(mixedStruct *structToDisplay);
 void
 GucInfoMain(void)
 {
+  DBUG_TRACE;
   struct config_generic **guc_vars;
   int     numOpts,
           i;
@@ -71,6 +73,7 @@ GucInfoMain(void)
 static bool
 displayStruct(mixedStruct *structToDisplay)
 {
+  DBUG_TRACE;
   return !(structToDisplay->generic.flags & (GUC_NO_SHOW_ALL |
            GUC_NOT_IN_SAMPLE |
            GUC_DISALLOW_IN_FILE));

@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <math.h>
 
+#include "debug_trace.h"
 #include "access/genam.h"
 #include "access/parallel.h"
 #include "access/sysattr.h"
@@ -34,9 +35,7 @@
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
-#ifdef OPTIMIZER_DEBUG
 #include "nodes/print.h"
-#endif
 #include "nodes/supportnodes.h"
 #include "optimizer/appendinfo.h"
 #include "optimizer/clauses.h"
@@ -114,7 +113,7 @@ typedef struct {
 typedef struct {
   WindowClause *wc;
   List     *uniqueOrder;  /* A List of unique ordering/partitioning
-                 * clauses per Window */
+                           * clauses per Window */
 } WindowClauseSortData;
 
 /* Passthrough data for standard_qp_callback */
@@ -122,7 +121,7 @@ typedef struct {
   List     *activeWindows;  /* active windows, if any */
   grouping_sets_data *gset_data;  /* grouping sets data, if any */
   SetOperationStmt *setop;  /* parent set operation or NULL if not a
-                 * subquery belonging to a set operation */
+                             * subquery belonging to a set operation */
 } standard_qp_extra;
 
 /*
@@ -301,12 +300,16 @@ PlannedStmt *
 planner(Query *parse, const char *query_string, int cursorOptions,
         ParamListInfo boundParams)
 {
+  DBUG_TRACE;
   PlannedStmt *result;
 
-  if (planner_hook)
+  if (planner_hook) {
+    DBUG_PRINT("info", "invoke planner_hook");
     result = (*planner_hook) (parse, query_string, cursorOptions, boundParams);
-  else
+  } else {
+    DBUG_PRINT("info", "invoke standard_planner");
     result = standard_planner(parse, query_string, cursorOptions, boundParams);
+  }
 
   pgstat_report_plan_id(result->planId, false);
 
@@ -317,6 +320,7 @@ PlannedStmt *
 standard_planner(Query *parse, const char *query_string, int cursorOptions,
                  ParamListInfo boundParams)
 {
+  DBUG_TRACE;
   PlannedStmt *result;
   PlannerGlobal *glob;
   double    tuple_fraction;
@@ -326,6 +330,12 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
   Plan     *top_plan;
   ListCell   *lp,
              *lr;
+
+  if (query_string) {
+    DBUG_PRINT("info", "original query string:'%s'", query_string);
+  } else {
+    DBUG_PRINT("info", "query string: nullptr");
+  }
 
   /*
    * Set up global state for this planner invocation.  This data is needed
@@ -440,12 +450,15 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
   }
 
   /* primary planning entry point (may recurse for subqueries) */
+  DBUG_PRINT("info", "primary planning entry point");
   root = subquery_planner(glob, parse, NULL, false, tuple_fraction, NULL);
 
   /* Select best Path and turn it into a Plan */
+  DBUG_PRINT("info", "select best path");
   final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
   best_path = get_cheapest_fractional_path(final_rel, tuple_fraction);
 
+  DBUG_PRINT("info", "turn it into a plan");
   top_plan = create_plan(root, best_path);
 
   /*
@@ -503,6 +516,8 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
                                 parallel_setup_cost;
     gather->plan.total_cost = top_plan->total_cost +
                               parallel_setup_cost + parallel_tuple_cost * top_plan->plan_rows;
+    DBUG_PRINT("info", "startup_cost:%g, total_cost:%g",
+               gather->plan.startup_cost, gather->plan.total_cost);
     gather->plan.plan_rows = top_plan->plan_rows;
     gather->plan.plan_width = top_plan->plan_width;
     gather->plan.parallel_aware = false;
@@ -518,6 +533,7 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
     top_plan->total_cost -= initplan_cost;
 
     /* use parallel mode for parallel plans. */
+    DBUG_PRINT("info", "use parallel mode for parallel plans");
     root->glob->parallelModeNeeded = true;
 
     top_plan = &gather->plan;
@@ -592,25 +608,37 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
       top_plan->total_cost > jit_above_cost) {
     result->jitFlags |= PGJIT_PERFORM;
 
+    DBUG_PRINT("info", "decide how much effort should be put into generating better code");
+
     /*
      * Decide how much effort should be put into generating better code.
      */
     if (jit_optimize_above_cost >= 0 &&
-        top_plan->total_cost > jit_optimize_above_cost)
+        top_plan->total_cost > jit_optimize_above_cost) {
       result->jitFlags |= PGJIT_OPT3;
+      DBUG_PRINT("info", "add jitFlags: PGJIT_OPT3");
+    }
 
     if (jit_inline_above_cost >= 0 &&
-        top_plan->total_cost > jit_inline_above_cost)
+        top_plan->total_cost > jit_inline_above_cost) {
       result->jitFlags |= PGJIT_INLINE;
+      DBUG_PRINT("info", "add jitFlags: PGJIT_INLINE");
+    }
 
     /*
      * Decide which operations should be JITed.
      */
-    if (jit_expressions)
-      result->jitFlags |= PGJIT_EXPR;
+    DBUG_PRINT("info", "decide which operations should be JITed");
 
-    if (jit_tuple_deforming)
+    if (jit_expressions) {
+      result->jitFlags |= PGJIT_EXPR;
+      DBUG_PRINT("info", "add jitFlags: PGJIT_EXPR");
+    }
+
+    if (jit_tuple_deforming) {
       result->jitFlags |= PGJIT_DEFORM;
+      DBUG_PRINT("info", "add jitFlags: PGJIT_DEFORM");
+    }
   }
 
   if (glob->partition_directory != NULL)
@@ -657,6 +685,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
                  bool hasRecursion, double tuple_fraction,
                  SetOperationStmt *setops)
 {
+  DBUG_TRACE;
   PlannerInfo *root;
   List     *newWithCheckOptions;
   List     *newHaving;
@@ -667,6 +696,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
   RelOptInfo *final_rel;
   ListCell   *l;
 
+  DBUG_PRINT("info", "invokes the planner on a subquery");
   /* Create a PlannerInfo data structure for this subquery */
   root = makeNode(PlannerInfo);
   root->parse = parse;
@@ -1263,7 +1293,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse, PlannerInfo *parent_root,
    * doing this here not in grouping_planner, we include initPlan costs in
    * the decision, though it's unlikely that will change anything.)
    */
-  set_cheapest(final_rel);
+  set_cheapest(root, final_rel);
 
   return root;
 }
@@ -1328,11 +1358,6 @@ preprocess_expression(PlannerInfo *root, Node *expr, int kind)
    */
   if (kind == EXPRKIND_QUAL) {
     expr = (Node *) canonicalize_qual((Expr *) expr, false);
-
-#ifdef OPTIMIZER_DEBUG
-    printf("After canonicalize_qual()\n");
-    pprint(expr);
-#endif
   }
 
   /*
@@ -1633,6 +1658,7 @@ static void
 grouping_planner(PlannerInfo *root, double tuple_fraction,
                  SetOperationStmt *setops)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   int64   offset_est = 0;
   int64   count_est = 0;
@@ -1647,8 +1673,11 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
   FinalPathExtraData extra;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "perform planning steps related to grouping, aggregation, etc");
+
   /* Tweak caller-supplied tuple_fraction if have LIMIT/OFFSET */
   if (parse->limitCount || parse->limitOffset) {
+    DBUG_PRINT("info", "tweak caller-supplied tuple_fraction if have LIMIT/OFFSET");
     tuple_fraction = preprocess_limit(root, tuple_fraction,
                                       &offset_est, &count_est);
 
@@ -1670,6 +1699,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * special work for recursive unions is the responsibility of
      * plan_set_operations.
      */
+    DBUG_PRINT("info", "construct Paths for set operations");
     current_rel = plan_set_operations(root);
 
     /*
@@ -1701,7 +1731,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * Can't handle FOR [KEY] UPDATE/SHARE here (parser should have
      * checked already, but let's make sure).
      */
-    if (parse->rowMarks)
+    if (parse->rowMarks) {
+      DBUG_INSTANT_PRINT("info", "%s is not allowed with UNION/INTERSECT/EXCEPT", LCS_asString(linitial_node(RowMarkClause, parse->rowMarks)->strength));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /*------
@@ -1709,6 +1740,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
                errmsg("%s is not allowed with UNION/INTERSECT/EXCEPT",
                       LCS_asString(linitial_node(RowMarkClause,
                                    parse->rowMarks)->strength))));
+    }
 
     /*
      * Calculate pathkeys that represent result ordering requirements
@@ -1738,6 +1770,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
     grouping_sets_data *gset_data = NULL;
     standard_qp_extra qp_extra;
 
+    DBUG_PRINT("info", "no set operations, do regular planning");
     /* A recursive query should always have setOperations */
     Assert(!root->hasRecursion);
 
@@ -1777,6 +1810,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * folding, in which case we don't need to do any more work.
      */
     if (parse->hasWindowFuncs) {
+      DBUG_PRINT("info", "locate any window functions in the tlist");
       wflists = find_window_functions((Node *) root->processed_tlist,
                                       list_length(parse->windowClause));
 
@@ -1946,6 +1980,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
     }
 
     /* Apply scan/join target. */
+    DBUG_PRINT("info", "apply scan/join target");
     scanjoin_target_same_exprs = list_length(scanjoin_targets) == 1
                                  && equal(scanjoin_target->exprs, current_rel->reltarget->exprs);
     apply_scanjoin_target_to_paths(root, current_rel, scanjoin_targets,
@@ -1973,6 +2008,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * phase.
      */
     if (have_grouping) {
+      DBUG_PRINT("info", "if we have grouping and/or aggregation, consider ways to implement that");
       current_rel = create_grouping_paths(root,
                                           current_rel,
                                           grouping_target,
@@ -1991,6 +2027,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * build a new upperrel representing the output of this phase.
      */
     if (activeWindows) {
+      DBUG_PRINT("info", "we have window functions and consider ways to implement those");
       current_rel = create_window_paths(root,
                                         current_rel,
                                         grouping_target,
@@ -2011,6 +2048,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * build a new upperrel representing the output of this phase.
      */
     if (parse->distinctClause) {
+      DBUG_PRINT("info", "if there is a DISTINCT clause, consider ways to implement that");
       current_rel = create_distinct_paths(root,
                                           current_rel,
                                           sort_input_target);
@@ -2025,6 +2063,9 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
    * postponed SRFs.
    */
   if (parse->sortClause) {
+    DBUG_PRINT("info", "if ORDER BY was given, consider ways to implement that,");
+    DBUG_PRINT("info", "and generate a new upperrel containing only paths that emit the correct ordering and");
+    DBUG_PRINT("info", "project the correct final_target");
     current_rel = create_ordered_paths(root,
                                        current_rel,
                                        final_target,
@@ -2033,15 +2074,18 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
                                        limit_tuples);
 
     /* Fix things up if final_target contains SRFs */
-    if (parse->hasTargetSRFs)
+    if (parse->hasTargetSRFs) {
+      DBUG_PRINT("info", "fix things up if final_target contains SRFs");
       adjust_paths_for_srfs(root, current_rel,
                             final_targets,
                             final_targets_contain_srfs);
+    }
   }
 
   /*
    * Now we are prepared to build the final-output upperrel.
    */
+  DBUG_PRINT("info", "now we are prepared to build the final-output upperrel");
   final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
 
   /*
@@ -2053,8 +2097,11 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
    */
   if (current_rel->consider_parallel &&
       is_parallel_safe(root, parse->limitOffset) &&
-      is_parallel_safe(root, parse->limitCount))
+      is_parallel_safe(root, parse->limitCount)) {
+    DBUG_PRINT("info", "if the input rel is parallel-safe and the LIMIT clause is also safe,");
+    DBUG_PRINT("info", "the final rel can be marked parallel-safe");
     final_rel->consider_parallel = true;
+  }
 
   /*
    * If the current_rel belongs to a single FDW, so does the final_rel.
@@ -2068,6 +2115,9 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
    * Generate paths for the final_rel.  Insert all surviving paths, with
    * LockRows, Limit, and/or ModifyTable steps added if needed.
    */
+  DBUG_PRINT("info", "generate paths for the final_rel");
+  DBUG_PRINT("info", "pathlist length for current_rel: %d", list_length(current_rel->pathlist));
+
   foreach(lc, current_rel->pathlist) {
     Path     *path = (Path *) lfirst(lc);
 
@@ -2088,6 +2138,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
      * If there is a LIMIT/OFFSET clause, add the LIMIT node.
      */
     if (limit_needed(parse)) {
+      DBUG_PRINT("info", "add the LIMIT node");
       path = (Path *) create_limit_path(root, final_rel, path,
                                         parse->limitOffset,
                                         parse->limitCount,
@@ -2107,6 +2158,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
       List     *mergeActionLists = NIL;
       List     *mergeJoinConditions = NIL;
       List     *rowMarks;
+
+      DBUG_PRINT("info", "add the ModifyTable node");
 
       if (bms_membership(root->all_result_relids) == BMS_MULTIPLE) {
         /* Inherited UPDATE/DELETE/MERGE */
@@ -2185,6 +2238,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
              * Copy MergeActions and translate stuff that
              * references attribute numbers.
              */
+            DBUG_PRINT("info", "mergeActionList length for parse: %d", list_length(parse->mergeActionList));
+
             foreach(l, parse->mergeActionList) {
               MergeAction *action = lfirst(l),
                            *leaf_action = copyObject(action);
@@ -2260,6 +2315,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
             mergeJoinConditions = list_make1(parse->mergeJoinCondition);
         }
       } else {
+        DBUG_PRINT("info", "single-relation INSERT/UPDATE/DELETE/MERGE");
         /* Single-relation INSERT/UPDATE/DELETE/MERGE. */
         rootRelation = 0; /* there's no separate root rel */
         resultRelations = list_make1_int(parse->resultRelation);
@@ -2310,7 +2366,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
     }
 
     /* And shove it into final_rel */
-    add_path(final_rel, path);
+    add_path(root, final_rel, path);
   }
 
   /*
@@ -2319,12 +2375,21 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
    */
   if (final_rel->consider_parallel && root->query_level > 1 &&
       !limit_needed(parse)) {
+    int count = 0;
     Assert(!parse->rowMarks && parse->commandType == CMD_SELECT);
+
+
+    DBUG_PRINT("info", "partial_pathlist length for current_rel: %d", list_length(current_rel->partial_pathlist));
 
     foreach(lc, current_rel->partial_pathlist) {
       Path     *partial_path = (Path *) lfirst(lc);
 
-      add_partial_path(final_rel, partial_path);
+      add_partial_path(root, final_rel, partial_path);
+      count++;
+    }
+
+    if (count) {
+      DBUG_PRINT("info", "generate partial paths for final_rel (count:%d)", count);
     }
   }
 
@@ -2338,15 +2403,19 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
    * let it consider adding ForeignPaths.
    */
   if (final_rel->fdwroutine &&
-      final_rel->fdwroutine->GetForeignUpperPaths)
+      final_rel->fdwroutine->GetForeignUpperPaths) {
+    DBUG_PRINT("info", "when there is an FDW that's responsible for all baserels of the query, let it consider adding ForeignPaths");
     final_rel->fdwroutine->GetForeignUpperPaths(root, UPPERREL_FINAL,
         current_rel, final_rel,
         &extra);
+  }
 
   /* Let extensions possibly add some more paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more paths");
     (*create_upper_paths_hook) (root, UPPERREL_FINAL,
                                 current_rel, final_rel, &extra);
+  }
 
   /* Note: currently, we leave it to callers to do set_cheapest() */
 }
@@ -2363,6 +2432,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction,
 static grouping_sets_data *
 preprocess_grouping_sets(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   List     *sets;
   int     maxref = 0;
@@ -2429,11 +2499,13 @@ preprocess_grouping_sets(PlannerInfo *root)
          * Note that passing this test doesn't guarantee we can
          * generate a plan; there might be other showstoppers.
          */
-        if (bms_overlap_list(gd->unhashable_refs, gset))
+        if (bms_overlap_list(gd->unhashable_refs, gset)) {
+          DBUG_INSTANT_PRINT("info", "could not implement GROUP BY");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("could not implement GROUP BY"),
                    errdetail("Some of the datatypes only support hashing, while others only support sorting.")));
+        }
       } else
         sortable_sets = lappend(sortable_sets, gset);
     }
@@ -2535,6 +2607,7 @@ remap_to_groupclause_idx(List *groupClause,
                          List *gsets,
                          int *tleref_to_colnum_map)
 {
+  DBUG_TRACE;
   int     ref = 0;
   List     *result = NIL;
   ListCell   *lc;
@@ -2567,6 +2640,7 @@ remap_to_groupclause_idx(List *groupClause,
 static void
 preprocess_rowmarks(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Bitmapset  *rels;
   List     *prowmarks;
@@ -2678,6 +2752,8 @@ preprocess_rowmarks(PlannerInfo *root)
 RowMarkType
 select_rowmark_type(RangeTblEntry *rte, LockClauseStrength strength)
 {
+  DBUG_TRACE;
+
   if (rte->rtekind != RTE_RELATION) {
     /* If it's not a table at all, use ROW_MARK_COPY */
     return ROW_MARK_COPY;
@@ -2745,6 +2821,7 @@ static double
 preprocess_limit(PlannerInfo *root, double tuple_fraction,
                  int64 *offset_est, int64 *count_est)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Node     *est;
   double    limit_fraction;
@@ -2894,17 +2971,23 @@ preprocess_limit(PlannerInfo *root, double tuple_fraction,
 bool
 limit_needed(Query *parse)
 {
+  DBUG_TRACE;
   Node     *node;
 
+  DBUG_PRINT("info", "do we actually need a Limit plan node?");
   node = parse->limitCount;
 
   if (node) {
     if (IsA(node, Const)) {
       /* NULL indicates LIMIT ALL, ie, no limit */
-      if (!((Const *) node)->constisnull)
+      if (!((Const *) node)->constisnull) {
+        DBUG_PRINT("info", "LIMIT with a constant value");
         return true;  /* LIMIT with a constant value */
-    } else
+      }
+    } else {
+      DBUG_PRINT("info", "non-constant LIMIT");
       return true;    /* non-constant LIMIT */
+    }
   }
 
   node = parse->limitOffset;
@@ -2915,13 +2998,18 @@ limit_needed(Query *parse)
       if (!((Const *) node)->constisnull) {
         int64   offset = DatumGetInt64(((Const *) node)->constvalue);
 
-        if (offset != 0)
+        if (offset != 0) {
+          DBUG_PRINT("info", "OFFSET with a nonzero value");
           return true;  /* OFFSET with a nonzero value */
+        }
       }
-    } else
+    } else {
+      DBUG_PRINT("info", "non-constant OFFSET");
       return true;    /* non-constant OFFSET */
+    }
   }
 
+  DBUG_PRINT("info", "don't need a Limit plan node");
   return false;       /* don't need a Limit plan node */
 }
 
@@ -2955,6 +3043,7 @@ limit_needed(Query *parse)
 static List *
 preprocess_groupclause(PlannerInfo *root, List *force)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   List     *new_groupclause = NIL;
   ListCell   *sl;
@@ -3048,6 +3137,7 @@ preprocess_groupclause(PlannerInfo *root, List *force)
 static List *
 extract_rollup_sets(List *groupingSets)
 {
+  DBUG_TRACE;
   int     num_sets_raw = list_length(groupingSets);
   int     num_empty = 0;
   int     num_sets = 0; /* distinct sets */
@@ -3335,6 +3425,7 @@ has_volatile_pathkey(List *keys)
 static void
 adjust_group_pathkeys_for_groupagg(PlannerInfo *root)
 {
+  DBUG_TRACE;
   List     *grouppathkeys = root->group_pathkeys;
   List     *bestpathkeys;
   Bitmapset  *bestaggs;
@@ -3552,15 +3643,19 @@ adjust_group_pathkeys_for_groupagg(PlannerInfo *root)
 static void
 standard_qp_callback(PlannerInfo *root, void *extra)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   standard_qp_extra *qp_extra = (standard_qp_extra *) extra;
   List     *tlist = root->processed_tlist;
   List     *activeWindows = qp_extra->activeWindows;
 
+  DBUG_PRINT("info", "compute query_pathkeys and other pathkeys during plan generation");
   /*
    * Calculate pathkeys that represent grouping/ordering and/or ordered
    * aggregate requirements.
    */
+  DBUG_PRINT("info", "calculate pathkeys that represent grouping/ordering and/or ordered aggregate requirements");
+
   if (qp_extra->gset_data) {
     /*
      * With grouping sets, just use the first RollupData's groupClause. We
@@ -3570,6 +3665,8 @@ standard_qp_callback(PlannerInfo *root, void *extra)
      */
     List     *rollups = qp_extra->gset_data->rollups;
     List     *groupClause = (rollups ? linitial_node(RollupData, rollups)->groupClause : NIL);
+
+    DBUG_PRINT("info", "with grouping sets, just use the first RollupData's groupClause");
 
     if (grouping_is_sortable(groupClause)) {
       bool    sortable;
@@ -3605,10 +3702,12 @@ standard_qp_callback(PlannerInfo *root, void *extra)
      */
     bool    sortable;
 
+    DBUG_PRINT("info", "with a plain GROUP BY list, we can remove any grouping items that are proven redundant");
     /*
      * Convert group clauses into pathkeys.  Set the ec_sortref field of
      * EquivalenceClass'es if it's not set yet.
      */
+    DBUG_PRINT("info", "convert group clauses into pathkeys");
     root->group_pathkeys =
       make_pathkeys_for_sortclauses_extended(root,
           &root->processed_groupClause,
@@ -3620,14 +3719,18 @@ standard_qp_callback(PlannerInfo *root, void *extra)
 
     if (!sortable) {
       /* Can't sort; no point in considering aggregate ordering either */
+      DBUG_PRINT("info", "can't sort; no point in considering aggregate ordering either");
       root->group_pathkeys = NIL;
       root->num_groupby_pathkeys = 0;
     } else {
       root->num_groupby_pathkeys = list_length(root->group_pathkeys);
 
       /* If we have ordered aggs, consider adding onto group_pathkeys */
-      if (root->numOrderedAggs > 0)
+      if (root->numOrderedAggs > 0) {
+        DBUG_PRINT("info", "we have ordered aggs");
+        DBUG_PRINT("info", "consider adding onto group_pathkeys");
         adjust_group_pathkeys_for_groupagg(root);
+      }
     }
   } else {
     root->group_pathkeys = NIL;
@@ -3638,6 +3741,7 @@ standard_qp_callback(PlannerInfo *root, void *extra)
   if (activeWindows != NIL) {
     WindowClause *wc = linitial_node(WindowClause, activeWindows);
 
+    DBUG_PRINT("info", "we consider only the first (bottom) window in pathkeys logic");
     root->window_pathkeys = make_pathkeys_for_window(root,
                             wc,
                             tlist);
@@ -3653,6 +3757,7 @@ standard_qp_callback(PlannerInfo *root, void *extra)
   if (parse->distinctClause) {
     bool    sortable;
 
+    DBUG_PRINT("info", "make a copy since pathkey processing can modify the list");
     /* Make a copy since pathkey processing can modify the list */
     root->processed_distinctClause = list_copy(parse->distinctClause);
     root->distinct_pathkeys =
@@ -3715,6 +3820,8 @@ standard_qp_callback(PlannerInfo *root, void *extra)
    * much easier, since we know that the parser ensured that one is a
    * superset of the other.
    */
+  DBUG_PRINT("info", "figure out whether we want a sorted result from query_planner");
+
   if (root->group_pathkeys)
     root->query_pathkeys = root->group_pathkeys;
   else if (root->window_pathkeys)
@@ -3747,6 +3854,7 @@ get_number_of_groups(PlannerInfo *root,
                      grouping_sets_data *gd,
                      List *target_list)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   double    dNumGroups;
 
@@ -3829,6 +3937,8 @@ get_number_of_groups(PlannerInfo *root,
     dNumGroups = 1;
   }
 
+  DBUG_PRINT("info", "estimate number of groups produced by grouping clauses:%g",
+             dNumGroups);
   return dNumGroups;
 }
 
@@ -3856,6 +3966,7 @@ create_grouping_paths(PlannerInfo *root,
                       bool target_parallel_safe,
                       grouping_sets_data *gd)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   RelOptInfo *grouped_rel;
   RelOptInfo *partially_grouped_rel;
@@ -3916,6 +4027,14 @@ create_grouping_paths(PlannerInfo *root,
      * Note: grouping_is_hashable() is much more expensive to check than
      * the other gating conditions, so we want to do it last.
      */
+    if (parse->groupClause != NIL) {
+      DBUG_PRINT("info", "numOrderedAggs:%d", root->numOrderedAggs);
+
+      if (root->numOrderedAggs) {
+        DBUG_PRINT("info", "we don't support ordered-set aggregates in hashed aggregation");
+      }
+    }
+
     if ((parse->groupClause != NIL &&
          root->numOrderedAggs == 0 &&
          (gd ? gd->any_hashable : grouping_is_hashable(root->processed_groupClause))))
@@ -3949,7 +4068,7 @@ create_grouping_paths(PlannerInfo *root,
                                    &partially_grouped_rel);
   }
 
-  set_cheapest(grouped_rel);
+  set_cheapest(root, grouped_rel);
   return grouped_rel;
 }
 
@@ -3966,6 +4085,7 @@ make_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
                   PathTarget *target, bool target_parallel_safe,
                   Node *havingQual)
 {
+  DBUG_TRACE;
   RelOptInfo *grouped_rel;
 
   if (IS_OTHER_REL(input_rel)) {
@@ -3990,8 +4110,11 @@ make_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
    * target list and HAVING quals are parallel-safe.
    */
   if (input_rel->consider_parallel && target_parallel_safe &&
-      is_parallel_safe(root, (Node *) havingQual))
+      is_parallel_safe(root, (Node *) havingQual)) {
+    DBUG_PRINT("info", "the input relation, the target list and HAVING conditions are safe");
+    DBUG_PRINT("info", "grouped_rel is parallel-safe too");
     grouped_rel->consider_parallel = true;
+  }
 
   /*
    * If the input rel belongs to a single FDW, so does the grouped rel.
@@ -4036,6 +4159,7 @@ static void
 create_degenerate_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                  RelOptInfo *grouped_rel)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   int     nrows;
   Path     *path;
@@ -4078,7 +4202,7 @@ create_degenerate_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                     (List *) parse->havingQual);
   }
 
-  add_path(grouped_rel, path);
+  add_path(root, grouped_rel, path);
 }
 
 /*
@@ -4102,6 +4226,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                GroupPathExtraData *extra,
                                RelOptInfo **partially_grouped_rel_p)
 {
+  DBUG_TRACE;
   Path     *cheapest_path = input_rel->cheapest_total_path;
   RelOptInfo *partially_grouped_rel = NULL;
   double    dNumGroups;
@@ -4176,7 +4301,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
     Assert(partially_grouped_rel);
 
     if (partially_grouped_rel->pathlist)
-      set_cheapest(partially_grouped_rel);
+      set_cheapest(root, partially_grouped_rel);
 
     return;
   }
@@ -4184,7 +4309,7 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
   /* Gather any partially grouped partial paths. */
   if (partially_grouped_rel && partially_grouped_rel->partial_pathlist) {
     gather_grouping_paths(root, partially_grouped_rel);
-    set_cheapest(partially_grouped_rel);
+    set_cheapest(root, partially_grouped_rel);
   }
 
   /*
@@ -4201,11 +4326,13 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                             dNumGroups, extra);
 
   /* Give a helpful error if we failed to find any implementation */
-  if (grouped_rel->pathlist == NIL)
+  if (grouped_rel->pathlist == NIL) {
+    DBUG_INSTANT_PRINT("info", "could not implement GROUP BY");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not implement GROUP BY"),
              errdetail("Some of the datatypes only support hashing, while others only support sorting.")));
+  }
 
   /*
    * If there is an FDW that's responsible for all baserels of the query,
@@ -4218,10 +4345,12 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
         extra);
 
   /* Let extensions possibly add some more paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more paths");
     (*create_upper_paths_hook) (root, UPPERREL_GROUP_AGG,
                                 input_rel, grouped_rel,
                                 extra);
+  }
 }
 
 /*
@@ -4240,6 +4369,7 @@ consider_groupingsets_paths(PlannerInfo *root,
                             const AggClauseCosts *agg_costs,
                             double dNumGroups)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Size    hash_mem_limit = get_hash_memory_limit();
 
@@ -4387,7 +4517,7 @@ consider_groupingsets_paths(PlannerInfo *root,
       strat = AGG_MIXED;
     }
 
-    add_path(grouped_rel, (Path *)
+    add_path(root, grouped_rel, (Path *)
              create_groupingsets_path(root,
                                       grouped_rel,
                                       path,
@@ -4536,7 +4666,7 @@ consider_groupingsets_paths(PlannerInfo *root,
     }
 
     if (rollups) {
-      add_path(grouped_rel, (Path *)
+      add_path(root, grouped_rel, (Path *)
                create_groupingsets_path(root,
                                         grouped_rel,
                                         path,
@@ -4551,7 +4681,7 @@ consider_groupingsets_paths(PlannerInfo *root,
    * Now try the simple sorted case.
    */
   if (!gd->unsortable_sets)
-    add_path(grouped_rel, (Path *)
+    add_path(root, grouped_rel, (Path *)
              create_groupingsets_path(root,
                                       grouped_rel,
                                       path,
@@ -4583,9 +4713,11 @@ create_window_paths(PlannerInfo *root,
                     WindowFuncLists *wflists,
                     List *activeWindows)
 {
+  DBUG_TRACE;
   RelOptInfo *window_rel;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "build a new upperrel containing Paths for window-function evaluation");
   /* For now, do all work in the (WINDOW, NULL) upperrel */
   window_rel = fetch_upper_rel(root, UPPERREL_WINDOW, NULL);
 
@@ -4595,8 +4727,12 @@ create_window_paths(PlannerInfo *root,
    * target list and active windows for non-parallel-safe constructs.
    */
   if (input_rel->consider_parallel && output_target_parallel_safe &&
-      is_parallel_safe(root, (Node *) activeWindows))
+      is_parallel_safe(root, (Node *) activeWindows)) {
+    DBUG_PRINT("info", "if the input relation isn't parallel-safe, the window relation isn't either.");
+    DBUG_PRINT("info", "otherwise, check the target list and active windows for anything not safe for parallel execution");
+    DBUG_PRINT("info", "all are parallel-safe and set consider_parallel true");
     window_rel->consider_parallel = true;
+  }
 
   /*
    * If the input rel belongs to a single FDW, so does the window rel.
@@ -4639,12 +4775,14 @@ create_window_paths(PlannerInfo *root,
         NULL);
 
   /* Let extensions possibly add some more paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more paths");
     (*create_upper_paths_hook) (root, UPPERREL_WINDOW,
                                 input_rel, window_rel, NULL);
+  }
 
   /* Now choose the best path(s) */
-  set_cheapest(window_rel);
+  set_cheapest(root, window_rel);
 
   return window_rel;
 }
@@ -4669,6 +4807,7 @@ create_one_window_path(PlannerInfo *root,
                        WindowFuncLists *wflists,
                        List *activeWindows)
 {
+  DBUG_TRACE;
   PathTarget *window_target;
   ListCell   *l;
   List     *topqual = NIL;
@@ -4806,7 +4945,7 @@ create_one_window_path(PlannerInfo *root,
                                  topwindow ? topqual : NIL, topwindow);
   }
 
-  add_path(window_rel, path);
+  add_path(root, window_rel, path);
 }
 
 /*
@@ -4824,8 +4963,10 @@ static RelOptInfo *
 create_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
                       PathTarget *target)
 {
+  DBUG_TRACE;
   RelOptInfo *distinct_rel;
 
+  DBUG_PRINT("info", "build a new upperrel containing Paths for SELECT DISTINCT evaluation");
   /* For now, do all work in the (DISTINCT, NULL) upperrel */
   distinct_rel = fetch_upper_rel(root, UPPERREL_DISTINCT, NULL);
 
@@ -4836,6 +4977,7 @@ create_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
    * output those expressions, and will not be parallel-safe unless those
    * expressions are parallel-safe.
    */
+  DBUG_PRINT("info", "distinct_rel will be parallel-safe if the input rel is parallel-safe");
   distinct_rel->consider_parallel = input_rel->consider_parallel;
 
   /*
@@ -4853,11 +4995,13 @@ create_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
   create_partial_distinct_paths(root, input_rel, distinct_rel, target);
 
   /* Give a helpful error if we failed to create any paths */
-  if (distinct_rel->pathlist == NIL)
+  if (distinct_rel->pathlist == NIL) {
+    DBUG_INSTANT_PRINT("info", "could not implement DISTINCT");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not implement DISTINCT"),
              errdetail("Some of the datatypes only support hashing, while others only support sorting.")));
+  }
 
   /*
    * If there is an FDW that's responsible for all baserels of the query,
@@ -4872,12 +5016,14 @@ create_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
         NULL);
 
   /* Let extensions possibly add some more paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more paths");
     (*create_upper_paths_hook) (root, UPPERREL_DISTINCT, input_rel,
                                 distinct_rel, NULL);
+  }
 
   /* Now choose the best path(s) */
-  set_cheapest(distinct_rel);
+  set_cheapest(root, distinct_rel);
 
   return distinct_rel;
 }
@@ -4895,6 +5041,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
                               RelOptInfo *final_distinct_rel,
                               PathTarget *target)
 {
+  DBUG_TRACE;
   RelOptInfo *partial_distinct_rel;
   Query    *parse;
   List     *distinctExprs;
@@ -4903,8 +5050,10 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
   ListCell   *lc;
 
   /* nothing to do when there are no partial paths in the input rel */
-  if (!input_rel->consider_parallel || input_rel->partial_pathlist == NIL)
+  if (!input_rel->consider_parallel || input_rel->partial_pathlist == NIL) {
+    DBUG_PRINT("info", " nothing to do when there are no partial paths in the input rel");
     return;
+  }
 
   parse = root->parse;
 
@@ -4989,7 +5138,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
            * these could be done, but does not seem worth troubling
            * over.
            */
-          add_partial_path(partial_distinct_rel, (Path *)
+          add_partial_path(root, partial_distinct_rel, (Path *)
                            create_limit_path(root, partial_distinct_rel,
                                              sorted_path,
                                              NULL,
@@ -4997,7 +5146,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                              LIMIT_OPTION_COUNT,
                                              0, 1));
         } else {
-          add_partial_path(partial_distinct_rel, (Path *)
+          add_partial_path(root, partial_distinct_rel, (Path *)
                            create_upper_unique_path(root, partial_distinct_rel,
                                sorted_path,
                                list_length(root->distinct_pathkeys),
@@ -5014,7 +5163,7 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
    * slightly softer variant in create_final_distinct_paths.
    */
   if (enable_hashagg && grouping_is_hashable(root->processed_distinctClause)) {
-    add_partial_path(partial_distinct_rel, (Path *)
+    add_partial_path(root, partial_distinct_rel, (Path *)
                      create_agg_path(root,
                                      partial_distinct_rel,
                                      cheapest_partial_path,
@@ -5040,13 +5189,15 @@ create_partial_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
         NULL);
 
   /* Let extensions possibly add some more partial paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more partial paths");
     (*create_upper_paths_hook) (root, UPPERREL_PARTIAL_DISTINCT,
                                 input_rel, partial_distinct_rel, NULL);
+  }
 
   if (partial_distinct_rel->partial_pathlist != NIL) {
     generate_useful_gather_paths(root, partial_distinct_rel, true);
-    set_cheapest(partial_distinct_rel);
+    set_cheapest(root, partial_distinct_rel);
 
     /*
      * Finally, create paths to distinctify the final result.  This step
@@ -5069,10 +5220,13 @@ static RelOptInfo *
 create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
                             RelOptInfo *distinct_rel)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Path     *cheapest_input_path = input_rel->cheapest_total_path;
   double    numDistinctRows;
   bool    allow_hash;
+
+  DBUG_PRINT("info", "create distinct paths");
 
   /* Estimate number of distinct rows there will be */
   if (parse->groupClause || parse->groupingSets || parse->hasAggs ||
@@ -5175,12 +5329,12 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
            * end up with a duplicate LimitPath in the final plan.
            * That does not seem worth troubling over too much.
            */
-          add_path(distinct_rel, (Path *)
+          add_path(root, distinct_rel, (Path *)
                    create_limit_path(root, distinct_rel, sorted_path,
                                      NULL, limitCount,
                                      LIMIT_OPTION_COUNT, 0, 1));
         } else {
-          add_path(distinct_rel, (Path *)
+          add_path(root, distinct_rel, (Path *)
                    create_upper_unique_path(root, distinct_rel,
                                             sorted_path,
                                             list_length(root->distinct_pathkeys),
@@ -5202,16 +5356,20 @@ create_final_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
    * Note: grouping_is_hashable() is much more expensive to check than the
    * other gating conditions, so we want to do it last.
    */
-  if (distinct_rel->pathlist == NIL)
+  if (distinct_rel->pathlist == NIL) {
     allow_hash = true;    /* we have no alternatives */
-  else if (parse->hasDistinctOn || !enable_hashagg)
+    DBUG_PRINT("info", "we have no alternatives and set allow_hash true");
+  } else if (parse->hasDistinctOn || !enable_hashagg) {
     allow_hash = false;   /* policy-based decision not to hash */
-  else
+    DBUG_PRINT("info", "policy-based decision not to hash and set allow_hash false");
+  } else {
     allow_hash = true;    /* default */
+  }
 
   if (allow_hash && grouping_is_hashable(root->processed_distinctClause)) {
     /* Generate hashed aggregate path --- no sort needed */
-    add_path(distinct_rel, (Path *)
+    DBUG_PRINT("info", "generate hashed aggregate path --- no sort needed");
+    add_path(root, distinct_rel, (Path *)
              create_agg_path(root,
                              distinct_rel,
                              cheapest_input_path,
@@ -5239,6 +5397,7 @@ static List *
 get_useful_pathkeys_for_distinct(PlannerInfo *root, List *needed_pathkeys,
                                  List *path_pathkeys)
 {
+  DBUG_TRACE;
   List     *useful_pathkeys_list = NIL;
   List     *useful_pathkeys = NIL;
 
@@ -5327,6 +5486,7 @@ create_ordered_paths(PlannerInfo *root,
                      bool target_parallel_safe,
                      double limit_tuples)
 {
+  DBUG_TRACE;
   Path     *cheapest_input_path = input_rel->cheapest_total_path;
   RelOptInfo *ordered_rel;
   ListCell   *lc;
@@ -5339,8 +5499,10 @@ create_ordered_paths(PlannerInfo *root,
    * can't be parallel-safe, either.  Otherwise, it's parallel-safe if the
    * target list is parallel-safe.
    */
-  if (input_rel->consider_parallel && target_parallel_safe)
+  if (input_rel->consider_parallel && target_parallel_safe) {
+    DBUG_PRINT("info", "if the input relation and target list are parallel-safe, then the ordered relation is also parallel-safe");
     ordered_rel->consider_parallel = true;
+  }
 
   /*
    * If the input rel belongs to a single FDW, so does the ordered_rel.
@@ -5349,6 +5511,8 @@ create_ordered_paths(PlannerInfo *root,
   ordered_rel->userid = input_rel->userid;
   ordered_rel->useridiscurrent = input_rel->useridiscurrent;
   ordered_rel->fdwroutine = input_rel->fdwroutine;
+
+  DBUG_PRINT("info", "pathlist length for input_rel:%d", list_length(input_rel->pathlist));
 
   foreach(lc, input_rel->pathlist) {
     Path     *input_path = (Path *) lfirst(lc);
@@ -5401,7 +5565,7 @@ create_ordered_paths(PlannerInfo *root,
       sorted_path = apply_projection_to_path(root, ordered_rel,
                                              sorted_path, target);
 
-    add_path(ordered_rel, sorted_path);
+    add_path(root, ordered_rel, sorted_path);
   }
 
   /*
@@ -5481,7 +5645,7 @@ create_ordered_paths(PlannerInfo *root,
         sorted_path = apply_projection_to_path(root, ordered_rel,
                                                sorted_path, target);
 
-      add_path(ordered_rel, sorted_path);
+      add_path(root, ordered_rel, sorted_path);
     }
   }
 
@@ -5496,9 +5660,11 @@ create_ordered_paths(PlannerInfo *root,
         NULL);
 
   /* Let extensions possibly add some more paths */
-  if (create_upper_paths_hook)
+  if (create_upper_paths_hook) {
+    DBUG_PRINT("info", "let extensions possibly add some more paths");
     (*create_upper_paths_hook) (root, UPPERREL_ORDERED,
                                 input_rel, ordered_rel, NULL);
+  }
 
   /*
    * No need to bother with set_cheapest here; grouping_planner does not
@@ -5540,6 +5706,7 @@ create_ordered_paths(PlannerInfo *root,
 static PathTarget *
 make_group_input_target(PlannerInfo *root, PathTarget *final_target)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   PathTarget *input_target;
   List     *non_group_cols;
@@ -5578,12 +5745,14 @@ make_group_input_target(PlannerInfo *root, PathTarget *final_target)
                                      NULL);
       }
 
+      DBUG_PRINT("info", "it's a grouping column, so add it to the input target as-is");
       add_column_to_pathtarget(input_target, expr, sgref);
     } else {
       /*
        * Non-grouping column, so just remember the expression for later
        * call to pull_var_clause.
        */
+      DBUG_PRINT("info", "non-grouping column, so just remember the expression for later call to pull_var_clause");
       non_group_cols = lappend(non_group_cols, expr);
     }
 
@@ -5593,8 +5762,10 @@ make_group_input_target(PlannerInfo *root, PathTarget *final_target)
   /*
    * If there's a HAVING clause, we'll need the Vars it uses, too.
    */
-  if (parse->havingQual)
+  if (parse->havingQual) {
+    DBUG_PRINT("info", "there's a HAVING clause and we'll need the Vars it uses");
     non_group_cols = lappend(non_group_cols, parse->havingQual);
+  }
 
   /*
    * Pull out all the Vars mentioned in non-group cols (plus HAVING), and
@@ -5652,6 +5823,7 @@ make_partial_grouping_target(PlannerInfo *root,
                              PathTarget *grouping_target,
                              Node *havingQual)
 {
+  DBUG_TRACE;
   PathTarget *partial_target;
   List     *non_group_cols;
   List     *non_group_exprs;
@@ -5748,6 +5920,7 @@ make_partial_grouping_target(PlannerInfo *root,
 void
 mark_partial_aggref(Aggref *agg, AggSplit aggsplit)
 {
+  DBUG_TRACE;
   /* aggtranstype should be computed by this point */
   Assert(OidIsValid(agg->aggtranstype));
   /* ... but aggsplit should still be as the parser left it */
@@ -5762,10 +5935,15 @@ mark_partial_aggref(Aggref *agg, AggSplit aggsplit)
    * serializing, it returns BYTEA instead.
    */
   if (DO_AGGSPLIT_SKIPFINAL(aggsplit)) {
-    if (agg->aggtranstype == INTERNALOID && DO_AGGSPLIT_SERIALIZE(aggsplit))
+    DBUG_PRINT("info", "adjust result type if needed");
+
+    if (agg->aggtranstype == INTERNALOID && DO_AGGSPLIT_SERIALIZE(aggsplit)) {
       agg->aggtype = BYTEAOID;
-    else
+      DBUG_PRINT("info", "if that's INTERNAL and we're serializing, it returns BYTEA instead");
+    } else {
       agg->aggtype = agg->aggtranstype;
+      DBUG_PRINT("info", "normally, a partial aggregate returns the aggregate's transition type");
+    }
   }
 }
 
@@ -5782,6 +5960,7 @@ mark_partial_aggref(Aggref *agg, AggSplit aggsplit)
 static List *
 postprocess_setop_tlist(List *new_tlist, List *orig_tlist)
 {
+  DBUG_TRACE;
   ListCell   *l;
   ListCell   *orig_tlist_item = list_head(orig_tlist);
 
@@ -5822,8 +6001,13 @@ postprocess_setop_tlist(List *new_tlist, List *orig_tlist)
 static void
 optimize_window_clauses(PlannerInfo *root, WindowFuncLists *wflists)
 {
+  DBUG_TRACE;
   List     *windowClause = root->parse->windowClause;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "call each WindowFunc's prosupport function to see if we're able to");
+  DBUG_PRINT("info", "make any adjustments to any of the WindowClause's so that the executor");
+  DBUG_PRINT("info", "can execute the window functions in a more optimal way.");
 
   foreach(lc, windowClause) {
     WindowClause *wc = lfirst_node(WindowClause, lc);
@@ -5990,6 +6174,7 @@ optimize_window_clauses(PlannerInfo *root, WindowFuncLists *wflists)
 static List *
 select_active_windows(PlannerInfo *root, WindowFuncLists *wflists)
 {
+  DBUG_TRACE;
   List     *windowClause = root->parse->windowClause;
   List     *result = NIL;
   ListCell   *lc;
@@ -6056,6 +6241,7 @@ select_active_windows(PlannerInfo *root, WindowFuncLists *wflists)
 
   pfree(actives);
 
+  DBUG_PRINT("info", "create a list of the 'active' window clauses:%d", nActive);
   return result;
 }
 
@@ -6073,6 +6259,7 @@ select_active_windows(PlannerInfo *root, WindowFuncLists *wflists)
 static void
 name_active_windows(List *activeWindows)
 {
+  DBUG_TRACE;
   int     next_n = 1;
   char    newname[16];
   ListCell   *lc;
@@ -6124,6 +6311,7 @@ name_active_windows(List *activeWindows)
 static int
 common_prefix_cmp(const void *a, const void *b)
 {
+  DBUG_TRACE;
   const WindowClauseSortData *wcsa = a;
   const WindowClauseSortData *wcsb = b;
   ListCell   *item_a;
@@ -6195,6 +6383,7 @@ make_window_input_target(PlannerInfo *root,
                          PathTarget *final_target,
                          List *activeWindows)
 {
+  DBUG_TRACE;
   PathTarget *input_target;
   Bitmapset  *sgrefs;
   List     *flattenable_cols;
@@ -6309,20 +6498,25 @@ static List *
 make_pathkeys_for_window(PlannerInfo *root, WindowClause *wc,
                          List *tlist)
 {
+  DBUG_TRACE;
   List     *window_pathkeys = NIL;
 
   /* Throw error if can't sort */
-  if (!grouping_is_sortable(wc->partitionClause))
+  if (!grouping_is_sortable(wc->partitionClause)) {
+    DBUG_INSTANT_PRINT("info", "could not implement window PARTITION BY");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not implement window PARTITION BY"),
              errdetail("Window partitioning columns must be of sortable datatypes.")));
+  }
 
-  if (!grouping_is_sortable(wc->orderClause))
+  if (!grouping_is_sortable(wc->orderClause)) {
+    DBUG_INSTANT_PRINT("info", "could not implement window ORDER BY");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not implement window ORDER BY"),
              errdetail("Window ordering columns must be of sortable datatypes.")));
+  }
 
   /*
    * First fetch the pathkeys for the PARTITION BY clause.  We can safely
@@ -6437,6 +6631,7 @@ make_sort_input_target(PlannerInfo *root,
                        PathTarget *final_target,
                        bool *have_postponed_srfs)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   PathTarget *input_target;
   int     ncols;
@@ -6585,6 +6780,189 @@ make_sort_input_target(PlannerInfo *root,
   return set_pathtarget_cost_width(root, input_target);
 }
 
+static const char *get_plan_type_str(char* name, int type)
+{
+  const char *pname = NULL;
+
+  switch (type) {
+    case T_Result:
+      pname = "result";
+      break;
+
+    case T_ProjectSet:
+      pname = "project set";
+      break;
+
+    case T_ModifyTable:
+      pname = "modify table";
+      break;
+
+    case T_Append:
+      pname = "append";
+      break;
+
+    case T_MergeAppend:
+      pname = "merge append";
+      break;
+
+    case T_RecursiveUnion:
+      pname = "recursive union";
+      break;
+
+    case T_BitmapAnd:
+      pname = "bitmap and";
+      break;
+
+    case T_BitmapOr:
+      pname = "bitmap or";
+      break;
+
+    case T_NestLoop:
+      pname = "nested loop";
+      break;
+
+    case T_MergeJoin:
+      pname = "merge join";
+      break;
+
+    case T_HashJoin:
+      pname = "hash join";
+      break;
+
+    case T_SeqScan:
+      pname = "seq scan";
+      break;
+
+    case T_SampleScan:
+      pname = "sample scan";
+      break;
+
+    case T_Gather:
+      pname = "gather";
+      break;
+
+    case T_GatherMerge:
+      pname = "gather merge";
+      break;
+
+    case T_IndexScan:
+      pname = "index scan";
+      break;
+
+    case T_IndexOnlyScan:
+      pname = "index only scan";
+      break;
+
+    case T_BitmapIndexScan:
+      pname = "bitmap index scan";
+      break;
+
+    case T_BitmapHeapScan:
+      pname = "bitmap heap scan";
+      break;
+
+    case T_TidScan:
+      pname = "tid scan";
+      break;
+
+    case T_TidRangeScan:
+      pname = "tid range scan";
+      break;
+
+    case T_SubqueryScan:
+      pname = "subquery scan";
+      break;
+
+    case T_FunctionScan:
+      pname = "function scan";
+      break;
+
+    case T_TableFuncScan:
+      pname = "table function scan";
+      break;
+
+    case T_ValuesScan:
+      pname = "values scan";
+      break;
+
+    case T_CteScan:
+      pname = "cte Scan";
+      break;
+
+    case T_NamedTuplestoreScan:
+      pname = "named tuplestore scan";
+      break;
+
+    case T_WorkTableScan:
+      pname = "work table scan";
+      break;
+
+    case T_ForeignScan:
+      pname = "foreign Scan";
+      break;
+
+    case T_CustomScan:
+      pname = "custom scan";
+      break;
+
+    case T_Material:
+      pname = "materialize";
+      break;
+
+    case T_Memoize:
+      pname = "memoize";
+      break;
+
+    case T_Sort:
+      pname = "sort";
+      break;
+
+    case T_IncrementalSort:
+      pname = "incremental sort";
+      break;
+
+    case T_Group:
+      pname = "group";
+      break;
+
+    case T_Agg: {
+      pname = "aggregate";
+    }
+    break;
+
+    case T_WindowAgg:
+      pname = "window agg";
+      break;
+
+    case T_Unique:
+      pname = "unique";
+      break;
+
+    case T_SetOp:
+      pname = "set op";
+      break;
+
+    case T_LockRows:
+      pname = "lock rows";
+      break;
+
+    case T_Limit:
+      pname = "limit";
+      break;
+
+    case T_Hash:
+      pname = "hash";
+      break;
+
+    default:
+      pname = "???";
+      break;
+  }
+
+  strcpy(name, pname);
+  return name;
+}
+
 /*
  * get_cheapest_fractional_path
  *    Find the cheapest path for retrieving a specified fraction of all
@@ -6602,8 +6980,10 @@ make_sort_input_target(PlannerInfo *root,
 Path *
 get_cheapest_fractional_path(RelOptInfo *rel, double tuple_fraction)
 {
+  DBUG_TRACE;
   Path     *best_path = rel->cheapest_total_path;
   ListCell   *l;
+  char name[32];
 
   /* If all tuples will be retrieved, just return the cheapest-total path */
   if (tuple_fraction <= 0.0)
@@ -6626,6 +7006,8 @@ get_cheapest_fractional_path(RelOptInfo *rel, double tuple_fraction)
     best_path = path;
   }
 
+  DBUG_PRINT("info", "best path, pathtype:%s, total cost:%g",
+             get_plan_type_str(name, best_path->pathtype), best_path->total_cost);
   return best_path;
 }
 
@@ -6648,6 +7030,7 @@ static void
 adjust_paths_for_srfs(PlannerInfo *root, RelOptInfo *rel,
                       List *targets, List *targets_contain_srfs)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(list_length(targets) == list_length(targets_contain_srfs));
@@ -6760,6 +7143,7 @@ adjust_paths_for_srfs(PlannerInfo *root, RelOptInfo *rel,
 Expr *
 expression_planner(Expr *expr)
 {
+  DBUG_TRACE;
   Node     *result;
 
   /*
@@ -6789,6 +7173,7 @@ expression_planner_with_deps(Expr *expr,
                              List **relationOids,
                              List **invalItems)
 {
+  DBUG_TRACE;
   Node     *result;
   PlannerGlobal glob;
   PlannerInfo root;
@@ -6840,6 +7225,7 @@ expression_planner_with_deps(Expr *expr,
 bool
 plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 {
+  DBUG_TRACE;
   PlannerInfo *root;
   Query    *query;
   PlannerGlobal *glob;
@@ -6914,6 +7300,7 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
    * set_baserel_size_estimates, just do a quick hack for rows and width.
    */
   rel->rows = rel->tuples;
+  DBUG_PRINT("info", "set estimates:%g", rel->rows);
   rel->reltarget->width = get_relation_data_width(tableOid, NULL);
 
   root->total_table_pages = rel->pages;
@@ -6940,6 +7327,11 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
                                     ForwardScanDirection, false,
                                     NULL, 1.0, false);
 
+  DBUG_PRINT("info", "estimate the cost of seq scan:%g",
+             seqScanAndSortPath.total_cost);
+  DBUG_PRINT("info", "estimate the cost of index scan:%g",
+             indexScanPath->path.total_cost);
+
   return (seqScanAndSortPath.total_cost < indexScanPath->path.total_cost);
 }
 
@@ -6963,6 +7355,7 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 int
 plan_create_index_workers(Oid tableOid, Oid indexOid)
 {
+  DBUG_TRACE;
   PlannerInfo *root;
   Query    *query;
   PlannerGlobal *glob;
@@ -7049,6 +7442,8 @@ plan_create_index_workers(Oid tableOid, Oid indexOid)
   if (rel->rel_parallel_workers != -1) {
     parallel_workers = Min(rel->rel_parallel_workers,
                            max_parallel_maintenance_workers);
+    DBUG_PRINT("info", "when parallel_workers storage parameter is set for the table, accept that");
+    DBUG_PRINT("info", "as the number of parallel worker processes to launch:%d", parallel_workers);
     goto done;
   }
 
@@ -7099,6 +7494,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
                           grouping_sets_data *gd, double dNumGroups,
                           GroupPathExtraData *extra)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Path     *cheapest_path = input_rel->cheapest_total_path;
   ListCell   *lc;
@@ -7108,6 +7504,8 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
   AggClauseCosts *agg_final_costs = &extra->agg_final_costs;
 
   if (can_sort) {
+    DBUG_PRINT("info", "can_sort is true");
+
     /*
      * Use any available suitably-sorted path as input, and also consider
      * sorting the cheapest-total path and incremental sort on any paths
@@ -7150,7 +7548,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
            * We have aggregation, possibly with plain GROUP BY. Make
            * an AggPath.
            */
-          add_path(grouped_rel, (Path *)
+          add_path(root, grouped_rel, (Path *)
                    create_agg_path(root,
                                    grouped_rel,
                                    path,
@@ -7166,7 +7564,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
            * We have GROUP BY without aggregation or grouping sets.
            * Make a GroupPath.
            */
-          add_path(grouped_rel, (Path *)
+          add_path(root, grouped_rel, (Path *)
                    create_group_path(root,
                                      grouped_rel,
                                      path,
@@ -7214,7 +7612,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
             continue;
 
           if (parse->hasAggs)
-            add_path(grouped_rel, (Path *)
+            add_path(root, grouped_rel, (Path *)
                      create_agg_path(root,
                                      grouped_rel,
                                      path,
@@ -7226,7 +7624,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
                                      agg_final_costs,
                                      dNumGroups));
           else
-            add_path(grouped_rel, (Path *)
+            add_path(root, grouped_rel, (Path *)
                      create_group_path(root,
                                        grouped_rel,
                                        path,
@@ -7237,22 +7635,28 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
         }
       }
     }
+  } else {
+    DBUG_PRINT("info", "can_sort is false");
   }
 
   if (can_hash) {
+    DBUG_PRINT("info", "can_hash is true");
+
     if (parse->groupingSets) {
       /*
        * Try for a hash-only groupingsets path over unsorted input.
        */
+      DBUG_PRINT("info", "try for a hash-only groupingsets path over unsorted input");
       consider_groupingsets_paths(root, grouped_rel,
                                   cheapest_path, false, true,
                                   gd, agg_costs, dNumGroups);
     } else {
+      DBUG_PRINT("info", "generate a HashAgg Path");
       /*
        * Generate a HashAgg Path.  We just need an Agg over the
        * cheapest-total input path, since input order won't matter.
        */
-      add_path(grouped_rel, (Path *)
+      add_path(root, grouped_rel, (Path *)
                create_agg_path(root, grouped_rel,
                                cheapest_path,
                                grouped_rel->reltarget,
@@ -7271,7 +7675,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
     if (partially_grouped_rel && partially_grouped_rel->pathlist) {
       Path     *path = partially_grouped_rel->cheapest_total_path;
 
-      add_path(grouped_rel, (Path *)
+      add_path(root, grouped_rel, (Path *)
                create_agg_path(root,
                                grouped_rel,
                                path,
@@ -7283,6 +7687,8 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
                                agg_final_costs,
                                dNumGroups));
     }
+  } else {
+    DBUG_PRINT("info", "can_hash is false");
   }
 
   /*
@@ -7319,6 +7725,7 @@ create_partial_grouping_paths(PlannerInfo *root,
                               GroupPathExtraData *extra,
                               bool force_rel_creation)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   RelOptInfo *partially_grouped_rel;
   AggClauseCosts *agg_partial_costs = &extra->agg_partial_costs;
@@ -7458,7 +7865,7 @@ create_partial_grouping_paths(PlannerInfo *root,
           continue;
 
         if (parse->hasAggs)
-          add_path(partially_grouped_rel, (Path *)
+          add_path(root, partially_grouped_rel, (Path *)
                    create_agg_path(root,
                                    partially_grouped_rel,
                                    path,
@@ -7470,7 +7877,7 @@ create_partial_grouping_paths(PlannerInfo *root,
                                    agg_partial_costs,
                                    dNumPartialGroups));
         else
-          add_path(partially_grouped_rel, (Path *)
+          add_path(root, partially_grouped_rel, (Path *)
                    create_group_path(root,
                                      partially_grouped_rel,
                                      path,
@@ -7513,7 +7920,7 @@ create_partial_grouping_paths(PlannerInfo *root,
           continue;
 
         if (parse->hasAggs)
-          add_partial_path(partially_grouped_rel, (Path *)
+          add_partial_path(root, partially_grouped_rel, (Path *)
                            create_agg_path(root,
                                            partially_grouped_rel,
                                            path,
@@ -7525,7 +7932,7 @@ create_partial_grouping_paths(PlannerInfo *root,
                                            agg_partial_costs,
                                            dNumPartialPartialGroups));
         else
-          add_partial_path(partially_grouped_rel, (Path *)
+          add_partial_path(root, partially_grouped_rel, (Path *)
                            create_group_path(root,
                                              partially_grouped_rel,
                                              path,
@@ -7543,7 +7950,7 @@ create_partial_grouping_paths(PlannerInfo *root,
     /* Checked above */
     Assert(parse->hasAggs || parse->groupClause);
 
-    add_path(partially_grouped_rel, (Path *)
+    add_path(root, partially_grouped_rel, (Path *)
              create_agg_path(root,
                              partially_grouped_rel,
                              cheapest_total_path,
@@ -7560,7 +7967,7 @@ create_partial_grouping_paths(PlannerInfo *root,
    * Now add a partially-grouped HashAgg partial Path where possible
    */
   if (can_hash && cheapest_partial_path != NULL) {
-    add_partial_path(partially_grouped_rel, (Path *)
+    add_partial_path(root, partially_grouped_rel, (Path *)
                      create_agg_path(root,
                                      partially_grouped_rel,
                                      cheapest_partial_path,
@@ -7600,6 +8007,7 @@ static Path *
 make_ordered_path(PlannerInfo *root, RelOptInfo *rel, Path *path,
                   Path *cheapest_path, List *pathkeys, double limit_tuples)
 {
+  DBUG_TRACE;
   bool    is_sorted;
   int     presorted_keys;
 
@@ -7657,6 +8065,7 @@ make_ordered_path(PlannerInfo *root, RelOptInfo *rel, Path *path,
 static void
 gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   Path     *cheapest_partial_path;
   List     *groupby_pathkeys;
@@ -7727,7 +8136,7 @@ gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel)
                                     NULL,
                                     &total_groups);
 
-    add_path(rel, path);
+    add_path(root, rel, path);
   }
 }
 
@@ -7740,6 +8149,7 @@ gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel)
 static bool
 can_partial_agg(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
 
   if (!parse->hasAggs && parse->groupClause == NIL) {
@@ -7747,15 +8157,19 @@ can_partial_agg(PlannerInfo *root)
      * We don't know how to do parallel aggregation unless we have either
      * some aggregates or a grouping clause.
      */
+    DBUG_PRINT("info", "return false");
     return false;
   } else if (parse->groupingSets) {
     /* We don't know how to do grouping sets in parallel. */
+    DBUG_PRINT("info", "we don't know how to do grouping sets in parallel and return false");
     return false;
   } else if (root->hasNonPartialAggs || root->hasNonSerialAggs) {
     /* Insufficient support for partial mode. */
+    DBUG_PRINT("info", "insufficient support for partial mode and return false");
     return false;
   }
 
+  DBUG_PRINT("info", "everything looks good");
   /* Everything looks good. */
   return true;
 }
@@ -7782,6 +8196,7 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
                                bool scanjoin_target_parallel_safe,
                                bool tlist_same_exprs)
 {
+  DBUG_TRACE;
   bool    rel_is_partitioned = IS_PARTITIONED_REL(rel);
   PathTarget *scanjoin_target;
   ListCell   *lc;
@@ -7808,14 +8223,17 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
    * generate_useful_gather_paths to add path(s) to the main list, and
    * finally zap the partial pathlist.
    */
-  if (rel_is_partitioned)
+  if (rel_is_partitioned) {
+    DBUG_PRINT("info", "if the rel is partitioned, we want to drop its existing paths and generate new ones");
     rel->pathlist = NIL;
+  }
 
   /*
    * If the scan/join target is not parallel-safe, partial paths cannot
    * generate it.
    */
   if (!scanjoin_target_parallel_safe) {
+    DBUG_PRINT("info", "if the scan/join target is not parallel-safe, partial paths cannot generate it");
     /*
      * Since we can't generate the final scan/join target in parallel
      * workers, this is our last opportunity to use any partial paths that
@@ -7838,6 +8256,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 
   /* Extract SRF-free scan/join target. */
   scanjoin_target = linitial_node(PathTarget, scanjoin_targets);
+  DBUG_PRINT("info", "apply the SRF-free scan/join target to each existing path");
+  DBUG_PRINT("info", "pathlist length for this relation:%d", list_length(rel->pathlist));
 
   /*
    * Apply the SRF-free scan/join target to each existing path.
@@ -7851,6 +8271,7 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
   foreach(lc, rel->pathlist) {
     Path     *subpath = (Path *) lfirst(lc);
 
+    DBUG_PRINT("info", "total_cost for subpath:%g", subpath->total_cost);
     /* Shouldn't have any parameterized paths anymore */
     Assert(subpath->param_info == NULL);
 
@@ -7867,6 +8288,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
   }
 
   /* Likewise adjust the targets for any partial paths. */
+  DBUG_PRINT("info", "adjust the targets for any partial paths");
+
   foreach(lc, rel->partial_pathlist) {
     Path     *subpath = (Path *) lfirst(lc);
 
@@ -7891,10 +8314,12 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
    * cheapest-path fields, which is a good thing because they're bogus right
    * now.)
    */
-  if (root->parse->hasTargetSRFs)
+  if (root->parse->hasTargetSRFs) {
+    DBUG_PRINT("info", "now, if final scan/join target contains SRFs, insert ProjectSetPath(s) atop each existing path");
     adjust_paths_for_srfs(root, rel,
                           scanjoin_targets,
                           scanjoin_targets_contain_srfs);
+  }
 
   /*
    * Update the rel's target to be the final (with SRFs) scan/join target.
@@ -7923,6 +8348,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
     /* Adjust each partition. */
     i = -1;
 
+    DBUG_PRINT("info", "if the relation is partitioned, recursively apply the scan/join target to all partitions");
+
     while ((i = bms_next_member(rel->live_parts, i)) >= 0) {
       RelOptInfo *child_rel = rel->part_rels[i];
       AppendRelInfo **appinfos;
@@ -7936,6 +8363,7 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
         continue;
 
       /* Translate scan/join targets for this child. */
+      DBUG_PRINT("info", "translate scan/join targets for this child");
       appinfos = find_appinfos_by_relids(root, child_rel->relids,
                                          &nappinfos);
 
@@ -7953,6 +8381,7 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 
       pfree(appinfos);
 
+      DBUG_PRINT("info", "recursion does the real work");
       /* Recursion does the real work. */
       apply_scanjoin_target_to_paths(root, child_rel,
                                      child_scanjoin_targets,
@@ -7966,6 +8395,7 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
     }
 
     /* Build new paths for this relation by appending child paths. */
+    DBUG_PRINT("info", "build new paths for this relation by appending child paths");
     add_paths_to_append_rel(root, rel, live_children);
   }
 
@@ -7976,15 +8406,18 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
    * this after all paths have been generated and before set_cheapest, since
    * one of the generated paths may turn out to be the cheapest one.
    */
-  if (rel->consider_parallel && !IS_OTHER_REL(rel))
+  if (rel->consider_parallel && !IS_OTHER_REL(rel)) {
+    DBUG_PRINT("info", "consider generating Gather or Gather Merge paths");
     generate_useful_gather_paths(root, rel, false);
+  }
 
   /*
    * Reassess which paths are the cheapest, now that we've potentially added
    * new Gather (or Gather Merge) and/or Append (or MergeAppend) paths to
    * this relation.
    */
-  set_cheapest(rel);
+  DBUG_PRINT("info", "reassess which paths are the cheapest");
+  set_cheapest(root, rel);
 }
 
 /*
@@ -8014,6 +8447,7 @@ create_partitionwise_grouping_paths(PlannerInfo *root,
                                     PartitionwiseAggregateType patype,
                                     GroupPathExtraData *extra)
 {
+  DBUG_TRACE;
   List     *grouped_live_children = NIL;
   List     *partially_grouped_live_children = NIL;
   PathTarget *target = grouped_rel->reltarget;
@@ -8098,7 +8532,7 @@ create_partitionwise_grouping_paths(PlannerInfo *root,
       partial_grouping_valid = false;
 
     if (patype == PARTITIONWISE_AGGREGATE_FULL) {
-      set_cheapest(child_grouped_rel);
+      set_cheapest(root, child_grouped_rel);
       grouped_live_children = lappend(grouped_live_children,
                                       child_grouped_rel);
     }
@@ -8126,7 +8560,7 @@ create_partitionwise_grouping_paths(PlannerInfo *root,
      * cheapest path from the rel.
      */
     if (partially_grouped_rel->pathlist)
-      set_cheapest(partially_grouped_rel);
+      set_cheapest(root, partially_grouped_rel);
   }
 
   /* If possible, create append paths for fully grouped children. */
@@ -8148,6 +8582,7 @@ group_by_has_partkey(RelOptInfo *input_rel,
                      List *targetList,
                      List *groupClause)
 {
+  DBUG_TRACE;
   List     *groupexprs = get_sortgrouplist_exprs(groupClause, targetList);
   int     cnt = 0;
   int     partnatts;
@@ -8212,6 +8647,7 @@ group_by_has_partkey(RelOptInfo *input_rel,
   return true;
 }
 
+
 /*
  * generate_setop_child_grouplist
  *    Build a SortGroupClause list defining the sort/grouping properties
@@ -8229,6 +8665,7 @@ group_by_has_partkey(RelOptInfo *input_rel,
 static List *
 generate_setop_child_grouplist(SetOperationStmt *op, List *targetlist)
 {
+  DBUG_TRACE;
   List     *grouplist = copyObject(op->groupClauses);
   ListCell   *lg;
   ListCell   *lt;

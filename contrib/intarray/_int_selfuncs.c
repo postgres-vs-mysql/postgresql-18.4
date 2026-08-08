@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "_int.h"
 #include "access/htup_details.h"
@@ -55,6 +56,7 @@ static int  compare_val_int4(const void *a, const void *b);
 Datum
 _int_overlap_sel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(arraycontsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_OVERLAP_OP),
@@ -65,6 +67,7 @@ _int_overlap_sel(PG_FUNCTION_ARGS)
 Datum
 _int_contains_sel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(arraycontsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_CONTAINS_OP),
@@ -75,6 +78,7 @@ _int_contains_sel(PG_FUNCTION_ARGS)
 Datum
 _int_contained_sel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall4(arraycontsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_CONTAINED_OP),
@@ -85,6 +89,7 @@ _int_contained_sel(PG_FUNCTION_ARGS)
 Datum
 _int_overlap_joinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall5(arraycontjoinsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_OVERLAP_OP),
@@ -96,6 +101,7 @@ _int_overlap_joinsel(PG_FUNCTION_ARGS)
 Datum
 _int_contains_joinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall5(arraycontjoinsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_CONTAINS_OP),
@@ -107,6 +113,7 @@ _int_contains_joinsel(PG_FUNCTION_ARGS)
 Datum
 _int_contained_joinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall5(arraycontjoinsel,
                                       PG_GETARG_DATUM(0),
                                       ObjectIdGetDatum(OID_ARRAY_CONTAINED_OP),
@@ -122,6 +129,7 @@ _int_contained_joinsel(PG_FUNCTION_ARGS)
 Datum
 _int_matchsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
 
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -238,6 +246,7 @@ _int_matchsel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("intarray", "return selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -248,6 +257,7 @@ static Selectivity
 int_query_opr_selec(ITEM *item, Datum *mcelems, float4 *mcefreqs,
                     int nmcelems, float4 minfreq)
 {
+  DBUG_TRACE;
   Selectivity selec;
 
   /* since this function recurses, it could be driven to stack overflow */
@@ -256,8 +266,10 @@ int_query_opr_selec(ITEM *item, Datum *mcelems, float4 *mcefreqs,
   if (item->type == VAL) {
     Datum    *searchres;
 
-    if (mcelems == NULL)
+    if (mcelems == NULL) {
+      DBUG_PRINT("intarray", "return default selectivity:%g", DEFAULT_EQ_SEL);
       return (Selectivity) DEFAULT_EQ_SEL;
+    }
 
     searchres = (Datum *) bsearch(&item->val, mcelems, nmcelems,
                                   sizeof(Datum), compare_val_int4);
@@ -313,6 +325,7 @@ int_query_opr_selec(ITEM *item, Datum *mcelems, float4 *mcefreqs,
   /* Clamp intermediate results to stay sane despite roundoff error */
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("intarray", "estimate selectivity of single intquery operator:%g", selec);
   return selec;
 }
 

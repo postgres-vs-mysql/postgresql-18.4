@@ -37,6 +37,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -183,6 +184,7 @@ merge_acl_with_grant(Acl *old_acl, bool is_grant,
                      List *grantees, AclMode privileges,
                      Oid grantorId, Oid ownerId)
 {
+  DBUG_TRACE;
   unsigned  modechg;
   ListCell   *j;
   Acl      *new_acl;
@@ -241,6 +243,7 @@ restrict_and_check_grant(bool is_grant, AclMode avail_goptions, bool all_privs,
                          ObjectType objtype, const char *objname,
                          AttrNumber att_number, const char *colname)
 {
+  DBUG_TRACE;
   AclMode   this_privileges;
   AclMode   whole_mask;
 
@@ -392,6 +395,7 @@ restrict_and_check_grant(bool is_grant, AclMode avail_goptions, bool all_privs,
 void
 ExecuteGrantStmt(GrantStmt *stmt)
 {
+  DBUG_TRACE;
   InternalGrant istmt;
   ListCell   *cell;
   const char *errormsg;
@@ -613,6 +617,8 @@ ExecuteGrantStmt(GrantStmt *stmt)
 static void
 ExecGrantStmt_oids(InternalGrant *istmt)
 {
+  DBUG_TRACE;
+
   switch (istmt->objtype) {
     case OBJECT_TABLE:
     case OBJECT_SEQUENCE:
@@ -699,6 +705,7 @@ ExecGrantStmt_oids(InternalGrant *istmt)
 static List *
 objectNamesToOids(ObjectType objtype, List *objnames, bool is_grant)
 {
+  DBUG_TRACE;
   List     *objects = NIL;
   ListCell   *cell;
   const LOCKMODE lockmode = AccessShareLock;
@@ -810,6 +817,7 @@ objectNamesToOids(ObjectType objtype, List *objnames, bool is_grant)
 static List *
 objectsInSchemaToOids(ObjectType objtype, List *nspnames)
 {
+  DBUG_TRACE;
   List     *objects = NIL;
   ListCell   *cell;
 
@@ -898,6 +906,7 @@ objectsInSchemaToOids(ObjectType objtype, List *nspnames)
 static List *
 getRelationsInNamespace(Oid namespaceId, char relkind)
 {
+  DBUG_TRACE;
   List     *relations = NIL;
   ScanKeyData key[2];
   Relation  rel;
@@ -935,6 +944,7 @@ getRelationsInNamespace(Oid namespaceId, char relkind)
 void
 ExecAlterDefaultPrivilegesStmt(ParseState *pstate, AlterDefaultPrivilegesStmt *stmt)
 {
+  DBUG_TRACE;
   GrantStmt  *action = stmt->action;
   InternalDefaultACL iacls;
   ListCell   *cell;
@@ -1122,6 +1132,8 @@ ExecAlterDefaultPrivilegesStmt(ParseState *pstate, AlterDefaultPrivilegesStmt *s
 static void
 SetDefaultACLsInSchemas(InternalDefaultACL *iacls, List *nspnames)
 {
+  DBUG_TRACE;
+
   if (nspnames == NIL) {
     /* Set database-wide permissions if no schema was specified */
     iacls->nspid = InvalidOid;
@@ -1160,6 +1172,7 @@ SetDefaultACLsInSchemas(InternalDefaultACL *iacls, List *nspnames)
 static void
 SetDefaultACL(InternalDefaultACL *iacls)
 {
+  DBUG_TRACE;
   AclMode   this_privileges = iacls->privileges;
   char    objtype;
   Relation  rel;
@@ -1436,6 +1449,8 @@ SetDefaultACL(InternalDefaultACL *iacls)
 void
 RemoveRoleFromObjectACL(Oid roleid, Oid classid, Oid objid)
 {
+  DBUG_TRACE;
+
   if (classid == DefaultAclRelationId) {
     InternalDefaultACL iacls;
     Form_pg_default_acl pg_default_acl_tuple;
@@ -1590,6 +1605,7 @@ expand_col_privileges(List *colnames, Oid table_oid,
                       AclMode *col_privileges,
                       int num_col_privileges)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   foreach(cell, colnames) {
@@ -1626,6 +1642,7 @@ expand_all_col_privileges(Oid table_oid, Form_pg_class classForm,
                           AclMode *col_privileges,
                           int num_col_privileges)
 {
+  DBUG_TRACE;
   AttrNumber  curr_att;
 
   Assert(classForm->relnatts - FirstLowInvalidHeapAttributeNumber < num_col_privileges);
@@ -1672,6 +1689,7 @@ ExecGrant_Attribute(InternalGrant *istmt, Oid relOid, const char *relname,
                     AttrNumber attnum, Oid ownerId, AclMode col_privileges,
                     Relation attRelation, const Acl *old_rel_acl)
 {
+  DBUG_TRACE;
   HeapTuple attr_tuple;
   Form_pg_attribute pg_attribute_tuple;
   Acl      *old_acl;
@@ -1812,6 +1830,7 @@ ExecGrant_Attribute(InternalGrant *istmt, Oid relOid, const char *relname,
 static void
 ExecGrant_Relation(InternalGrant *istmt)
 {
+  DBUG_TRACE;
   Relation  relation;
   Relation  attRelation;
   ListCell   *cell;
@@ -2130,6 +2149,7 @@ static void
 ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
                  void (*object_check) (InternalGrant *istmt, HeapTuple tuple))
 {
+  DBUG_TRACE;
   int     cacheid;
   Relation  relation;
   ListCell   *cell;
@@ -2263,6 +2283,7 @@ ExecGrant_common(InternalGrant *istmt, Oid classid, AclMode default_privs,
 static void
 ExecGrant_Language_check(InternalGrant *istmt, HeapTuple tuple)
 {
+  DBUG_TRACE;
   Form_pg_language pg_language_tuple;
 
   pg_language_tuple = (Form_pg_language) GETSTRUCT(tuple);
@@ -2279,6 +2300,7 @@ ExecGrant_Language_check(InternalGrant *istmt, HeapTuple tuple)
 static void
 ExecGrant_Largeobject(InternalGrant *istmt)
 {
+  DBUG_TRACE;
   Relation  relation;
   ListCell   *cell;
 
@@ -2413,6 +2435,7 @@ ExecGrant_Largeobject(InternalGrant *istmt)
 static void
 ExecGrant_Type_check(InternalGrant *istmt, HeapTuple tuple)
 {
+  DBUG_TRACE;
   Form_pg_type pg_type_tuple;
 
   pg_type_tuple = (Form_pg_type) GETSTRUCT(tuple);
@@ -2434,6 +2457,7 @@ ExecGrant_Type_check(InternalGrant *istmt, HeapTuple tuple)
 static void
 ExecGrant_Parameter(InternalGrant *istmt)
 {
+  DBUG_TRACE;
   Relation  relation;
   ListCell   *cell;
 
@@ -3258,6 +3282,7 @@ static AclMode
 pg_attribute_aclmask(Oid table_oid, AttrNumber attnum, Oid roleid,
                      AclMode mask, AclMaskHow how)
 {
+  DBUG_TRACE;
   return pg_attribute_aclmask_ext(table_oid, attnum, roleid,
                                   mask, how, NULL);
 }
@@ -3269,6 +3294,7 @@ static AclMode
 pg_attribute_aclmask_ext(Oid table_oid, AttrNumber attnum, Oid roleid,
                          AclMode mask, AclMaskHow how, bool *is_missing)
 {
+  DBUG_TRACE;
   AclMode   result;
   HeapTuple classTuple;
   HeapTuple attTuple;
@@ -3377,6 +3403,7 @@ AclMode
 pg_class_aclmask(Oid table_oid, Oid roleid,
                  AclMode mask, AclMaskHow how)
 {
+  DBUG_TRACE;
   return pg_class_aclmask_ext(table_oid, roleid, mask, how, NULL);
 }
 
@@ -3387,6 +3414,7 @@ static AclMode
 pg_class_aclmask_ext(Oid table_oid, Oid roleid, AclMode mask,
                      AclMaskHow how, bool *is_missing)
 {
+  DBUG_TRACE;
   AclMode   result;
   HeapTuple tuple;
   Form_pg_class classForm;
@@ -3512,6 +3540,7 @@ pg_class_aclmask_ext(Oid table_oid, Oid roleid, AclMode mask,
 static AclMode
 pg_parameter_aclmask(const char *name, Oid roleid, AclMode mask, AclMaskHow how)
 {
+  DBUG_TRACE;
   AclMode   result;
   char     *parname;
   text     *partext;
@@ -3571,6 +3600,7 @@ pg_parameter_aclmask(const char *name, Oid roleid, AclMode mask, AclMaskHow how)
 static AclMode
 pg_parameter_acl_aclmask(Oid acl_oid, Oid roleid, AclMode mask, AclMaskHow how)
 {
+  DBUG_TRACE;
   AclMode   result;
   HeapTuple tuple;
   Datum   aclDatum;
@@ -3631,6 +3661,7 @@ pg_largeobject_aclmask_snapshot(Oid lobj_oid, Oid roleid,
                                 AclMode mask, AclMaskHow how,
                                 Snapshot snapshot)
 {
+  DBUG_TRACE;
   AclMode   result;
   Relation  pg_lo_meta;
   ScanKeyData entry[1];
@@ -3702,6 +3733,7 @@ pg_namespace_aclmask_ext(Oid nsp_oid, Oid roleid,
                          AclMode mask, AclMaskHow how,
                          bool *is_missing)
 {
+  DBUG_TRACE;
   AclMode   result;
   HeapTuple tuple;
   Datum   aclDatum;
@@ -3799,6 +3831,7 @@ static AclMode
 pg_type_aclmask_ext(Oid type_oid, Oid roleid, AclMode mask, AclMaskHow how,
                     bool *is_missing)
 {
+  DBUG_TRACE;
   AclMode   result;
   HeapTuple tuple;
   Form_pg_type typeForm;
@@ -3917,6 +3950,7 @@ pg_type_aclmask_ext(Oid type_oid, Oid roleid, AclMode mask, AclMaskHow how,
 AclResult
 object_aclcheck(Oid classid, Oid objectid, Oid roleid, AclMode mode)
 {
+  DBUG_TRACE;
   return object_aclcheck_ext(classid, objectid, roleid, mode, NULL);
 }
 
@@ -3929,6 +3963,8 @@ object_aclcheck_ext(Oid classid, Oid objectid,
                     Oid roleid, AclMode mode,
                     bool *is_missing)
 {
+  DBUG_TRACE;
+
   if (object_aclmask_ext(classid, objectid, roleid, mode, ACLMASK_ANY,
                          is_missing) != 0)
     return ACLCHECK_OK;
@@ -3950,6 +3986,7 @@ AclResult
 pg_attribute_aclcheck(Oid table_oid, AttrNumber attnum,
                       Oid roleid, AclMode mode)
 {
+  DBUG_TRACE;
   return pg_attribute_aclcheck_ext(table_oid, attnum, roleid, mode, NULL);
 }
 
@@ -3962,6 +3999,8 @@ AclResult
 pg_attribute_aclcheck_ext(Oid table_oid, AttrNumber attnum,
                           Oid roleid, AclMode mode, bool *is_missing)
 {
+  DBUG_TRACE;
+
   if (pg_attribute_aclmask_ext(table_oid, attnum, roleid, mode,
                                ACLMASK_ANY, is_missing) != 0)
     return ACLCHECK_OK;
@@ -3992,6 +4031,7 @@ AclResult
 pg_attribute_aclcheck_all(Oid table_oid, Oid roleid, AclMode mode,
                           AclMaskHow how)
 {
+  DBUG_TRACE;
   return pg_attribute_aclcheck_all_ext(table_oid, roleid, mode, how, NULL);
 }
 
@@ -4004,6 +4044,7 @@ pg_attribute_aclcheck_all_ext(Oid table_oid, Oid roleid,
                               AclMode mode, AclMaskHow how,
                               bool *is_missing)
 {
+  DBUG_TRACE;
   AclResult result;
   HeapTuple classTuple;
   Form_pg_class classForm;
@@ -4115,6 +4156,7 @@ pg_attribute_aclcheck_all_ext(Oid table_oid, Oid roleid,
 AclResult
 pg_class_aclcheck(Oid table_oid, Oid roleid, AclMode mode)
 {
+  DBUG_TRACE;
   return pg_class_aclcheck_ext(table_oid, roleid, mode, NULL);
 }
 
@@ -4126,11 +4168,16 @@ AclResult
 pg_class_aclcheck_ext(Oid table_oid, Oid roleid,
                       AclMode mode, bool *is_missing)
 {
+  DBUG_TRACE;
+
   if (pg_class_aclmask_ext(table_oid, roleid, mode,
-                           ACLMASK_ANY, is_missing) != 0)
+                           ACLMASK_ANY, is_missing) != 0) {
+    DBUG_PRINT("info", "return ACLCHECK_OK");
     return ACLCHECK_OK;
-  else
+  } else {
+    DBUG_PRINT("info", "return ACLCHECK_NO_PRIV");
     return ACLCHECK_NO_PRIV;
+  }
 }
 
 /*
@@ -4140,6 +4187,8 @@ pg_class_aclcheck_ext(Oid table_oid, Oid roleid,
 AclResult
 pg_parameter_aclcheck(const char *name, Oid roleid, AclMode mode)
 {
+  DBUG_TRACE;
+
   if (pg_parameter_aclmask(name, roleid, mode, ACLMASK_ANY) != 0)
     return ACLCHECK_OK;
   else
@@ -4153,6 +4202,8 @@ AclResult
 pg_largeobject_aclcheck_snapshot(Oid lobj_oid, Oid roleid, AclMode mode,
                                  Snapshot snapshot)
 {
+  DBUG_TRACE;
+
   if (pg_largeobject_aclmask_snapshot(lobj_oid, roleid, mode,
                                       ACLMASK_ANY, snapshot) != 0)
     return ACLCHECK_OK;
@@ -4166,6 +4217,7 @@ pg_largeobject_aclcheck_snapshot(Oid lobj_oid, Oid roleid, AclMode mode,
 bool
 object_ownercheck(Oid classid, Oid objectid, Oid roleid)
 {
+  DBUG_TRACE;
   int     cacheid;
   Oid     ownerId;
 
@@ -4245,6 +4297,7 @@ object_ownercheck(Oid classid, Oid objectid, Oid roleid)
 bool
 has_createrole_privilege(Oid roleid)
 {
+  DBUG_TRACE;
   bool    result = false;
   HeapTuple utup;
 
@@ -4265,6 +4318,7 @@ has_createrole_privilege(Oid roleid)
 bool
 has_bypassrls_privilege(Oid roleid)
 {
+  DBUG_TRACE;
   bool    result = false;
   HeapTuple utup;
 
@@ -4290,6 +4344,7 @@ has_bypassrls_privilege(Oid roleid)
 static Acl *
 get_default_acl_internal(Oid roleId, Oid nsp_oid, char objtype)
 {
+  DBUG_TRACE;
   Acl      *result = NULL;
   HeapTuple tuple;
 
@@ -4326,6 +4381,7 @@ get_default_acl_internal(Oid roleId, Oid nsp_oid, char objtype)
 Acl *
 get_user_default_acl(ObjectType objtype, Oid ownerId, Oid nsp_oid)
 {
+  DBUG_TRACE;
   Acl      *result;
   Acl      *glob_acl;
   Acl      *schema_acl;
@@ -4407,6 +4463,7 @@ void
 recordDependencyOnNewAcl(Oid classId, Oid objectId, int32 objsubId,
                          Oid ownerId, Acl *acl)
 {
+  DBUG_TRACE;
   int     nmembers;
   Oid      *members;
 
@@ -4433,6 +4490,8 @@ recordDependencyOnNewAcl(Oid classId, Oid objectId, int32 objsubId,
 void
 recordExtObjInitPriv(Oid objoid, Oid classoid)
 {
+  DBUG_TRACE;
+
   /*
    * pg_class / pg_attribute
    *
@@ -4592,6 +4651,8 @@ recordExtObjInitPriv(Oid objoid, Oid classoid)
 void
 removeExtObjInitPriv(Oid objoid, Oid classoid)
 {
+  DBUG_TRACE;
+
   /*
    * If this is a relation then we need to see if there are any sub-objects
    * (eg: columns) for it and, if so, be sure to call
@@ -4673,6 +4734,8 @@ removeExtObjInitPriv(Oid objoid, Oid classoid)
 static void
 recordExtensionInitPriv(Oid objoid, Oid classoid, int objsubid, Acl *new_acl)
 {
+  DBUG_TRACE;
+
   /*
    * Generally, we only record the initial privileges when an extension is
    * being created, but because we don't actually use CREATE EXTENSION
@@ -4703,6 +4766,7 @@ static void
 recordExtensionInitPrivWorker(Oid objoid, Oid classoid, int objsubid,
                               Acl *new_acl)
 {
+  DBUG_TRACE;
   Relation  relation;
   ScanKeyData key[3];
   SysScanDesc scan;
@@ -4824,6 +4888,7 @@ void
 ReplaceRoleInInitPriv(Oid oldroleid, Oid newroleid,
                       Oid classid, Oid objid, int32 objsubid)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData key[3];
   SysScanDesc scan;
@@ -4928,6 +4993,7 @@ ReplaceRoleInInitPriv(Oid oldroleid, Oid newroleid,
 void
 RemoveRoleFromInitPriv(Oid roleid, Oid classid, Oid objid, int32 objsubid)
 {
+  DBUG_TRACE;
   Relation  rel;
   ScanKeyData key[3];
   SysScanDesc scan;

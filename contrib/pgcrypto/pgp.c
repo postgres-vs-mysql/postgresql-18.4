@@ -33,6 +33,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 /*
  * Defaults.
@@ -90,6 +91,7 @@ static const struct cipher_info cipher_list[] = {
 static const struct cipher_info *
 get_cipher_info(int code)
 {
+  DBUG_TRACE;
   const struct cipher_info *i;
 
   for (i = cipher_list; i->name; i++)
@@ -102,6 +104,7 @@ get_cipher_info(int code)
 int
 pgp_get_digest_code(const char *name)
 {
+  DBUG_TRACE;
   const struct digest_info *i;
 
   for (i = digest_list; i->name; i++)
@@ -114,6 +117,7 @@ pgp_get_digest_code(const char *name)
 int
 pgp_get_cipher_code(const char *name)
 {
+  DBUG_TRACE;
   const struct cipher_info *i;
 
   for (i = cipher_list; i->name; i++)
@@ -126,6 +130,7 @@ pgp_get_cipher_code(const char *name)
 const char *
 pgp_get_digest_name(int code)
 {
+  DBUG_TRACE;
   const struct digest_info *i;
 
   for (i = digest_list; i->name; i++)
@@ -160,6 +165,7 @@ pgp_get_cipher_block_size(int code)
 int
 pgp_load_cipher(int code, PX_Cipher **res)
 {
+  DBUG_TRACE;
   int     err;
   const struct cipher_info *i = get_cipher_info(code);
 
@@ -177,6 +183,7 @@ pgp_load_cipher(int code, PX_Cipher **res)
 int
 pgp_load_digest(int code, PX_MD **res)
 {
+  DBUG_TRACE;
   int     err;
   const char *name = pgp_get_digest_name(code);
 
@@ -194,6 +201,7 @@ pgp_load_digest(int code, PX_MD **res)
 int
 pgp_init(PGP_Context **ctx_p)
 {
+  DBUG_TRACE;
   PGP_Context *ctx;
 
   ctx = palloc0(sizeof * ctx);
@@ -218,6 +226,8 @@ pgp_init(PGP_Context **ctx_p)
 int
 pgp_free(PGP_Context *ctx)
 {
+  DBUG_TRACE;
+
   if (ctx->pub_key)
     pgp_key_free(ctx->pub_key);
 
@@ -229,6 +239,7 @@ pgp_free(PGP_Context *ctx)
 int
 pgp_disable_mdc(PGP_Context *ctx, int disable)
 {
+  DBUG_TRACE;
   ctx->disable_mdc = disable ? 1 : 0;
   return 0;
 }
@@ -236,6 +247,7 @@ pgp_disable_mdc(PGP_Context *ctx, int disable)
 int
 pgp_set_sess_key(PGP_Context *ctx, int use)
 {
+  DBUG_TRACE;
   ctx->use_sess_key = use ? 1 : 0;
   return 0;
 }
@@ -243,6 +255,7 @@ pgp_set_sess_key(PGP_Context *ctx, int use)
 int
 pgp_set_convert_crlf(PGP_Context *ctx, int doit)
 {
+  DBUG_TRACE;
   ctx->convert_crlf = doit ? 1 : 0;
   return 0;
 }
@@ -250,6 +263,7 @@ pgp_set_convert_crlf(PGP_Context *ctx, int doit)
 int
 pgp_set_s2k_mode(PGP_Context *ctx, int mode)
 {
+  DBUG_TRACE;
   int     err = PXE_OK;
 
   switch (mode) {
@@ -270,6 +284,8 @@ pgp_set_s2k_mode(PGP_Context *ctx, int mode)
 int
 pgp_set_s2k_count(PGP_Context *ctx, int count)
 {
+  DBUG_TRACE;
+
   if (ctx->s2k_mode == PGP_S2K_ISALTED && count >= 1024 && count <= 65011712) {
     ctx->s2k_count = count;
     return PXE_OK;
@@ -281,6 +297,8 @@ pgp_set_s2k_count(PGP_Context *ctx, int count)
 int
 pgp_set_compress_algo(PGP_Context *ctx, int algo)
 {
+  DBUG_TRACE;
+
   switch (algo) {
     case PGP_COMPR_NONE:
     case PGP_COMPR_ZIP:
@@ -296,6 +314,8 @@ pgp_set_compress_algo(PGP_Context *ctx, int algo)
 int
 pgp_set_compress_level(PGP_Context *ctx, int level)
 {
+  DBUG_TRACE;
+
   if (level >= 0 && level <= 9) {
     ctx->compress_level = level;
     return 0;
@@ -307,6 +327,7 @@ pgp_set_compress_level(PGP_Context *ctx, int level)
 int
 pgp_set_text_mode(PGP_Context *ctx, int mode)
 {
+  DBUG_TRACE;
   ctx->text_mode = mode;
   return 0;
 }
@@ -314,6 +335,7 @@ pgp_set_text_mode(PGP_Context *ctx, int mode)
 int
 pgp_set_cipher_algo(PGP_Context *ctx, const char *name)
 {
+  DBUG_TRACE;
   int     code = pgp_get_cipher_code(name);
 
   if (code < 0)
@@ -326,6 +348,7 @@ pgp_set_cipher_algo(PGP_Context *ctx, const char *name)
 int
 pgp_set_s2k_cipher_algo(PGP_Context *ctx, const char *name)
 {
+  DBUG_TRACE;
   int     code = pgp_get_cipher_code(name);
 
   if (code < 0)
@@ -338,6 +361,7 @@ pgp_set_s2k_cipher_algo(PGP_Context *ctx, const char *name)
 int
 pgp_set_s2k_digest_algo(PGP_Context *ctx, const char *name)
 {
+  DBUG_TRACE;
   int     code = pgp_get_digest_code(name);
 
   if (code < 0)
@@ -350,12 +374,14 @@ pgp_set_s2k_digest_algo(PGP_Context *ctx, const char *name)
 int
 pgp_get_unicode_mode(PGP_Context *ctx)
 {
+  DBUG_TRACE;
   return ctx->unicode_mode;
 }
 
 int
 pgp_set_unicode_mode(PGP_Context *ctx, int mode)
 {
+  DBUG_TRACE;
   ctx->unicode_mode = mode ? 1 : 0;
   return 0;
 }
@@ -363,6 +389,8 @@ pgp_set_unicode_mode(PGP_Context *ctx, int mode)
 int
 pgp_set_symkey(PGP_Context *ctx, const uint8 *key, int len)
 {
+  DBUG_TRACE;
+
   if (key == NULL || len < 1)
     return PXE_ARGUMENT_ERROR;
 

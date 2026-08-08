@@ -31,6 +31,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/tupmacs.h"
 #include "common/hashfn.h"
@@ -114,6 +115,7 @@ static int32 multirange_canonicalize(TypeCacheEntry *rangetyp,
 Datum
 multirange_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *input_str = PG_GETARG_CSTRING(0);
   Oid     mltrngtypoid = PG_GETARG_OID(1);
   Oid     typmod = PG_GETARG_INT32(2);
@@ -135,6 +137,8 @@ multirange_in(PG_FUNCTION_ARGS)
 
   cache = get_multirange_io_data(fcinfo, mltrngtypoid, IOFunc_input);
   rangetyp = cache->typcache->rngtype;
+
+  DBUG_PRINT("info", "convert string('%s') to multirange", input_str);
 
   /* consume whitespace */
   while (*ptr != '\0' && isspace((unsigned char) *ptr))
@@ -300,6 +304,7 @@ multirange_in(PG_FUNCTION_ARGS)
 Datum
 multirange_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *multirange = PG_GETARG_MULTIRANGE_P(0);
   Oid     mltrngtypoid = MultirangeTypeGetOid(multirange);
   MultirangeIOData *cache;
@@ -339,6 +344,7 @@ multirange_out(PG_FUNCTION_ARGS)
 Datum
 multirange_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   Oid     mltrngtypoid = PG_GETARG_OID(1);
   int32   typmod = PG_GETARG_INT32(2);
@@ -381,6 +387,7 @@ multirange_recv(PG_FUNCTION_ARGS)
 Datum
 multirange_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *multirange = PG_GETARG_MULTIRANGE_P(0);
   Oid     mltrngtypoid = MultirangeTypeGetOid(multirange);
   StringInfo  buf = makeStringInfo();
@@ -420,6 +427,7 @@ multirange_send(PG_FUNCTION_ARGS)
 static MultirangeIOData *
 get_multirange_io_data(FunctionCallInfo fcinfo, Oid mltrngtypid, IOFuncSelector func)
 {
+  DBUG_TRACE;
   MultirangeIOData *cache = (MultirangeIOData *) fcinfo->flinfo->fn_extra;
 
   if (cache == NULL || cache->typcache->type_id != mltrngtypid) {
@@ -482,6 +490,7 @@ static int32
 multirange_canonicalize(TypeCacheEntry *rangetyp, int32 input_range_count,
                         RangeType **ranges)
 {
+  DBUG_TRACE;
   RangeType  *lastRange = NULL;
   RangeType  *currentRange;
   int32   i;
@@ -547,6 +556,7 @@ multirange_canonicalize(TypeCacheEntry *rangetyp, int32 input_range_count,
 TypeCacheEntry *
 multirange_get_typcache(FunctionCallInfo fcinfo, Oid mltrngtypid)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typcache = (TypeCacheEntry *) fcinfo->flinfo->fn_extra;
 
   if (typcache == NULL ||
@@ -570,6 +580,7 @@ static Size
 multirange_size_estimate(TypeCacheEntry *rangetyp, int32 range_count,
                          RangeType **ranges)
 {
+  DBUG_TRACE;
   char    elemalign = rangetyp->rngelemtype->typalign;
   Size    size;
   int32   i;
@@ -587,6 +598,7 @@ multirange_size_estimate(TypeCacheEntry *rangetyp, int32 range_count,
                               sizeof(RangeType) -
                               sizeof(char), elemalign);
 
+  DBUG_PRINT("info", "eEstimate size occupied by serialized multirange:%lu", size);
   return size;
 }
 
@@ -597,6 +609,7 @@ static void
 write_multirange_data(MultirangeType *multirange, TypeCacheEntry *rangetyp,
                       int32 range_count, RangeType **ranges)
 {
+  DBUG_TRACE;
   uint32     *items;
   uint32    prev_offset = 0;
   uint8    *flags;
@@ -649,6 +662,7 @@ MultirangeType *
 make_multirange(Oid mltrngtypoid, TypeCacheEntry *rangetyp, int32 range_count,
                 RangeType **ranges)
 {
+  DBUG_TRACE;
   MultirangeType *multirange;
   Size    size;
 
@@ -675,6 +689,7 @@ make_multirange(Oid mltrngtypoid, TypeCacheEntry *rangetyp, int32 range_count,
 static uint32
 multirange_get_bounds_offset(const MultirangeType *multirange, int32 i)
 {
+  DBUG_TRACE;
   uint32     *items = MultirangeGetItemsPtr(multirange);
   uint32    offset = 0;
 
@@ -700,6 +715,7 @@ RangeType *
 multirange_get_range(TypeCacheEntry *rangetyp,
                      const MultirangeType *multirange, int i)
 {
+  DBUG_TRACE;
   uint32    offset;
   uint8   flags;
   Pointer   begin,
@@ -751,6 +767,7 @@ multirange_get_bounds(TypeCacheEntry *rangetyp,
                       const MultirangeType *multirange,
                       uint32 i, RangeBound *lower, RangeBound *upper)
 {
+  DBUG_TRACE;
   uint32    offset;
   uint8   flags;
   Pointer   ptr;
@@ -804,6 +821,7 @@ RangeType *
 multirange_get_union_range(TypeCacheEntry *rangetyp,
                            const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower,
               upper,
               tmp;
@@ -859,14 +877,21 @@ range_bounds_overlaps(TypeCacheEntry *typcache,
                       RangeBound *lower1, RangeBound *upper1,
                       RangeBound *lower2, RangeBound *upper2)
 {
+  DBUG_TRACE;
+
   if (range_cmp_bounds(typcache, lower1, lower2) >= 0 &&
-      range_cmp_bounds(typcache, lower1, upper2) <= 0)
+      range_cmp_bounds(typcache, lower1, upper2) <= 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   if (range_cmp_bounds(typcache, lower2, lower1) >= 0 &&
-      range_cmp_bounds(typcache, lower2, upper1) <= 0)
+      range_cmp_bounds(typcache, lower2, upper1) <= 0) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -879,10 +904,15 @@ range_bounds_contains(TypeCacheEntry *typcache,
                       RangeBound *lower1, RangeBound *upper1,
                       RangeBound *lower2, RangeBound *upper2)
 {
-  if (range_cmp_bounds(typcache, lower1, lower2) <= 0 &&
-      range_cmp_bounds(typcache, upper1, upper2) >= 0)
-    return true;
+  DBUG_TRACE;
 
+  if (range_cmp_bounds(typcache, lower1, lower2) <= 0 &&
+      range_cmp_bounds(typcache, upper1, upper2) >= 0) {
+    DBUG_PRINT("info", "return true");
+    return true;
+  }
+
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -898,6 +928,7 @@ static bool
 multirange_bsearch_match(TypeCacheEntry *typcache, const MultirangeType *mr,
                          void *key, multirange_bsearch_comparison cmp_func)
 {
+  DBUG_TRACE;
   uint32    l,
             u,
             idx;
@@ -919,10 +950,18 @@ multirange_bsearch_match(TypeCacheEntry *typcache, const MultirangeType *mr,
       u = idx;
     else if (comparison > 0)
       l = idx + 1;
-    else
+    else {
+      if (match == true) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
       return match;
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -940,6 +979,7 @@ multirange_bsearch_match(TypeCacheEntry *typcache, const MultirangeType *mr,
 Datum
 multirange_constructor2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     mltrngtypid = get_fn_expr_rettype(fcinfo->flinfo);
   Oid     rngtypid;
   TypeCacheEntry *typcache;
@@ -1021,6 +1061,7 @@ multirange_constructor2(PG_FUNCTION_ARGS)
 Datum
 multirange_constructor1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     mltrngtypid = get_fn_expr_rettype(fcinfo->flinfo);
   Oid     rngtypid;
   TypeCacheEntry *typcache;
@@ -1058,6 +1099,7 @@ multirange_constructor1(PG_FUNCTION_ARGS)
 Datum
 multirange_constructor0(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     mltrngtypid;
   TypeCacheEntry *typcache;
   TypeCacheEntry *rangetyp;
@@ -1081,6 +1123,7 @@ multirange_constructor0(PG_FUNCTION_ARGS)
 Datum
 multirange_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1114,6 +1157,7 @@ multirange_union(PG_FUNCTION_ARGS)
 Datum
 multirange_minus(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   Oid     mltrngtypoid = MultirangeTypeGetOid(mr1);
@@ -1146,6 +1190,7 @@ multirange_minus_internal(Oid mltrngtypoid, TypeCacheEntry *rangetyp,
                           int32 range_count1, RangeType **ranges1,
                           int32 range_count2, RangeType **ranges2)
 {
+  DBUG_TRACE;
   RangeType  *r1;
   RangeType  *r2;
   RangeType **ranges3;
@@ -1223,6 +1268,7 @@ multirange_minus_internal(Oid mltrngtypoid, TypeCacheEntry *rangetyp,
 Datum
 multirange_intersect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   Oid     mltrngtypoid = MultirangeTypeGetOid(mr1);
@@ -1255,6 +1301,7 @@ multirange_intersect_internal(Oid mltrngtypoid, TypeCacheEntry *rangetyp,
                               int32 range_count1, RangeType **ranges1,
                               int32 range_count2, RangeType **ranges2)
 {
+  DBUG_TRACE;
   RangeType  *r1;
   RangeType  *r2;
   RangeType **ranges3;
@@ -1329,6 +1376,7 @@ multirange_intersect_internal(Oid mltrngtypoid, TypeCacheEntry *rangetyp,
 Datum
 range_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MemoryContext aggContext;
   Oid     rngtypoid;
   ArrayBuildState *state;
@@ -1362,6 +1410,7 @@ range_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 range_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MemoryContext aggContext;
   Oid     mltrngtypoid;
   TypeCacheEntry *typcache;
@@ -1405,6 +1454,7 @@ range_agg_finalfn(PG_FUNCTION_ARGS)
 Datum
 multirange_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MemoryContext aggContext;
   Oid     mltrngtypoid;
   TypeCacheEntry *typcache;
@@ -1456,6 +1506,7 @@ multirange_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 multirange_intersect_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MemoryContext aggContext;
   Oid     mltrngtypoid;
   TypeCacheEntry *typcache;
@@ -1499,6 +1550,7 @@ multirange_intersect_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 multirange_lower(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1522,6 +1574,7 @@ multirange_lower(PG_FUNCTION_ARGS)
 Datum
 multirange_upper(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1548,6 +1601,7 @@ multirange_upper(PG_FUNCTION_ARGS)
 Datum
 multirange_empty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
 
   PG_RETURN_BOOL(MultirangeIsEmpty(mr));
@@ -1557,6 +1611,7 @@ multirange_empty(PG_FUNCTION_ARGS)
 Datum
 multirange_lower_inc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1576,6 +1631,7 @@ multirange_lower_inc(PG_FUNCTION_ARGS)
 Datum
 multirange_upper_inc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1595,6 +1651,7 @@ multirange_upper_inc(PG_FUNCTION_ARGS)
 Datum
 multirange_lower_inf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1614,6 +1671,7 @@ multirange_lower_inf(PG_FUNCTION_ARGS)
 Datum
 multirange_upper_inf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   TypeCacheEntry *typcache;
   RangeBound  lower;
@@ -1637,6 +1695,7 @@ multirange_upper_inf(PG_FUNCTION_ARGS)
 Datum
 multirange_contains_elem(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   Datum   val = PG_GETARG_DATUM(1);
   TypeCacheEntry *typcache;
@@ -1650,6 +1709,7 @@ multirange_contains_elem(PG_FUNCTION_ARGS)
 Datum
 elem_contained_by_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   val = PG_GETARG_DATUM(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1668,6 +1728,7 @@ multirange_elem_bsearch_comparison(TypeCacheEntry *typcache,
                                    RangeBound *lower, RangeBound *upper,
                                    void *key, bool *match)
 {
+  DBUG_TRACE;
   Datum   val = *((Datum *) key);
   int     cmp;
 
@@ -1700,6 +1761,8 @@ bool
 multirange_contains_elem_internal(TypeCacheEntry *rangetyp,
                                   const MultirangeType *mr, Datum val)
 {
+  DBUG_TRACE;
+
   if (MultirangeIsEmpty(mr))
     return false;
 
@@ -1713,6 +1776,7 @@ multirange_contains_elem_internal(TypeCacheEntry *rangetyp,
 Datum
 multirange_contains_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1725,6 +1789,7 @@ multirange_contains_range(PG_FUNCTION_ARGS)
 Datum
 range_contains_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1738,6 +1803,7 @@ range_contains_multirange(PG_FUNCTION_ARGS)
 Datum
 range_contained_by_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1750,6 +1816,7 @@ range_contained_by_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_contained_by_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1796,6 +1863,7 @@ multirange_contains_range_internal(TypeCacheEntry *rangetyp,
                                    const MultirangeType *mr,
                                    const RangeType *r)
 {
+  DBUG_TRACE;
   RangeBound  bounds[2];
   bool    empty;
 
@@ -1824,6 +1892,7 @@ range_contains_multirange_internal(TypeCacheEntry *rangetyp,
                                    const RangeType *r,
                                    const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -1859,6 +1928,7 @@ multirange_eq_internal(TypeCacheEntry *rangetyp,
                        const MultirangeType *mr1,
                        const MultirangeType *mr2)
 {
+  DBUG_TRACE;
   int32   range_count_1;
   int32   range_count_2;
   int32   i;
@@ -1893,6 +1963,7 @@ multirange_eq_internal(TypeCacheEntry *rangetyp,
 Datum
 multirange_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1908,6 +1979,7 @@ multirange_ne_internal(TypeCacheEntry *rangetyp,
                        const MultirangeType *mr1,
                        const MultirangeType *mr2)
 {
+  DBUG_TRACE;
   return (!multirange_eq_internal(rangetyp, mr1, mr2));
 }
 
@@ -1915,6 +1987,7 @@ multirange_ne_internal(TypeCacheEntry *rangetyp,
 Datum
 multirange_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1928,6 +2001,7 @@ multirange_ne(PG_FUNCTION_ARGS)
 Datum
 range_overlaps_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1940,6 +2014,7 @@ range_overlaps_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_overlaps_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1952,6 +2027,7 @@ multirange_overlaps_range(PG_FUNCTION_ARGS)
 Datum
 multirange_overlaps_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -1988,6 +2064,7 @@ range_overlaps_multirange_internal(TypeCacheEntry *rangetyp,
                                    const RangeType *r,
                                    const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  bounds[2];
   bool    empty;
 
@@ -2010,6 +2087,7 @@ multirange_overlaps_multirange_internal(TypeCacheEntry *rangetyp,
                                         const MultirangeType *mr1,
                                         const MultirangeType *mr2)
 {
+  DBUG_TRACE;
   int32   range_count1;
   int32   range_count2;
   int32   i1;
@@ -2068,6 +2146,7 @@ range_overleft_multirange_internal(TypeCacheEntry *rangetyp,
                                    const RangeType *r,
                                    const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2089,6 +2168,7 @@ range_overleft_multirange_internal(TypeCacheEntry *rangetyp,
 Datum
 range_overleft_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2101,6 +2181,7 @@ range_overleft_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_overleft_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2126,6 +2207,7 @@ multirange_overleft_range(PG_FUNCTION_ARGS)
 Datum
 multirange_overleft_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2153,6 +2235,7 @@ range_overright_multirange_internal(TypeCacheEntry *rangetyp,
                                     const RangeType *r,
                                     const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2172,6 +2255,7 @@ range_overright_multirange_internal(TypeCacheEntry *rangetyp,
 Datum
 range_overright_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2184,6 +2268,7 @@ range_overright_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_overright_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2208,6 +2293,7 @@ multirange_overright_range(PG_FUNCTION_ARGS)
 Datum
 multirange_overright_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2231,6 +2317,7 @@ multirange_overright_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_contains_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2244,6 +2331,7 @@ multirange_contains_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_contained_by_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2261,6 +2349,7 @@ multirange_contains_multirange_internal(TypeCacheEntry *rangetyp,
                                         const MultirangeType *mr1,
                                         const MultirangeType *mr2)
 {
+  DBUG_TRACE;
   int32   range_count1 = mr1->rangeCount;
   int32   range_count2 = mr2->rangeCount;
   int     i1,
@@ -2322,6 +2411,7 @@ multirange_contains_multirange_internal(TypeCacheEntry *rangetyp,
 Datum
 range_before_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2334,6 +2424,7 @@ range_before_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_before_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2346,6 +2437,7 @@ multirange_before_range(PG_FUNCTION_ARGS)
 Datum
 multirange_before_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2359,6 +2451,7 @@ multirange_before_multirange(PG_FUNCTION_ARGS)
 Datum
 range_after_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2371,6 +2464,7 @@ range_after_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_after_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2383,6 +2477,7 @@ multirange_after_range(PG_FUNCTION_ARGS)
 Datum
 multirange_after_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2398,6 +2493,7 @@ range_before_multirange_internal(TypeCacheEntry *rangetyp,
                                  const RangeType *r,
                                  const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2420,6 +2516,7 @@ multirange_before_multirange_internal(TypeCacheEntry *rangetyp,
                                       const MultirangeType *mr1,
                                       const MultirangeType *mr2)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2442,6 +2539,7 @@ range_after_multirange_internal(TypeCacheEntry *rangetyp,
                                 const RangeType *r,
                                 const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2467,6 +2565,7 @@ range_adjacent_multirange_internal(TypeCacheEntry *rangetyp,
                                    const RangeType *r,
                                    const MultirangeType *mr)
 {
+  DBUG_TRACE;
   RangeBound  lower1,
               upper1,
               lower2,
@@ -2501,6 +2600,7 @@ range_adjacent_multirange_internal(TypeCacheEntry *rangetyp,
 Datum
 range_adjacent_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   RangeType  *r = PG_GETARG_RANGE_P(0);
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2513,6 +2613,7 @@ range_adjacent_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_adjacent_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   RangeType  *r = PG_GETARG_RANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2528,6 +2629,7 @@ multirange_adjacent_range(PG_FUNCTION_ARGS)
 Datum
 multirange_adjacent_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   TypeCacheEntry *typcache;
@@ -2573,6 +2675,7 @@ multirange_adjacent_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr1 = PG_GETARG_MULTIRANGE_P(0);
   MultirangeType *mr2 = PG_GETARG_MULTIRANGE_P(1);
   int32   range_count_1;
@@ -2639,6 +2742,7 @@ multirange_cmp(PG_FUNCTION_ARGS)
 Datum
 multirange_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = multirange_cmp(fcinfo);
 
   PG_RETURN_BOOL(cmp < 0);
@@ -2647,6 +2751,7 @@ multirange_lt(PG_FUNCTION_ARGS)
 Datum
 multirange_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = multirange_cmp(fcinfo);
 
   PG_RETURN_BOOL(cmp <= 0);
@@ -2655,6 +2760,7 @@ multirange_le(PG_FUNCTION_ARGS)
 Datum
 multirange_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = multirange_cmp(fcinfo);
 
   PG_RETURN_BOOL(cmp >= 0);
@@ -2663,6 +2769,7 @@ multirange_ge(PG_FUNCTION_ARGS)
 Datum
 multirange_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     cmp = multirange_cmp(fcinfo);
 
   PG_RETURN_BOOL(cmp > 0);
@@ -2674,6 +2781,7 @@ multirange_gt(PG_FUNCTION_ARGS)
 Datum
 range_merge_from_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   Oid     mltrngtypoid = MultirangeTypeGetOid(mr);
   TypeCacheEntry *typcache;
@@ -2707,6 +2815,7 @@ range_merge_from_multirange(PG_FUNCTION_ARGS)
 Datum
 multirange_unnest(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   typedef struct {
     MultirangeType *mr;
     TypeCacheEntry *typcache;
@@ -2776,6 +2885,7 @@ multirange_unnest(PG_FUNCTION_ARGS)
 Datum
 hash_multirange(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   uint32    result = 1;
   TypeCacheEntry *typcache,
@@ -2848,6 +2958,7 @@ hash_multirange(PG_FUNCTION_ARGS)
 Datum
 hash_multirange_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   MultirangeType *mr = PG_GETARG_MULTIRANGE_P(0);
   Datum   seed = PG_GETARG_DATUM(1);
   uint64    result = 1;

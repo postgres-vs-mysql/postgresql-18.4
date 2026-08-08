@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execExpr.h"
 #include "hstore.h"
@@ -45,6 +46,7 @@ hstore_subscript_transform(SubscriptingRef *sbsref,
                            bool isSlice,
                            bool isAssignment)
 {
+  DBUG_TRACE;
   A_Indices  *ai;
   Node     *subexpr;
 
@@ -96,6 +98,7 @@ hstore_subscript_fetch(ExprState *state,
                        ExprEvalStep *op,
                        ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
   HStore     *hs;
   text     *key;
@@ -143,6 +146,7 @@ hstore_subscript_assign(ExprState *state,
                         ExprEvalStep *op,
                         ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
   text     *key;
   Pairs   p;
@@ -175,6 +179,7 @@ hstore_subscript_assign(ExprState *state,
 
   if (*op->resnull) {
     /* Just build a one-element hstore (cf. hstore_from_text) */
+    DBUG_PRINT("hstore", "just build a one-element hstore (cf. hstore_from_text)");
     out = hstorePairs(&p, 1, p.keylen + p.vallen);
   } else {
     /*
@@ -193,6 +198,7 @@ hstore_subscript_assign(ExprState *state,
     int     s1idx;
     int     s2idx;
 
+    DBUG_PRINT("hstore", "otherwise, merge the new key into the hstore");
     /* Allocate result without considering possibility of duplicate */
     vsize = CALCDATASIZE(s1count + 1, VARSIZE(hs) + p.keylen + p.vallen);
     out = palloc(vsize);
@@ -239,6 +245,7 @@ hstore_subscript_assign(ExprState *state,
       }
     }
 
+    DBUG_PRINT("hstore", "finalize a newly-constructed hstore(outcount:%d)", outcount);
     HS_FINALIZE(out, outcount, bufd, pd);
   }
 
@@ -254,6 +261,7 @@ hstore_exec_setup(const SubscriptingRef *sbsref,
                   SubscriptingRefState *sbsrefstate,
                   SubscriptExecSteps *methods)
 {
+  DBUG_TRACE;
   /* Assert we are dealing with one subscript */
   Assert(sbsrefstate->numlower == 0);
   Assert(sbsrefstate->numupper == 1);
@@ -274,6 +282,7 @@ PG_FUNCTION_INFO_V1(hstore_subscript_handler);
 Datum
 hstore_subscript_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   static const SubscriptRoutines sbsroutines = {
     .transform = hstore_subscript_transform,
     .exec_setup = hstore_exec_setup,

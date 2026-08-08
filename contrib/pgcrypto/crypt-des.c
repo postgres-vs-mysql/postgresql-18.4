@@ -65,6 +65,7 @@
 #include "port/pg_bswap.h"
 
 #include "px-crypt.h"
+#include "debug_trace.h"
 
 #define _PASSWORD_EFMT1 '_'
 
@@ -225,6 +226,7 @@ ascii_to_bin(char ch)
 static void
 des_init(void)
 {
+  DBUG_TRACE;
   int     i,
           j,
           b,
@@ -375,6 +377,7 @@ des_init(void)
 static void
 setup_salt(long salt)
 {
+  DBUG_TRACE;
   uint32    obit,
             saltbit;
   int     i;
@@ -400,6 +403,7 @@ setup_salt(long salt)
 static int
 des_setkey(const char *key)
 {
+  DBUG_TRACE;
   uint32    k0,
             k1,
             rawkey0,
@@ -488,6 +492,7 @@ des_setkey(const char *key)
 static int
 do_des(uint32 l_in, uint32 r_in, uint32 *l_out, uint32 *r_out, int count)
 {
+  DBUG_TRACE;
   /*
    * l_in, r_in, l_out, and r_out are in pseudo-"big-endian" format.
    */
@@ -619,6 +624,7 @@ do_des(uint32 l_in, uint32 r_in, uint32 *l_out, uint32 *r_out, int count)
 static int
 des_cipher(const char *in, char *out, long salt, int count)
 {
+  DBUG_TRACE;
   uint32    buffer[2];
   uint32    l_out,
             r_out,
@@ -654,6 +660,7 @@ des_cipher(const char *in, char *out, long salt, int count)
 char *
 px_crypt_des(const char *key, const char *setting)
 {
+  DBUG_TRACE;
   int     i;
   uint32    count,
             salt,

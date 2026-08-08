@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/xlog_internal.h"
@@ -63,6 +64,7 @@ create_physical_replication_slot(char *name, bool immediately_reserve,
 Datum
 pg_create_physical_replication_slot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
   bool    immediately_reserve = PG_GETARG_BOOL(1);
   bool    temporary = PG_GETARG_BOOL(2);
@@ -165,6 +167,7 @@ create_logical_replication_slot(char *name, char *plugin,
 Datum
 pg_create_logical_replication_slot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
   Name    plugin = PG_GETARG_NAME(1);
   bool    temporary = PG_GETARG_BOOL(2);
@@ -215,6 +218,7 @@ pg_create_logical_replication_slot(PG_FUNCTION_ARGS)
 Datum
 pg_drop_replication_slot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
 
   CheckSlotPermissions();
@@ -233,6 +237,7 @@ pg_drop_replication_slot(PG_FUNCTION_ARGS)
 Datum
 pg_get_replication_slots(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_GET_REPLICATION_SLOTS_COLS 20
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   XLogRecPtr  currlsn;
@@ -503,6 +508,7 @@ pg_logical_replication_slot_advance(XLogRecPtr moveto)
 Datum
 pg_replication_slot_advance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    slotname = PG_GETARG_NAME(0);
   XLogRecPtr  moveto = PG_GETARG_LSN(1);
   XLogRecPtr  endlsn;
@@ -597,6 +603,7 @@ pg_replication_slot_advance(PG_FUNCTION_ARGS)
 static Datum
 copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 {
+  DBUG_TRACE;
   Name    src_name = PG_GETARG_NAME(0);
   Name    dst_name = PG_GETARG_NAME(1);
   ReplicationSlot *src = NULL;
@@ -849,30 +856,35 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 Datum
 pg_copy_logical_replication_slot_a(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return copy_replication_slot(fcinfo, true);
 }
 
 Datum
 pg_copy_logical_replication_slot_b(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return copy_replication_slot(fcinfo, true);
 }
 
 Datum
 pg_copy_logical_replication_slot_c(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return copy_replication_slot(fcinfo, true);
 }
 
 Datum
 pg_copy_physical_replication_slot_a(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return copy_replication_slot(fcinfo, false);
 }
 
 Datum
 pg_copy_physical_replication_slot_b(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return copy_replication_slot(fcinfo, false);
 }
 
@@ -883,6 +895,7 @@ pg_copy_physical_replication_slot_b(PG_FUNCTION_ARGS)
 Datum
 pg_sync_replication_slots(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   WalReceiverConn *wrconn;
   char     *err;
   StringInfoData app_name;

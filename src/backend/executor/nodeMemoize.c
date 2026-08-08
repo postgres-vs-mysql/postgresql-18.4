@@ -65,6 +65,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/hashfn.h"
 #include "executor/executor.h"
@@ -154,6 +155,7 @@ static bool MemoizeHash_equal(struct memoize_hash *tb,
 static uint32
 MemoizeHash_hash(struct memoize_hash *tb, const MemoizeKey *key)
 {
+  DBUG_TRACE;
   MemoizeState *mstate = (MemoizeState *) tb->private_data;
   ExprContext *econtext = mstate->ss.ps.ps_ExprContext;
   MemoryContext oldcontext;
@@ -267,6 +269,7 @@ MemoizeHash_equal(struct memoize_hash *tb, const MemoizeKey *key1,
 static void
 build_hash_table(MemoizeState *mstate, uint32 size)
 {
+  DBUG_TRACE;
   Assert(mstate->hashtable == NULL);
 
   /* Make a guess at a good size when we're not given a valid size. */
@@ -286,6 +289,7 @@ build_hash_table(MemoizeState *mstate, uint32 size)
 static inline void
 prepare_probe_slot(MemoizeState *mstate, MemoizeKey *key)
 {
+  DBUG_TRACE;
   TupleTableSlot *pslot = mstate->probeslot;
   TupleTableSlot *tslot = mstate->tableslot;
   int     numKeys = mstate->nkeys;
@@ -325,6 +329,7 @@ prepare_probe_slot(MemoizeState *mstate, MemoizeKey *key)
 static inline void
 entry_purge_tuples(MemoizeState *mstate, MemoizeEntry *entry)
 {
+  DBUG_TRACE;
   MemoizeTuple *tuple = entry->tuplehead;
   uint64    freed_mem = 0;
 
@@ -354,6 +359,7 @@ entry_purge_tuples(MemoizeState *mstate, MemoizeEntry *entry)
 static void
 remove_cache_entry(MemoizeState *mstate, MemoizeEntry *entry)
 {
+  DBUG_TRACE;
   MemoizeKey *key = entry->key;
 
   dlist_delete(&entry->key->lru_node);
@@ -382,6 +388,7 @@ remove_cache_entry(MemoizeState *mstate, MemoizeEntry *entry)
 static void
 cache_purge_all(MemoizeState *mstate)
 {
+  DBUG_TRACE;
   uint64    evictions = 0;
 
   if (mstate->hashtable != NULL)
@@ -420,6 +427,7 @@ cache_purge_all(MemoizeState *mstate)
 static bool
 cache_reduce_memory(MemoizeState *mstate, MemoizeKey *specialkey)
 {
+  DBUG_TRACE;
   bool    specialkey_intact = true; /* for now */
   dlist_mutable_iter iter;
   uint64    evictions = 0;
@@ -507,6 +515,7 @@ cache_reduce_memory(MemoizeState *mstate, MemoizeKey *specialkey)
 static MemoizeEntry *
 cache_lookup(MemoizeState *mstate, bool *found)
 {
+  DBUG_TRACE;
   MemoizeKey *key;
   MemoizeEntry *entry;
   MemoryContext oldcontext;
@@ -601,6 +610,7 @@ cache_lookup(MemoizeState *mstate, bool *found)
 static bool
 cache_store_tuple(MemoizeState *mstate, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   MemoizeTuple *tuple;
   MemoizeEntry *entry = mstate->entry;
   MemoryContext oldcontext;
@@ -668,6 +678,7 @@ cache_store_tuple(MemoizeState *mstate, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecMemoize(PlanState *pstate)
 {
+  DBUG_TRACE;
   MemoizeState *node = castNode(MemoizeState, pstate);
   ExprContext *econtext = node->ss.ps.ps_ExprContext;
   PlanState  *outerNode;
@@ -910,6 +921,7 @@ ExecMemoize(PlanState *pstate)
 MemoizeState *
 ExecInitMemoize(Memoize *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   MemoizeState *mstate = makeNode(MemoizeState);
   Plan     *outerNode;
   int     i;
@@ -1037,6 +1049,7 @@ ExecInitMemoize(Memoize *node, EState *estate, int eflags)
 void
 ExecEndMemoize(MemoizeState *node)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
 
   /* Validate the memory accounting code is correct in assert builds. */
@@ -1098,6 +1111,7 @@ ExecEndMemoize(MemoizeState *node)
 void
 ExecReScanMemoize(MemoizeState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /* Mark that we must lookup the cache for a new set of parameters */
@@ -1148,6 +1162,7 @@ ExecEstimateCacheEntryOverheadBytes(double ntuples)
 void
 ExecMemoizeEstimate(MemoizeState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -1169,6 +1184,7 @@ ExecMemoizeEstimate(MemoizeState *node, ParallelContext *pcxt)
 void
 ExecMemoizeInitializeDSM(MemoizeState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */

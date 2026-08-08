@@ -861,13 +861,11 @@ pgstat_copy_changecounted_stats(void *dst, void *src, size_t len,
 {
   uint32    cc_before;
 
-  do
-  {
+  do {
     cc_before = pgstat_begin_changecount_read(cc);
 
     memcpy(dst, src, len);
-  }
-  while (!pgstat_end_changecount_read(cc, cc_before));
+  } while (!pgstat_end_changecount_read(cc, cc_before));
 }
 
 /* helpers for dshash / simplehash hashtables */

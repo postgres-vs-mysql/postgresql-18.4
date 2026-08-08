@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/subtrans.h"
 #include "access/xact.h"
@@ -105,6 +106,7 @@ SetLocktagRelationOid(LOCKTAG *tag, Oid relid)
 void
 LockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -148,6 +150,7 @@ LockRelationOid(Oid relid, LOCKMODE lockmode)
 bool
 ConditionalLockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -181,6 +184,7 @@ ConditionalLockRelationOid(Oid relid, LOCKMODE lockmode)
 void
 LockRelationId(LockRelId *relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -224,6 +228,7 @@ UnlockRelationId(LockRelId *relid, LOCKMODE lockmode)
 void
 UnlockRelationOid(Oid relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SetLocktagRelationOid(&tag, relid);
@@ -241,6 +246,7 @@ UnlockRelationOid(Oid relid, LOCKMODE lockmode)
 void
 LockRelation(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -272,6 +278,7 @@ LockRelation(Relation relation, LOCKMODE lockmode)
 bool
 ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -307,6 +314,7 @@ ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 void
 UnlockRelation(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION(tag,
@@ -327,6 +335,7 @@ UnlockRelation(Relation relation, LOCKMODE lockmode)
 bool
 CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION(tag,
@@ -344,6 +353,7 @@ CheckRelationLockedByMe(Relation relation, LOCKMODE lockmode, bool orstronger)
 bool
 CheckRelationOidLockedByMe(Oid relid, LOCKMODE lockmode, bool orstronger)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SetLocktagRelationOid(&tag, relid);
@@ -360,6 +370,7 @@ CheckRelationOidLockedByMe(Oid relid, LOCKMODE lockmode, bool orstronger)
 bool
 LockHasWaitersRelation(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION(tag,
@@ -384,6 +395,7 @@ LockHasWaitersRelation(Relation relation, LOCKMODE lockmode)
 void
 LockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION(tag, relid->dbId, relid->relId);
@@ -397,6 +409,7 @@ LockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 void
 UnlockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION(tag, relid->dbId, relid->relId);
@@ -417,6 +430,7 @@ UnlockRelationIdForSession(LockRelId *relid, LOCKMODE lockmode)
 void
 LockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -435,6 +449,7 @@ LockRelationForExtension(Relation relation, LOCKMODE lockmode)
 bool
 ConditionalLockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -452,6 +467,7 @@ ConditionalLockRelationForExtension(Relation relation, LOCKMODE lockmode)
 int
 RelationExtensionLockWaiterCount(Relation relation)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -467,6 +483,7 @@ RelationExtensionLockWaiterCount(Relation relation)
 void
 UnlockRelationForExtension(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_RELATION_EXTEND(tag,
@@ -484,6 +501,7 @@ UnlockRelationForExtension(Relation relation, LOCKMODE lockmode)
 void
 LockDatabaseFrozenIds(LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_DATABASE_FROZEN_IDS(tag, MyDatabaseId);
@@ -500,12 +518,51 @@ LockDatabaseFrozenIds(LOCKMODE lockmode)
 void
 LockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_PAGE(tag,
                    relation->rd_lockInfo.lockRelId.dbId,
                    relation->rd_lockInfo.lockRelId.relId,
                    blkno);
+
+  switch (lockmode) {
+    case AccessShareLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, AccessShareLock)", blkno);
+      break;
+
+    case RowShareLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, RowShareLock)", blkno);
+      break;
+
+    case RowExclusiveLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, RowExclusiveLock)", blkno);
+      break;
+
+    case ShareUpdateExclusiveLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, ShareUpdateExclusiveLock)", blkno);
+      break;
+
+    case ShareLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, ShareLock)", blkno);
+      break;
+
+    case ShareRowExclusiveLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, ShareRowExclusiveLock)", blkno);
+      break;
+
+    case ExclusiveLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, ExclusiveLock)", blkno);
+      break;
+
+    case AccessExclusiveLock:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u, AccessExclusiveLock)", blkno);
+      break;
+
+    default:
+      DBUG_PRINT("info", "obtain a page-level lock (blkno:%u)", blkno);
+      break;
+  }
 
   (void) LockAcquire(&tag, lockmode, false, false);
 }
@@ -519,6 +576,7 @@ LockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 bool
 ConditionalLockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_PAGE(tag,
@@ -535,12 +593,51 @@ ConditionalLockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 void
 UnlockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_PAGE(tag,
                    relation->rd_lockInfo.lockRelId.dbId,
                    relation->rd_lockInfo.lockRelId.relId,
                    blkno);
+
+  switch (lockmode) {
+    case AccessShareLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, AccessShareLock)", blkno);
+      break;
+
+    case RowShareLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, RowShareLock)", blkno);
+      break;
+
+    case RowExclusiveLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, RowExclusiveLock)", blkno);
+      break;
+
+    case ShareUpdateExclusiveLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, ShareUpdateExclusiveLock)", blkno);
+      break;
+
+    case ShareLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, ShareLock)", blkno);
+      break;
+
+    case ShareRowExclusiveLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, ShareRowExclusiveLock)", blkno);
+      break;
+
+    case ExclusiveLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, ExclusiveLock)", blkno);
+      break;
+
+    case AccessExclusiveLock:
+      DBUG_PRINT("info", "unlock page(blkno:%u, AccessExclusiveLock)", blkno);
+      break;
+
+    default:
+      DBUG_PRINT("info", "unlock page(blkno:%u)", blkno);
+      break;
+  }
 
   LockRelease(&tag, lockmode, false);
 }
@@ -555,8 +652,11 @@ UnlockPage(Relation relation, BlockNumber blkno, LOCKMODE lockmode)
 void
 LockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
+  DBUG_PRINT("info", "obtain a tuple-level lock(blkno:%u, offset:%u)",
+             ItemPointerGetBlockNumber(tid), ItemPointerGetOffsetNumber(tid));
   SET_LOCKTAG_TUPLE(tag,
                     relation->rd_lockInfo.lockRelId.dbId,
                     relation->rd_lockInfo.lockRelId.relId,
@@ -576,6 +676,7 @@ bool
 ConditionalLockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode,
                      bool logLockFailure)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_TUPLE(tag,
@@ -594,6 +695,7 @@ ConditionalLockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode,
 void
 UnlockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_TUPLE(tag,
@@ -615,6 +717,7 @@ UnlockTuple(Relation relation, ItemPointer tid, LOCKMODE lockmode)
 void
 XactLockTableInsert(TransactionId xid)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_TRANSACTION(tag, xid);
@@ -632,6 +735,7 @@ XactLockTableInsert(TransactionId xid)
 void
 XactLockTableDelete(TransactionId xid)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_TRANSACTION(tag, xid);
@@ -657,10 +761,13 @@ void
 XactLockTableWait(TransactionId xid, Relation rel, ItemPointer ctid,
                   XLTW_Oper oper)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   XactLockTableWaitInfo info;
   ErrorContextCallback callback;
   bool    first = true;
+
+  DBUG_PRINT("info", "wait for the specified transaction to commit or abort");
 
   /*
    * If an operation is specified, set up our verbose error context
@@ -730,6 +837,7 @@ XactLockTableWait(TransactionId xid, Relation rel, ItemPointer ctid,
 bool
 ConditionalXactLockTableWait(TransactionId xid, bool logLockFailure)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   bool    first = true;
 
@@ -776,6 +884,7 @@ ConditionalXactLockTableWait(TransactionId xid, bool logLockFailure)
 uint32
 SpeculativeInsertionLockAcquire(TransactionId xid)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   speculativeInsertionToken++;
@@ -802,6 +911,7 @@ SpeculativeInsertionLockAcquire(TransactionId xid)
 void
 SpeculativeInsertionLockRelease(TransactionId xid)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, speculativeInsertionToken);
@@ -818,6 +928,7 @@ SpeculativeInsertionLockRelease(TransactionId xid)
 void
 SpeculativeInsertionWait(TransactionId xid, uint32 token)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_SPECULATIVE_INSERTION(tag, xid, token);
@@ -836,6 +947,7 @@ SpeculativeInsertionWait(TransactionId xid, uint32 token)
 static void
 XactLockTableWaitErrorCb(void *arg)
 {
+  DBUG_TRACE;
   XactLockTableWaitInfo *info = (XactLockTableWaitInfo *) arg;
 
   /*
@@ -906,6 +1018,7 @@ XactLockTableWaitErrorCb(void *arg)
 void
 WaitForLockersMultiple(List *locktags, LOCKMODE lockmode, bool progress)
 {
+  DBUG_TRACE;
   List     *holders = NIL;
   ListCell   *lc;
   int     total = 0;
@@ -982,6 +1095,7 @@ WaitForLockersMultiple(List *locktags, LOCKMODE lockmode, bool progress)
 void
 WaitForLockers(LOCKTAG heaplocktag, LOCKMODE lockmode, bool progress)
 {
+  DBUG_TRACE;
   List     *l;
 
   l = list_make1(&heaplocktag);
@@ -1002,6 +1116,7 @@ void
 LockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
                    LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1026,6 +1141,7 @@ bool
 ConditionalLockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
                               LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -1061,6 +1177,7 @@ void
 UnlockDatabaseObject(Oid classid, Oid objid, uint16 objsubid,
                      LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1081,6 +1198,7 @@ void
 LockSharedObject(Oid classid, Oid objid, uint16 objsubid,
                  LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1105,6 +1223,7 @@ bool
 ConditionalLockSharedObject(Oid classid, Oid objid, uint16 objsubid,
                             LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
   LOCALLOCK  *locallock;
   LockAcquireResult res;
@@ -1140,6 +1259,7 @@ void
 UnlockSharedObject(Oid classid, Oid objid, uint16 objsubid,
                    LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1161,6 +1281,7 @@ void
 LockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
                            LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1179,6 +1300,7 @@ void
 UnlockSharedObjectForSession(Oid classid, Oid objid, uint16 objsubid,
                              LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_OBJECT(tag,
@@ -1201,6 +1323,7 @@ void
 LockApplyTransactionForSession(Oid suboid, TransactionId xid, uint16 objid,
                                LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_APPLY_TRANSACTION(tag,
@@ -1219,6 +1342,7 @@ void
 UnlockApplyTransactionForSession(Oid suboid, TransactionId xid, uint16 objid,
                                  LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LOCKTAG   tag;
 
   SET_LOCKTAG_APPLY_TRANSACTION(tag,

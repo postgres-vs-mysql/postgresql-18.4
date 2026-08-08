@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "hstore/hstore.h"
@@ -28,6 +29,7 @@ static hstoreCheckValLen_t hstoreCheckValLen_p;
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Asserts verify that typedefs above match original declarations */
   AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
   hstoreUpgrade_p = (hstoreUpgrade_t)
@@ -65,6 +67,7 @@ PG_FUNCTION_INFO_V1(hstore_to_plperl);
 Datum
 hstore_to_plperl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
@@ -97,6 +100,7 @@ PG_FUNCTION_INFO_V1(plperl_to_hstore);
 Datum
 plperl_to_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   SV       *in = (SV *) PG_GETARG_POINTER(0);
   HV       *hv;

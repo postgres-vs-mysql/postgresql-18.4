@@ -35,6 +35,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xloginsert.h"
 #include "access/xlogrecord.h"
@@ -84,6 +85,7 @@ static void smgr_bulk_flush(BulkWriteState *bulkstate);
 BulkWriteState *
 smgr_bulk_start_rel(Relation rel, ForkNumber forknum)
 {
+  DBUG_TRACE;
   return smgr_bulk_start_smgr(RelationGetSmgr(rel),
                               forknum,
                               RelationNeedsWAL(rel) || forknum == INIT_FORKNUM);
@@ -97,6 +99,7 @@ smgr_bulk_start_rel(Relation rel, ForkNumber forknum)
 BulkWriteState *
 smgr_bulk_start_smgr(SMgrRelation smgr, ForkNumber forknum, bool use_wal)
 {
+  DBUG_TRACE;
   BulkWriteState *state;
 
   state = palloc(sizeof(BulkWriteState));
@@ -127,6 +130,7 @@ smgr_bulk_start_smgr(SMgrRelation smgr, ForkNumber forknum, bool use_wal)
 void
 smgr_bulk_finish(BulkWriteState *bulkstate)
 {
+  DBUG_TRACE;
   /* WAL-log and flush any remaining pages */
   smgr_bulk_flush(bulkstate);
 
@@ -232,6 +236,7 @@ buffer_cmp(const void *a, const void *b)
 static void
 smgr_bulk_flush(BulkWriteState *bulkstate)
 {
+  DBUG_TRACE;
   int     npending = bulkstate->npending;
   PendingWrite *pending_writes = bulkstate->pending_writes;
 
@@ -309,6 +314,7 @@ smgr_bulk_flush(BulkWriteState *bulkstate)
 void
 smgr_bulk_write(BulkWriteState *bulkstate, BlockNumber blocknum, BulkWriteBuffer buf, bool page_std)
 {
+  DBUG_TRACE;
   PendingWrite *w;
 
   w = &bulkstate->pending_writes[bulkstate->npending++];

@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_tuple.h"
 #include "access/gin.h"
@@ -177,6 +178,7 @@ tuplesort_begin_heap(TupleDesc tupDesc,
                      bool *nullsFirstFlags,
                      int workMem, SortCoordinate coordinate, int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -267,6 +269,8 @@ tuplesort_begin_cluster(TupleDesc tupDesc,
          RelationGetNumberOfAttributes(indexRel),
          workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info", "begin tuple sort: nkeys = %d, workMem = %d, randomAccess = %c",
+             RelationGetNumberOfAttributes(indexRel), workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = IndexRelationGetNumberOfKeyAttributes(indexRel);
 
   TRACE_POSTGRESQL_SORT_START(CLUSTER_SORT,
@@ -355,6 +359,7 @@ tuplesort_begin_index_btree(Relation heapRel,
                             SortCoordinate coordinate,
                             int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -372,6 +377,9 @@ tuplesort_begin_index_btree(Relation heapRel,
          enforceUnique ? 't' : 'f',
          workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info", "begin index sort: unique = %c, workMem = %d, randomAccess = %c",
+             enforceUnique ? 't' : 'f',
+             workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = IndexRelationGetNumberOfKeyAttributes(indexRel);
 
   TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
@@ -437,6 +445,7 @@ tuplesort_begin_index_hash(Relation heapRel,
                            SortCoordinate coordinate,
                            int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -456,6 +465,13 @@ tuplesort_begin_index_hash(Relation heapRel,
          workMem,
          sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info",  "begin index sort: high_mask = 0x%x, low_mask = 0x%x, "
+             "max_buckets = 0x%x, workMem = %d, randomAccess = %c",
+             high_mask,
+             low_mask,
+             max_buckets,
+             workMem,
+             sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = 1;      /* Only one sort column, the hash code */
 
   base->removeabbrev = removeabbrev_index;
@@ -485,6 +501,7 @@ tuplesort_begin_index_gist(Relation heapRel,
                            SortCoordinate coordinate,
                            int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -500,6 +517,7 @@ tuplesort_begin_index_gist(Relation heapRel,
          "begin index sort: workMem = %d, randomAccess = %c",
          workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info",  "begin index sort: workMem = %d, randomAccess = %c", workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = IndexRelationGetNumberOfKeyAttributes(indexRel);
 
   base->removeabbrev = removeabbrev_index;
@@ -545,6 +563,7 @@ tuplesort_begin_index_brin(int workMem,
                            SortCoordinate coordinate,
                            int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -555,6 +574,9 @@ tuplesort_begin_index_brin(int workMem,
          workMem,
          sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info", "begin index sort: workMem = %d, randomAccess = %c",
+             workMem,
+             sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = 1;      /* Only one sort column, the block number */
 
   base->removeabbrev = removeabbrev_index_brin;
@@ -591,6 +613,8 @@ tuplesort_begin_index_gin(Relation heapRel,
          sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
 #endif
+  DBUG_PRINT("info", "begin tuple sort: workMem = %d, randomAccess = %c",
+             workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
   /*
    * Multi-column GIN indexes expand the row into a separate index entry for
@@ -660,6 +684,7 @@ tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
                       bool nullsFirstFlag, int workMem,
                       SortCoordinate coordinate, int sortopt)
 {
+  DBUG_TRACE;
   Tuplesortstate *state = tuplesort_begin_common(workMem, coordinate,
                           sortopt);
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -676,6 +701,7 @@ tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
          "begin datum sort: workMem = %d, randomAccess = %c",
          workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
 
+  DBUG_PRINT("info", "begin datum sort: workMem = %d, randomAccess = %c", workMem, sortopt & TUPLESORT_RANDOMACCESS ? 't' : 'f');
   base->nKeys = 1;      /* always a one-column sort */
 
   TRACE_POSTGRESQL_SORT_START(DATUM_SORT,
@@ -741,6 +767,7 @@ tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 void
 tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   TuplesortPublic *base = TuplesortstateGetPublic(state);
   MemoryContext oldcontext = MemoryContextSwitchTo(base->tuplecontext);
   TupleDesc tupDesc = (TupleDesc) base->arg;
@@ -749,6 +776,7 @@ tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
   HeapTupleData htup;
   Size    tuplen;
 
+  DBUG_PRINT("info", "accept one tuple while collecting input data for sort");
   /* copy the tuple into sort storage */
   tuple = ExecCopySlotMinimalTuple(slot);
   stup.tuple = tuple;
@@ -781,6 +809,7 @@ tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
 void
 tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup)
 {
+  DBUG_TRACE;
   SortTuple stup;
   TuplesortPublic *base = TuplesortstateGetPublic(state);
   MemoryContext oldcontext = MemoryContextSwitchTo(base->tuplecontext);
@@ -825,6 +854,7 @@ tuplesort_putindextuplevalues(Tuplesortstate *state, Relation rel,
                               ItemPointer self, const Datum *values,
                               const bool *isnull)
 {
+  DBUG_TRACE;
   SortTuple stup;
   IndexTuple  tuple;
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -859,6 +889,7 @@ tuplesort_putindextuplevalues(Tuplesortstate *state, Relation rel,
 void
 tuplesort_putbrintuple(Tuplesortstate *state, BrinTuple *tuple, Size size)
 {
+  DBUG_TRACE;
   SortTuple stup;
   BrinSortTuple *bstup;
   TuplesortPublic *base = TuplesortstateGetPublic(state);
@@ -928,11 +959,13 @@ tuplesort_putgintuple(Tuplesortstate *state, GinTuple *tuple, Size size)
 void
 tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
 {
+  DBUG_TRACE;
   TuplesortPublic *base = TuplesortstateGetPublic(state);
   MemoryContext oldcontext = MemoryContextSwitchTo(base->tuplecontext);
   TuplesortDatumArg *arg = (TuplesortDatumArg *) base->arg;
   SortTuple stup;
 
+  DBUG_PRINT("info", "accept one Datum while collecting input data for sort");
   /*
    * Pass-by-value types or null values are just stored directly in
    * stup.datum1 (and stup.tuple is not used and set to NULL).
@@ -990,12 +1023,20 @@ bool
 tuplesort_gettupleslot(Tuplesortstate *state, bool forward, bool copy,
                        TupleTableSlot *slot, Datum *abbrev)
 {
+  DBUG_TRACE;
+
   TuplesortPublic *base = TuplesortstateGetPublic(state);
   MemoryContext oldcontext = MemoryContextSwitchTo(base->sortcontext);
   SortTuple stup;
 
   if (!tuplesort_gettuple_common(state, forward, &stup))
     stup.tuple = NULL;
+
+  if (forward) {
+    DBUG_PRINT("info", "fetch the next tuple in forward direction");
+  } else {
+    DBUG_PRINT("info", "fetch the next tuple in back direction");
+  }
 
   MemoryContextSwitchTo(oldcontext);
 
@@ -1665,6 +1706,7 @@ comparetup_index_btree_tiebreak(const SortTuple *a, const SortTuple *b,
 
     key_desc = BuildIndexValueDescription(arg->index.indexRel, values, isnull);
 
+    DBUG_INSTANT_PRINT("info", "could not create unique index \"%s\"", RelationGetRelationName(arg->index.indexRel));
     ereport(ERROR,
             (errcode(ERRCODE_UNIQUE_VIOLATION),
              errmsg("could not create unique index \"%s\"",

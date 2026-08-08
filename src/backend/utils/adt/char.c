@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -40,6 +41,7 @@
 Datum
 charin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *ch = PG_GETARG_CSTRING(0);
 
   if (strlen(ch) == 4 && ch[0] == '\\' &&
@@ -64,6 +66,7 @@ charin(PG_FUNCTION_ARGS)
 Datum
 charout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    ch = PG_GETARG_CHAR(0);
   char     *result = (char *) palloc(5);
 
@@ -92,6 +95,7 @@ charout(PG_FUNCTION_ARGS)
 Datum
 charrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_CHAR(pq_getmsgbyte(buf));
@@ -103,6 +107,7 @@ charrecv(PG_FUNCTION_ARGS)
 Datum
 charsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   StringInfoData buf;
 
@@ -125,8 +130,17 @@ charsend(PG_FUNCTION_ARGS)
 Datum
 chareq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
+
+  if (arg1 < arg2) {
+    DBUG_PRINT("info", "chareq returns 'a(%d) < b(%d)", arg1, arg2);
+  } else if (arg1 == arg2) {
+    DBUG_PRINT("info", "chareq returns 'a(%d) == b(%d)", arg1, arg2);
+  } else {
+    DBUG_PRINT("info", "chareq returns 'a(%d) > b(%d)", arg1, arg2);
+  }
 
   PG_RETURN_BOOL(arg1 == arg2);
 }
@@ -134,6 +148,7 @@ chareq(PG_FUNCTION_ARGS)
 Datum
 charne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
 
@@ -143,6 +158,7 @@ charne(PG_FUNCTION_ARGS)
 Datum
 charlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
 
@@ -152,6 +168,7 @@ charlt(PG_FUNCTION_ARGS)
 Datum
 charle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
 
@@ -161,6 +178,7 @@ charle(PG_FUNCTION_ARGS)
 Datum
 chargt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
 
@@ -170,6 +188,7 @@ chargt(PG_FUNCTION_ARGS)
 Datum
 charge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   char    arg2 = PG_GETARG_CHAR(1);
 
@@ -180,6 +199,7 @@ charge(PG_FUNCTION_ARGS)
 Datum
 chartoi4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
 
   PG_RETURN_INT32((int32) ((int8) arg1));
@@ -188,6 +208,7 @@ chartoi4(PG_FUNCTION_ARGS)
 Datum
 i4tochar(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   arg1 = PG_GETARG_INT32(0);
 
   if (arg1 < SCHAR_MIN || arg1 > SCHAR_MAX)
@@ -202,6 +223,7 @@ i4tochar(PG_FUNCTION_ARGS)
 Datum
 text_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   char     *ch = VARDATA_ANY(arg1);
   char    result;
@@ -226,6 +248,7 @@ text_char(PG_FUNCTION_ARGS)
 Datum
 char_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char    arg1 = PG_GETARG_CHAR(0);
   text     *result = palloc(VARHDRSZ + 4);
 

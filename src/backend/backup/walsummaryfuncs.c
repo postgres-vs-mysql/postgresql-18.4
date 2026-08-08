@@ -11,6 +11,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "backup/walsummary.h"
 #include "common/blkreftable.h"
@@ -31,6 +32,7 @@
 Datum
 pg_available_wal_summaries(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi;
   List     *wslist;
   ListCell   *lc;
@@ -68,6 +70,7 @@ pg_available_wal_summaries(PG_FUNCTION_ARGS)
 Datum
 pg_wal_summary_contents(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi;
   Datum   values[NUM_SUMMARY_ATTS];
   bool    nulls[NUM_SUMMARY_ATTS];
@@ -175,6 +178,7 @@ pg_wal_summary_contents(PG_FUNCTION_ARGS)
 Datum
 pg_get_wal_summarizer_state(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   values[NUM_STATE_ATTS];
   bool    nulls[NUM_STATE_ATTS];
   TimeLineID  summarized_tli;

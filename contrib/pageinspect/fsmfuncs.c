@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "lib/stringinfo.h"
@@ -34,16 +35,19 @@ PG_FUNCTION_INFO_V1(fsm_page_contents);
 Datum
 fsm_page_contents(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   StringInfoData sinfo;
   Page    page;
   FSMPage   fsmpage;
   int     i;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = get_page_from_raw(raw_page);
 

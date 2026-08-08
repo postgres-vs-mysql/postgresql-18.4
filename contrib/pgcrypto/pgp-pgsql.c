@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "common/string.h"
@@ -67,6 +68,7 @@ PG_FUNCTION_INFO_V1(pgp_armor_headers);
 static text *
 convert_charset(text *src, int cset_from, int cset_to)
 {
+  DBUG_TRACE;
   int     src_len = VARSIZE_ANY_EXHDR(src);
   unsigned char *dst;
   unsigned char *csrc = (unsigned char *) VARDATA_ANY(src);
@@ -85,6 +87,7 @@ convert_charset(text *src, int cset_from, int cset_to)
 static text *
 convert_from_utf8(text *src)
 {
+  DBUG_TRACE;
   return convert_charset(src, PG_UTF8, GetDatabaseEncoding());
 }
 
@@ -121,6 +124,7 @@ struct debug_expect {
 static void
 fill_expect(struct debug_expect *ex, int text_mode)
 {
+  DBUG_TRACE;
   ex->debug = 0;
   ex->expect = 0;
   ex->cipher_algo = -1;
@@ -146,6 +150,7 @@ fill_expect(struct debug_expect *ex, int text_mode)
 static void
 check_expect(PGP_Context *ctx, struct debug_expect *ex)
 {
+  DBUG_TRACE;
   EX_CHECK(cipher_algo);
   EX_CHECK(s2k_mode);
   EX_CHECK(s2k_count);
@@ -170,6 +175,7 @@ static int
 set_arg(PGP_Context *ctx, char *key, char *val,
         struct debug_expect *ex)
 {
+  DBUG_TRACE;
   int     res = 0;
 
   if (strcmp(key, "cipher-algo") == 0)
@@ -242,6 +248,8 @@ set_arg(PGP_Context *ctx, char *key, char *val,
 static char *
 getword(char *p, char **res_p, int *res_len)
 {
+  DBUG_TRACE;
+
   /* whitespace at start */
   while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
     p++;
@@ -272,6 +280,7 @@ getword(char *p, char **res_p, int *res_len)
 static char *
 downcase_convert(const uint8 *s, int len)
 {
+  DBUG_TRACE;
   int     c,
           i;
   char     *res = palloc(len + 1);
@@ -293,6 +302,7 @@ static int
 parse_args(PGP_Context *ctx, uint8 *args, int arg_len,
            struct debug_expect *ex)
 {
+  DBUG_TRACE;
   char     *str = downcase_convert(args, arg_len);
   char     *key,
            *val;
@@ -334,6 +344,7 @@ parse_args(PGP_Context *ctx, uint8 *args, int arg_len,
 static MBuf *
 create_mbuf_from_vardata(text *data)
 {
+  DBUG_TRACE;
   return mbuf_create_from_data((uint8 *) VARDATA_ANY(data),
                                VARSIZE_ANY_EXHDR(data));
 }
@@ -342,6 +353,7 @@ static void
 init_work(PGP_Context **ctx_p, int is_text,
           text *args, struct debug_expect *ex)
 {
+  DBUG_TRACE;
   int     err = pgp_init(ctx_p);
 
   fill_expect(ex, is_text);
@@ -363,6 +375,7 @@ static bytea *
 encrypt_internal(int is_pubenc, int is_text,
                  text *data, text *key, text *args)
 {
+  DBUG_TRACE;
   MBuf     *src,
            *dst;
   uint8   tmp[VARHDRSZ];
@@ -449,6 +462,7 @@ static bytea *
 decrypt_internal(int is_pubenc, int need_text, text *data,
                  text *key, text *keypsw, text *args)
 {
+  DBUG_TRACE;
   int     err;
   MBuf     *src = NULL,
             *dst = NULL;
@@ -539,6 +553,7 @@ decrypt_internal(int is_pubenc, int need_text, text *data,
 Datum
 pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data;
   text     *arg = NULL;
   text     *res,
@@ -564,6 +579,7 @@ pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS)
 Datum
 pgp_sym_encrypt_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data,
            *key;
   text     *arg = NULL;
@@ -590,6 +606,7 @@ pgp_sym_encrypt_text(PG_FUNCTION_ARGS)
 Datum
 pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data;
   text     *arg = NULL;
   text     *res,
@@ -615,6 +632,7 @@ pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS)
 Datum
 pgp_sym_decrypt_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data;
   text     *arg = NULL;
   text     *res,
@@ -645,6 +663,7 @@ pgp_sym_decrypt_text(PG_FUNCTION_ARGS)
 Datum
 pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data,
            *key;
   text     *arg = NULL;
@@ -670,6 +689,7 @@ pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS)
 Datum
 pgp_pub_encrypt_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *key;
   text     *arg = NULL;
   text     *res,
@@ -696,6 +716,7 @@ pgp_pub_encrypt_text(PG_FUNCTION_ARGS)
 Datum
 pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data,
            *key;
   text     *psw = NULL,
@@ -728,6 +749,7 @@ pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
 Datum
 pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data,
            *key;
   text     *psw = NULL,
@@ -771,6 +793,7 @@ static int
 parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
                        char ***p_keys, char ***p_values)
 {
+  DBUG_TRACE;
   int     nkdims = ARR_NDIM(key_array);
   int     nvdims = ARR_NDIM(val_array);
   char    **keys,
@@ -859,6 +882,7 @@ parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
 Datum
 pg_armor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data;
   text     *res;
   int     data_len;
@@ -896,6 +920,7 @@ pg_armor(PG_FUNCTION_ARGS)
 Datum
 pg_dearmor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data;
   bytea    *res;
   int     data_len;
@@ -931,6 +956,7 @@ typedef struct {
 Datum
 pgp_armor_headers(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   pgp_armor_headers_state *state;
   char     *utf8key;
@@ -1000,6 +1026,7 @@ pgp_armor_headers(PG_FUNCTION_ARGS)
 Datum
 pgp_key_id_w(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data;
   text     *res;
   int     res_len;

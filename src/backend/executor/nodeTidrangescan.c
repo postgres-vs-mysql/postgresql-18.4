@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relscan.h"
 #include "access/sysattr.h"
@@ -216,6 +217,7 @@ TidRangeEval(TidRangeScanState *node)
 static TupleTableSlot *
 TidRangeNext(TidRangeScanState *node)
 {
+  DBUG_TRACE;
   TableScanDesc scandesc;
   EState     *estate;
   ScanDirection direction;
@@ -295,6 +297,7 @@ TidRangeRecheck(TidRangeScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecTidRangeScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   TidRangeScanState *node = castNode(TidRangeScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -309,6 +312,7 @@ ExecTidRangeScan(PlanState *pstate)
 void
 ExecReScanTidRangeScan(TidRangeScanState *node)
 {
+  DBUG_TRACE;
   /* mark scan as not in progress, and tid range list as not computed yet */
   node->trss_inScan = false;
 
@@ -328,6 +332,7 @@ ExecReScanTidRangeScan(TidRangeScanState *node)
 void
 ExecEndTidRangeScan(TidRangeScanState *node)
 {
+  DBUG_TRACE;
   TableScanDesc scan = node->ss.ss_currentScanDesc;
 
   if (scan != NULL)
@@ -348,6 +353,7 @@ ExecEndTidRangeScan(TidRangeScanState *node)
 TidRangeScanState *
 ExecInitTidRangeScan(TidRangeScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   TidRangeScanState *tidrangestate;
   Relation  currentRelation;
 

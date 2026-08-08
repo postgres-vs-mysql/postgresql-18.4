@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/reloptions.h"
 #include "access/twophase.h"
@@ -93,6 +94,7 @@ static void ExecDropStmt(DropStmt *stmt, bool isTopLevel);
 bool
 CommandIsReadOnly(PlannedStmt *pstmt)
 {
+  DBUG_TRACE;
   Assert(IsA(pstmt, PlannedStmt));
 
   switch (pstmt->commandType) {
@@ -131,6 +133,8 @@ CommandIsReadOnly(PlannedStmt *pstmt)
 static int
 ClassifyUtilityCommandAsReadOnly(Node *parsetree)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(parsetree)) {
     case T_AlterCollationStmt:
     case T_AlterDatabaseRefreshCollStmt:
@@ -215,6 +219,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
     case T_TruncateStmt:
     case T_ViewStmt: {
       /* DDL is not read-only, and neither is TRUNCATE. */
+      DBUG_PRINT("info", "DDL is not read-only, and neither is TRUNCATE");
       return COMMAND_IS_NOT_READ_ONLY;
     }
 
@@ -229,6 +234,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * So, despite the fact that it writes to a file, it's read
        * only!
        */
+      DBUG_PRINT("info", "the command is strictly read-only");
       return COMMAND_IS_STRICTLY_READ_ONLY;
     }
 
@@ -240,6 +246,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * try to execute them.  Here we only need to worry about the
        * DO or CALL command itself.
        */
+      DBUG_PRINT("info", "the command is strictly read-only");
       return COMMAND_IS_STRICTLY_READ_ONLY;
     }
 
@@ -251,6 +258,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * this since it can be a useful way of reducing switchover
        * time when using various forms of replication.
        */
+      DBUG_PRINT("info", "the command is strictly read-only");
       return COMMAND_IS_STRICTLY_READ_ONLY;
     }
 
@@ -272,6 +280,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * upon or modify backend-local state that might not be
        * synchronized among cooperating backends.
        */
+      DBUG_PRINT("info", "it's ok to run in a read-only transaction or on a standby");
       return COMMAND_OK_IN_RECOVERY | COMMAND_OK_IN_READ_ONLY_TXN;
     }
 
@@ -289,6 +298,9 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * rows on disk, which could affect the ordering of pg_dump
        * output, but that's not semantically significant.)
        */
+      DBUG_PRINT("info", "the command is permissible even when XactReadOnly is set");
+      DBUG_PRINT("info", "This bit should be set for commands that don't change the state of the database (data or schema)");
+      DBUG_PRINT("info", "in a way that would affect the output of pg_dump");
       return COMMAND_OK_IN_READ_ONLY_TXN;
     }
 
@@ -302,10 +314,13 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * turns out to be non-temporary, DoCopy itself will call
        * PreventCommandIfReadOnly.
        */
-      if (stmt->is_from)
+      if (stmt->is_from) {
+        DBUG_PRINT("info", "result: COMMAND_OK_IN_READ_ONLY_TXN");
         return COMMAND_OK_IN_READ_ONLY_TXN;
-      else
+      } else {
+        DBUG_PRINT("info", "result: COMMAND_IS_STRICTLY_READ_ONLY");
         return COMMAND_IS_STRICTLY_READ_ONLY;
+      }
     }
 
     case T_ExplainStmt:
@@ -314,6 +329,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * These commands don't modify any data and are safe to run in
        * a parallel worker.
        */
+      DBUG_PRINT("info", "the command doesn't modify any data and is safe to run in a parallel worker");
       return COMMAND_IS_STRICTLY_READ_ONLY;
     }
 
@@ -329,6 +345,7 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * (We do allow T_UnlistenStmt on a standby, though, because
        * it's a no-op.)
        */
+      DBUG_PRINT("info", "result: COMMAND_OK_IN_READ_ONLY_TXN");
       return COMMAND_OK_IN_READ_ONLY_TXN;
     }
 
@@ -340,10 +357,13 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
        * restrictions here must match those in
        * LockAcquireExtended().
        */
-      if (stmt->mode > RowExclusiveLock)
+      if (stmt->mode > RowExclusiveLock) {
+        DBUG_PRINT("info", "result: COMMAND_OK_IN_READ_ONLY_TXN");
         return COMMAND_OK_IN_READ_ONLY_TXN;
-      else
+      } else {
+        DBUG_PRINT("info", "result: COMMAND_IS_STRICTLY_READ_ONLY");
         return COMMAND_IS_STRICTLY_READ_ONLY;
+      }
     }
 
     case T_TransactionStmt: {
@@ -366,11 +386,13 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
         case TRANS_STMT_SAVEPOINT:
         case TRANS_STMT_RELEASE:
         case TRANS_STMT_ROLLBACK_TO:
+          DBUG_PRINT("info", "result: COMMAND_IS_STRICTLY_READ_ONLY");
           return COMMAND_IS_STRICTLY_READ_ONLY;
 
         case TRANS_STMT_PREPARE:
         case TRANS_STMT_COMMIT_PREPARED:
         case TRANS_STMT_ROLLBACK_PREPARED:
+          DBUG_PRINT("info", "result: COMMAND_OK_IN_READ_ONLY_TXN");
           return COMMAND_OK_IN_READ_ONLY_TXN;
       }
 
@@ -395,12 +417,16 @@ ClassifyUtilityCommandAsReadOnly(Node *parsetree)
 void
 PreventCommandIfReadOnly(const char *cmdname)
 {
-  if (XactReadOnly)
+  DBUG_TRACE;
+
+  if (XactReadOnly) {
+    DBUG_INSTANT_PRINT("info", "cannot execute %s in a read-only transaction", cmdname);
     ereport(ERROR,
             (errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
              /* translator: %s is name of a SQL command, eg CREATE */
              errmsg("cannot execute %s in a read-only transaction",
                     cmdname)));
+  }
 }
 
 /*
@@ -413,12 +439,16 @@ PreventCommandIfReadOnly(const char *cmdname)
 void
 PreventCommandIfParallelMode(const char *cmdname)
 {
-  if (IsInParallelMode())
+  DBUG_TRACE;
+
+  if (IsInParallelMode()) {
+    DBUG_INSTANT_PRINT("info", "cannot execute %s during a parallel operation", cmdname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
              /* translator: %s is name of a SQL command, eg CREATE */
              errmsg("cannot execute %s during a parallel operation",
                     cmdname)));
+  }
 }
 
 /*
@@ -432,12 +462,16 @@ PreventCommandIfParallelMode(const char *cmdname)
 void
 PreventCommandDuringRecovery(const char *cmdname)
 {
-  if (RecoveryInProgress())
+  DBUG_TRACE;
+
+  if (RecoveryInProgress()) {
+    DBUG_INSTANT_PRINT("info", "cannot execute %s during recovery", cmdname);
     ereport(ERROR,
             (errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
              /* translator: %s is name of a SQL command, eg CREATE */
              errmsg("cannot execute %s during recovery",
                     cmdname)));
+  }
 }
 
 /*
@@ -450,12 +484,16 @@ PreventCommandDuringRecovery(const char *cmdname)
 static void
 CheckRestrictedOperation(const char *cmdname)
 {
-  if (InSecurityRestrictedOperation())
+  DBUG_TRACE;
+
+  if (InSecurityRestrictedOperation()) {
+    DBUG_INSTANT_PRINT("info", "cannot execute %s within security-restricted operation", cmdname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              /* translator: %s is name of a SQL command, eg PREPARE */
              errmsg("cannot execute %s within security-restricted operation",
                     cmdname)));
+  }
 }
 
 /*
@@ -497,6 +535,7 @@ ProcessUtility(PlannedStmt *pstmt,
                DestReceiver *dest,
                QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Assert(IsA(pstmt, PlannedStmt));
   Assert(pstmt->commandType == CMD_UTILITY);
   Assert(queryString != NULL);  /* required as of 8.4 */
@@ -541,6 +580,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                         DestReceiver *dest,
                         QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Node     *parsetree;
   bool    isTopLevel = (context == PROCESS_UTILITY_TOPLEVEL);
   bool    isAtomicContext = (!(context == PROCESS_UTILITY_TOPLEVEL || context == PROCESS_UTILITY_QUERY_NONATOMIC) || IsTransactionBlock());
@@ -583,6 +623,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
   pstate = make_parsestate(NULL);
   pstate->p_sourcetext = queryString;
   pstate->p_queryEnv = queryEnv;
+
+  DBUG_PRINT("info", "node tag:%d", nodeTag(parsetree));
 
   switch (nodeTag(parsetree)) {
     /*
@@ -805,12 +847,14 @@ standard_ProcessUtility(PlannedStmt *pstmt,
        * on them to provide some mechanism to process the message
        * queue.)  Note there seems no reason to forbid UNLISTEN.
        */
-      if (MyBackendType != B_BACKEND)
+      if (MyBackendType != B_BACKEND) {
+        DBUG_INSTANT_PRINT("info", "cannot execute %s within a background process", "LISTEN");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  /* translator: %s is name of a SQL command, eg LISTEN */
                  errmsg("cannot execute %s within a background process",
                         "LISTEN")));
+      }
 
       Async_Listen(stmt->conditionname);
     }
@@ -929,7 +973,8 @@ standard_ProcessUtility(PlannedStmt *pstmt,
       break;
 
     case T_CheckPointStmt:
-      if (!has_privs_of_role(GetUserId(), ROLE_PG_CHECKPOINT))
+      if (!has_privs_of_role(GetUserId(), ROLE_PG_CHECKPOINT)) {
+        DBUG_INSTANT_PRINT("info", "permission denied to execute %s command", "CHECKPOINT");
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  /* translator: %s is name of a SQL command, eg CHECKPOINT */
@@ -937,6 +982,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
                         "CHECKPOINT"),
                  errdetail("Only roles with privileges of the \"%s\" role may execute this command.",
                            "pg_checkpoint")));
+      }
 
       RequestCheckpoint(CHECKPOINT_IMMEDIATE | CHECKPOINT_WAIT |
                         (RecoveryInProgress() ? 0 : CHECKPOINT_FORCE));
@@ -1078,6 +1124,7 @@ ProcessUtilitySlow(ParseState *pstate,
                    DestReceiver *dest,
                    QueryCompletion *qc)
 {
+  DBUG_TRACE;
   Node     *parsetree = pstmt->utilityStmt;
   bool    isTopLevel = (context == PROCESS_UTILITY_TOPLEVEL);
   bool    isCompleteQuery = (context != PROCESS_UTILITY_SUBCOMMAND);
@@ -1085,6 +1132,7 @@ ProcessUtilitySlow(ParseState *pstate,
   bool    commandCollected = false;
   ObjectAddress address;
   ObjectAddress secondaryObject = InvalidObjectAddress;
+  int node_tag;
 
   /* All event trigger calls are done only when isCompleteQuery is true */
   needCleanup = isCompleteQuery && EventTriggerBeginCompleteQuery();
@@ -1095,11 +1143,14 @@ ProcessUtilitySlow(ParseState *pstate,
     if (isCompleteQuery)
       EventTriggerDDLCommandStart(parsetree);
 
-    switch (nodeTag(parsetree)) {
+    node_tag = nodeTag(parsetree);
+
+    switch (node_tag) {
       /*
        * relation and attribute manipulation
        */
       case T_CreateSchemaStmt:
+        DBUG_PRINT("info", "node tag: T_CreateSchemaStmt");
         CreateSchemaCommand((CreateSchemaStmt *) parsetree,
                             queryString,
                             pstmt->stmt_location,
@@ -1116,6 +1167,12 @@ ProcessUtilitySlow(ParseState *pstate,
       case T_CreateForeignTableStmt: {
         List     *stmts;
         RangeVar   *table_rv = NULL;
+
+        if (node_tag == T_CreateStmt) {
+          DBUG_PRINT("info", "node tag: T_CreateStmt");
+        } else {
+          DBUG_PRINT("info", "node tag: T_CreateForeignTableStmt");
+        }
 
         /* Run parse analysis ... */
         stmts = transformCreateStmt((CreateStmt *) parsetree,
@@ -1177,6 +1234,7 @@ ProcessUtilitySlow(ParseState *pstate,
             table_rv = cstmt->base.relation;
 
             /* Create the table itself */
+            DBUG_PRINT("info", "create the table itself");
             address = DefineRelation(&cstmt->base,
                                      RELKIND_FOREIGN_TABLE,
                                      InvalidOid, NULL,
@@ -1244,6 +1302,8 @@ ProcessUtilitySlow(ParseState *pstate,
         LOCKMODE  lockmode;
         ListCell   *cell;
 
+        DBUG_PRINT("info", "node tag: T_AlterTableStmt");
+
         /*
          * Disallow ALTER TABLE .. DETACH CONCURRENTLY in a
          * transaction block or function.  (Perhaps it could be
@@ -1301,6 +1361,8 @@ ProcessUtilitySlow(ParseState *pstate,
       case T_AlterDomainStmt: {
         AlterDomainStmt *stmt = (AlterDomainStmt *) parsetree;
 
+        DBUG_PRINT("info", "node tag: T_AlterDomainStmt");
+
         /*
          * Some or all of these functions are recursive to cover
          * inherited things, so permission checks are done there.
@@ -1308,6 +1370,7 @@ ProcessUtilitySlow(ParseState *pstate,
         switch (stmt->subtype) {
           case 'T': /* ALTER DOMAIN DEFAULT */
 
+            DBUG_PRINT("info", "stmt->subtype: ALTER DOMAIN DEFAULT");
             /*
              * Recursively alter column default for table and,
              * if requested, for descendants
@@ -1318,18 +1381,21 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case 'N': /* ALTER DOMAIN DROP NOT NULL */
+            DBUG_PRINT("info", "stmt->subtype: ALTER DOMAIN DROP NOT NULL");
             address =
               AlterDomainNotNull(stmt->typeName,
                                  false);
             break;
 
           case 'O': /* ALTER DOMAIN SET NOT NULL */
+            DBUG_PRINT("info", "stmt->subtype: ALTER DOMAIN SET NOT NULL");
             address =
               AlterDomainNotNull(stmt->typeName,
                                  true);
             break;
 
           case 'C': /* ADD CONSTRAINT */
+            DBUG_PRINT("info", "stmt->subtype: ADD CONSTRAINT");
             address =
               AlterDomainAddConstraint(stmt->typeName,
                                        stmt->def,
@@ -1337,6 +1403,7 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case 'X': /* DROP CONSTRAINT */
+            DBUG_PRINT("info", "stmt->subtype: DROP CONSTRAINT");
             address =
               AlterDomainDropConstraint(stmt->typeName,
                                         stmt->name,
@@ -1345,6 +1412,7 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case 'V': /* VALIDATE CONSTRAINT */
+            DBUG_PRINT("info", "stmt->subtype: VALIDATE CONSTRAINT");
             address =
               AlterDomainValidateConstraint(stmt->typeName,
                                             stmt->name);
@@ -1364,8 +1432,12 @@ ProcessUtilitySlow(ParseState *pstate,
       case T_DefineStmt: {
         DefineStmt *stmt = (DefineStmt *) parsetree;
 
+        DBUG_PRINT("info", "node tag: T_DefineStmt");
+        DBUG_PRINT("info", "object creation / destruction");
+
         switch (stmt->kind) {
           case OBJECT_AGGREGATE:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_AGGREGATE");
             address =
               DefineAggregate(pstate, stmt->defnames, stmt->args,
                               stmt->oldstyle,
@@ -1374,12 +1446,14 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case OBJECT_OPERATOR:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_OPERATOR");
             Assert(stmt->args == NIL);
             address = DefineOperator(stmt->defnames,
                                      stmt->definition);
             break;
 
           case OBJECT_TYPE:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_TYPE");
             Assert(stmt->args == NIL);
             address = DefineType(pstate,
                                  stmt->defnames,
@@ -1387,24 +1461,28 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case OBJECT_TSPARSER:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_TSPARSER");
             Assert(stmt->args == NIL);
             address = DefineTSParser(stmt->defnames,
                                      stmt->definition);
             break;
 
           case OBJECT_TSDICTIONARY:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_TSDICTIONARY");
             Assert(stmt->args == NIL);
             address = DefineTSDictionary(stmt->defnames,
                                          stmt->definition);
             break;
 
           case OBJECT_TSTEMPLATE:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_TSTEMPLATE");
             Assert(stmt->args == NIL);
             address = DefineTSTemplate(stmt->defnames,
                                        stmt->definition);
             break;
 
           case OBJECT_TSCONFIGURATION:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_TSCONFIGURATION");
             Assert(stmt->args == NIL);
             address = DefineTSConfiguration(stmt->defnames,
                                             stmt->definition,
@@ -1412,6 +1490,7 @@ ProcessUtilitySlow(ParseState *pstate,
             break;
 
           case OBJECT_COLLATION:
+            DBUG_PRINT("info", "stmt->kind:OBJECT_COLLATION");
             Assert(stmt->args == NIL);
             address = DefineCollation(pstate,
                                       stmt->defnames,
@@ -1433,6 +1512,9 @@ ProcessUtilitySlow(ParseState *pstate,
         LOCKMODE  lockmode;
         int     nparts = -1;
         bool    is_alter_table;
+
+        DBUG_PRINT("info", "node tag: T_IndexStmt");
+        DBUG_PRINT("info", "CREATE INDEX");
 
         if (stmt->concurrent)
           PreventInTransactionBlock(isTopLevel,
@@ -1485,13 +1567,15 @@ ProcessUtilitySlow(ParseState *pstate,
                    relkind, stmt->relation->relname);
 
             if (relkind == RELKIND_FOREIGN_TABLE &&
-                (stmt->unique || stmt->primary))
+                (stmt->unique || stmt->primary)) {
+              DBUG_INSTANT_PRINT("info", "cannot create unique index on partitioned table \"%s\"", stmt->relation->relname);
               ereport(ERROR,
                       (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                        errmsg("cannot create unique index on partitioned table \"%s\"",
                               stmt->relation->relname),
                        errdetail("Table \"%s\" contains partitions that are foreign tables.",
                                  stmt->relation->relname)));
+            }
           }
 
           /* count direct and indirect children, but not rel */
@@ -1541,6 +1625,7 @@ ProcessUtilitySlow(ParseState *pstate,
       break;
 
       case T_ReindexStmt:
+        DBUG_PRINT("info", "node tag: T_ReindexStmt");
         ExecReindex(pstate, (ReindexStmt *) parsetree, isTopLevel);
 
         /* EventTriggerCollectSimpleCommand is called directly */
@@ -1548,49 +1633,60 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreateExtensionStmt:
+        DBUG_PRINT("info", "node tag: T_CreateExtensionStmt");
         address = CreateExtension(pstate, (CreateExtensionStmt *) parsetree);
         break;
 
       case T_AlterExtensionStmt:
+        DBUG_PRINT("info", "node tag: T_AlterExtensionStmt");
         address = ExecAlterExtensionStmt(pstate, (AlterExtensionStmt *) parsetree);
         break;
 
       case T_AlterExtensionContentsStmt:
+        DBUG_PRINT("info", "node tag: T_AlterExtensionContentsStmt");
         address = ExecAlterExtensionContentsStmt((AlterExtensionContentsStmt *) parsetree,
                   &secondaryObject);
         break;
 
       case T_CreateFdwStmt:
+        DBUG_PRINT("info", "node tag: T_CreateFdwStmt");
         address = CreateForeignDataWrapper(pstate, (CreateFdwStmt *) parsetree);
         break;
 
       case T_AlterFdwStmt:
+        DBUG_PRINT("info", "node tag: T_AlterFdwStmt");
         address = AlterForeignDataWrapper(pstate, (AlterFdwStmt *) parsetree);
         break;
 
       case T_CreateForeignServerStmt:
+        DBUG_PRINT("info", "node tag: T_CreateForeignServerStmt");
         address = CreateForeignServer((CreateForeignServerStmt *) parsetree);
         break;
 
       case T_AlterForeignServerStmt:
+        DBUG_PRINT("info", "node tag: T_AlterForeignServerStmt");
         address = AlterForeignServer((AlterForeignServerStmt *) parsetree);
         break;
 
       case T_CreateUserMappingStmt:
+        DBUG_PRINT("info", "node tag: T_CreateUserMappingStmt");
         address = CreateUserMapping((CreateUserMappingStmt *) parsetree);
         break;
 
       case T_AlterUserMappingStmt:
+        DBUG_PRINT("info", "node tag: T_AlterUserMappingStmt");
         address = AlterUserMapping((AlterUserMappingStmt *) parsetree);
         break;
 
       case T_DropUserMappingStmt:
+        DBUG_PRINT("info", "node tag: T_DropUserMappingStmt");
         RemoveUserMapping((DropUserMappingStmt *) parsetree);
         /* no commands stashed for DROP */
         commandCollected = true;
         break;
 
       case T_ImportForeignSchemaStmt:
+        DBUG_PRINT("info", "node tag: T_ImportForeignSchemaStmt");
         ImportForeignSchema((ImportForeignSchemaStmt *) parsetree);
         /* commands are stashed inside ImportForeignSchema */
         commandCollected = true;
@@ -1598,6 +1694,8 @@ ProcessUtilitySlow(ParseState *pstate,
 
       case T_CompositeTypeStmt: { /* CREATE TYPE (composite) */
         CompositeTypeStmt *stmt = (CompositeTypeStmt *) parsetree;
+        DBUG_PRINT("info", "node tag: T_CompositeTypeStmt");
+        DBUG_PRINT("info", "CREATE TYPE (composite)");
 
         address = DefineCompositeType(stmt->typevar,
                                       stmt->coldeflist);
@@ -1605,18 +1703,26 @@ ProcessUtilitySlow(ParseState *pstate,
       break;
 
       case T_CreateEnumStmt:  /* CREATE TYPE AS ENUM */
+        DBUG_PRINT("info", "node tag: T_CreateEnumStmt");
+        DBUG_PRINT("info", "CREATE TYPE AS ENUM");
         address = DefineEnum((CreateEnumStmt *) parsetree);
         break;
 
       case T_CreateRangeStmt: /* CREATE TYPE AS RANGE */
+        DBUG_PRINT("info", "node tag: T_CreateRangeStmt");
+        DBUG_PRINT("info", "CREATE TYPE AS RANGE");
         address = DefineRange(pstate, (CreateRangeStmt *) parsetree);
         break;
 
       case T_AlterEnumStmt: /* ALTER TYPE (enum) */
+        DBUG_PRINT("info", "node tag: T_AlterEnumStmt");
+        DBUG_PRINT("info", "ALTER TYPE (enum)");
         address = AlterEnum((AlterEnumStmt *) parsetree);
         break;
 
       case T_ViewStmt:  /* CREATE VIEW */
+        DBUG_PRINT("info", "node tag: T_ViewStmt");
+        DBUG_PRINT("info", "CREATE VIEW");
         EventTriggerAlterTableStart(parsetree);
         address = DefineView((ViewStmt *) parsetree, queryString,
                              pstmt->stmt_location, pstmt->stmt_len);
@@ -1628,32 +1734,42 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreateFunctionStmt:  /* CREATE FUNCTION */
+        DBUG_PRINT("info", "node tag: T_CreateFunctionStmt");
+        DBUG_PRINT("info", "CREATE FUNCTION");
         address = CreateFunction(pstate, (CreateFunctionStmt *) parsetree);
         break;
 
       case T_AlterFunctionStmt: /* ALTER FUNCTION */
+        DBUG_PRINT("info", "node tag: T_AlterFunctionStmt");
+        DBUG_PRINT("info", "ALTER FUNCTION");
         address = AlterFunction(pstate, (AlterFunctionStmt *) parsetree);
         break;
 
       case T_RuleStmt:  /* CREATE RULE */
+        DBUG_PRINT("info", "node tag: T_RuleStmt");
+        DBUG_PRINT("info", "CREATE RULE");
         address = DefineRule((RuleStmt *) parsetree, queryString);
         break;
 
       case T_CreateSeqStmt:
+        DBUG_PRINT("info", "node tag: T_CreateSeqStmt");
         address = DefineSequence(pstate, (CreateSeqStmt *) parsetree);
         break;
 
       case T_AlterSeqStmt:
+        DBUG_PRINT("info", "node tag: T_AlterSeqStmt");
         address = AlterSequence(pstate, (AlterSeqStmt *) parsetree);
         break;
 
       case T_CreateTableAsStmt:
+        DBUG_PRINT("info", "node tag: T_CreateTableAsStmt");
         address = ExecCreateTableAs(pstate, (CreateTableAsStmt *) parsetree,
                                     params, queryEnv, qc);
         break;
 
       case T_RefreshMatViewStmt:
 
+        DBUG_PRINT("info", "node tag: T_RefreshMatViewStmt");
         /*
          * REFRESH CONCURRENTLY executes some DDL commands internally.
          * Inhibit DDL command collection here to avoid those commands
@@ -1674,6 +1790,7 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreateTrigStmt:
+        DBUG_PRINT("info", "node tag: T_CreateTrigStmt");
         address = CreateTrigger((CreateTrigStmt *) parsetree,
                                 queryString, InvalidOid, InvalidOid,
                                 InvalidOid, InvalidOid, InvalidOid,
@@ -1681,28 +1798,34 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreatePLangStmt:
+        DBUG_PRINT("info", "node tag: T_CreatePLangStmt");
         address = CreateProceduralLanguage((CreatePLangStmt *) parsetree);
         break;
 
       case T_CreateDomainStmt:
+        DBUG_PRINT("info", "node tag: T_CreateDomainStmt");
         address = DefineDomain(pstate, (CreateDomainStmt *) parsetree);
         break;
 
       case T_CreateConversionStmt:
+        DBUG_PRINT("info", "node tag: T_CreateConversionStmt");
         address = CreateConversionCommand((CreateConversionStmt *) parsetree);
         break;
 
       case T_CreateCastStmt:
+        DBUG_PRINT("info", "node tag: T_CreateCastStmt");
         address = CreateCast((CreateCastStmt *) parsetree);
         break;
 
       case T_CreateOpClassStmt:
+        DBUG_PRINT("info", "node tag: T_CreateOpClassStmt");
         DefineOpClass((CreateOpClassStmt *) parsetree);
         /* command is stashed in DefineOpClass */
         commandCollected = true;
         break;
 
       case T_CreateOpFamilyStmt:
+        DBUG_PRINT("info", "node tag: T_CreateOpFamilyStmt");
         address = DefineOpFamily((CreateOpFamilyStmt *) parsetree);
 
         /*
@@ -1713,20 +1836,24 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreateTransformStmt:
+        DBUG_PRINT("info", "node tag: T_CreateTransformStmt");
         address = CreateTransform((CreateTransformStmt *) parsetree);
         break;
 
       case T_AlterOpFamilyStmt:
+        DBUG_PRINT("info", "node tag: T_AlterOpFamilyStmt");
         AlterOpFamily((AlterOpFamilyStmt *) parsetree);
         /* commands are stashed in AlterOpFamily */
         commandCollected = true;
         break;
 
       case T_AlterTSDictionaryStmt:
+        DBUG_PRINT("info", "node tag: T_AlterTSDictionaryStmt");
         address = AlterTSDictionary((AlterTSDictionaryStmt *) parsetree);
         break;
 
       case T_AlterTSConfigurationStmt:
+        DBUG_PRINT("info", "node tag: T_AlterTSConfigurationStmt");
         AlterTSConfiguration((AlterTSConfigurationStmt *) parsetree);
 
         /*
@@ -1738,88 +1865,108 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_AlterTableMoveAllStmt:
+        DBUG_PRINT("info", "node tag: T_AlterTableMoveAllStmt");
         AlterTableMoveAll((AlterTableMoveAllStmt *) parsetree);
         /* commands are stashed in AlterTableMoveAll */
         commandCollected = true;
         break;
 
       case T_DropStmt:
+        DBUG_PRINT("info", "node tag: T_DropStmt");
         ExecDropStmt((DropStmt *) parsetree, isTopLevel);
         /* no commands stashed for DROP */
         commandCollected = true;
         break;
 
       case T_RenameStmt:
+        DBUG_PRINT("info", "node tag: T_RenameStmt");
         address = ExecRenameStmt((RenameStmt *) parsetree);
         break;
 
       case T_AlterObjectDependsStmt:
+        DBUG_PRINT("info", "node tag: T_AlterObjectDependsStmt");
         address =
           ExecAlterObjectDependsStmt((AlterObjectDependsStmt *) parsetree,
                                      &secondaryObject);
         break;
 
       case T_AlterObjectSchemaStmt:
+        DBUG_PRINT("info", "node tag: T_AlterObjectSchemaStmt");
         address =
           ExecAlterObjectSchemaStmt((AlterObjectSchemaStmt *) parsetree,
                                     &secondaryObject);
         break;
 
       case T_AlterOwnerStmt:
+        DBUG_PRINT("info", "node tag: T_AlterOwnerStmt");
         address = ExecAlterOwnerStmt((AlterOwnerStmt *) parsetree);
         break;
 
       case T_AlterOperatorStmt:
+        DBUG_PRINT("info", "node tag: T_AlterOperatorStmt");
         address = AlterOperator((AlterOperatorStmt *) parsetree);
         break;
 
       case T_AlterTypeStmt:
+        DBUG_PRINT("info", "node tag: T_AlterTypeStmt");
         address = AlterType((AlterTypeStmt *) parsetree);
         break;
 
       case T_CommentStmt:
+        DBUG_PRINT("info", "node tag: T_CommentStmt");
         address = CommentObject((CommentStmt *) parsetree);
         break;
 
       case T_GrantStmt:
+        DBUG_PRINT("info", "node tag: T_GrantStmt");
         ExecuteGrantStmt((GrantStmt *) parsetree);
         /* commands are stashed in ExecGrantStmt_oids */
         commandCollected = true;
         break;
 
       case T_DropOwnedStmt:
+        DBUG_PRINT("info", "node tag: T_DropOwnedStmt");
         DropOwnedObjects((DropOwnedStmt *) parsetree);
         /* no commands stashed for DROP */
         commandCollected = true;
         break;
 
       case T_AlterDefaultPrivilegesStmt:
+        DBUG_PRINT("info", "node tag: T_AlterDefaultPrivilegesStmt");
         ExecAlterDefaultPrivilegesStmt(pstate, (AlterDefaultPrivilegesStmt *) parsetree);
         EventTriggerCollectAlterDefPrivs((AlterDefaultPrivilegesStmt *) parsetree);
         commandCollected = true;
         break;
 
       case T_CreatePolicyStmt:  /* CREATE POLICY */
+        DBUG_PRINT("info", "node tag: T_CreatePolicyStmt");
+        DBUG_PRINT("info", "CREATE POLICY");
         address = CreatePolicy((CreatePolicyStmt *) parsetree);
         break;
 
       case T_AlterPolicyStmt: /* ALTER POLICY */
+        DBUG_PRINT("info", "node tag: T_AlterPolicyStmt");
+        DBUG_PRINT("info", "ALTER POLICY");
         address = AlterPolicy((AlterPolicyStmt *) parsetree);
         break;
 
       case T_SecLabelStmt:
+        DBUG_PRINT("info", "node tag: T_SecLabelStmt");
         address = ExecSecLabelStmt((SecLabelStmt *) parsetree);
         break;
 
       case T_CreateAmStmt:
+        DBUG_PRINT("info", "node tag: T_CreateAmStmt");
         address = CreateAccessMethod((CreateAmStmt *) parsetree);
         break;
 
       case T_CreatePublicationStmt:
+        DBUG_PRINT("info", "node tag: T_CreatePublicationStmt");
         address = CreatePublication(pstate, (CreatePublicationStmt *) parsetree);
         break;
 
       case T_AlterPublicationStmt:
+        DBUG_PRINT("info", "node tag: T_AlterPublicationStmt");
         AlterPublication(pstate, (AlterPublicationStmt *) parsetree);
 
         /*
@@ -1830,18 +1977,21 @@ ProcessUtilitySlow(ParseState *pstate,
         break;
 
       case T_CreateSubscriptionStmt:
+        DBUG_PRINT("info", "node tag: T_CreateSubscriptionStmt");
         address = CreateSubscription(pstate,
                                      (CreateSubscriptionStmt *) parsetree,
                                      isTopLevel);
         break;
 
       case T_AlterSubscriptionStmt:
+        DBUG_PRINT("info", "node tag: T_AlterSubscriptionStmt");
         address = AlterSubscription(pstate,
                                     (AlterSubscriptionStmt *) parsetree,
                                     isTopLevel);
         break;
 
       case T_DropSubscriptionStmt:
+        DBUG_PRINT("info", "node tag: T_DropSubscriptionStmt");
         DropSubscription((DropSubscriptionStmt *) parsetree, isTopLevel);
         /* no commands stashed for DROP */
         commandCollected = true;
@@ -1852,10 +2002,14 @@ ProcessUtilitySlow(ParseState *pstate,
         CreateStatsStmt *stmt = (CreateStatsStmt *) parsetree;
         RangeVar   *rel = (RangeVar *) linitial(stmt->relations);
 
-        if (!IsA(rel, RangeVar))
+        DBUG_PRINT("info", "node tag: T_CreateStatsStmt");
+
+        if (!IsA(rel, RangeVar)) {
+          DBUG_INSTANT_PRINT("info", "CREATE STATISTICS only supports relation names in the FROM clause");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("CREATE STATISTICS only supports relation names in the FROM clause")));
+        }
 
         /*
          * CREATE STATISTICS will influence future execution plans
@@ -1878,10 +2032,12 @@ ProcessUtilitySlow(ParseState *pstate,
       break;
 
       case T_AlterStatsStmt:
+        DBUG_PRINT("info", "node tag: T_AlterStatsStmt");
         address = AlterStatistics((AlterStatsStmt *) parsetree);
         break;
 
       case T_AlterCollationStmt:
+        DBUG_PRINT("info", "node tag: T_AlterCollationStmt");
         address = AlterCollation((AlterCollationStmt *) parsetree);
         break;
 
@@ -1929,6 +2085,7 @@ ProcessUtilitySlow(ParseState *pstate,
 void
 ProcessUtilityForAlterTable(Node *stmt, AlterTableUtilityContext *context)
 {
+  DBUG_TRACE;
   PlannedStmt *wrapper;
 
   /*
@@ -1965,6 +2122,8 @@ ProcessUtilityForAlterTable(Node *stmt, AlterTableUtilityContext *context)
 static void
 ExecDropStmt(DropStmt *stmt, bool isTopLevel)
 {
+  DBUG_TRACE;
+
   switch (stmt->removeType) {
     case OBJECT_INDEX:
       if (stmt->concurrent)
@@ -1999,6 +2158,8 @@ ExecDropStmt(DropStmt *stmt, bool isTopLevel)
 bool
 UtilityReturnsTuples(Node *parsetree)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(parsetree)) {
     case T_CallStmt: {
       CallStmt   *stmt = (CallStmt *) parsetree;
@@ -2058,6 +2219,8 @@ UtilityReturnsTuples(Node *parsetree)
 TupleDesc
 UtilityTupleDescriptor(Node *parsetree)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(parsetree)) {
     case T_CallStmt:
       return CallStmtResultDesc((CallStmt *) parsetree);
@@ -2112,6 +2275,8 @@ UtilityTupleDescriptor(Node *parsetree)
 bool
 QueryReturnsTuples(Query *parsetree)
 {
+  DBUG_TRACE;
+
   switch (parsetree->commandType) {
     case CMD_SELECT:
       /* returns tuples */
@@ -2159,6 +2324,7 @@ QueryReturnsTuples(Query *parsetree)
 Query *
 UtilityContainsQuery(Node *parsetree)
 {
+  DBUG_TRACE;
   Query    *qry;
 
   switch (nodeTag(parsetree)) {
@@ -2201,6 +2367,7 @@ UtilityContainsQuery(Node *parsetree)
 static CommandTag
 AlterObjectTypeCommandTag(ObjectType objtype)
 {
+  DBUG_TRACE;
   CommandTag  tag;
 
   switch (objtype) {
@@ -3335,6 +3502,7 @@ CreateCommandTag(Node *parsetree)
 LogStmtLevel
 GetCommandLogLevel(Node *parsetree)
 {
+  DBUG_TRACE;
   LogStmtLevel lev;
 
   switch (nodeTag(parsetree)) {

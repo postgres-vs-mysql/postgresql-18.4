@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "pgstat.h"
 #include "port/atomics.h"
@@ -105,6 +106,7 @@ static void AddBufferToRing(BufferAccessStrategy strategy,
 static inline uint32
 ClockSweepTick(void)
 {
+  DBUG_TRACE;
   uint32    victim;
 
   /*
@@ -158,6 +160,7 @@ ClockSweepTick(void)
     }
   }
 
+  DBUG_PRINT("info", "victim:%u, NBuffers:%u", victim, NBuffers);
   return victim;
 }
 
@@ -193,6 +196,7 @@ have_free_buffer(void)
 BufferDesc *
 StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
 {
+  DBUG_TRACE;
   BufferDesc *buf;
   int     bgwprocno;
   int     trycounter;
@@ -209,6 +213,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
     if (buf != NULL) {
       *from_ring = true;
+      DBUG_PRINT("info", "returns a buffer(buf_id:%d) from the ring", buf->buf_id);
       return buf;
     }
   }
@@ -300,6 +305,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
           AddBufferToRing(strategy, buf);
 
         *buf_state = local_buf_state;
+        DBUG_PRINT("info", "here we found a usable buffer(buf_id:%d)", buf->buf_id);
         return buf;
       }
 
@@ -325,6 +331,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
         trycounter = NBuffers;
       } else {
+        DBUG_PRINT("info", "found a usable buffer(buf_id:%d)", buf->buf_id);
+
         /* Found a usable buffer */
         if (strategy != NULL)
           AddBufferToRing(strategy, buf);
@@ -354,6 +362,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 void
 StrategyFreeBuffer(BufferDesc *buf)
 {
+  DBUG_TRACE;
   SpinLockAcquire(&StrategyControl->buffer_strategy_lock);
 
   /*
@@ -386,6 +395,7 @@ StrategyFreeBuffer(BufferDesc *buf)
 int
 StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
 {
+  DBUG_TRACE;
   uint32    nextVictimBuffer;
   int     result;
 
@@ -408,6 +418,8 @@ StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
   }
 
   SpinLockRelease(&StrategyControl->buffer_strategy_lock);
+
+  DBUG_PRINT("info", "the buffer index of the best buffer to sync first:%d", result);
   return result;
 }
 
@@ -465,6 +477,7 @@ StrategyShmemSize(void)
 void
 StrategyInitialize(bool init)
 {
+  DBUG_TRACE;
   bool    found;
 
   /*
@@ -616,6 +629,7 @@ GetAccessStrategy(BufferAccessStrategyType btype)
 BufferAccessStrategy
 GetAccessStrategyWithSize(BufferAccessStrategyType btype, int ring_size_kb)
 {
+  DBUG_TRACE;
   int     ring_buffers;
   BufferAccessStrategy strategy;
 
@@ -625,8 +639,10 @@ GetAccessStrategyWithSize(BufferAccessStrategyType btype, int ring_size_kb)
   ring_buffers = ring_size_kb / (BLCKSZ / 1024);
 
   /* 0 means unlimited, so no BufferAccessStrategy required */
-  if (ring_buffers == 0)
+  if (ring_buffers == 0) {
+    DBUG_PRINT("info", "ring_buffers:0 means unlimited, so no BufferAccessStrategy required");
     return NULL;
+  }
 
   /* Cap to 1/8th of shared_buffers */
   ring_buffers = Min(NBuffers / 8, ring_buffers);
@@ -642,6 +658,7 @@ GetAccessStrategyWithSize(BufferAccessStrategyType btype, int ring_size_kb)
   /* Set fields that don't start out zero */
   strategy->btype = btype;
   strategy->nbuffers = ring_buffers;
+  DBUG_PRINT("info", "strategy->nbuffers:%d", ring_buffers);
 
   return strategy;
 }
@@ -726,6 +743,7 @@ FreeAccessStrategy(BufferAccessStrategy strategy)
 static BufferDesc *
 GetBufferFromRing(BufferAccessStrategy strategy, uint32 *buf_state)
 {
+  DBUG_TRACE;
   BufferDesc *buf;
   Buffer    bufnum;
   uint32    local_buf_state;  /* to avoid repeated (de-)referencing */
@@ -833,6 +851,8 @@ IOContextForStrategy(BufferAccessStrategy strategy)
 bool
 StrategyRejectBuffer(BufferAccessStrategy strategy, BufferDesc *buf, bool from_ring)
 {
+  DBUG_TRACE;
+
   /* We only do this in bulkread mode */
   if (strategy->btype != BAS_BULKREAD)
     return false;

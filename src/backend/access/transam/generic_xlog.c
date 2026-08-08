@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/generic_xlog.h"
@@ -88,8 +89,10 @@ static void
 writeFragment(GenericXLogPageData *pageData, OffsetNumber offset, OffsetNumber length,
               const char *data)
 {
+  DBUG_TRACE;
   char     *ptr = pageData->delta + pageData->deltaLen;
 
+  DBUG_PRINT("info", "offset:%u, length:%u", offset, length);
   /* Verify we have enough space */
   Assert(pageData->deltaLen + sizeof(offset) +
          sizeof(length) + length <= sizeof(pageData->delta));
@@ -121,6 +124,7 @@ computeRegionDelta(GenericXLogPageData *pageData,
                    int targetStart, int targetEnd,
                    int validStart, int validEnd)
 {
+  DBUG_TRACE;
   int     i,
           loopEnd,
           fragmentBegin = -1,
@@ -226,6 +230,7 @@ computeRegionDelta(GenericXLogPageData *pageData,
 static void
 computeDelta(GenericXLogPageData *pageData, Page curpage, Page targetpage)
 {
+  DBUG_TRACE;
   int     targetLower = ((PageHeader) targetpage)->pd_lower,
           targetUpper = ((PageHeader) targetpage)->pd_upper,
           curLower = ((PageHeader) curpage)->pd_lower,
@@ -234,9 +239,11 @@ computeDelta(GenericXLogPageData *pageData, Page curpage, Page targetpage)
   pageData->deltaLen = 0;
 
   /* Compute delta records for lower part of page ... */
+  DBUG_PRINT("info", "compute delta records for lower part of page(targetLower:%d, curLower:%d)", targetLower, curLower);
   computeRegionDelta(pageData, curpage, targetpage,
                      0, targetLower,
                      0, curLower);
+  DBUG_PRINT("info", "... and for upper part(targetUpper:%d, curUpper:%d), ignoring what's between", targetUpper, curUpper);
   /* ... and for upper part, ignoring what's between */
   computeRegionDelta(pageData, curpage, targetpage,
                      targetUpper, BLCKSZ,
@@ -256,8 +263,10 @@ computeDelta(GenericXLogPageData *pageData, Page curpage, Page targetpage)
 
     if (memcmp(tmp.data, targetpage, targetLower) != 0 ||
         memcmp(tmp.data + targetUpper, targetpage + targetUpper,
-               BLCKSZ - targetUpper) != 0)
+               BLCKSZ - targetUpper) != 0) {
+      DBUG_INSTANT_PRINT("info", "result of generic xlog apply does not match");
       elog(ERROR, "result of generic xlog apply does not match");
+    }
   }
 
 #endif
@@ -269,9 +278,11 @@ computeDelta(GenericXLogPageData *pageData, Page curpage, Page targetpage)
 GenericXLogState *
 GenericXLogStart(Relation relation)
 {
+  DBUG_TRACE;
   GenericXLogState *state;
   int     i;
 
+  DBUG_PRINT("info", "start new generic xlog record for modifications to specified relation");
   state = (GenericXLogState *) palloc_aligned(sizeof(GenericXLogState),
           PG_IO_ALIGN_SIZE,
           0);
@@ -298,13 +309,17 @@ GenericXLogStart(Relation relation)
 Page
 GenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags)
 {
+  DBUG_TRACE;
   int     block_id;
+
+  DBUG_PRINT("info", "register new buffer for generic xlog record");
 
   /* Search array for existing entry or first unused slot */
   for (block_id = 0; block_id < MAX_GENERIC_XLOG_PAGES; block_id++) {
     GenericXLogPageData *page = &state->pages[block_id];
 
     if (BufferIsInvalid(page->buffer)) {
+      DBUG_PRINT("info", "empty slot, so use it");
       /* Empty slot, so use it (there cannot be a match later) */
       page->buffer = buffer;
       page->flags = flags;
@@ -315,10 +330,12 @@ GenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags)
        * Buffer is already registered.  Just return the image, which is
        * already prepared.
        */
+      DBUG_PRINT("info", "buffer is already registered");
       return (Page) page->image;
     }
   }
 
+  DBUG_INSTANT_PRINT("info", "maximum number %d of generic xlog buffers is exceeded", MAX_GENERIC_XLOG_PAGES);
   elog(ERROR, "maximum number %d of generic xlog buffers is exceeded",
        MAX_GENERIC_XLOG_PAGES);
   /* keep compiler quiet */
@@ -332,11 +349,13 @@ GenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags)
 XLogRecPtr
 GenericXLogFinish(GenericXLogState *state)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn;
   int     i;
 
   if (state->isLogged) {
     /* Logged relation: make xlog record in critical section. */
+    DBUG_PRINT("info", "logged relation: make xlog record in critical section");
     XLogBeginInsert();
 
     START_CRIT_SECTION();
@@ -387,9 +406,12 @@ GenericXLogFinish(GenericXLogState *state)
     }
 
     /* Insert xlog record */
+    DBUG_PRINT("info", "insert xlog record(rmid:RM_GENERIC_ID)");
     lsn = XLogInsert(RM_GENERIC_ID, 0);
 
     /* Set LSN */
+    DBUG_PRINT("info", "set lsn:%lu", lsn);
+
     for (i = 0; i < MAX_GENERIC_XLOG_PAGES; i++) {
       GenericXLogPageData *pageData = &state->pages[i];
 
@@ -402,6 +424,7 @@ GenericXLogFinish(GenericXLogState *state)
     END_CRIT_SECTION();
   } else {
     /* Unlogged relation: skip xlog-related stuff */
+    DBUG_PRINT("info", "unlogged relation: skip xlog-related stuff");
     START_CRIT_SECTION();
 
     for (i = 0; i < MAX_GENERIC_XLOG_PAGES; i++) {
@@ -444,6 +467,7 @@ GenericXLogAbort(GenericXLogState *state)
 static void
 applyPageRedo(Page page, const char *delta, Size deltaSize)
 {
+  DBUG_TRACE;
   const char *ptr = delta;
   const char *end = delta + deltaSize;
 
@@ -468,6 +492,7 @@ applyPageRedo(Page page, const char *delta, Size deltaSize)
 void
 generic_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buffers[MAX_GENERIC_XLOG_PAGES];
   uint8   block_id;
@@ -493,6 +518,7 @@ generic_redo(XLogReaderState *record)
       char     *blockDelta;
       Size    blockDeltaSize;
 
+      DBUG_PRINT("info", "apply redo to given block(block_id:%u) if needed", block_id);
       page = BufferGetPage(buffers[block_id]);
       blockDelta = XLogRecGetBlockData(record, block_id, &blockDeltaSize);
       applyPageRedo(page, blockDelta, blockDeltaSize);

@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <limits.h>
@@ -51,6 +52,7 @@ static ItemPointer currtid_for_view(Relation viewrel, ItemPointer tid);
 Datum
 tidin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   char     *p,
@@ -124,6 +126,7 @@ tidin(PG_FUNCTION_ARGS)
 Datum
 tidout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer itemPtr = PG_GETARG_ITEMPOINTER(0);
   BlockNumber blockNumber;
   OffsetNumber offsetNumber;
@@ -144,6 +147,7 @@ tidout(PG_FUNCTION_ARGS)
 Datum
 tidrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   ItemPointer result;
   BlockNumber blockNumber;
@@ -165,6 +169,7 @@ tidrecv(PG_FUNCTION_ARGS)
 Datum
 tidsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer itemPtr = PG_GETARG_ITEMPOINTER(0);
   StringInfoData buf;
 
@@ -181,6 +186,7 @@ tidsend(PG_FUNCTION_ARGS)
 Datum
 tideq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -190,6 +196,7 @@ tideq(PG_FUNCTION_ARGS)
 Datum
 tidne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -199,6 +206,7 @@ tidne(PG_FUNCTION_ARGS)
 Datum
 tidlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -208,6 +216,7 @@ tidlt(PG_FUNCTION_ARGS)
 Datum
 tidle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -217,6 +226,7 @@ tidle(PG_FUNCTION_ARGS)
 Datum
 tidgt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -226,6 +236,7 @@ tidgt(PG_FUNCTION_ARGS)
 Datum
 tidge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -235,6 +246,7 @@ tidge(PG_FUNCTION_ARGS)
 Datum
 bttidcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -244,6 +256,7 @@ bttidcmp(PG_FUNCTION_ARGS)
 Datum
 tidlarger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -253,6 +266,7 @@ tidlarger(PG_FUNCTION_ARGS)
 Datum
 tidsmaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
@@ -262,6 +276,7 @@ tidsmaller(PG_FUNCTION_ARGS)
 Datum
 hashtid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer key = PG_GETARG_ITEMPOINTER(0);
 
   /*
@@ -277,6 +292,7 @@ hashtid(PG_FUNCTION_ARGS)
 Datum
 hashtidextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ItemPointer key = PG_GETARG_ITEMPOINTER(0);
   uint64    seed = PG_GETARG_INT64(1);
 
@@ -428,6 +444,7 @@ currtid_for_view(Relation viewrel, ItemPointer tid)
 Datum
 currtid_byrelname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   ItemPointer tid = PG_GETARG_ITEMPOINTER(1);
   ItemPointer result;

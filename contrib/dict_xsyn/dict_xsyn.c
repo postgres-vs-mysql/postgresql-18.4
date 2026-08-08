@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -77,6 +78,7 @@ compare_syn(const void *a, const void *b)
 static void
 read_dictionary(DictSyn *d, const char *filename)
 {
+  DBUG_TRACE;
   char     *real_filename = get_tsearch_config_filename(filename, "rules");
   tsearch_readline_state trst;
   char     *line;
@@ -144,6 +146,7 @@ read_dictionary(DictSyn *d, const char *filename)
 Datum
 dxsyn_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   DictSyn    *d;
   ListCell   *l;
@@ -188,6 +191,7 @@ dxsyn_init(PG_FUNCTION_ARGS)
 Datum
 dxsyn_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DictSyn    *d = (DictSyn *) PG_GETARG_POINTER(0);
   char     *in = (char *) PG_GETARG_POINTER(1);
   int     length = PG_GETARG_INT32(2);

@@ -108,8 +108,7 @@
 #define FNV_PRIME 16777619
 
 /* Use a union so that this code is valid under strict aliasing */
-typedef union
-{
+typedef union {
   PageHeaderData phdr;
   uint32    data[BLCKSZ / (sizeof(uint32) * N_SUMS)][N_SUMS];
 } PGChecksummablePage;

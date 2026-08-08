@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execAsync.h"
 #include "executor/executor.h"
@@ -25,6 +26,8 @@
 void
 ExecAsyncRequest(AsyncRequest *areq)
 {
+  DBUG_TRACE;
+
   if (areq->requestee->chgParam != NULL)  /* something changed? */
     ExecReScan(areq->requestee);  /* let ReScan handle this */
 
@@ -61,6 +64,8 @@ ExecAsyncRequest(AsyncRequest *areq)
 void
 ExecAsyncConfigureWait(AsyncRequest *areq)
 {
+  DBUG_TRACE;
+
   /* must provide our own instrumentation support */
   if (areq->requestee->instrument)
     InstrStartNode(areq->requestee->instrument);
@@ -87,6 +92,8 @@ ExecAsyncConfigureWait(AsyncRequest *areq)
 void
 ExecAsyncNotify(AsyncRequest *areq)
 {
+  DBUG_TRACE;
+
   /* must provide our own instrumentation support */
   if (areq->requestee->instrument)
     InstrStartNode(areq->requestee->instrument);
@@ -116,6 +123,8 @@ ExecAsyncNotify(AsyncRequest *areq)
 void
 ExecAsyncResponse(AsyncRequest *areq)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(areq->requestor)) {
     case T_AppendState:
       ExecAsyncAppendResponse(areq);
@@ -136,6 +145,7 @@ ExecAsyncResponse(AsyncRequest *areq)
 void
 ExecAsyncRequestDone(AsyncRequest *areq, TupleTableSlot *result)
 {
+  DBUG_TRACE;
   areq->request_complete = true;
   areq->result = result;
 }
@@ -148,6 +158,7 @@ ExecAsyncRequestDone(AsyncRequest *areq, TupleTableSlot *result)
 void
 ExecAsyncRequestPending(AsyncRequest *areq)
 {
+  DBUG_TRACE;
   areq->callback_pending = true;
   areq->request_complete = false;
   areq->result = NULL;

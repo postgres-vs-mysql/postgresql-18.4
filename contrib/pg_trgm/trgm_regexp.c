@@ -190,6 +190,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation_d.h"
 #include "regex/regexport.h"
@@ -510,11 +511,13 @@ TRGM *
 createTrgmNFA(text *text_re, Oid collation,
               TrgmPackedGraph **graph, MemoryContext rcontext)
 {
+  DBUG_TRACE;
   TRGM     *trg;
   regex_t   regex;
   MemoryContext tmpcontext;
   MemoryContext oldcontext;
 
+  DBUG_PRINT("trgm", "main entry point to process a regular expression");
   /*
    * This processing generates a great deal of cruft, which we'd like to
    * clean up before returning (since this function may be called in a
@@ -553,6 +556,7 @@ static TRGM *
 createTrgmNFAInternal(regex_t *regex, TrgmPackedGraph **graph,
                       MemoryContext rcontext)
 {
+  DBUG_TRACE;
   TRGM     *trg;
   TrgmNFA   trgmNFA;
 
@@ -613,12 +617,14 @@ createTrgmNFAInternal(regex_t *regex, TrgmPackedGraph **graph,
 bool
 trigramsMatchGraph(TrgmPackedGraph *graph, bool *check)
 {
+  DBUG_TRACE;
   int     i,
           j,
           k,
           queueIn,
           queueOut;
 
+  DBUG_PRINT("trgm", "main entry point for evaluating a graph during index scanning");
   /*
    * Reset temporary working areas.
    */
@@ -632,6 +638,7 @@ trigramsMatchGraph(TrgmPackedGraph *graph, bool *check)
    * trigram.
    */
   j = 0;
+  DBUG_PRINT("trgm", "check which color trigrams were matched");
 
   for (i = 0; i < graph->colorTrigramsCount; i++) {
     int     cnt = graph->colorTrigramGroups[i];
@@ -642,6 +649,7 @@ trigramsMatchGraph(TrgmPackedGraph *graph, bool *check)
          * Found one matched trigram in the group. Can skip the rest
          * of them and go to the next group.
          */
+        DBUG_PRINT("trgm", "found one matched trigram in the group");
         graph->colorTrigramsActive[i] = true;
         break;
       }
@@ -701,6 +709,7 @@ trigramsMatchGraph(TrgmPackedGraph *graph, bool *check)
 static void
 RE_compile(regex_t *regex, text *text_re, int cflags, Oid collation)
 {
+  DBUG_TRACE;
   int     text_re_len = VARSIZE_ANY_EXHDR(text_re);
   char     *text_re_val = VARDATA_ANY(text_re);
   pg_wchar   *pattern;
@@ -744,6 +753,7 @@ RE_compile(regex_t *regex, text *text_re, int cflags, Oid collation)
 static void
 getColorInfo(regex_t *regex, TrgmNFA *trgmNFA)
 {
+  DBUG_TRACE;
   int     colorsCount = pg_reg_getnumcolors(regex);
   int     i;
 
@@ -755,6 +765,8 @@ getColorInfo(regex_t *regex, TrgmNFA *trgmNFA)
    * Loop over colors, filling TrgmColorInfo about each.  Note we include
    * WHITE (0) even though we know it'll be reported as non-expandable.
    */
+  DBUG_PRINT("trgm", "loop over colors(colorsCount:%d)", colorsCount);
+
   for (i = 0; i < colorsCount; i++) {
     TrgmColorInfo *colorInfo = &trgmNFA->colorInfo[i];
     int     charsCount = pg_reg_getnumcharacters(regex, i);
@@ -808,6 +820,7 @@ getColorInfo(regex_t *regex, TrgmNFA *trgmNFA)
 static int
 convertPgWchar(pg_wchar c, trgm_mb_char *result)
 {
+  DBUG_TRACE;
   /* "s" has enough space for a multibyte character and a trailing NUL */
   char    s[MAX_MULTIBYTE_CHAR_LEN + 1];
   int     clen;
@@ -875,11 +888,13 @@ convertPgWchar(pg_wchar c, trgm_mb_char *result)
 static void
 transformGraph(TrgmNFA *trgmNFA)
 {
+  DBUG_TRACE;
   HASHCTL   hashCtl;
   TrgmStateKey initkey;
   TrgmState  *initstate;
   ListCell   *lc;
 
+  DBUG_PRINT("trgm", "transform the graph, given a regex and extracted color information");
   /* Initialize this stage's workspace in trgmNFA struct */
   trgmNFA->queue = NIL;
   trgmNFA->keysQueue = NIL;
@@ -938,6 +953,7 @@ transformGraph(TrgmNFA *trgmNFA)
 static void
 processState(TrgmNFA *trgmNFA, TrgmState *state)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* keysQueue should be NIL already, but make sure */
@@ -989,6 +1005,7 @@ processState(TrgmNFA *trgmNFA, TrgmState *state)
 static void
 addKey(TrgmNFA *trgmNFA, TrgmState *state, TrgmStateKey *key)
 {
+  DBUG_TRACE;
   regex_arc_t *arcs;
   TrgmStateKey destKey;
   ListCell   *cell;
@@ -1153,6 +1170,7 @@ addKeyToQueue(TrgmNFA *trgmNFA, TrgmStateKey *key)
 static void
 addArcs(TrgmNFA *trgmNFA, TrgmState *state)
 {
+  DBUG_TRACE;
   TrgmStateKey destKey;
   ListCell   *cell;
   regex_arc_t *arcs;
@@ -1250,6 +1268,7 @@ static void
 addArc(TrgmNFA *trgmNFA, TrgmState *state, TrgmStateKey *key,
        TrgmColor co, TrgmStateKey *destKey)
 {
+  DBUG_TRACE;
   TrgmArc    *arc;
   ListCell   *cell;
 
@@ -1290,6 +1309,8 @@ addArc(TrgmNFA *trgmNFA, TrgmState *state, TrgmStateKey *key,
 static bool
 validArcLabel(TrgmStateKey *key, TrgmColor co)
 {
+  DBUG_TRACE;
+
   /*
    * We have to know full trigram in order to add outgoing arc.  So we can't
    * do it if prefix is ambiguous.
@@ -1345,6 +1366,7 @@ validArcLabel(TrgmStateKey *key, TrgmColor co)
 static TrgmState *
 getState(TrgmNFA *trgmNFA, TrgmStateKey *key)
 {
+  DBUG_TRACE;
   TrgmState  *state;
   bool    found;
 
@@ -1377,6 +1399,8 @@ getState(TrgmNFA *trgmNFA, TrgmStateKey *key)
 static bool
 prefixContains(TrgmPrefix *prefix1, TrgmPrefix *prefix2)
 {
+  DBUG_TRACE;
+
   if (prefix1->colors[1] == COLOR_UNKNOWN) {
     /* Fully ambiguous prefix contains everything */
     return true;
@@ -1414,6 +1438,7 @@ prefixContains(TrgmPrefix *prefix1, TrgmPrefix *prefix2)
 static bool
 selectColorTrigrams(TrgmNFA *trgmNFA)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS scan_status;
   int     arcsCount = trgmNFA->arcsCount,
           i;
@@ -1723,6 +1748,7 @@ selectColorTrigrams(TrgmNFA *trgmNFA)
 static TRGM *
 expandColorTrigrams(TrgmNFA *trgmNFA, MemoryContext rcontext)
 {
+  DBUG_TRACE;
   TRGM     *trg;
   trgm     *p;
   int     i;
@@ -1789,6 +1815,7 @@ expandColorTrigrams(TrgmNFA *trgmNFA, MemoryContext rcontext)
 static void
 fillTrgm(trgm *ptrgm, trgm_mb_char s[3])
 {
+  DBUG_TRACE;
   char    str[3 * MAX_MULTIBYTE_CHAR_LEN],
           *p;
   int     i,
@@ -1817,6 +1844,7 @@ fillTrgm(trgm *ptrgm, trgm_mb_char s[3])
 static void
 mergeStates(TrgmState *state1, TrgmState *state2)
 {
+  DBUG_TRACE;
   Assert(state1 != state2);
   Assert(!state1->parent);
   Assert(!state2->parent);
@@ -1872,6 +1900,7 @@ colorTrgmInfoPenaltyCmp(const void *p1, const void *p2)
 static TrgmPackedGraph *
 packGraph(TrgmNFA *trgmNFA, MemoryContext rcontext)
 {
+  DBUG_TRACE;
   int     snumber = 2,
           arcIndex,
           arcsCount;
@@ -2068,6 +2097,7 @@ packArcInfoCmp(const void *a1, const void *a2)
 static void
 printSourceNFA(regex_t *regex, TrgmColorInfo *colors, int ncolors)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   int     nstates = pg_reg_getnumstates(regex);
   int     state;
@@ -2150,6 +2180,7 @@ printSourceNFA(regex_t *regex, TrgmColorInfo *colors, int ncolors)
 static void
 printTrgmNFA(TrgmNFA *trgmNFA)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   HASH_SEQ_STATUS scan_status;
   TrgmState  *state;
@@ -2227,6 +2258,7 @@ printTrgmColor(StringInfo buf, TrgmColor co)
 static void
 printTrgmPackedGraph(TrgmPackedGraph *packedGraph, TRGM *trigrams)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   trgm     *p;
   int     i;

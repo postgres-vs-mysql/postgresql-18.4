@@ -21,6 +21,7 @@
 static const char rcsid[] = "Id: inet_net_ntop.c,v 1.1.2.2 2004/03/09 09:17:27 marka Exp $";
 #endif
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/socket.h>
@@ -55,6 +56,8 @@ static char *inet_cidr_ntop_ipv6(const u_char *src, int bits,
 char *
 pg_inet_cidr_ntop(int af, const void *src, int bits, char *dst, size_t size)
 {
+  DBUG_TRACE;
+
   switch (af) {
     case PGSQL_AF_INET:
       return inet_cidr_ntop_ipv4(src, bits, dst, size);
@@ -85,6 +88,7 @@ pg_inet_cidr_ntop(int af, const void *src, int bits, char *dst, size_t size)
 static char *
 inet_cidr_ntop_ipv4(const u_char *src, int bits, char *dst, size_t size)
 {
+  DBUG_TRACE;
   char     *odst = dst;
   char     *t;
   u_int   m;
@@ -169,6 +173,7 @@ emsgsize:
 static char *
 inet_cidr_ntop_ipv6(const u_char *src, int bits, char *dst, size_t size)
 {
+  DBUG_TRACE;
   u_int   m;
   int     b;
   int     p;

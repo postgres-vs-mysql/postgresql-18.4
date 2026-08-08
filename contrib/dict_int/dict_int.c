@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "commands/defrem.h"
 #include "tsearch/ts_public.h"
@@ -33,6 +34,7 @@ PG_FUNCTION_INFO_V1(dintdict_lexize);
 Datum
 dintdict_init(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *dictoptions = (List *) PG_GETARG_POINTER(0);
   DictInt    *d;
   ListCell   *l;
@@ -70,6 +72,7 @@ dintdict_init(PG_FUNCTION_ARGS)
 Datum
 dintdict_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   DictInt    *d = (DictInt *) PG_GETARG_POINTER(0);
   char     *in = (char *) PG_GETARG_POINTER(1);
   int     len = PG_GETARG_INT32(2);

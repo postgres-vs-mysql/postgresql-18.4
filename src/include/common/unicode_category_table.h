@@ -51,8 +51,7 @@ typedef struct
 #define PG_U_PROP_HEX_DIGIT     (1 << 7)
 
 /* table for fast lookup of ASCII codepoints */
-static const pg_unicode_properties unicode_opt_ascii[128] =
-{
+static const pg_unicode_properties unicode_opt_ascii[128] = {
   {
     /* 0x000000 */
     .category = PG_U_CONTROL,
@@ -696,8 +695,7 @@ static const pg_unicode_properties unicode_opt_ascii[128] =
 };
 
 /* table of Unicode codepoint ranges and their categories */
-static const pg_category_range unicode_categories[3368] =
-{
+static const pg_category_range unicode_categories[3368] = {
   {0x000000, 0x00001f, PG_U_CONTROL},
   {0x000020, 0x000020, PG_U_SPACE_SEPARATOR},
   {0x000021, 0x000023, PG_U_OTHER_PUNCTUATION},
@@ -4069,8 +4067,7 @@ static const pg_category_range unicode_categories[3368] =
 };
 
 /* table of Unicode codepoint ranges of Alphabetic characters */
-static const pg_unicode_range unicode_alphabetic[1179] =
-{
+static const pg_unicode_range unicode_alphabetic[1179] = {
   {0x000041, 0x00005a},
   {0x000061, 0x00007a},
   {0x0000aa, 0x0000aa},
@@ -5253,8 +5250,7 @@ static const pg_unicode_range unicode_alphabetic[1179] =
 };
 
 /* table of Unicode codepoint ranges of Lowercase characters */
-static const pg_unicode_range unicode_lowercase[690] =
-{
+static const pg_unicode_range unicode_lowercase[690] = {
   {0x000061, 0x00007a},
   {0x0000aa, 0x0000aa},
   {0x0000b5, 0x0000b5},
@@ -5948,8 +5944,7 @@ static const pg_unicode_range unicode_lowercase[690] =
 };
 
 /* table of Unicode codepoint ranges of Uppercase characters */
-static const pg_unicode_range unicode_uppercase[656] =
-{
+static const pg_unicode_range unicode_uppercase[656] = {
   {0x000041, 0x00005a},
   {0x0000c0, 0x0000d6},
   {0x0000d8, 0x0000de},
@@ -6609,8 +6604,7 @@ static const pg_unicode_range unicode_uppercase[656] =
 };
 
 /* table of Unicode codepoint ranges of Case_Ignorable characters */
-static const pg_unicode_range unicode_case_ignorable[506] =
-{
+static const pg_unicode_range unicode_case_ignorable[506] = {
   {0x000027, 0x000027},
   {0x00002e, 0x00002e},
   {0x00003a, 0x00003a},
@@ -7120,8 +7114,7 @@ static const pg_unicode_range unicode_case_ignorable[506] =
 };
 
 /* table of Unicode codepoint ranges of White_Space characters */
-static const pg_unicode_range unicode_white_space[11] =
-{
+static const pg_unicode_range unicode_white_space[11] = {
   {0x000009, 0x00000d},
   {0x000020, 0x000020},
   {0x000085, 0x000085},
@@ -7136,8 +7129,7 @@ static const pg_unicode_range unicode_white_space[11] =
 };
 
 /* table of Unicode codepoint ranges of Hex_Digit characters */
-static const pg_unicode_range unicode_hex_digit[6] =
-{
+static const pg_unicode_range unicode_hex_digit[6] = {
   {0x000030, 0x000039},
   {0x000041, 0x000046},
   {0x000061, 0x000066},
@@ -7147,7 +7139,6 @@ static const pg_unicode_range unicode_hex_digit[6] =
 };
 
 /* table of Unicode codepoint ranges of Join_Control characters */
-static const pg_unicode_range unicode_join_control[1] =
-{
+static const pg_unicode_range unicode_join_control[1] = {
   {0x00200c, 0x00200d},
 };

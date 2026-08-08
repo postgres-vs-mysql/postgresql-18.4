@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/bufmask.h"
@@ -30,6 +31,7 @@
 void
 mask_page_lsn_and_checksum(Page page)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
 
   PageXLogRecPtrSet(phdr->pd_lsn, (uint64) MASK_MARKER);
@@ -45,6 +47,7 @@ mask_page_lsn_and_checksum(Page page)
 void
 mask_page_hint_bits(Page page)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
 
   /* Ignore prune_xid (it's like a hint-bit) */
@@ -70,6 +73,7 @@ mask_page_hint_bits(Page page)
 void
 mask_unused_space(Page page)
 {
+  DBUG_TRACE;
   int     pd_lower = ((PageHeader) page)->pd_lower;
   int     pd_upper = ((PageHeader) page)->pd_upper;
   int     pd_special = ((PageHeader) page)->pd_special;
@@ -93,6 +97,7 @@ mask_unused_space(Page page)
 void
 mask_lp_flags(Page page)
 {
+  DBUG_TRACE;
   OffsetNumber offnum,
                maxoff;
 
@@ -117,6 +122,7 @@ mask_lp_flags(Page page)
 void
 mask_page_content(Page page)
 {
+  DBUG_TRACE;
   /* Mask Page Content */
   memset(page + SizeOfPageHeaderData, MASK_MARKER,
          BLCKSZ - SizeOfPageHeaderData);

@@ -71,6 +71,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <dirent.h>
 #include <sys/file.h>
@@ -1030,6 +1031,7 @@ count_usable_fds(int max_to_probe, int *usable_fds, int *already_open)
 void
 set_max_safe_fds(void)
 {
+  DBUG_TRACE;
   int     usable_fds;
   int     already_open;
 
@@ -1064,6 +1066,8 @@ set_max_safe_fds(void)
                        FD_MINFREE + NUM_RESERVED_FDS,
                        already_open)));
 
+  DBUG_PRINT("info", "max_safe_fds = %d, usable_fds = %d, already_open = %d",
+             max_safe_fds, usable_fds, already_open);
   elog(DEBUG2, "max_safe_fds = %d, usable_fds = %d, already_open = %d",
        max_safe_fds, usable_fds, already_open);
 }
@@ -1711,6 +1715,7 @@ PathNameDeleteTemporaryDir(const char *dirname)
 File
 OpenTemporaryFile(bool interXact)
 {
+  DBUG_TRACE;
   File    file = 0;
 
   Assert(temporary_files_allowed);  /* check temp file access is up */

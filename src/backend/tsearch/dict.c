@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
@@ -26,6 +27,7 @@
 Datum
 ts_lexize(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     dictId = PG_GETARG_OID(0);
   text     *in = PG_GETARG_TEXT_PP(1);
   ArrayType  *a;

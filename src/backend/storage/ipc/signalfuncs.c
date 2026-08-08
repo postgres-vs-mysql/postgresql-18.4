@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <signal.h>
@@ -132,6 +133,7 @@ pg_signal_backend(int pid, int sig)
 Datum
 pg_cancel_backend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     r = pg_signal_backend(PG_GETARG_INT32(0), SIGINT);
 
   if (r == SIGNAL_BACKEND_NOSUPERUSER)
@@ -231,6 +233,7 @@ pg_wait_until_termination(int pid, int64 timeout)
 Datum
 pg_terminate_backend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     pid;
   int     r;
   int     timeout;    /* milliseconds */
@@ -282,6 +285,8 @@ pg_terminate_backend(PG_FUNCTION_ARGS)
 Datum
 pg_reload_conf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (kill(PostmasterPid, SIGHUP)) {
     ereport(WARNING,
             (errmsg("failed to send signal to postmaster: %m")));
@@ -301,6 +306,8 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (!Logging_collector) {
     ereport(WARNING,
             (errmsg("rotation not possible because log collection not active")));

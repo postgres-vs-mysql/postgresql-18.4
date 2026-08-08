@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -40,6 +41,7 @@ ConversionCreate(const char *conname, Oid connamespace,
                  int32 conforencoding, int32 contoencoding,
                  Oid conproc, bool def)
 {
+  DBUG_TRACE;
   int     i;
   Relation  rel;
   TupleDesc tupDesc;
@@ -58,10 +60,12 @@ ConversionCreate(const char *conname, Oid connamespace,
   /* make sure there is no existing conversion of same name */
   if (SearchSysCacheExists2(CONNAMENSP,
                             PointerGetDatum(conname),
-                            ObjectIdGetDatum(connamespace)))
+                            ObjectIdGetDatum(connamespace))) {
+    DBUG_INSTANT_PRINT("info", "conversion \"%s\" already exists", conname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("conversion \"%s\" already exists", conname)));
+  }
 
   if (def) {
     /*
@@ -70,12 +74,15 @@ ConversionCreate(const char *conname, Oid connamespace,
      */
     if (FindDefaultConversion(connamespace,
                               conforencoding,
-                              contoencoding))
+                              contoencoding)) {
+      DBUG_INSTANT_PRINT("info", "default conversion for %s to %s already exists",
+                         pg_encoding_to_char(conforencoding), pg_encoding_to_char(contoencoding));
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("default conversion for %s to %s already exists",
                       pg_encoding_to_char(conforencoding),
                       pg_encoding_to_char(contoencoding))));
+    }
   }
 
   /* open pg_conversion */
@@ -149,6 +156,7 @@ ConversionCreate(const char *conname, Oid connamespace,
 Oid
 FindDefaultConversion(Oid name_space, int32 for_encoding, int32 to_encoding)
 {
+  DBUG_TRACE;
   CatCList   *catlist;
   HeapTuple tuple;
   Form_pg_conversion body;

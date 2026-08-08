@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -34,11 +35,13 @@
 char *
 defGetString(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a parameter", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a parameter",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
@@ -75,11 +78,13 @@ defGetString(DefElem *def)
 double
 defGetNumeric(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a numeric value",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
@@ -89,6 +94,7 @@ defGetNumeric(DefElem *def)
       return floatVal(def->arg);
 
     default:
+      DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("%s requires a numeric value",
@@ -151,6 +157,7 @@ defGetBoolean(DefElem *def)
     break;
   }
 
+  DBUG_INSTANT_PRINT("info", "%s requires a Boolean value", def->defname);
   ereport(ERROR,
           (errcode(ERRCODE_SYNTAX_ERROR),
            errmsg("%s requires a Boolean value",
@@ -164,17 +171,20 @@ defGetBoolean(DefElem *def)
 int32
 defGetInt32(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a integer value", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires an integer value",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
       return (int32) intVal(def->arg);
 
     default:
+      DBUG_INSTANT_PRINT("info", "%s requires a integer value", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("%s requires an integer value",
@@ -190,11 +200,15 @@ defGetInt32(DefElem *def)
 int64
 defGetInt64(DefElem *def)
 {
-  if (def->arg == NULL)
+  DBUG_TRACE;
+
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a numeric value",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
@@ -211,6 +225,7 @@ defGetInt64(DefElem *def)
                            CStringGetDatum(castNode(Float, def->arg)->fval)));
 
     default:
+      DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("%s requires a numeric value",
@@ -226,11 +241,15 @@ defGetInt64(DefElem *def)
 Oid
 defGetObjectId(DefElem *def)
 {
-  if (def->arg == NULL)
+  DBUG_TRACE;
+
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a numeric value",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
@@ -247,6 +266,7 @@ defGetObjectId(DefElem *def)
                               CStringGetDatum(castNode(Float, def->arg)->fval)));
 
     default:
+      DBUG_INSTANT_PRINT("info", "%s requires a numeric value", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("%s requires a numeric value",
@@ -262,11 +282,13 @@ defGetObjectId(DefElem *def)
 List *
 defGetQualifiedName(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a parameter", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a parameter",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_TypeName:
@@ -280,6 +302,7 @@ defGetQualifiedName(DefElem *def)
       return list_make1(def->arg);
 
     default:
+      DBUG_INSTANT_PRINT("info", "argument of %s must be a name", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("argument of %s must be a name",
@@ -298,11 +321,13 @@ defGetQualifiedName(DefElem *def)
 TypeName *
 defGetTypeName(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a parameter", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a parameter",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_TypeName:
@@ -313,6 +338,7 @@ defGetTypeName(DefElem *def)
       return makeTypeNameFromNameList(list_make1(def->arg));
 
     default:
+      DBUG_INSTANT_PRINT("info", "argument of %s must be a type name", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("argument of %s must be a type name",
@@ -329,17 +355,20 @@ defGetTypeName(DefElem *def)
 int
 defGetTypeLength(DefElem *def)
 {
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a parameter", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a parameter",
                     def->defname)));
+  }
 
   switch (nodeTag(def->arg)) {
     case T_Integer:
       return intVal(def->arg);
 
     case T_Float:
+      DBUG_INSTANT_PRINT("info", "%s requires an integer value", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("%s requires an integer value",
@@ -369,6 +398,7 @@ defGetTypeLength(DefElem *def)
       elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
   }
 
+  DBUG_INSTANT_PRINT("info", "invalid argument for %s: \"%s\"", def->defname, defGetString(def));
   ereport(ERROR,
           (errcode(ERRCODE_SYNTAX_ERROR),
            errmsg("invalid argument for %s: \"%s\"",
@@ -384,11 +414,13 @@ defGetStringList(DefElem *def)
 {
   ListCell   *cell;
 
-  if (def->arg == NULL)
+  if (def->arg == NULL) {
+    DBUG_INSTANT_PRINT("info", "%s requires a parameter", def->defname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("%s requires a parameter",
                     def->defname)));
+  }
 
   if (nodeTag(def->arg) != T_List)
     elog(ERROR, "unrecognized node type: %d", (int) nodeTag(def->arg));
@@ -410,6 +442,8 @@ defGetStringList(DefElem *def)
 void
 errorConflictingDefElem(DefElem *defel, ParseState *pstate)
 {
+  DBUG_TRACE;
+  DBUG_INSTANT_PRINT("info", "conflicting or redundant options");
   ereport(ERROR,
           errcode(ERRCODE_SYNTAX_ERROR),
           errmsg("conflicting or redundant options"),

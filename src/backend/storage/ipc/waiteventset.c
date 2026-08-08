@@ -46,6 +46,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <limits.h>
@@ -238,6 +239,7 @@ ResourceOwnerForgetWaitEventSet(ResourceOwner owner, WaitEventSet *set)
 void
 InitializeWaitEventSupport(void)
 {
+  DBUG_TRACE;
 #if defined(WAIT_USE_SELF_PIPE)
   int     pipefd[2];
 
@@ -359,6 +361,7 @@ InitializeWaitEventSupport(void)
 WaitEventSet *
 CreateWaitEventSet(ResourceOwner resowner, int nevents)
 {
+  DBUG_TRACE;
   WaitEventSet *set;
   char     *data;
   Size    sz = 0;
@@ -481,6 +484,8 @@ CreateWaitEventSet(ResourceOwner resowner, int nevents)
 void
 FreeWaitEventSet(WaitEventSet *set)
 {
+  DBUG_TRACE;
+
   if (set->owner) {
     ResourceOwnerForgetWaitEventSet(set->owner, set);
     set->owner = NULL;
@@ -519,6 +524,7 @@ FreeWaitEventSet(WaitEventSet *set)
 void
 FreeWaitEventSetAfterFork(WaitEventSet *set)
 {
+  DBUG_TRACE;
 #if defined(WAIT_USE_EPOLL)
   close(set->epoll_fd);
   ReleaseExternalFD();
@@ -566,6 +572,7 @@ int
 AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd, Latch *latch,
                   void *user_data)
 {
+  DBUG_TRACE;
   WaitEvent  *event;
 
   /* not enough space */
@@ -646,6 +653,7 @@ AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd, Latch *latch,
 void
 ModifyWaitEvent(WaitEventSet *set, int pos, uint32 events, Latch *latch)
 {
+  DBUG_TRACE;
   WaitEvent  *event;
 #if defined(WAIT_USE_KQUEUE)
   int     old_events;
@@ -730,6 +738,7 @@ ModifyWaitEvent(WaitEventSet *set, int pos, uint32 events, Latch *latch)
 static void
 WaitEventAdjustEpoll(WaitEventSet *set, WaitEvent *event, int action)
 {
+  DBUG_TRACE;
   struct epoll_event epoll_ev;
   int     rc;
 
@@ -779,6 +788,7 @@ WaitEventAdjustEpoll(WaitEventSet *set, WaitEvent *event, int action)
 static void
 WaitEventAdjustPoll(WaitEventSet *set, WaitEvent *event)
 {
+  DBUG_TRACE;
   struct pollfd *pollfd = &set->pollfds[event->pos];
 
   pollfd->revents = 0;
@@ -828,6 +838,7 @@ static inline void
 WaitEventAdjustKqueueAdd(struct kevent *k_ev, int filter, int action,
                          WaitEvent *event)
 {
+  DBUG_TRACE;
   k_ev->ident = event->fd;
   k_ev->filter = filter;
   k_ev->flags = action;
@@ -839,6 +850,7 @@ WaitEventAdjustKqueueAdd(struct kevent *k_ev, int filter, int action,
 static inline void
 WaitEventAdjustKqueueAddPostmaster(struct kevent *k_ev, WaitEvent *event)
 {
+  DBUG_TRACE;
   /* For now postmaster death can only be added, not removed. */
   k_ev->ident = PostmasterPid;
   k_ev->filter = EVFILT_PROC;
@@ -851,6 +863,7 @@ WaitEventAdjustKqueueAddPostmaster(struct kevent *k_ev, WaitEvent *event)
 static inline void
 WaitEventAdjustKqueueAddLatch(struct kevent *k_ev, WaitEvent *event)
 {
+  DBUG_TRACE;
   /* For now latch can only be added, not removed. */
   k_ev->ident = SIGURG;
   k_ev->filter = EVFILT_SIGNAL;
@@ -866,6 +879,7 @@ WaitEventAdjustKqueueAddLatch(struct kevent *k_ev, WaitEvent *event)
 static void
 WaitEventAdjustKqueue(WaitEventSet *set, WaitEvent *event, int old_events)
 {
+  DBUG_TRACE;
   int     rc;
   struct kevent k_ev[2];
   int     count = 0;
@@ -969,6 +983,7 @@ WaitEventAdjustKqueue(WaitEventSet *set, WaitEvent *event, int old_events)
 static void
 WaitEventAdjustWin32(WaitEventSet *set, WaitEvent *event)
 {
+  DBUG_TRACE;
   HANDLE     *handle = &set->handles[event->pos + 1];
 
   if (event->events == WL_LATCH_SET) {
@@ -1025,6 +1040,7 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
                  WaitEvent *occurred_events, int nevents,
                  uint32 wait_event_info)
 {
+  DBUG_TRACE;
   int     returned_events = 0;
   instr_time  start_time;
   instr_time  cur_time;
@@ -1147,6 +1163,7 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
 
   pgstat_report_wait_end();
 
+  DBUG_PRINT("info", "returned_events:%d", returned_events);
   return returned_events;
 }
 
@@ -1165,6 +1182,7 @@ static inline int
 WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
                       WaitEvent *occurred_events, int nevents)
 {
+  DBUG_TRACE;
   int     returned_events = 0;
   int     rc;
   WaitEvent  *cur_event;
@@ -1247,18 +1265,21 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
       if ((cur_event->events & WL_SOCKET_READABLE) &&
           (cur_epoll_event->events & (EPOLLIN | EPOLLERR | EPOLLHUP))) {
+        DBUG_PRINT("info", "data available in socket, or EOF");
         /* data available in socket, or EOF */
         occurred_events->events |= WL_SOCKET_READABLE;
       }
 
       if ((cur_event->events & WL_SOCKET_WRITEABLE) &&
           (cur_epoll_event->events & (EPOLLOUT | EPOLLERR | EPOLLHUP))) {
+        DBUG_PRINT("info", "writeable, or EOF");
         /* writable, or EOF */
         occurred_events->events |= WL_SOCKET_WRITEABLE;
       }
 
       if ((cur_event->events & WL_SOCKET_CLOSED) &&
           (cur_epoll_event->events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
+        DBUG_PRINT("info", "remote peer closed, or error");
         /* remote peer shut down, or error */
         occurred_events->events |= WL_SOCKET_CLOSED;
       }
@@ -1271,6 +1292,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
     }
   }
 
+  DBUG_PRINT("info", "returned_events:%d", returned_events);
   return returned_events;
 }
 
@@ -1287,6 +1309,7 @@ static int
 WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
                       WaitEvent *occurred_events, int nevents)
 {
+  DBUG_TRACE;
   int     returned_events = 0;
   int     rc;
   WaitEvent  *cur_event;
@@ -1334,6 +1357,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
     return 0;
   } else if (rc == 0) {
+    DBUG_PRINT("info", "timeout exceeded");
     /* timeout exceeded */
     return -1;
   }
@@ -1426,6 +1450,7 @@ static inline int
 WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
                       WaitEvent *occurred_events, int nevents)
 {
+  DBUG_TRACE;
   int     returned_events = 0;
   int     rc;
   WaitEvent  *cur_event;
@@ -1466,6 +1491,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
     if (cur_event->events == WL_LATCH_SET &&
         (cur_pollfd->revents & (POLLIN | POLLHUP | POLLERR | POLLNVAL))) {
       /* There's data in the self-pipe, clear it. */
+      DBUG_PRINT("info", "there's data in the self-pipe, clear it");
       drain();
 
       if (set->latch && set->latch->maybe_sleeping && set->latch->is_set) {
@@ -1506,12 +1532,14 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
       if ((cur_event->events & WL_SOCKET_READABLE) &&
           (cur_pollfd->revents & (POLLIN | errflags))) {
         /* data available in socket, or EOF */
+        DBUG_PRINT("info", "data available in socket, or EOF");
         occurred_events->events |= WL_SOCKET_READABLE;
       }
 
       if ((cur_event->events & WL_SOCKET_WRITEABLE) &&
           (cur_pollfd->revents & (POLLOUT | errflags))) {
         /* writeable, or EOF */
+        DBUG_PRINT("info", "writable, or EOF");
         occurred_events->events |= WL_SOCKET_WRITEABLE;
       }
 
@@ -1519,6 +1547,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
       if ((cur_event->events & WL_SOCKET_CLOSED) &&
           (cur_pollfd->revents & (POLLRDHUP | errflags))) {
+        DBUG_PRINT("info", "remote peer shut down, or error");
         /* remote peer closed, or error */
         occurred_events->events |= WL_SOCKET_CLOSED;
       }
@@ -1549,6 +1578,7 @@ static inline int
 WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
                       WaitEvent *occurred_events, int nevents)
 {
+  DBUG_TRACE;
   int     returned_events = 0;
   DWORD   rc;
   WaitEvent  *cur_event;
@@ -1743,10 +1773,12 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
       if ((cur_event->events & WL_SOCKET_ACCEPT) &&
           (resEvents.lNetworkEvents & FD_ACCEPT)) {
         /* incoming connection could be accepted */
+        DBUG_PRINT("info", "incoming connection could be accepted");
         occurred_events->events |= WL_SOCKET_ACCEPT;
       }
 
       if (resEvents.lNetworkEvents & FD_CLOSE) {
+        DBUG_PRINT("info", "EOF/error, so signal all caller-requested socket flags");
         /* EOF/error, so signal all caller-requested socket flags */
         occurred_events->events |= (cur_event->events & WL_SOCKET_MASK);
       }

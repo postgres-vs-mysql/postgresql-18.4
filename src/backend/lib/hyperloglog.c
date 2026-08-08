@@ -44,6 +44,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -65,6 +66,7 @@ static inline uint8 rho(uint32 x, uint8 b);
 void
 initHyperLogLog(hyperLogLogState *cState, uint8 bwidth)
 {
+  DBUG_TRACE;
   double    alpha;
 
   if (bwidth < 4 || bwidth > 16)
@@ -129,6 +131,7 @@ initHyperLogLog(hyperLogLogState *cState, uint8 bwidth)
 void
 initHyperLogLogError(hyperLogLogState *cState, double error)
 {
+  DBUG_TRACE;
   uint8   bwidth = 4;
 
   while (bwidth < 16) {
@@ -168,6 +171,7 @@ freeHyperLogLog(hyperLogLogState *cState)
 void
 addHyperLogLog(hyperLogLogState *cState, uint32 hash)
 {
+  DBUG_TRACE;
   uint8   count;
   uint32    index;
 
@@ -187,6 +191,7 @@ addHyperLogLog(hyperLogLogState *cState, uint32 hash)
 double
 estimateHyperLogLog(hyperLogLogState *cState)
 {
+  DBUG_TRACE;
   double    result;
   double    sum = 0.0;
   int     i;
@@ -215,6 +220,7 @@ estimateHyperLogLog(hyperLogLogState *cState)
     result = NEG_POW_2_32 * log(1.0 - (result / POW_2_32));
   }
 
+  DBUG_PRINT("info", "estimates cardinality, based on elements added so far:%g", result);
   return result;
 }
 

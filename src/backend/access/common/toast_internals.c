@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/genam.h"
@@ -45,10 +46,12 @@ static bool toastid_valueid_exists(Oid toastrelid, Oid valueid);
 Datum
 toast_compress_datum(Datum value, char cmethod)
 {
+  DBUG_TRACE;
   struct varlena *tmp = NULL;
   int32   valsize;
   ToastCompressionId cmid = TOAST_INVALID_COMPRESSION_ID;
 
+  DBUG_PRINT("info", "create a compressed version of a varlena datum");
   Assert(!VARATT_IS_EXTERNAL(DatumGetPointer(value)));
   Assert(!VARATT_IS_COMPRESSED(DatumGetPointer(value)));
 
@@ -91,10 +94,14 @@ toast_compress_datum(Datum value, char cmethod)
    */
   if (VARSIZE(tmp) < valsize - 2) {
     /* successful compression */
+    DBUG_PRINT("info", "successful compression");
+    DBUG_PRINT("info", "before compression:%u, after:%u", valsize, VARSIZE(tmp));
     Assert(cmid != TOAST_INVALID_COMPRESSION_ID);
     TOAST_COMPRESS_SET_SIZE_AND_COMPRESS_METHOD(tmp, valsize, cmid);
     return PointerGetDatum(tmp);
   } else {
+    DBUG_PRINT("info", "before compression:%u, after:%u", valsize, VARSIZE(tmp));
+    DBUG_PRINT("info", "incompressible data");
     /* incompressible data */
     pfree(tmp);
     return PointerGetDatum(NULL);
@@ -117,6 +124,7 @@ Datum
 toast_save_datum(Relation rel, Datum value,
                  struct varlena *oldexternal, int options)
 {
+  DBUG_TRACE;
   Relation  toastrel;
   Relation   *toastidxs;
   HeapTuple toasttup;
@@ -141,6 +149,7 @@ toast_save_datum(Relation rel, Datum value,
   int     num_indexes;
   int     validIndex;
 
+  DBUG_PRINT("info", "save one single datum into the secondary relation and return a Datum reference for it");
   Assert(!VARATT_IS_EXTERNAL(value));
 
   /*
@@ -148,6 +157,7 @@ toast_save_datum(Relation rel, Datum value,
    * uniqueness of the OID we assign to the toasted item, even though it has
    * additional columns besides OID.
    */
+  DBUG_PRINT("info", "open the toast relation and its indexes");
   toastrel = table_open(rel->rd_rel->reltoastrelid, RowExclusiveLock);
   toasttupDesc = toastrel->rd_att;
 
@@ -190,6 +200,8 @@ toast_save_datum(Relation rel, Datum value,
     toast_pointer.va_extinfo = data_todo;
   }
 
+  DBUG_PRINT("info", "insert the correct table OID into the result TOAST pointer");
+
   /*
    * Insert the correct table OID into the result TOAST pointer.
    *
@@ -215,6 +227,8 @@ toast_save_datum(Relation rel, Datum value,
    * options have been changed), we have to pick a value ID that doesn't
    * conflict with either new or existing toast value OIDs.
    */
+  DBUG_PRINT("info", "choose an OID to use as the value ID for this toast value");
+
   if (!OidIsValid(rel->rd_toastoid)) {
     /* normal case: just choose an unused OID */
     toast_pointer.va_valueid =
@@ -233,6 +247,7 @@ toast_save_datum(Relation rel, Datum value,
       VARATT_EXTERNAL_GET_POINTER(old_toast_pointer, oldexternal);
 
       if (old_toast_pointer.va_toastrelid == rel->rd_toastoid) {
+        DBUG_PRINT("info", "this value came from the old toast table; reuse its OID");
         /* This value came from the old toast table; reuse its OID */
         toast_pointer.va_valueid = old_toast_pointer.va_valueid;
 
@@ -266,6 +281,8 @@ toast_save_datum(Relation rel, Datum value,
        * new value; must choose an OID that doesn't conflict in either
        * old or new toast table
        */
+      DBUG_PRINT("info", "new value; must choose an OID that doesn't conflict in either old or new toast table");
+
       do {
         toast_pointer.va_valueid =
           GetNewOidWithIndex(toastrel,
@@ -288,6 +305,8 @@ toast_save_datum(Relation rel, Datum value,
   /*
    * Split up the item into chunks
    */
+  DBUG_PRINT("info", "split up the item(%d) into chunks", data_todo);
+
   while (data_todo > 0) {
     int     i;
 
@@ -347,12 +366,14 @@ toast_save_datum(Relation rel, Datum value,
    * commit, so as a concurrent reindex done directly on the toast relation
    * would be able to wait for this transaction.
    */
+  DBUG_PRINT("info", "close toast relation and its indexes but keep the lock until commit");
   toast_close_indexes(toastidxs, num_indexes, NoLock);
   table_close(toastrel, NoLock);
 
   /*
    * Create the TOAST pointer value that we'll return
    */
+  DBUG_PRINT("info", "create the TOAST pointer value that we'll return");
   result = (struct varlena *) palloc(TOAST_POINTER_SIZE);
   SET_VARTAG_EXTERNAL(result, VARTAG_ONDISK);
   memcpy(VARDATA_EXTERNAL(result), &toast_pointer, sizeof(toast_pointer));
@@ -369,6 +390,7 @@ toast_save_datum(Relation rel, Datum value,
 void
 toast_delete_datum(Relation rel, Datum value, bool is_speculative)
 {
+  DBUG_TRACE;
   struct varlena *attr = (struct varlena *) DatumGetPointer(value);
   struct varatt_external toast_pointer;
   Relation  toastrel;
@@ -382,14 +404,17 @@ toast_delete_datum(Relation rel, Datum value, bool is_speculative)
   if (!VARATT_IS_EXTERNAL_ONDISK(attr))
     return;
 
+  DBUG_PRINT("info", "delete a single external stored value");
   /* Must copy to access aligned fields */
   VARATT_EXTERNAL_GET_POINTER(toast_pointer, attr);
 
   /*
    * Open the toast relation and its indexes
    */
+  DBUG_PRINT("info", "open the toast relation and its indexes");
   toastrel = table_open(toast_pointer.va_toastrelid, RowExclusiveLock);
 
+  DBUG_PRINT("info", "fetch valid relation used for process");
   /* Fetch valid relation used for process */
   validIndex = toast_open_indexes(toastrel,
                                   RowExclusiveLock,
@@ -404,6 +429,7 @@ toast_delete_datum(Relation rel, Datum value, bool is_speculative)
               BTEqualStrategyNumber, F_OIDEQ,
               ObjectIdGetDatum(toast_pointer.va_valueid));
 
+  DBUG_PRINT("info", "find all the chunks");
   /*
    * Find all the chunks.  (We don't actually care whether we see them in
    * sequence or not, but since we've already locked the index we might as
@@ -416,10 +442,12 @@ toast_delete_datum(Relation rel, Datum value, bool is_speculative)
     /*
      * Have a chunk, delete it
      */
-    if (is_speculative)
+    if (is_speculative) {
+      DBUG_PRINT("info", "have a chunk, delete it");
       heap_abort_speculative(toastrel, &toasttup->t_self);
-    else
+    } else {
       simple_heap_delete(toastrel, &toasttup->t_self);
+    }
   }
 
   /*
@@ -427,6 +455,7 @@ toast_delete_datum(Relation rel, Datum value, bool is_speculative)
    * concurrent reindex done directly on the toast relation would be able to
    * wait for this transaction.
    */
+  DBUG_PRINT("info", "end scan and close relations but keep the lock until commit");
   systable_endscan_ordered(toastscan);
   toast_close_indexes(toastidxs, num_indexes, NoLock);
   table_close(toastrel, NoLock);
@@ -443,6 +472,7 @@ toast_delete_datum(Relation rel, Datum value, bool is_speculative)
 static bool
 toastrel_valueid_exists(Relation toastrel, Oid valueid)
 {
+  DBUG_TRACE;
   bool    result = false;
   ScanKeyData toastkey;
   SysScanDesc toastscan;
@@ -450,6 +480,7 @@ toastrel_valueid_exists(Relation toastrel, Oid valueid)
   int     validIndex;
   Relation   *toastidxs;
 
+  DBUG_PRINT("info", "test whether a toast value with the given ID exists in the toast relation");
   /* Fetch a valid index relation */
   validIndex = toast_open_indexes(toastrel,
                                   RowExclusiveLock,
@@ -471,13 +502,20 @@ toastrel_valueid_exists(Relation toastrel, Oid valueid)
                                  RelationGetRelid(toastidxs[validIndex]),
                                  true, SnapshotAny, 1, &toastkey);
 
-  if (systable_getnext(toastscan) != NULL)
+  if (systable_getnext(toastscan) != NULL) {
     result = true;
+  }
 
   systable_endscan(toastscan);
 
   /* Clean up */
   toast_close_indexes(toastidxs, num_indexes, RowExclusiveLock);
+
+  if (result) {
+    DBUG_PRINT("info", "result is true");
+  } else {
+    DBUG_PRINT("info", "result is false");
+  }
 
   return result;
 }
@@ -491,6 +529,7 @@ toastrel_valueid_exists(Relation toastrel, Oid valueid)
 static bool
 toastid_valueid_exists(Oid toastrelid, Oid valueid)
 {
+  DBUG_TRACE;
   bool    result;
   Relation  toastrel;
 
@@ -512,6 +551,7 @@ toastid_valueid_exists(Oid toastrelid, Oid valueid)
 Oid
 toast_get_valid_index(Oid toastoid, LOCKMODE lock)
 {
+  DBUG_TRACE;
   int     num_indexes;
   int     validIndex;
   Oid     validIndexOid;
@@ -549,6 +589,7 @@ toast_open_indexes(Relation toastrel,
                    Relation **toastidxs,
                    int *num_indexes)
 {
+  DBUG_TRACE;
   int     i = 0;
   int     res = 0;
   bool    found = false;
@@ -604,6 +645,7 @@ toast_open_indexes(Relation toastrel,
 void
 toast_close_indexes(Relation *toastidxs, int num_indexes, LOCKMODE lock)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Close relations and clean up things */

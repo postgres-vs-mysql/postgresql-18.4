@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
@@ -31,6 +32,7 @@
 int
 ArrayGetOffset(int n, const int *dim, const int *lb, const int *indx)
 {
+  DBUG_TRACE;
   int     i,
           scale = 1,
           offset = 0;
@@ -40,6 +42,7 @@ ArrayGetOffset(int n, const int *dim, const int *lb, const int *indx)
     scale *= dim[i];
   }
 
+  DBUG_PRINT("info", "offset:%d", offset);
   return offset;
 }
 
@@ -240,6 +243,7 @@ mda_next_tuple(int n, int *curr, const int *span)
 int32 *
 ArrayGetIntegerTypmods(ArrayType *arr, int *n)
 {
+  DBUG_TRACE;
   int32    *result;
   Datum    *elem_values;
   int     i;

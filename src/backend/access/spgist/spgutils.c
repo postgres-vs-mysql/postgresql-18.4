@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/htup_details.h"
@@ -43,6 +44,7 @@
 Datum
 spghandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
   amroutine->amstrategies = 0;
@@ -120,6 +122,7 @@ spghandler(PG_FUNCTION_ARGS)
 static Oid
 GetIndexInputType(Relation index, AttrNumber indexcol)
 {
+  DBUG_TRACE;
   Oid     opcintype;
   AttrNumber  heapcol;
   List     *indexprs;
@@ -171,6 +174,7 @@ GetIndexInputType(Relation index, AttrNumber indexcol)
 static void
 fillTypeDesc(SpGistTypeDesc *desc, Oid type)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_type typtup;
 
@@ -195,6 +199,7 @@ fillTypeDesc(SpGistTypeDesc *desc, Oid type)
 SpGistCache *
 spgGetCache(Relation index)
 {
+  DBUG_TRACE;
   SpGistCache *cache;
 
   if (index->rd_amcache == NULL) {
@@ -314,6 +319,7 @@ spgGetCache(Relation index)
 TupleDesc
 getSpGistTupleDesc(Relation index, SpGistTypeDesc *keyType)
 {
+  DBUG_TRACE;
   TupleDesc outTupDesc;
   Form_pg_attribute att;
 
@@ -348,6 +354,7 @@ getSpGistTupleDesc(Relation index, SpGistTypeDesc *keyType)
 void
 initSpGistState(SpGistState *state, Relation index)
 {
+  DBUG_TRACE;
   SpGistCache *cache;
 
   state->index = index;
@@ -394,6 +401,7 @@ initSpGistState(SpGistState *state, Relation index)
 Buffer
 SpGistNewBuffer(Relation index)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* First, try to get a page from FSM */
@@ -448,6 +456,7 @@ SpGistNewBuffer(Relation index)
 void
 SpGistUpdateMetaPage(Relation index)
 {
+  DBUG_TRACE;
   SpGistCache *cache = (SpGistCache *) index->rd_amcache;
 
   if (cache != NULL) {
@@ -558,6 +567,7 @@ allocNewBuffer(Relation index, int flags)
 Buffer
 SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 {
+  DBUG_TRACE;
   SpGistCache *cache = spgGetCache(index);
   SpGistLastUsedPage *lup;
 
@@ -658,6 +668,7 @@ SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 void
 SpGistSetLastUsedPage(Relation index, Buffer buffer)
 {
+  DBUG_TRACE;
   SpGistCache *cache = spgGetCache(index);
   SpGistLastUsedPage *lup;
   int     freeSpace;
@@ -694,6 +705,7 @@ SpGistSetLastUsedPage(Relation index, Buffer buffer)
 void
 SpGistInitPage(Page page, uint16 f)
 {
+  DBUG_TRACE;
   SpGistPageOpaque opaque;
 
   PageInit(page, BLCKSZ, sizeof(SpGistPageOpaqueData));
@@ -708,6 +720,7 @@ SpGistInitPage(Page page, uint16 f)
 void
 SpGistInitBuffer(Buffer b, uint16 f)
 {
+  DBUG_TRACE;
   Assert(BufferGetPageSize(b) == BLCKSZ);
   SpGistInitPage(BufferGetPage(b), f);
 }
@@ -718,6 +731,7 @@ SpGistInitBuffer(Buffer b, uint16 f)
 void
 SpGistInitMetapage(Page page)
 {
+  DBUG_TRACE;
   SpGistMetaPageData *metadata;
   int     i;
 
@@ -745,6 +759,7 @@ SpGistInitMetapage(Page page)
 bytea *
 spgoptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   static const relopt_parse_elt tab[] = {
     {"fillfactor", RELOPT_TYPE_INT, offsetof(SpGistOptions, fillfactor)},
   };
@@ -765,6 +780,7 @@ spgoptions(Datum reloptions, bool validate)
 unsigned int
 SpGistGetInnerTypeSize(SpGistTypeDesc *att, Datum datum)
 {
+  DBUG_TRACE;
   unsigned int size;
 
   if (att->attbyval)
@@ -802,6 +818,7 @@ Size
 SpGistGetLeafTupleSize(TupleDesc tupleDescriptor,
                        const Datum *datums, const bool *isnulls)
 {
+  DBUG_TRACE;
   Size    size;
   Size    data_size;
   bool    needs_null_mask = false;
@@ -852,6 +869,7 @@ SpGistLeafTuple
 spgFormLeafTuple(SpGistState *state, ItemPointer heapPtr,
                  const Datum *datums, const bool *isnulls)
 {
+  DBUG_TRACE;
   SpGistLeafTuple tup;
   TupleDesc tupleDescriptor = state->leafTupDesc;
   Size    size;
@@ -935,6 +953,7 @@ spgFormLeafTuple(SpGistState *state, ItemPointer heapPtr,
 SpGistNodeTuple
 spgFormNodeTuple(SpGistState *state, Datum label, bool isnull)
 {
+  DBUG_TRACE;
   SpGistNodeTuple tup;
   unsigned int size;
   unsigned short infomask = 0;
@@ -980,6 +999,7 @@ SpGistInnerTuple
 spgFormInnerTuple(SpGistState *state, bool hasPrefix, Datum prefix,
                   int nNodes, SpGistNodeTuple *nodes)
 {
+  DBUG_TRACE;
   SpGistInnerTuple tup;
   unsigned int size;
   unsigned int prefixSize;
@@ -1062,6 +1082,7 @@ SpGistDeadTuple
 spgFormDeadTuple(SpGistState *state, int tupstate,
                  BlockNumber blkno, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   SpGistDeadTuple tuple = (SpGistDeadTuple) state->deadTupleStorage;
 
   tuple->tupstate = tupstate;
@@ -1089,6 +1110,7 @@ void
 spgDeformLeafTuple(SpGistLeafTuple tup, TupleDesc tupleDescriptor,
                    Datum *datums, bool *isnulls, bool keyColumnIsNull)
 {
+  DBUG_TRACE;
   bool    hasNullsMask = SGLT_GET_HASNULLMASK(tup);
   char     *tp;       /* ptr to tuple data */
   bits8    *bp;       /* ptr to null bitmap in tuple */
@@ -1173,6 +1195,7 @@ OffsetNumber
 SpGistPageAddNewItem(SpGistState *state, Page page, Item item, Size size,
                      OffsetNumber *startOffset, bool errorOK)
 {
+  DBUG_TRACE;
   SpGistPageOpaque opaque = SpGistPageGetOpaque(page);
   OffsetNumber i,
                maxoff,
@@ -1263,6 +1286,7 @@ spgproperty(Oid index_oid, int attno,
             IndexAMProperty prop, const char *propname,
             bool *res, bool *isnull)
 {
+  DBUG_TRACE;
   Oid     opclass,
           opfamily,
           opcintype;

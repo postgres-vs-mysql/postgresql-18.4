@@ -145,11 +145,10 @@ typedef struct JsonPathItem
    */
   char     *base;
 
-  union
-  {
+  union {
     /* classic operator with two operands: and, or etc */
-    struct
-    {
+struct
+{
       int32   left;
       int32   right;
     }     args;
@@ -158,31 +157,31 @@ typedef struct JsonPathItem
     int32   arg;
 
     /* storage for jpiIndexArray: indexes of array */
-    struct
-    {
+struct
+{
       int32   nelems;
-      struct
-      {
+struct
+{
         int32   from;
         int32   to;
       }      *elems;
     }     array;
 
     /* jpiAny: levels */
-    struct
-    {
+struct
+{
       uint32    first;
       uint32    last;
     }     anybounds;
 
-    struct
-    {
+struct
+{
       char     *data; /* for bool, numeric and string/key */
       int32   datalen;  /* filled only for string/key */
     }     value;
 
-    struct
-    {
+struct
+{
       int32   expr;
       char     *pattern;
       int32   patternlen;
@@ -219,12 +218,11 @@ struct JsonPathParseItem
   JsonPathItemType type;
   JsonPathParseItem *next;  /* next in path */
 
-  union
-  {
+  union {
 
     /* classic operator with two operands: and, or etc */
-    struct
-    {
+struct
+{
       JsonPathParseItem *left;
       JsonPathParseItem *right;
     }     args;
@@ -233,25 +231,25 @@ struct JsonPathParseItem
     JsonPathParseItem *arg;
 
     /* storage for jpiIndexArray: indexes of array */
-    struct
-    {
+struct
+{
       int     nelems;
-      struct
-      {
+struct
+{
         JsonPathParseItem *from;
         JsonPathParseItem *to;
       }      *elems;
     }     array;
 
     /* jpiAny: levels */
-    struct
-    {
+struct
+{
       uint32    first;
       uint32    last;
     }     anybounds;
 
-    struct
-    {
+struct
+{
       JsonPathParseItem *expr;
       char     *pattern;  /* could not be not null-terminated */
       uint32    patternlen;
@@ -261,8 +259,8 @@ struct JsonPathParseItem
     /* scalars */
     Numeric numeric;
     bool    boolean;
-    struct
-    {
+struct
+{
       uint32    len;
       char     *val;  /* could not be not null-terminated */
     }     string;

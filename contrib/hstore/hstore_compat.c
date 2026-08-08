@@ -82,6 +82,7 @@
  * for testing purposes.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 
 #include "hstore.h"
@@ -117,6 +118,7 @@ static int  hstoreValidOldFormat(HStore *hs);
 static int
 hstoreValidNewFormat(HStore *hs)
 {
+  DBUG_TRACE;
   int     count = HS_COUNT(hs);
   HEntry     *entries = ARRPTR(hs);
   int     buflen = (count) ? HSE_ENDPOS(entries[2 * (count) - 1]) : 0;
@@ -168,6 +170,7 @@ hstoreValidNewFormat(HStore *hs)
 static int
 hstoreValidOldFormat(HStore *hs)
 {
+  DBUG_TRACE;
   int     count = hs->size_;
   HOldEntry  *entries = (HOldEntry *) ARRPTR(hs);
   int     vsize;
@@ -232,13 +235,16 @@ hstoreValidOldFormat(HStore *hs)
 HStore *
 hstoreUpgrade(Datum orig)
 {
+  DBUG_TRACE;
   HStore     *hs = (HStore *) PG_DETOAST_DATUM(orig);
   int     valid_new;
   int     valid_old;
 
   /* Return immediately if no conversion needed */
-  if (hs->size_ & HS_FLAG_NEWVERSION)
+  if (hs->size_ & HS_FLAG_NEWVERSION) {
+    DBUG_PRINT("hstore", "no conversion needed");
     return hs;
+  }
 
   /* Do we have a writable copy? If not, make one. */
   if ((void *) hs == (void *) DatumGetPointer(orig))
@@ -342,9 +348,12 @@ PG_FUNCTION_INFO_V1(hstore_version_diag);
 Datum
 hstore_version_diag(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = (HStore *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   int     valid_new = hstoreValidNewFormat(hs);
   int     valid_old = hstoreValidOldFormat(hs);
+  int32 result = valid_old * 10 + valid_new;
 
-  PG_RETURN_INT32(valid_old * 10 + valid_new);
+  DBUG_PRINT("hstore", "result:%d", result);
+  PG_RETURN_INT32(result);
 }

@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/namespace.h"
 #include "catalog/pg_aggregate.h"
@@ -57,6 +58,7 @@ DefineAggregate(ParseState *pstate,
                 List *parameters,
                 bool replace)
 {
+  DBUG_TRACE;
   char     *aggName;
   Oid     aggNamespace;
   AclResult aclresult;
@@ -98,14 +100,18 @@ DefineAggregate(ParseState *pstate,
   ListCell   *pl;
 
   /* Convert list of names to a name and namespace */
+  DBUG_PRINT("info", "convert list of names to a name and namespace");
   aggNamespace = QualifiedNameGetCreationNamespace(name, &aggName);
 
   /* Check we have creation rights in target namespace */
+  DBUG_PRINT("info", "check we have creation rights in target namespace");
   aclresult = object_aclcheck(NamespaceRelationId, aggNamespace, GetUserId(), ACL_CREATE);
 
   if (aclresult != ACLCHECK_OK)
     aclcheck_error(aclresult, OBJECT_SCHEMA,
                    get_namespace_name(aggNamespace));
+
+  DBUG_PRINT("info", "deconstruct the output of the aggr_args grammar production");
 
   /* Deconstruct the output of the aggr_args grammar production */
   if (!oldstyle) {
@@ -121,6 +127,8 @@ DefineAggregate(ParseState *pstate,
   }
 
   /* Examine aggregate's definition clauses */
+  DBUG_PRINT("info", "examine aggregate's definition clauses");
+
   foreach(pl, parameters) {
     DefElem    *defel = lfirst_node(DefElem, pl);
 
@@ -195,6 +203,8 @@ DefineAggregate(ParseState *pstate,
   /*
    * make sure we have our required definitions
    */
+  DBUG_PRINT("info", "make sure we have our required definitions");
+
   if (transType == NULL)
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
@@ -260,6 +270,8 @@ DefineAggregate(ParseState *pstate,
   /*
    * look up the aggregate's input datatype(s).
    */
+  DBUG_PRINT("info", "look up the aggregate's input datatype(s)");
+
   if (oldstyle) {
     /*
      * Old style: use basetype parameter.  This supports aggregates of
@@ -332,6 +344,7 @@ DefineAggregate(ParseState *pstate,
    * worse) by connecting up incompatible internal-using functions in an
    * aggregate.
    */
+  DBUG_PRINT("info", "look up the aggregate's transtype");
   transTypeId = typenameTypeId(NULL, transType);
   transTypeType = get_typtype(transTypeId);
 

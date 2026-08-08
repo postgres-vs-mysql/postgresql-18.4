@@ -223,10 +223,8 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
   const unsigned char *aligned_end = (const unsigned char *)
                                      ((uintptr_t) end & (~(sizeof(size_t) - 1)));
 
-  if (len < sizeof(size_t))
-  {
-    while (p < end)
-    {
+  if (len < sizeof(size_t)) {
+    while (p < end) {
       if (*p++ != 0)
         return false;
     }
@@ -235,11 +233,9 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
   }
 
   /* "len" in the [sizeof(size_t), sizeof(size_t) * 8 - 1] range */
-  if (len < sizeof(size_t) * 8)
-  {
+  if (len < sizeof(size_t) * 8) {
     /* Compare bytes until the pointer "p" is aligned */
-    while (((uintptr_t) p & (sizeof(size_t) - 1)) != 0)
-    {
+    while (((uintptr_t) p & (sizeof(size_t) - 1)) != 0) {
       if (p == end)
         return true;
 
@@ -253,15 +249,13 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
      * There is no risk to read beyond the memory area, as "aligned_end"
      * cannot be higher than "end".
      */
-    for (; p < aligned_end; p += sizeof(size_t))
-    {
+    for (; p < aligned_end; p += sizeof(size_t)) {
       if (*(size_t *) p != 0)
         return false;
     }
 
     /* Compare remaining bytes until the end */
-    while (p < end)
-    {
+    while (p < end) {
       if (*p++ != 0)
         return false;
     }
@@ -272,8 +266,7 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
   /* "len" in the [sizeof(size_t) * 8, inf) range */
 
   /* Compare bytes until the pointer "p" is aligned */
-  while (((uintptr_t) p & (sizeof(size_t) - 1)) != 0)
-  {
+  while (((uintptr_t) p & (sizeof(size_t) - 1)) != 0) {
     if (p == end)
       return true;
 
@@ -291,8 +284,7 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
    * seems to be enough to coax a few compilers into using SIMD
    * instructions.
    */
-  for (; p < aligned_end - (sizeof(size_t) * 7); p += sizeof(size_t) * 8)
-  {
+  for (; p < aligned_end - (sizeof(size_t) * 7); p += sizeof(size_t) * 8) {
     if ((((size_t *) p)[0] != 0) | (((size_t *) p)[1] != 0) |
         (((size_t *) p)[2] != 0) | (((size_t *) p)[3] != 0) |
         (((size_t *) p)[4] != 0) | (((size_t *) p)[5] != 0) |
@@ -306,15 +298,13 @@ pg_memory_is_all_zeros(const void *ptr, size_t len)
    * There is no risk to read beyond the memory area, as "aligned_end"
    * cannot be higher than "end".
    */
-  for (; p < aligned_end; p += sizeof(size_t))
-  {
+  for (; p < aligned_end; p += sizeof(size_t)) {
     if (*(size_t *) p != 0)
       return false;
   }
 
   /* Compare remaining bytes until the end */
-  while (p < end)
-  {
+  while (p < end) {
     if (*p++ != 0)
       return false;
   }

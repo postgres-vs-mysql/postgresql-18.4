@@ -27,6 +27,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/printsimple.h"
 #include "access/printtup.h"
@@ -167,6 +168,7 @@ CreateDestReceiver(CommandDest dest)
 void
 EndCommand(const QueryCompletion *qc, CommandDest dest, bool force_undecorated_output)
 {
+  DBUG_TRACE;
   char    completionTag[COMPLETION_TAG_BUFSIZE];
   Size    len;
 
@@ -252,6 +254,8 @@ NullCommand(CommandDest dest)
 void
 ReadyForQuery(CommandDest dest)
 {
+  DBUG_TRACE;
+
   switch (dest) {
     case DestRemote:
     case DestRemoteExecute:
@@ -265,6 +269,7 @@ ReadyForQuery(CommandDest dest)
 
       /* Flush output at end of cycle in any case. */
     pq_flush();
+    DBUG_INSTANT_PRINT("info", "flush output at end of cycle in any case");
     break;
 
     case DestNone:

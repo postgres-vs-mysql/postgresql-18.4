@@ -13,6 +13,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/wait.h>
@@ -39,12 +40,15 @@ static const ArchiveModuleCallbacks shell_archive_callbacks = {
 const ArchiveModuleCallbacks *
 shell_archive_init(void)
 {
+  DBUG_TRACE;
   return &shell_archive_callbacks;
 }
 
 static bool
 shell_archive_configured(ArchiveModuleState *state)
 {
+  DBUG_TRACE;
+
   if (XLogArchiveCommand[0] != '\0')
     return true;
 
@@ -57,6 +61,7 @@ static bool
 shell_archive_file(ArchiveModuleState *state, const char *file,
                    const char *path)
 {
+  DBUG_TRACE;
   char     *xlogarchcmd;
   char     *nativePath = NULL;
   int     rc;
@@ -133,5 +138,6 @@ shell_archive_file(ArchiveModuleState *state, const char *file,
 static void
 shell_archive_shutdown(ArchiveModuleState *state)
 {
+  DBUG_TRACE;
   elog(DEBUG1, "archiver process shutting down");
 }

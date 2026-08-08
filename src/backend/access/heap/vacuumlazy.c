@@ -128,6 +128,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -612,6 +613,7 @@ void
 heap_vacuum_rel(Relation rel, VacuumParams *params,
                 BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   LVRelState *vacrel;
   bool    verbose,
           instrument,
@@ -712,14 +714,17 @@ heap_vacuum_rel(Relation rel, VacuumParams *params,
   vacrel->do_rel_truncate = (params->truncate != VACOPTVALUE_DISABLED);
 
   if (params->index_cleanup == VACOPTVALUE_DISABLED) {
+    DBUG_PRINT("info", "force disable index vacuuming up-front");
     /* Force disable index vacuuming up-front */
     vacrel->do_index_vacuuming = false;
     vacrel->do_index_cleanup = false;
   } else if (params->index_cleanup == VACOPTVALUE_ENABLED) {
     /* Force index vacuuming.  Note that failsafe can still bypass. */
+    DBUG_PRINT("info", "force index vacuuming");
     vacrel->consider_bypass_optimization = false;
   } else {
     /* Default/auto, make all decisions dynamically */
+    DBUG_PRINT("info", "default/auto, make all decisions dynamically");
     Assert(params->index_cleanup == VACOPTVALUE_AUTO);
   }
 
@@ -803,16 +808,19 @@ heap_vacuum_rel(Relation rel, VacuumParams *params,
   heap_vacuum_eager_scan_setup(vacrel, params);
 
   if (verbose) {
-    if (vacrel->aggressive)
+    if (vacrel->aggressive) {
+      DBUG_PRINT("info", "aggressively vacuuming \"%s.%s.%s\"", vacrel->dbname, vacrel->relnamespace, vacrel->relname);
       ereport(INFO,
               (errmsg("aggressively vacuuming \"%s.%s.%s\"",
                       vacrel->dbname, vacrel->relnamespace,
                       vacrel->relname)));
-    else
+    } else {
+      DBUG_PRINT("info", "vacuuming \"%s.%s.%s\"", vacrel->dbname, vacrel->relnamespace, vacrel->relname);
       ereport(INFO,
               (errmsg("vacuuming \"%s.%s.%s\"",
                       vacrel->dbname, vacrel->relnamespace,
                       vacrel->relname)));
+    }
   }
 
   /*
@@ -1135,6 +1143,7 @@ heap_vacuum_rel(Relation rel, VacuumParams *params,
                        walusage.wal_buffers_full);
       appendStringInfo(&buf, _("system usage: %s"), pg_rusage_show(&ru0));
 
+      DBUG_PRINT("info", "%s", buf.data);
       ereport(verbose ? INFO : LOG,
               (errmsg_internal("%s", buf.data)));
       pfree(buf.data);
@@ -1190,6 +1199,7 @@ heap_vacuum_rel(Relation rel, VacuumParams *params,
 static void
 lazy_scan_heap(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   ReadStream *stream;
   BlockNumber rel_pages = vacrel->rel_pages,
               blkno = 0,
@@ -1203,6 +1213,8 @@ lazy_scan_heap(LVRelState *vacrel)
     PROGRESS_VACUUM_MAX_DEAD_TUPLE_BYTES
   };
   int64   initprog_val[3];
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
   /* Report that we're scanning the heap, advertising total # of blocks */
   initprog_val[0] = PROGRESS_VACUUM_PHASE_SCAN_HEAP;
@@ -1278,6 +1290,7 @@ lazy_scan_heap(LVRelState *vacrel)
       }
 
       /* Perform a round of index and heap vacuuming */
+      DBUG_PRINT("info", "perform a round of index and heap vacuuming");
       vacrel->consider_bypass_optimization = false;
       lazy_vacuum(vacrel);
 
@@ -1311,6 +1324,16 @@ lazy_scan_heap(LVRelState *vacrel)
     if (blk_info & VAC_BLK_WAS_EAGER_SCANNED)
       vacrel->eager_scanned_pages++;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
     /* Report as block scanned, update error traceback information */
     pgstat_progress_update_param(PROGRESS_VACUUM_HEAP_BLKS_SCANNED, blkno);
     update_vacuum_error_info(vacrel, NULL, VACUUM_ERRCB_PHASE_SCAN_HEAP,
@@ -1474,11 +1497,20 @@ lazy_scan_heap(LVRelState *vacrel)
       UnlockReleaseBuffer(buf);
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total scanned pages:%lu", count);
+  }
+
   vacrel->blkno = InvalidBlockNumber;
 
   if (BufferIsValid(vmbuffer))
     ReleaseBuffer(vmbuffer);
 
+  DBUG_PRINT("info", "report that everything is now scanned");
   /*
    * Report that everything is now scanned. We never skip scanning the last
    * block in the relation, so we can pass rel_pages here.
@@ -1505,8 +1537,10 @@ lazy_scan_heap(LVRelState *vacrel)
    * Do index vacuuming (call each index's ambulkdelete routine), then do
    * related heap vacuuming
    */
-  if (vacrel->dead_items_info->num_items > 0)
+  if (vacrel->dead_items_info->num_items > 0) {
+    DBUG_PRINT("info", "do index vacuuming");
     lazy_vacuum(vacrel);
+  }
 
   /*
    * Vacuum the remainder of the Free Space Map.  We must do this whether or
@@ -1517,6 +1551,7 @@ lazy_scan_heap(LVRelState *vacrel)
   if (rel_pages > next_fsm_block_to_vacuum)
     FreeSpaceMapVacuumRange(vacrel->rel, next_fsm_block_to_vacuum, rel_pages);
 
+  DBUG_PRINT("info", "report all blocks vacuumed");
   /* report all blocks vacuumed */
   pgstat_progress_update_param(PROGRESS_VACUUM_HEAP_BLKS_VACUUMED, rel_pages);
 
@@ -1554,12 +1589,15 @@ heap_vac_scan_next_block(ReadStream *stream,
                          void *callback_private_data,
                          void *per_buffer_data)
 {
+  DBUG_TRACE;
   BlockNumber next_block;
   LVRelState *vacrel = callback_private_data;
   uint8   blk_info = 0;
 
   /* relies on InvalidBlockNumber + 1 overflowing to 0 on first call */
   next_block = vacrel->current_block + 1;
+
+  DBUG_PRINT("info", "next_block:%u, rel_pages:%u", next_block, vacrel->rel_pages);
 
   /* Have we reached the end of the relation? */
   if (next_block >= vacrel->rel_pages) {
@@ -1608,8 +1646,11 @@ heap_vac_scan_next_block(ReadStream *stream,
     }
   }
 
+  DBUG_PRINT("info", "now we must be in one of the two remaining states");
+
   /* Now we must be in one of the two remaining states: */
   if (next_block < vacrel->next_unskippable_block) {
+    DBUG_PRINT("info", "we are processing a range of blocks that we could have skipped but chose not to");
     /*
      * 2. We are processing a range of blocks that we could have skipped
      * but chose not to.  We know that they are all-visible in the VM,
@@ -1624,6 +1665,7 @@ heap_vac_scan_next_block(ReadStream *stream,
      * 3. We reached the next unskippable block.  Process it.  On next
      * iteration, we will be back in state 1.
      */
+    DBUG_PRINT("info", "we reached the next unskippable block");
     Assert(next_block == vacrel->next_unskippable_block);
 
     vacrel->current_block = next_block;
@@ -1655,11 +1697,14 @@ heap_vac_scan_next_block(ReadStream *stream,
 static void
 find_next_unskippable_block(LVRelState *vacrel, bool *skipsallvis)
 {
+  DBUG_TRACE;
   BlockNumber rel_pages = vacrel->rel_pages;
   BlockNumber next_unskippable_block = vacrel->next_unskippable_block + 1;
   Buffer    next_unskippable_vmbuffer = vacrel->next_unskippable_vmbuffer;
   bool    next_unskippable_eager_scanned = false;
   bool    next_unskippable_allvis;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   *skipsallvis = false;
 
@@ -1668,7 +1713,17 @@ find_next_unskippable_block(LVRelState *vacrel, bool *skipsallvis)
                       next_unskippable_block,
                       &next_unskippable_vmbuffer);
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     next_unskippable_allvis = (mapbits & VISIBILITYMAP_ALL_VISIBLE) != 0;
+    count++;
 
     /*
      * At the start of each eager scan region, normal vacuums with eager
@@ -1687,6 +1742,7 @@ find_next_unskippable_block(LVRelState *vacrel, bool *skipsallvis)
      * visibility map.
      */
     if (!next_unskippable_allvis) {
+      DBUG_PRINT("info", "a block is unskippable if it is not all visible");
       Assert((mapbits & VISIBILITYMAP_ALL_FROZEN) == 0);
       break;
     }
@@ -1705,8 +1761,10 @@ find_next_unskippable_block(LVRelState *vacrel, bool *skipsallvis)
       break;
 
     /* DISABLE_PAGE_SKIPPING makes all skipping unsafe */
-    if (!vacrel->skipwithvm)
+    if (!vacrel->skipwithvm) {
+      DBUG_PRINT("info", "DISABLE_PAGE_SKIPPING makes all skipping unsafe");
       break;
+    }
 
     /*
      * All-frozen pages cannot contain XIDs < OldestXmin (XIDs that aren't
@@ -1736,7 +1794,16 @@ find_next_unskippable_block(LVRelState *vacrel, bool *skipsallvis)
      * All-visible blocks are safe to skip in a normal vacuum. But
      * remember that the final range contains such a block for later.
      */
+    DBUG_PRINT("info", "All-visible block is safe to skip in non-aggressive case");
     *skipsallvis = true;
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /* write the local variables back to vacrel */
@@ -1784,6 +1851,7 @@ static bool
 lazy_scan_new_or_empty(LVRelState *vacrel, Buffer buf, BlockNumber blkno,
                        Page page, bool sharelock, Buffer vmbuffer)
 {
+  DBUG_TRACE;
   Size    freespace;
 
   if (PageIsNew(page)) {
@@ -1814,6 +1882,7 @@ lazy_scan_new_or_empty(LVRelState *vacrel, Buffer buf, BlockNumber blkno,
       RecordPageWithFreeSpace(vacrel->rel, blkno, freespace);
     }
 
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
@@ -1828,6 +1897,7 @@ lazy_scan_new_or_empty(LVRelState *vacrel, Buffer buf, BlockNumber blkno,
       LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
       if (!PageIsEmpty(page)) {
+        DBUG_PRINT("info", "page isn't new or empty -- keep lock and pin for now");
         /* page isn't new or empty -- keep lock and pin for now */
         return false;
       }
@@ -1874,9 +1944,12 @@ lazy_scan_new_or_empty(LVRelState *vacrel, Buffer buf, BlockNumber blkno,
     freespace = PageGetHeapFreeSpace(page);
     UnlockReleaseBuffer(buf);
     RecordPageWithFreeSpace(vacrel->rel, blkno, freespace);
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
+  DBUG_PRINT("info", "page isn't new or empty -- keep lock and pin");
+  DBUG_PRINT("info", "return false");
   /* page isn't new or empty -- keep lock and pin */
   return false;
 }
@@ -1917,6 +1990,7 @@ lazy_scan_prune(LVRelState *vacrel,
                 bool *has_lpdead_items,
                 bool *vm_page_frozen)
 {
+  DBUG_TRACE;
   Relation  rel = vacrel->rel;
   PruneFreezeResult presult;
   int     prune_options = 0;
@@ -1940,8 +2014,12 @@ lazy_scan_prune(LVRelState *vacrel,
    */
   prune_options = HEAP_PAGE_PRUNE_FREEZE;
 
-  if (vacrel->nindexes == 0)
+  if (vacrel->nindexes == 0) {
     prune_options |= HEAP_PAGE_PRUNE_MARK_UNUSED_NOW;
+    DBUG_PRINT("info", "set prune options:HEAP_PAGE_PRUNE_MARK_UNUSED_NOW and prune_options:%d", prune_options);
+  } else {
+    DBUG_PRINT("info", "vacrel nindexes:%d and prune_options:%d", vacrel->nindexes, prune_options);
+  }
 
   heap_page_prune_and_freeze(rel, buf, vacrel->vistest, prune_options,
                              &vacrel->cutoffs, &presult, PRUNE_VACUUM_SCAN,
@@ -1959,6 +2037,7 @@ lazy_scan_prune(LVRelState *vacrel,
      * in VM).
      */
     vacrel->new_frozen_tuple_pages++;
+    DBUG_PRINT("info", "increment frozen_pages:%u", vacrel->new_frozen_tuple_pages);
   }
 
   /*
@@ -1993,6 +2072,7 @@ lazy_scan_prune(LVRelState *vacrel,
    * Now save details of the LP_DEAD items from the page in vacrel
    */
   if (presult.lpdead_items > 0) {
+    DBUG_PRINT("info", "now save details of the LP_DEAD items from the page in vacrel");
     vacrel->lpdead_item_pages++;
 
     /*
@@ -2020,6 +2100,19 @@ lazy_scan_prune(LVRelState *vacrel,
 
   /* Did we find LP_DEAD items? */
   *has_lpdead_items = (presult.lpdead_items > 0);
+  DBUG_PRINT("info", "dead items:%d", presult.lpdead_items);
+
+  if (all_visible_according_to_vm) {
+    DBUG_PRINT("info", "all_visible_according_to_vm is true");
+  } else {
+    DBUG_PRINT("info", "all_visible_according_to_vm is false");
+  }
+
+  if (presult.all_visible) {
+    DBUG_PRINT("info", "presult all_visible is true");
+  } else {
+    DBUG_PRINT("info", "presult all_visible is false");
+  }
 
   Assert(!presult.all_visible || !(*has_lpdead_items));
 
@@ -2031,6 +2124,7 @@ lazy_scan_prune(LVRelState *vacrel,
   if (!all_visible_according_to_vm && presult.all_visible) {
     uint8   old_vmbits;
     uint8   flags = VISIBILITYMAP_ALL_VISIBLE;
+    DBUG_PRINT("info", "handle setting visibility map bit based on information from the VM");
 
     if (presult.all_frozen) {
       Assert(!TransactionIdIsValid(presult.vm_conflict_horizon));
@@ -2083,6 +2177,8 @@ lazy_scan_prune(LVRelState *vacrel,
    */
   else if (all_visible_according_to_vm && !PageIsAllVisible(page) &&
            visibilitymap_get_status(vacrel->rel, blkno, &vmbuffer) != 0) {
+    DBUG_INSTANT_PRINT("info", "page is not marked all-visible but visibility map bit is set in relation \"%s\" page %u",
+                       vacrel->relname, blkno);
     elog(WARNING, "page is not marked all-visible but visibility map bit is set in relation \"%s\" page %u",
          vacrel->relname, blkno);
     visibilitymap_clear(vacrel->rel, blkno, vmbuffer,
@@ -2104,6 +2200,8 @@ lazy_scan_prune(LVRelState *vacrel,
    * however.
    */
   else if (presult.lpdead_items > 0 && PageIsAllVisible(page)) {
+    DBUG_INSTANT_PRINT("info", "page containing LP_DEAD items is marked as all-visible in relation \"%s\" page %u",
+                       vacrel->relname, blkno);
     elog(WARNING, "page containing LP_DEAD items is marked as all-visible in relation \"%s\" page %u",
          vacrel->relname, blkno);
     PageClearAllVisible(page);
@@ -2131,6 +2229,7 @@ lazy_scan_prune(LVRelState *vacrel,
       MarkBufferDirty(buf);
     }
 
+    DBUG_PRINT("info", "set the page all-frozen (and all-visible) in the VM");
     /*
      * Set the page all-frozen (and all-visible) in the VM.
      *
@@ -2168,6 +2267,7 @@ lazy_scan_prune(LVRelState *vacrel,
     }
   }
 
+
   return presult.ndeleted;
 }
 
@@ -2198,6 +2298,7 @@ lazy_scan_noprune(LVRelState *vacrel,
                   Page page,
                   bool *has_lpdead_items)
 {
+  DBUG_TRACE;
   OffsetNumber offnum,
                maxoff;
   int     lpdead_items,
@@ -2322,6 +2423,7 @@ lazy_scan_noprune(LVRelState *vacrel,
         break;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unexpected HeapTupleSatisfiesVacuum result");
         elog(ERROR, "unexpected HeapTupleSatisfiesVacuum result");
         break;
     }
@@ -2402,6 +2504,7 @@ lazy_scan_noprune(LVRelState *vacrel,
 static void
 lazy_vacuum(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   bool    bypass;
 
   /* Should not end up here with no indexes */
@@ -2411,6 +2514,7 @@ lazy_vacuum(LVRelState *vacrel)
   if (!vacrel->do_index_vacuuming) {
     Assert(!vacrel->do_index_cleanup);
     dead_items_reset(vacrel);
+    DBUG_PRINT("info", "do_index_vacuuming is false and return");
     return;
   }
 
@@ -2466,11 +2570,14 @@ lazy_vacuum(LVRelState *vacrel)
      * cases then this may need to be reconsidered.
      */
     threshold = (double) vacrel->rel_pages * BYPASS_THRESHOLD_PAGES;
+    DBUG_PRINT("info", "rel pages:%u, threshold:%u, pages with LP_DEAD items:%u for table:%s",
+               vacrel->rel_pages, threshold, vacrel->lpdead_item_pages, vacrel->relname);
     bypass = (vacrel->lpdead_item_pages < threshold &&
               TidStoreMemoryUsage(vacrel->dead_items) < 32 * 1024 * 1024);
   }
 
   if (bypass) {
+    DBUG_PRINT("info", "bypass index vacuuming at this point");
     /*
      * There are almost zero TIDs.  Behave as if there were precisely
      * zero: bypass index vacuuming, but do index cleanup.
@@ -2521,6 +2628,7 @@ lazy_vacuum(LVRelState *vacrel)
 static bool
 lazy_vacuum_all_indexes(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   bool    allindexes = true;
   double    old_live_tuples = vacrel->rel->rd_rel->reltuples;
   const int progress_start_index[] = {
@@ -2539,9 +2647,12 @@ lazy_vacuum_all_indexes(LVRelState *vacrel)
   Assert(vacrel->do_index_vacuuming);
   Assert(vacrel->do_index_cleanup);
 
+  DBUG_PRINT("info", "main entry for index vacuuming");
+
   /* Precheck for XID wraparound emergencies */
   if (lazy_check_wraparound_failsafe(vacrel)) {
     /* Wraparound emergency -- don't even start an index scan */
+    DBUG_PRINT("info", "wraparound emergency -- don't even start an index scan");
     return false;
   }
 
@@ -2554,6 +2665,10 @@ lazy_vacuum_all_indexes(LVRelState *vacrel)
   pgstat_progress_update_multi_param(2, progress_start_index, progress_start_val);
 
   if (!ParallelVacuumIsActive(vacrel)) {
+    DBUG_PRINT("info", "without parallelism, a single worker handles all indexes");
+
+    DBUG_PRINT("info", "vacrel->nindexes:%d", vacrel->nindexes);
+
     for (int idx = 0; idx < vacrel->nindexes; idx++) {
       Relation  indrel = vacrel->indrels[idx];
       IndexBulkDeleteResult *istat = vacrel->indstats[idx];
@@ -2567,12 +2682,14 @@ lazy_vacuum_all_indexes(LVRelState *vacrel)
                                    idx + 1);
 
       if (lazy_check_wraparound_failsafe(vacrel)) {
+        DBUG_PRINT("info", "wraparound emergency -- end current index scan");
         /* Wraparound emergency -- end current index scan */
         allindexes = false;
         break;
       }
     }
   } else {
+    DBUG_PRINT("info", "outsource everything to parallel variant");
     /* Outsource everything to parallel variant */
     parallel_vacuum_bulkdel_all_indexes(vacrel->pvs, old_live_tuples,
                                         vacrel->num_index_scans);
@@ -2581,6 +2698,8 @@ lazy_vacuum_all_indexes(LVRelState *vacrel)
      * Do a postcheck to consider applying wraparound failsafe now.  Note
      * that parallel VACUUM only gets the precheck and this postcheck.
      */
+    DBUG_PRINT("info", "do a postcheck to consider applying wraparound failsafe now");
+
     if (lazy_check_wraparound_failsafe(vacrel))
       allindexes = false;
   }
@@ -2661,16 +2780,20 @@ vacuum_reap_lp_read_stream_next(ReadStream *stream,
 static void
 lazy_vacuum_heap_rel(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   ReadStream *stream;
   BlockNumber vacuumed_pages = 0;
   Buffer    vmbuffer = InvalidBuffer;
   LVSavedErrInfo saved_err_info;
   TidStoreIter *iter;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   Assert(vacrel->do_index_vacuuming);
   Assert(vacrel->do_index_cleanup);
   Assert(vacrel->num_index_scans > 0);
 
+  DBUG_PRINT("info", "second pass over the heap for two pass strategy");
   /* Report that we are now vacuuming the heap */
   pgstat_progress_update_param(PROGRESS_VACUUM_PHASE,
                                PROGRESS_VACUUM_PHASE_VACUUM_HEAP);
@@ -2708,6 +2831,15 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
     OffsetNumber offsets[MaxOffsetNumber];
     int     num_offsets;
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     vacuum_delay_point(false);
 
     buf = read_stream_next_buffer(stream, (void **) &iter_result);
@@ -2716,6 +2848,7 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
     if (!BufferIsValid(buf))
       break;
 
+    count++;
     vacrel->blkno = blkno = BufferGetBlockNumber(buf);
 
     Assert(iter_result);
@@ -2743,6 +2876,14 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
     vacuumed_pages++;
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   read_stream_end(stream);
   TidStoreEndIterate(iter);
 
@@ -2759,6 +2900,8 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
          (vacrel->dead_items_info->num_items == vacrel->lpdead_items &&
           vacuumed_pages == vacrel->lpdead_item_pages));
 
+  DBUG_PRINT("info", "table %s: removed %lld dead item identifiers in %u pages", vacrel->relname,
+             (long long) vacrel->dead_items_info->num_items, vacuumed_pages);
   ereport(DEBUG2,
           (errmsg("table \"%s\": removed %" PRId64 " dead item identifiers in %u pages",
                   vacrel->relname, vacrel->dead_items_info->num_items,
@@ -2781,6 +2924,7 @@ lazy_vacuum_heap_page(LVRelState *vacrel, BlockNumber blkno, Buffer buffer,
                       OffsetNumber *deadoffsets, int num_offsets,
                       Buffer vmbuffer)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   OffsetNumber unused[MaxHeapTuplesPerPage];
   int     nunused = 0;
@@ -2917,6 +3061,8 @@ lazy_check_wraparound_failsafe(LVRelState *vacrel)
     /* Reset the progress counters */
     pgstat_progress_update_multi_param(2, progress_index, progress_val);
 
+    DBUG_INSTANT_PRINT("info", "bypassing nonessential maintenance of table \"%s.%s.%s\" as a failsafe after %d index scans",
+                       vacrel->dbname, vacrel->relnamespace, vacrel->relname, vacrel->num_index_scans);
     ereport(WARNING,
             (errmsg("bypassing nonessential maintenance of table \"%s.%s.%s\" as a failsafe after %d index scans",
                     vacrel->dbname, vacrel->relnamespace, vacrel->relname,
@@ -2941,6 +3087,7 @@ lazy_check_wraparound_failsafe(LVRelState *vacrel)
 static void
 lazy_cleanup_all_indexes(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   double    reltuples = vacrel->new_rel_tuples;
   bool    estimated_count = vacrel->scanned_pages < vacrel->rel_pages;
   const int progress_start_index[] = {
@@ -3006,6 +3153,7 @@ static IndexBulkDeleteResult *
 lazy_vacuum_one_index(Relation indrel, IndexBulkDeleteResult *istat,
                       double reltuples, LVRelState *vacrel)
 {
+  DBUG_TRACE;
   IndexVacuumInfo ivinfo;
   LVSavedErrInfo saved_err_info;
 
@@ -3056,6 +3204,7 @@ lazy_cleanup_one_index(Relation indrel, IndexBulkDeleteResult *istat,
                        double reltuples, bool estimated_count,
                        LVRelState *vacrel)
 {
+  DBUG_TRACE;
   IndexVacuumInfo ivinfo;
   LVSavedErrInfo saved_err_info;
 
@@ -3135,6 +3284,7 @@ should_attempt_truncation(LVRelState *vacrel)
 static void
 lazy_truncate_heap(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   BlockNumber orig_rel_pages = vacrel->rel_pages;
   BlockNumber new_rel_pages;
   bool    lock_waiter_detected;
@@ -3178,6 +3328,7 @@ lazy_truncate_heap(LVRelState *vacrel)
          * We failed to establish the lock in the specified number of
          * retries. This means we give up truncating.
          */
+        DBUG_PRINT("info", "\"%s\": stopping truncate due to conflicting lock request", vacrel->relname);
         ereport(vacrel->verbose ? INFO : DEBUG2,
                 (errmsg("\"%s\": stopping truncate due to conflicting lock request",
                         vacrel->relname)));
@@ -3247,6 +3398,7 @@ lazy_truncate_heap(LVRelState *vacrel)
     vacrel->removed_pages += orig_rel_pages - new_rel_pages;
     vacrel->rel_pages = new_rel_pages;
 
+    DBUG_PRINT("info", "table \"%s\": truncated %u to %u pages", vacrel->relname, orig_rel_pages, new_rel_pages);
     ereport(vacrel->verbose ? INFO : DEBUG2,
             (errmsg("table \"%s\": truncated %u to %u pages",
                     vacrel->relname,
@@ -3263,6 +3415,7 @@ lazy_truncate_heap(LVRelState *vacrel)
 static BlockNumber
 count_nondeletable_pages(LVRelState *vacrel, bool *lock_waiter_detected)
 {
+  DBUG_TRACE;
   BlockNumber blkno;
   BlockNumber prefetchedUntil;
   instr_time  starttime;
@@ -3307,6 +3460,7 @@ count_nondeletable_pages(LVRelState *vacrel, bool *lock_waiter_detected)
       if ((INSTR_TIME_GET_MICROSEC(elapsed) / 1000)
           >= VACUUM_TRUNCATE_LOCK_CHECK_INTERVAL) {
         if (LockHasWaitersRelation(vacrel->rel, AccessExclusiveLock)) {
+          DBUG_PRINT("info", "table \"%s\": suspending truncate due to conflicting lock request", vacrel->relname);
           ereport(vacrel->verbose ? INFO : DEBUG2,
                   (errmsg("table \"%s\": suspending truncate due to conflicting lock request",
                           vacrel->relname)));
@@ -3422,10 +3576,13 @@ dead_items_alloc(LVRelState *vacrel, int nworkers)
        * Give warning only if the user explicitly tries to perform a
        * parallel vacuum on the temporary table.
        */
-      if (nworkers > 0)
+      if (nworkers > 0) {
+        DBUG_INSTANT_PRINT("info", "disabling parallel option of vacuum on \"%s\" --- cannot vacuum temporary tables in parallel",
+                           vacrel->relname);
         ereport(WARNING,
                 (errmsg("disabling parallel option of vacuum on \"%s\" --- cannot vacuum temporary tables in parallel",
                         vacrel->relname)));
+      }
     } else
       vacrel->pvs = parallel_vacuum_init(vacrel->rel, vacrel->indrels,
                                          vacrel->nindexes, nworkers,
@@ -3464,12 +3621,14 @@ static void
 dead_items_add(LVRelState *vacrel, BlockNumber blkno, OffsetNumber *offsets,
                int num_offsets)
 {
+  DBUG_TRACE;
   const int prog_index[2] = {
     PROGRESS_VACUUM_NUM_DEAD_ITEM_IDS,
     PROGRESS_VACUUM_DEAD_TUPLE_BYTES
   };
   int64   prog_val[2];
 
+  DBUG_PRINT("info", "add the given blkno:%u", blkno);
   TidStoreSetBlockOffsets(vacrel->dead_items, blkno, offsets, num_offsets);
   vacrel->dead_items_info->num_items += num_offsets;
 
@@ -3532,6 +3691,7 @@ heap_page_is_all_visible(LVRelState *vacrel, Buffer buf,
                          TransactionId *visibility_cutoff_xid,
                          bool *all_frozen)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   BlockNumber blockno = BufferGetBlockNumber(buf);
   OffsetNumber offnum,
@@ -3625,6 +3785,7 @@ heap_page_is_all_visible(LVRelState *vacrel, Buffer buf,
       }
 
       default:
+        DBUG_INSTANT_PRINT("info", "unexpected HeapTupleSatisfiesVacuum result");
         elog(ERROR, "unexpected HeapTupleSatisfiesVacuum result");
         break;
     }
@@ -3632,6 +3793,12 @@ heap_page_is_all_visible(LVRelState *vacrel, Buffer buf,
 
   /* Clear the offset information once we have processed the given page. */
   vacrel->offnum = InvalidOffsetNumber;
+
+  if (all_visible) {
+    DBUG_PRINT("info", "all visible:true");
+  } else {
+    DBUG_PRINT("info", "all visible:false");
+  }
 
   return all_visible;
 }
@@ -3642,6 +3809,7 @@ heap_page_is_all_visible(LVRelState *vacrel, Buffer buf,
 static void
 update_relstats_all_indexes(LVRelState *vacrel)
 {
+  DBUG_TRACE;
   Relation   *indrels = vacrel->indrels;
   int     nindexes = vacrel->nindexes;
   IndexBulkDeleteResult **indstats = vacrel->indstats;
@@ -3727,7 +3895,7 @@ vacuum_error_callback(void *arg)
     case VACUUM_ERRCB_PHASE_UNKNOWN:
     default:
       return;       /* do nothing; the errinfo may not be
-                 * initialized */
+                     * initialized */
   }
 }
 

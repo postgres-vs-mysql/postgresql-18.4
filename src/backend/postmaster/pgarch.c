@@ -24,6 +24,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <time.h>
 #include <sys/stat.h>
@@ -166,6 +167,7 @@ PgArchShmemSize(void)
 void
 PgArchShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   PgArch = (PgArchData *)
@@ -194,6 +196,7 @@ PgArchShmemInit(void)
 bool
 PgArchCanRestart(void)
 {
+  DBUG_TRACE;
   static time_t last_pgarch_start_time = 0;
   time_t    curtime = time(NULL);
 
@@ -214,6 +217,7 @@ PgArchCanRestart(void)
 void
 PgArchiverMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   Assert(startup_data_len == 0);
 
   MyBackendType = B_ARCHIVER;
@@ -277,6 +281,7 @@ PgArchiverMain(const void *startup_data, size_t startup_data_len)
 void
 PgArchWakeup(void)
 {
+  DBUG_TRACE;
   int     arch_pgprocno = PgArch->pgprocno;
 
   /*
@@ -307,6 +312,7 @@ pgarch_waken_stop(SIGNAL_ARGS)
 static void
 pgarch_MainLoop(void)
 {
+  DBUG_TRACE;
   bool    time_to_stop;
 
   /*
@@ -375,6 +381,7 @@ pgarch_MainLoop(void)
 static void
 pgarch_ArchiverCopyLoop(void)
 {
+  DBUG_TRACE;
   char    xlog[MAX_XFN_CHARS + 1];
 
   /* force directory scan in the first call to pgarch_readyXlog() */
@@ -504,6 +511,7 @@ pgarch_ArchiverCopyLoop(void)
 static bool
 pgarch_archiveXlog(char *xlog)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   MemoryContext oldcontext;
   char    pathname[MAXPGPATH];
@@ -630,6 +638,7 @@ pgarch_archiveXlog(char *xlog)
 static bool
 pgarch_readyXlog(char *xlog)
 {
+  DBUG_TRACE;
   char    XLogArchiveStatusDir[MAXPGPATH];
   DIR      *rldir;
   struct dirent *rlde;
@@ -891,6 +900,7 @@ ProcessPgArchInterrupts(void)
 static void
 LoadArchiveLibrary(void)
 {
+  DBUG_TRACE;
   ArchiveModuleInit archive_init;
 
   if (XLogArchiveLibrary[0] != '\0' && XLogArchiveCommand[0] != '\0')
@@ -934,6 +944,8 @@ LoadArchiveLibrary(void)
 static void
 pgarch_call_module_shutdown_cb(int code, Datum arg)
 {
+  DBUG_TRACE;
+
   if (ArchiveCallbacks->shutdown_cb != NULL)
     ArchiveCallbacks->shutdown_cb(archive_module_state);
 }

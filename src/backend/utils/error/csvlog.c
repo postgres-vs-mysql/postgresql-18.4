@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -64,6 +65,7 @@ appendCSVLiteral(StringInfo buf, const char *data)
 void
 write_csvlog(ErrorData *edata)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   bool    print_stmt = false;
 

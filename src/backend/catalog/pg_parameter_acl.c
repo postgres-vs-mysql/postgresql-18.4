@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "catalog/catalog.h"
@@ -34,6 +35,7 @@
 Oid
 ParameterAclLookup(const char *parameter, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     oid;
   char     *parname;
 
@@ -44,10 +46,12 @@ ParameterAclLookup(const char *parameter, bool missing_ok)
   oid = GetSysCacheOid1(PARAMETERACLNAME, Anum_pg_parameter_acl_oid,
                         PointerGetDatum(cstring_to_text(parname)));
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "parameter ACL \"%s\" does not exist", parameter);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("parameter ACL \"%s\" does not exist", parameter)));
+  }
 
   pfree(parname);
 
@@ -67,6 +71,7 @@ ParameterAclLookup(const char *parameter, bool missing_ok)
 Oid
 ParameterAclCreate(const char *parameter)
 {
+  DBUG_TRACE;
   Oid     parameterId;
   char     *parname;
   Relation  rel;

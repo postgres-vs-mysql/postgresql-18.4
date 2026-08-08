@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/printtup.h"
@@ -92,12 +93,14 @@ static bool _SPI_checktuples(void);
 int
 SPI_connect(void)
 {
+  DBUG_TRACE;
   return SPI_connect_ext(0);
 }
 
 int
 SPI_connect_ext(int options)
 {
+  DBUG_TRACE;
   int     newdepth;
 
   /* Enlarge stack if necessary */
@@ -124,7 +127,9 @@ SPI_connect_ext(int options)
   }
 
   /* Enter new stack level */
+  DBUG_PRINT("info", "enter new stack level");
   _SPI_connected++;
+  DBUG_PRINT("info", "_SPI_connected:%d", _SPI_connected);
   Assert(_SPI_connected >= 0 && _SPI_connected < _SPI_stack_depth);
 
   _SPI_current = &(_SPI_stack[_SPI_connected]);
@@ -142,6 +147,13 @@ SPI_connect_ext(int options)
   _SPI_current->outer_tuptable = SPI_tuptable;
   _SPI_current->outer_result = SPI_result;
 
+  if (_SPI_current->atomic) {
+    DBUG_PRINT("info", "atomic is true");
+  } else {
+    DBUG_PRINT("info", "atomic is false");
+  }
+
+  DBUG_PRINT("info", "create memory contexts for this procedure");
   /*
    * Create memory contexts for this procedure
    *
@@ -162,6 +174,7 @@ SPI_connect_ext(int options)
                           "SPI Exec",
                           ALLOCSET_DEFAULT_SIZES);
   /* ... and switch to procedure's context */
+  DBUG_PRINT("info", "switch to procedure's context");
   _SPI_current->savedcxt = MemoryContextSwitchTo(_SPI_current->procCxt);
 
   /*
@@ -178,6 +191,7 @@ SPI_connect_ext(int options)
 int
 SPI_finish(void)
 {
+  DBUG_TRACE;
   int     res;
 
   res = _SPI_begin_call(false); /* just check we're connected */
@@ -204,6 +218,8 @@ SPI_finish(void)
 
   /* Exit stack level */
   _SPI_connected--;
+  DBUG_PRINT("info", "exit stack level");
+  DBUG_PRINT("info", "_SPI_connected:%d", _SPI_connected);
 
   if (_SPI_connected < 0)
     _SPI_current = NULL;
@@ -225,6 +241,7 @@ SPI_start_transaction(void)
 static void
 _SPI_commit(bool chain)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
   SavedTransactionCharacteristics savetc;
 
@@ -261,6 +278,7 @@ _SPI_commit(bool chain)
   PG_TRY();
   {
     /* Protect current SPI stack entry against deletion */
+    DBUG_PRINT("info", "protect current SPI stack entry against deletion");
     _SPI_current->internal_xact = true;
 
     /*
@@ -320,18 +338,21 @@ _SPI_commit(bool chain)
 void
 SPI_commit(void)
 {
+  DBUG_TRACE;
   _SPI_commit(false);
 }
 
 void
 SPI_commit_and_chain(void)
 {
+  DBUG_TRACE;
   _SPI_commit(true);
 }
 
 static void
 _SPI_rollback(bool chain)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
   SavedTransactionCharacteristics savetc;
 
@@ -354,6 +375,7 @@ _SPI_rollback(bool chain)
   PG_TRY();
   {
     /* Protect current SPI stack entry against deletion */
+    DBUG_PRINT("info", "protect current SPI stack entry against deletion");
     _SPI_current->internal_xact = true;
 
     /*
@@ -370,6 +392,7 @@ _SPI_rollback(bool chain)
     /* Do the deed */
     AbortCurrentTransaction();
 
+    DBUG_PRINT("info", "immediately start a new transaction");
     /* Immediately start a new transaction */
     StartTransactionCommand();
 
@@ -394,8 +417,11 @@ _SPI_rollback(bool chain)
      * we'll just propagate the error out ... there's not that much we can
      * do.
      */
+    DBUG_PRINT("info", "try again to abort the failed transaction");
     AbortCurrentTransaction();
 
+
+    DBUG_PRINT("info", "start a new one");
     /* ... and start a new one */
     StartTransactionCommand();
 
@@ -415,12 +441,14 @@ _SPI_rollback(bool chain)
 void
 SPI_rollback(void)
 {
+  DBUG_TRACE;
   _SPI_rollback(false);
 }
 
 void
 SPI_rollback_and_chain(void)
 {
+  DBUG_TRACE;
   _SPI_rollback(true);
 }
 
@@ -430,6 +458,7 @@ SPI_rollback_and_chain(void)
 void
 AtEOXact_SPI(bool isCommit)
 {
+  DBUG_TRACE;
   bool    found = false;
 
   /*
@@ -459,7 +488,9 @@ AtEOXact_SPI(bool isCommit)
     SPI_tuptable = connection->outer_tuptable;
     SPI_result = connection->outer_result;
 
+    DBUG_PRINT("info", "restore outer global variables and pop the stack entry");
     _SPI_connected--;
+    DBUG_PRINT("info", "_SPI_connected:%d", _SPI_connected);
 
     if (_SPI_connected < 0)
       _SPI_current = NULL;
@@ -484,6 +515,7 @@ AtEOXact_SPI(bool isCommit)
 void
 AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid)
 {
+  DBUG_TRACE;
   bool    found = false;
 
   while (_SPI_connected >= 0) {
@@ -519,7 +551,9 @@ AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid)
     SPI_tuptable = connection->outer_tuptable;
     SPI_result = connection->outer_result;
 
+    DBUG_PRINT("info", "restore outer global variables and pop the stack entry");
     _SPI_connected--;
+    DBUG_PRINT("info", "_SPI_connected:%d", _SPI_connected);
 
     if (_SPI_connected < 0)
       _SPI_current = NULL;
@@ -582,16 +616,25 @@ AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid)
 bool
 SPI_inside_nonatomic_context(void)
 {
-  if (_SPI_current == NULL)
+  DBUG_TRACE;
+
+  if (_SPI_current == NULL) {
+    DBUG_PRINT("info", "are we executing inside a procedure? No");
     return false;     /* not in any SPI context at all */
+  }
 
   /* these tests must match _SPI_commit's opinion of what's atomic: */
-  if (_SPI_current->atomic)
+  if (_SPI_current->atomic) {
+    DBUG_PRINT("info", "are we executing inside a procedure? No");
     return false;     /* it's atomic (ie function not procedure) */
+  }
 
-  if (IsSubTransaction())
+  if (IsSubTransaction()) {
+    DBUG_PRINT("info", "are we executing inside a procedure? No");
     return false;     /* if within subtransaction, it's atomic */
+  }
 
+  DBUG_PRINT("info", "are we executing inside a procedure? Yes");
   return true;
 }
 
@@ -600,9 +643,12 @@ SPI_inside_nonatomic_context(void)
 int
 SPI_execute(const char *src, bool read_only, long tcount)
 {
+  DBUG_TRACE;
   _SPI_plan plan;
   SPIExecuteOptions options;
   int     res;
+
+  DBUG_PRINT("info", "parse, plan, and execute a query string:'%s'", src);
 
   if (src == NULL || tcount < 0)
     return SPI_ERROR_ARGUMENT;
@@ -635,6 +681,7 @@ SPI_execute(const char *src, bool read_only, long tcount)
 int
 SPI_exec(const char *src, long tcount)
 {
+  DBUG_TRACE;
   return SPI_execute(src, false, tcount);
 }
 
@@ -643,8 +690,11 @@ int
 SPI_execute_extended(const char *src,
                      const SPIExecuteOptions *options)
 {
+  DBUG_TRACE;
   int     res;
   _SPI_plan plan;
+
+  DBUG_PRINT("info", "parse, plan, and execute a query string, with extensible options");
 
   if (src == NULL || options == NULL)
     return SPI_ERROR_ARGUMENT;
@@ -679,8 +729,11 @@ int
 SPI_execute_plan(SPIPlanPtr plan, Datum *Values, const char *Nulls,
                  bool read_only, long tcount)
 {
+  DBUG_TRACE;
   SPIExecuteOptions options;
   int     res;
+
+  DBUG_PRINT("info", "execute a previously prepared plan");
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || tcount < 0)
     return SPI_ERROR_ARGUMENT;
@@ -711,6 +764,7 @@ SPI_execute_plan(SPIPlanPtr plan, Datum *Values, const char *Nulls,
 int
 SPI_execp(SPIPlanPtr plan, Datum *Values, const char *Nulls, long tcount)
 {
+  DBUG_TRACE;
   return SPI_execute_plan(plan, Values, Nulls, false, tcount);
 }
 
@@ -719,7 +773,10 @@ int
 SPI_execute_plan_extended(SPIPlanPtr plan,
                           const SPIExecuteOptions *options)
 {
+  DBUG_TRACE;
   int     res;
+
+  DBUG_PRINT("info", "execute a previously prepared plan");
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || options == NULL)
     return SPI_ERROR_ARGUMENT;
@@ -742,8 +799,11 @@ int
 SPI_execute_plan_with_paramlist(SPIPlanPtr plan, ParamListInfo params,
                                 bool read_only, long tcount)
 {
+  DBUG_TRACE;
   SPIExecuteOptions options;
   int     res;
+
+  DBUG_PRINT("info", "execute a previously prepared plan");
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || tcount < 0)
     return SPI_ERROR_ARGUMENT;
@@ -785,6 +845,7 @@ SPI_execute_snapshot(SPIPlanPtr plan,
                      Snapshot snapshot, Snapshot crosscheck_snapshot,
                      bool read_only, bool fire_triggers, long tcount)
 {
+  DBUG_TRACE;
   SPIExecuteOptions options;
   int     res;
 
@@ -809,6 +870,7 @@ SPI_execute_snapshot(SPIPlanPtr plan,
                           snapshot, crosscheck_snapshot,
                           fire_triggers);
 
+  DBUG_PRINT("info", "result:%d", res);
   _SPI_end_call(true);
   return res;
 }
@@ -825,6 +887,7 @@ SPI_execute_with_args(const char *src,
                       Datum *Values, const char *Nulls,
                       bool read_only, long tcount)
 {
+  DBUG_TRACE;
   int     res;
   _SPI_plan plan;
   ParamListInfo paramLI;
@@ -832,6 +895,8 @@ SPI_execute_with_args(const char *src,
 
   if (src == NULL || nargs < 0 || tcount < 0)
     return SPI_ERROR_ARGUMENT;
+
+  DBUG_PRINT("info", "plan and execute a query('%s') with supplied arguments", src);
 
   if (nargs > 0 && (argtypes == NULL || Values == NULL))
     return SPI_ERROR_PARAM;
@@ -871,6 +936,8 @@ SPI_execute_with_args(const char *src,
 SPIPlanPtr
 SPI_prepare(const char *src, int nargs, Oid *argtypes)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "nargs:%d, src:'%s'", nargs, src);
   return SPI_prepare_cursor(src, nargs, argtypes, 0);
 }
 
@@ -878,6 +945,7 @@ SPIPlanPtr
 SPI_prepare_cursor(const char *src, int nargs, Oid *argtypes,
                    int cursorOptions)
 {
+  DBUG_TRACE;
   _SPI_plan plan;
   SPIPlanPtr  result;
 
@@ -914,6 +982,7 @@ SPIPlanPtr
 SPI_prepare_extended(const char *src,
                      const SPIPrepareOptions *options)
 {
+  DBUG_TRACE;
   _SPI_plan plan;
   SPIPlanPtr  result;
 
@@ -952,6 +1021,7 @@ SPI_prepare_params(const char *src,
                    void *parserSetupArg,
                    int cursorOptions)
 {
+  DBUG_TRACE;
   _SPI_plan plan;
   SPIPlanPtr  result;
 
@@ -987,6 +1057,7 @@ SPI_prepare_params(const char *src,
 int
 SPI_keepplan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC ||
@@ -1013,6 +1084,7 @@ SPI_keepplan(SPIPlanPtr plan)
 SPIPlanPtr
 SPI_saveplan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   SPIPlanPtr  newplan;
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC) {
@@ -1035,6 +1107,7 @@ SPI_saveplan(SPIPlanPtr plan)
 int
 SPI_freeplan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC)
@@ -1056,6 +1129,7 @@ SPI_freeplan(SPIPlanPtr plan)
 HeapTuple
 SPI_copytuple(HeapTuple tuple)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   HeapTuple ctuple;
 
@@ -1081,6 +1155,7 @@ SPI_copytuple(HeapTuple tuple)
 HeapTupleHeader
 SPI_returntuple(HeapTuple tuple, TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   HeapTupleHeader dtup;
 
@@ -1112,6 +1187,7 @@ HeapTuple
 SPI_modifytuple(Relation rel, HeapTuple tuple, int natts, int *attnum,
                 Datum *Values, const char *Nulls)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   HeapTuple mtuple;
   int     numberOfAttributes;
@@ -1175,6 +1251,7 @@ SPI_modifytuple(Relation rel, HeapTuple tuple, int natts, int *attnum,
 int
 SPI_fnumber(TupleDesc tupdesc, const char *fname)
 {
+  DBUG_TRACE;
   int     res;
   const FormData_pg_attribute *sysatt;
 
@@ -1198,6 +1275,7 @@ SPI_fnumber(TupleDesc tupdesc, const char *fname)
 char *
 SPI_fname(TupleDesc tupdesc, int fnumber)
 {
+  DBUG_TRACE;
   const FormData_pg_attribute *att;
 
   SPI_result = 0;
@@ -1219,6 +1297,7 @@ SPI_fname(TupleDesc tupdesc, int fnumber)
 char *
 SPI_getvalue(HeapTuple tuple, TupleDesc tupdesc, int fnumber)
 {
+  DBUG_TRACE;
   Datum   val;
   bool    isnull;
   Oid     typoid,
@@ -1251,6 +1330,7 @@ SPI_getvalue(HeapTuple tuple, TupleDesc tupdesc, int fnumber)
 Datum
 SPI_getbinval(HeapTuple tuple, TupleDesc tupdesc, int fnumber, bool *isnull)
 {
+  DBUG_TRACE;
   SPI_result = 0;
 
   if (fnumber > tupdesc->natts || fnumber == 0 ||
@@ -1266,6 +1346,7 @@ SPI_getbinval(HeapTuple tuple, TupleDesc tupdesc, int fnumber, bool *isnull)
 char *
 SPI_gettype(TupleDesc tupdesc, int fnumber)
 {
+  DBUG_TRACE;
   Oid     typoid;
   HeapTuple typeTuple;
   char     *result;
@@ -1292,6 +1373,8 @@ SPI_gettype(TupleDesc tupdesc, int fnumber)
 
   result = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(typeTuple))->typname));
   ReleaseSysCache(typeTuple);
+
+  DBUG_PRINT("info", "return '%s'", result);
   return result;
 }
 
@@ -1356,6 +1439,7 @@ SPI_pfree(void *pointer)
 Datum
 SPI_datumTransfer(Datum value, bool typByVal, int typLen)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   Datum   result;
 
@@ -1440,6 +1524,7 @@ SPI_cursor_open(const char *name, SPIPlanPtr plan,
                 Datum *Values, const char *Nulls,
                 bool read_only)
 {
+  DBUG_TRACE;
   Portal    portal;
   ParamListInfo paramLI;
 
@@ -1469,6 +1554,7 @@ SPI_cursor_open_with_args(const char *name,
                           Datum *Values, const char *Nulls,
                           bool read_only, int cursorOptions)
 {
+  DBUG_TRACE;
   Portal    result;
   _SPI_plan plan;
   ParamListInfo paramLI;
@@ -1520,6 +1606,7 @@ Portal
 SPI_cursor_open_with_paramlist(const char *name, SPIPlanPtr plan,
                                ParamListInfo params, bool read_only)
 {
+  DBUG_TRACE;
   return SPI_cursor_open_internal(name, plan, params, read_only);
 }
 
@@ -1529,8 +1616,11 @@ SPI_cursor_parse_open(const char *name,
                       const char *src,
                       const SPIParseOpenOptions *options)
 {
+  DBUG_TRACE;
   Portal    result;
   _SPI_plan plan;
+
+  DBUG_PRINT("info", "parse a query and open it as a cursor");
 
   if (src == NULL || options == NULL)
     elog(ERROR, "SPI_cursor_parse_open called with invalid arguments");
@@ -1573,6 +1663,7 @@ static Portal
 SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
                          ParamListInfo paramLI, bool read_only)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
   CachedPlan *cplan;
   List     *stmt_list;
@@ -1782,6 +1873,7 @@ SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
 Portal
 SPI_cursor_find(const char *name)
 {
+  DBUG_TRACE;
   return GetPortalByName(name);
 }
 
@@ -1794,6 +1886,7 @@ SPI_cursor_find(const char *name)
 void
 SPI_cursor_fetch(Portal portal, bool forward, long count)
 {
+  DBUG_TRACE;
   _SPI_cursor_operation(portal,
                         forward ? FETCH_FORWARD : FETCH_BACKWARD, count,
                         CreateDestReceiver(DestSPI));
@@ -1809,6 +1902,7 @@ SPI_cursor_fetch(Portal portal, bool forward, long count)
 void
 SPI_cursor_move(Portal portal, bool forward, long count)
 {
+  DBUG_TRACE;
   _SPI_cursor_operation(portal,
                         forward ? FETCH_FORWARD : FETCH_BACKWARD, count,
                         None_Receiver);
@@ -1823,6 +1917,7 @@ SPI_cursor_move(Portal portal, bool forward, long count)
 void
 SPI_scroll_cursor_fetch(Portal portal, FetchDirection direction, long count)
 {
+  DBUG_TRACE;
   _SPI_cursor_operation(portal,
                         direction, count,
                         CreateDestReceiver(DestSPI));
@@ -1838,6 +1933,7 @@ SPI_scroll_cursor_fetch(Portal portal, FetchDirection direction, long count)
 void
 SPI_scroll_cursor_move(Portal portal, FetchDirection direction, long count)
 {
+  DBUG_TRACE;
   _SPI_cursor_operation(portal, direction, count, None_Receiver);
 }
 
@@ -1850,6 +1946,8 @@ SPI_scroll_cursor_move(Portal portal, FetchDirection direction, long count)
 void
 SPI_cursor_close(Portal portal)
 {
+  DBUG_TRACE;
+
   if (!PortalIsValid(portal))
     elog(ERROR, "invalid portal in SPI cursor operation");
 
@@ -1863,6 +1961,8 @@ SPI_cursor_close(Portal portal)
 Oid
 SPI_getargtypeid(SPIPlanPtr plan, int argIndex)
 {
+  DBUG_TRACE;
+
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC ||
       argIndex < 0 || argIndex >= plan->nargs) {
     SPI_result = SPI_ERROR_ARGUMENT;
@@ -1878,11 +1978,14 @@ SPI_getargtypeid(SPIPlanPtr plan, int argIndex)
 int
 SPI_getargcount(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
+
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC) {
     SPI_result = SPI_ERROR_ARGUMENT;
     return -1;
   }
 
+  DBUG_PRINT("info", "return the number of arguments for the prepared plan:%d", plan->nargs);
   return plan->nargs;
 }
 
@@ -1898,15 +2001,18 @@ SPI_getargcount(SPIPlanPtr plan)
 bool
 SPI_is_cursor_plan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
 
   if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC) {
     SPI_result = SPI_ERROR_ARGUMENT;
+    DBUG_PRINT("info", "return false");
     return false;
   }
 
   if (list_length(plan->plancache_list) != 1) {
     SPI_result = 0;
+    DBUG_PRINT("info", "return false");
     return false;     /* not exactly 1 pre-rewrite command */
   }
 
@@ -1920,9 +2026,12 @@ SPI_is_cursor_plan(SPIPlanPtr plan)
   SPI_result = 0;
 
   /* Does it return tuples? */
-  if (plansource->resultDesc)
+  if (plansource->resultDesc) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -1935,6 +2044,7 @@ SPI_is_cursor_plan(SPIPlanPtr plan)
 bool
 SPI_plan_is_valid(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   Assert(plan->magic == _SPI_PLAN_MAGIC);
@@ -1942,10 +2052,13 @@ SPI_plan_is_valid(SPIPlanPtr plan)
   foreach(lc, plan->plancache_list) {
     CachedPlanSource *plansource = (CachedPlanSource *) lfirst(lc);
 
-    if (!CachedPlanIsValid(plansource))
+    if (!CachedPlanIsValid(plansource)) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -2093,6 +2206,7 @@ SPI_plan_get_plan_sources(SPIPlanPtr plan)
 CachedPlan *
 SPI_plan_get_cached_plan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   CachedPlanSource *plansource;
   CachedPlan *cplan;
   SPICallbackArg spicallbackarg;
@@ -2141,6 +2255,7 @@ SPI_plan_get_cached_plan(SPIPlanPtr plan)
 void
 spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
+  DBUG_TRACE;
   SPITupleTable *tuptable;
   MemoryContext oldcxt;
   MemoryContext tuptabcxt;
@@ -2153,6 +2268,7 @@ spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 
   /* We create the tuple table context as a child of procCxt */
 
+  DBUG_PRINT("info", "switch to procedure memory context");
   oldcxt = _SPI_procmem();  /* switch to procedure memory context */
 
   tuptabcxt = AllocSetContextCreate(CurrentMemoryContext,
@@ -2189,6 +2305,7 @@ spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 bool
 spi_printtup(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   SPITupleTable *tuptable;
   MemoryContext oldcxt;
 
@@ -2239,12 +2356,14 @@ spi_printtup(TupleTableSlot *slot, DestReceiver *self)
 static void
 _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   List     *raw_parsetree_list;
   List     *plancache_list;
   ListCell   *list_item;
   SPICallbackArg spicallbackarg;
   ErrorContextCallback spierrcontext;
 
+  DBUG_PRINT("info", "parse and analyze a querystring:'%s'", src);
   /*
    * Setup error traceback support for ereport()
    */
@@ -2343,6 +2462,7 @@ _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 static void
 _SPI_prepare_oneshot_plan(const char *src, SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   List     *raw_parsetree_list;
   List     *plancache_list;
   ListCell   *list_item;
@@ -2414,6 +2534,7 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
                   Snapshot snapshot, Snapshot crosscheck_snapshot,
                   bool fire_triggers)
 {
+  DBUG_TRACE;
   int     my_res = 0;
   uint64    my_processed = 0;
   SPITupleTable *my_tuptable = NULL;
@@ -2836,6 +2957,7 @@ static ParamListInfo
 _SPI_convert_params(int nargs, Oid *argtypes,
                     Datum *Values, const char *Nulls)
 {
+  DBUG_TRACE;
   ParamListInfo paramLI;
 
   if (nargs > 0) {
@@ -2858,6 +2980,7 @@ _SPI_convert_params(int nargs, Oid *argtypes,
 static int
 _SPI_pquery(QueryDesc *queryDesc, bool fire_triggers, uint64 tcount)
 {
+  DBUG_TRACE;
   int     operation = queryDesc->operation;
   int     eflags;
   int     res;
@@ -3001,6 +3124,7 @@ static void
 _SPI_cursor_operation(Portal portal, FetchDirection direction, long count,
                       DestReceiver *dest)
 {
+  DBUG_TRACE;
   uint64    nfetched;
 
   /* Check that the portal is valid */
@@ -3070,13 +3194,17 @@ _SPI_procmem(void)
 static int
 _SPI_begin_call(bool use_exec)
 {
+  DBUG_TRACE;
+
   if (_SPI_current == NULL)
     return SPI_ERROR_UNCONNECTED;
 
   if (use_exec) {
     /* remember when the Executor operation started */
+    DBUG_PRINT("info", "remember when the Executor operation started");
     _SPI_current->execSubid = GetCurrentSubTransactionId();
     /* switch to the Executor memory context */
+    DBUG_PRINT("info", "switch to the Executor memory context");
     _SPI_execmem();
   }
 
@@ -3093,10 +3221,14 @@ _SPI_begin_call(bool use_exec)
 static int
 _SPI_end_call(bool use_exec)
 {
+  DBUG_TRACE;
+
   if (use_exec) {
     /* switch to the procedure memory context */
+    DBUG_PRINT("info", "switch to the procedure memory context");
     _SPI_procmem();
     /* mark Executor context no longer in use */
+    DBUG_PRINT("info", "mark Executor context no longer in use and free Executor memory");
     _SPI_current->execSubid = InvalidSubTransactionId;
     /* and free Executor memory */
     MemoryContextReset(_SPI_current->execCxt);
@@ -3108,6 +3240,7 @@ _SPI_end_call(bool use_exec)
 static bool
 _SPI_checktuples(void)
 {
+  DBUG_TRACE;
   uint64    processed = _SPI_current->processed;
   SPITupleTable *tuptable = _SPI_current->tuptable;
   bool    failed = false;
@@ -3132,6 +3265,7 @@ _SPI_checktuples(void)
 static SPIPlanPtr
 _SPI_make_plan_non_temp(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   SPIPlanPtr  newplan;
   MemoryContext parentcxt = _SPI_current->procCxt;
   MemoryContext plancxt;
@@ -3199,6 +3333,7 @@ _SPI_make_plan_non_temp(SPIPlanPtr plan)
 static SPIPlanPtr
 _SPI_save_plan(SPIPlanPtr plan)
 {
+  DBUG_TRACE;
   SPIPlanPtr  newplan;
   MemoryContext plancxt;
   MemoryContext oldcxt;
@@ -3268,6 +3403,7 @@ _SPI_save_plan(SPIPlanPtr plan)
 static EphemeralNamedRelation
 _SPI_find_ENR_by_name(const char *name)
 {
+  DBUG_TRACE;
   /* internal static function; any error is bug in SPI itself */
   Assert(name != NULL);
 
@@ -3285,6 +3421,7 @@ _SPI_find_ENR_by_name(const char *name)
 int
 SPI_register_relation(EphemeralNamedRelation enr)
 {
+  DBUG_TRACE;
   EphemeralNamedRelation match;
   int     res;
 
@@ -3320,6 +3457,7 @@ SPI_register_relation(EphemeralNamedRelation enr)
 int
 SPI_unregister_relation(const char *name)
 {
+  DBUG_TRACE;
   EphemeralNamedRelation match;
   int     res;
 
@@ -3353,6 +3491,8 @@ SPI_unregister_relation(const char *name)
 int
 SPI_register_trigger_data(TriggerData *tdata)
 {
+  DBUG_TRACE;
+
   if (tdata == NULL)
     return SPI_ERROR_ARGUMENT;
 

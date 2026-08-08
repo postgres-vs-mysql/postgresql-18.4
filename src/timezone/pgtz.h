@@ -24,7 +24,8 @@
 #define BIGGEST(a, b) (((a) > (b)) ? (a) : (b))
 
 struct ttinfo
-{ /* time type information */
+{
+  /* time type information */
   int32   tt_utoff;   /* UT offset in seconds */
   bool    tt_isdst;   /* used to set tm_isdst */
   int     tt_desigidx;  /* abbreviation list index */
@@ -33,7 +34,8 @@ struct ttinfo
 };
 
 struct lsinfo
-{ /* leap second information */
+{
+  /* leap second information */
   pg_time_t ls_trans;   /* transition time */
   int64   ls_corr;    /* correction to apply */
 };

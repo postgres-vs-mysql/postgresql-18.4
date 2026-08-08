@@ -13,6 +13,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/tsmapi.h"
@@ -26,6 +27,7 @@
 TsmRoutine *
 GetTsmRoutine(Oid tsmhandler)
 {
+  DBUG_TRACE;
   Datum   datum;
   TsmRoutine *routine;
 

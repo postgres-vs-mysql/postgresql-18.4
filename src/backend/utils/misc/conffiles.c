@@ -16,6 +16,7 @@
  *--------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <dirent.h>
@@ -35,6 +36,8 @@
 char *
 AbsoluteConfigLocation(const char *location, const char *calling_file)
 {
+  DBUG_TRACE;
+
   if (is_absolute_path(location))
     return pstrdup(location);
   else {
@@ -67,6 +70,7 @@ char    **
 GetConfFilesInDir(const char *includedir, const char *calling_file,
                   int elevel, int *num_filenames, char **err_msg)
 {
+  DBUG_TRACE;
   char     *directory;
   DIR      *d;
   struct dirent *de;

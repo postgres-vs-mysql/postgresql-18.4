@@ -54,6 +54,7 @@ WalRcvShmemSize(void)
 void
 WalRcvShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   WalRcv = (WalRcvData *)

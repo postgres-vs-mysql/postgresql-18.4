@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -66,6 +67,8 @@ InstrInit(Instrumentation *instr, int instrument_options)
 void
 InstrStartNode(Instrumentation *instr)
 {
+  DBUG_TRACE;
+
   if (instr->need_timer &&
       !INSTR_TIME_SET_CURRENT_LAZY(instr->starttime))
     elog(ERROR, "InstrStartNode called twice in a row");
@@ -82,17 +85,20 @@ InstrStartNode(Instrumentation *instr)
 void
 InstrStopNode(Instrumentation *instr, double nTuples)
 {
+  DBUG_TRACE;
   double    save_tuplecount = instr->tuplecount;
   instr_time  endtime;
 
   /* count the returned tuples */
   instr->tuplecount += nTuples;
+  DBUG_PRINT("info", "count the returned tuples:%g and nTuples:%g", instr->tuplecount, nTuples);
 
   /* let's update the time only if the timer was requested */
   if (instr->need_timer) {
     if (INSTR_TIME_IS_ZERO(instr->starttime))
       elog(ERROR, "InstrStopNode called without start");
 
+    DBUG_PRINT("info", "let's update the time only when the timer was requested");
     INSTR_TIME_SET_CURRENT(endtime);
     INSTR_TIME_ACCUM_DIFF(instr->counter, endtime, instr->starttime);
 
@@ -100,13 +106,16 @@ InstrStopNode(Instrumentation *instr, double nTuples)
   }
 
   /* Add delta of buffer usage since entry to node's totals */
-  if (instr->need_bufusage)
+  if (instr->need_bufusage) {
+    DBUG_PRINT("info", "add delta of buffer usage since entry to node's totals");
     BufferUsageAccumDiff(&instr->bufusage,
                          &pgBufferUsage, &instr->bufusage_start);
+  }
 
-  if (instr->need_walusage)
+  if (instr->need_walusage) {
     WalUsageAccumDiff(&instr->walusage,
                       &pgWalUsage, &instr->walusage_start);
+  }
 
   /* Is this the first tuple of this cycle? */
   if (!instr->running) {
@@ -126,14 +135,17 @@ InstrStopNode(Instrumentation *instr, double nTuples)
 void
 InstrUpdateTupleCount(Instrumentation *instr, double nTuples)
 {
+  DBUG_TRACE;
   /* count the returned tuples */
   instr->tuplecount += nTuples;
+  DBUG_PRINT("info", "count the returned tuples:%g and nTuples:%g", instr->tuplecount, nTuples);
 }
 
 /* Finish a run cycle for a plan node */
 void
 InstrEndLoop(Instrumentation *instr)
 {
+  DBUG_TRACE;
   double    totaltime;
 
   /* Skip if nothing has happened, or already shut down */
@@ -145,6 +157,7 @@ InstrEndLoop(Instrumentation *instr)
 
   /* Accumulate per-cycle statistics into totals */
   totaltime = INSTR_TIME_GET_DOUBLE(instr->counter);
+  DBUG_PRINT("info", "totaltime:%g", totaltime);
 
   instr->startup += instr->firsttuple;
   instr->total += totaltime;
@@ -163,6 +176,8 @@ InstrEndLoop(Instrumentation *instr)
 void
 InstrAggNode(Instrumentation *dst, Instrumentation *add)
 {
+  DBUG_TRACE;
+
   if (!dst->running && add->running) {
     dst->running = true;
     dst->firsttuple = add->firsttuple;
@@ -192,6 +207,7 @@ InstrAggNode(Instrumentation *dst, Instrumentation *add)
 void
 InstrStartParallelQuery(void)
 {
+  DBUG_TRACE;
   save_pgBufferUsage = pgBufferUsage;
   save_pgWalUsage = pgWalUsage;
 }
@@ -200,6 +216,7 @@ InstrStartParallelQuery(void)
 void
 InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
 {
+  DBUG_TRACE;
   memset(bufusage, 0, sizeof(BufferUsage));
   BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
   memset(walusage, 0, sizeof(WalUsage));
@@ -210,6 +227,7 @@ InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
 void
 InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
 {
+  DBUG_TRACE;
   BufferUsageAdd(&pgBufferUsage, bufusage);
   WalUsageAdd(&pgWalUsage, walusage);
 }
@@ -270,17 +288,21 @@ BufferUsageAccumDiff(BufferUsage *dst,
 static void
 WalUsageAdd(WalUsage *dst, WalUsage *add)
 {
+  DBUG_TRACE;
   dst->wal_bytes += add->wal_bytes;
   dst->wal_records += add->wal_records;
   dst->wal_fpi += add->wal_fpi;
   dst->wal_buffers_full += add->wal_buffers_full;
+  DBUG_PRINT("info", "accumulated wal bytes:%lu, wal_records:%lu, wal_fpi:%lu", dst->wal_bytes, dst->wal_records, dst->wal_fpi);
 }
 
 void
 WalUsageAccumDiff(WalUsage *dst, const WalUsage *add, const WalUsage *sub)
 {
+  DBUG_TRACE;
   dst->wal_bytes += add->wal_bytes - sub->wal_bytes;
   dst->wal_records += add->wal_records - sub->wal_records;
   dst->wal_fpi += add->wal_fpi - sub->wal_fpi;
   dst->wal_buffers_full += add->wal_buffers_full - sub->wal_buffers_full;
+  DBUG_PRINT("info", "accumulated wal bytes:%lu, wal_records:%lu, wal_fpi:%lu", dst->wal_bytes, dst->wal_records, dst->wal_fpi);
 }

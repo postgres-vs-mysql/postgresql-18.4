@@ -105,6 +105,12 @@ extern void pgwin32_register_deadchild_callback(HANDLE procHandle, DWORD procId)
 /* defined in globals.c */
 extern PGDLLIMPORT struct ClientSocket *MyClientSocket;
 
+extern pid_t postmaster_child_launch_with_traced(BackendType child_type,
+                                     int child_slot,
+                                     void *startup_data,
+                                     size_t startup_data_len,
+                                     struct ClientSocket *client_sock, bool debug_traced);
+
 /* prototypes for functions in launch_backend.c */
 extern pid_t postmaster_child_launch(BackendType child_type,
                                      int child_slot,

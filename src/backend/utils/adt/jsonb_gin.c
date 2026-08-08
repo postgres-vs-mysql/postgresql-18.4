@@ -58,6 +58,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin.h"
 #include "access/stratnum.h"
@@ -190,6 +191,7 @@ add_gin_entry(GinEntries *entries, Datum entry)
 Datum
 gin_compare_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg1 = PG_GETARG_TEXT_PP(0);
   text     *arg2 = PG_GETARG_TEXT_PP(1);
   int32   result;
@@ -210,12 +212,15 @@ gin_compare_jsonb(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg1, 0);
   PG_FREE_IF_COPY(arg2, 1);
 
+  DBUG_PRINT("info", "result:%d", result);
+
   PG_RETURN_INT32(result);
 }
 
 Datum
 gin_extract_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = (Jsonb *) PG_GETARG_JSONB_P(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   int     total = JB_ROOT_COUNT(jb);
@@ -227,6 +232,7 @@ gin_extract_jsonb(PG_FUNCTION_ARGS)
   /* If the root level is empty, we certainly have no keys */
   if (total == 0) {
     *nentries = 0;
+    DBUG_PRINT("info", "if the root level is empty, we certainly have no keys");
     PG_RETURN_POINTER(NULL);
   }
 
@@ -257,6 +263,7 @@ gin_extract_jsonb(PG_FUNCTION_ARGS)
   }
 
   *nentries = entries.count;
+  DBUG_PRINT("info", "total:%d, nentries:%d", total, *nentries);
 
   PG_RETURN_POINTER(entries.buf);
 }
@@ -265,6 +272,7 @@ gin_extract_jsonb(PG_FUNCTION_ARGS)
 static bool
 jsonb_ops__add_path_item(JsonPathGinPath *path, JsonPathItem *jsp)
 {
+  DBUG_TRACE;
   JsonPathGinPathItem *pentry;
   Datum   keyName;
 
@@ -308,6 +316,8 @@ jsonb_ops__add_path_item(JsonPathGinPath *path, JsonPathItem *jsp)
 static bool
 jsonb_path_ops__add_path_item(JsonPathGinPath *path, JsonPathItem *jsp)
 {
+  DBUG_TRACE;
+
   switch (jsp->type) {
     case jpiRoot:
       path->hash = 0;   /* reset path hash */
@@ -710,12 +720,14 @@ static Datum *
 extract_jsp_query(JsonPath *jp, StrategyNumber strat, bool pathOps,
                   int32 *nentries, Pointer **extra_data)
 {
+  DBUG_TRACE;
   JsonPathGinContext cxt;
   JsonPathItem root;
   JsonPathGinNode *node;
   JsonPathGinPath path = {0};
   GinEntries  entries = {0};
 
+  DBUG_PRINT("info", "recursively extract GIN entries from jsonpath query");
   cxt.lax = (jp->header & JSONPATH_LAX) != 0;
 
   if (pathOps) {
@@ -740,6 +752,7 @@ extract_jsp_query(JsonPath *jp, StrategyNumber strat, bool pathOps,
   emit_jsp_gin_entries(node, &entries);
 
   *nentries = entries.count;
+  DBUG_PRINT("info", "nentries:%d", *nentries);
 
   if (!*nentries)
     return NULL;
@@ -757,21 +770,34 @@ extract_jsp_query(JsonPath *jp, StrategyNumber strat, bool pathOps,
 static GinTernaryValue
 execute_jsp_gin_node(JsonPathGinNode *node, void *check, bool ternary)
 {
+  DBUG_TRACE;
   GinTernaryValue res;
   GinTernaryValue v;
   int     i;
 
+  DBUG_PRINT("info", "recursively execute jsonpath expression");
+
   switch (node->type) {
     case JSP_GIN_AND:
+      DBUG_PRINT("info", "node->type:JSP_GIN_AND");
       res = GIN_TRUE;
 
       for (i = 0; i < node->val.nargs; i++) {
         v = execute_jsp_gin_node(node->args[i], check, ternary);
 
-        if (v == GIN_FALSE)
+        if (v == GIN_FALSE) {
+          DBUG_PRINT("info", "return GIN_FALSE");
           return GIN_FALSE;
-        else if (v == GIN_MAYBE)
+        } else if (v == GIN_MAYBE)
           res = GIN_MAYBE;
+      }
+
+      if (res == GIN_TRUE) {
+        DBUG_PRINT("info", "return GIN_TRUE");
+      } else if (res == GIN_MAYBE) {
+        DBUG_PRINT("info", "return GIN_MAYBE");
+      } else {
+        DBUG_PRINT("info", "return GIN_FALSE");
       }
 
       return res;
@@ -779,13 +805,24 @@ execute_jsp_gin_node(JsonPathGinNode *node, void *check, bool ternary)
     case JSP_GIN_OR:
       res = GIN_FALSE;
 
+      DBUG_PRINT("info", "node->type:JSP_GIN_OR");
+
       for (i = 0; i < node->val.nargs; i++) {
         v = execute_jsp_gin_node(node->args[i], check, ternary);
 
-        if (v == GIN_TRUE)
+        if (v == GIN_TRUE) {
+          DBUG_PRINT("info", "return GIN_TRUE");
           return GIN_TRUE;
-        else if (v == GIN_MAYBE)
+        } else if (v == GIN_MAYBE)
           res = GIN_MAYBE;
+      }
+
+      if (res == GIN_TRUE) {
+        DBUG_PRINT("info", "return GIN_TRUE");
+      } else if (res == GIN_MAYBE) {
+        DBUG_PRINT("info", "return GIN_MAYBE");
+      } else {
+        DBUG_PRINT("info", "return GIN_FALSE");
       }
 
       return res;
@@ -793,10 +830,23 @@ execute_jsp_gin_node(JsonPathGinNode *node, void *check, bool ternary)
     case JSP_GIN_ENTRY: {
       int     index = node->val.entryIndex;
 
-      if (ternary)
-        return ((GinTernaryValue *) check)[index];
-      else
-        return ((bool *) check)[index] ? GIN_TRUE : GIN_FALSE;
+      DBUG_PRINT("info", "node->type:JSP_GIN_ENTRY and index:%d", index);
+
+      if (ternary) {
+        res = ((GinTernaryValue *) check)[index];
+      } else {
+        res = ((bool *) check)[index] ? GIN_TRUE : GIN_FALSE;
+      }
+
+      if (res == GIN_TRUE) {
+        DBUG_PRINT("info", "return GIN_TRUE");
+      } else if (res == GIN_MAYBE) {
+        DBUG_PRINT("info", "return GIN_MAYBE");
+      } else {
+        DBUG_PRINT("info", "return GIN_FALSE");
+      }
+
+      return res;
     }
 
     default:
@@ -808,6 +858,7 @@ execute_jsp_gin_node(JsonPathGinNode *node, void *check, bool ternary)
 Datum
 gin_extract_jsonb_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
   int32    *searchMode = (int32 *) PG_GETARG_POINTER(6);
@@ -815,18 +866,22 @@ gin_extract_jsonb_query(PG_FUNCTION_ARGS)
 
   if (strategy == JsonbContainsStrategyNumber) {
     /* Query is a jsonb, so just apply gin_extract_jsonb... */
+    DBUG_PRINT("info", "Query is a jsonb, so just apply gin_extract_jsonb");
     entries = (Datum *)
               DatumGetPointer(DirectFunctionCall2(gin_extract_jsonb,
                               PG_GETARG_DATUM(0),
                               PointerGetDatum(nentries)));
 
     /* ...although "contains {}" requires a full index scan */
-    if (*nentries == 0)
+    if (*nentries == 0) {
+      DBUG_PRINT("info", "'contains {}' require a full index scan");
       *searchMode = GIN_SEARCH_MODE_ALL;
+    }
   } else if (strategy == JsonbExistsStrategyNumber) {
     /* Query is a text string, which we treat as a key */
     text     *query = PG_GETARG_TEXT_PP(0);
 
+    DBUG_PRINT("info", "Query is a text string, which we treat as a key");
     *nentries = 1;
     entries = (Datum *) palloc(sizeof(Datum));
     entries[0] = make_text_key(JGINFLAG_KEY,
@@ -842,6 +897,7 @@ gin_extract_jsonb_query(PG_FUNCTION_ARGS)
     int     i,
             j;
 
+    DBUG_PRINT("info", "Query is a text array; each element is treated as a key");
     deconstruct_array_builtin(query, TEXTOID, &key_datums, &key_nulls, &key_count);
 
     entries = (Datum *) palloc(sizeof(Datum) * key_count);
@@ -882,6 +938,7 @@ gin_extract_jsonb_query(PG_FUNCTION_ARGS)
 Datum
 gin_consistent_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -947,12 +1004,19 @@ gin_consistent_jsonb(PG_FUNCTION_ARGS)
   } else
     elog(ERROR, "unrecognized strategy number: %d", strategy);
 
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 gin_triconsistent_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -1002,6 +1066,14 @@ gin_triconsistent_jsonb(PG_FUNCTION_ARGS)
   } else
     elog(ERROR, "unrecognized strategy number: %d", strategy);
 
+  if (res == GIN_TRUE) {
+    DBUG_PRINT("info", "return GIN_TRUE");
+  } else if (res == GIN_MAYBE) {
+    DBUG_PRINT("info", "return GIN_MAYBE");
+  } else {
+    DBUG_PRINT("info", "return GIN_FALSE");
+  }
+
   PG_RETURN_GIN_TERNARY_VALUE(res);
 }
 
@@ -1020,6 +1092,7 @@ gin_triconsistent_jsonb(PG_FUNCTION_ARGS)
 Datum
 gin_extract_jsonb_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   int     total = JB_ROOT_COUNT(jb);
@@ -1107,12 +1180,14 @@ gin_extract_jsonb_path(PG_FUNCTION_ARGS)
 
   *nentries = entries.count;
 
+  DBUG_PRINT("info", "nentries:%d", *nentries);
   PG_RETURN_POINTER(entries.buf);
 }
 
 Datum
 gin_extract_jsonb_query_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
   int32    *searchMode = (int32 *) PG_GETARG_POINTER(6);
@@ -1125,9 +1200,13 @@ gin_extract_jsonb_query_path(PG_FUNCTION_ARGS)
                               PG_GETARG_DATUM(0),
                               PointerGetDatum(nentries)));
 
+    DBUG_PRINT("info", "Query is a jsonb, so just apply gin_extract_jsonb_path");
+
     /* ... although "contains {}" requires a full index scan */
-    if (*nentries == 0)
+    if (*nentries == 0) {
+      DBUG_PRINT("info", "'contains {}' requires a full index scan");
       *searchMode = GIN_SEARCH_MODE_ALL;
+    }
   } else if (strategy == JsonbJsonpathPredicateStrategyNumber ||
              strategy == JsonbJsonpathExistsStrategyNumber) {
     JsonPath   *jp = PG_GETARG_JSONPATH_P(0);
@@ -1148,6 +1227,7 @@ gin_extract_jsonb_query_path(PG_FUNCTION_ARGS)
 Datum
 gin_consistent_jsonb_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -1188,12 +1268,20 @@ gin_consistent_jsonb_path(PG_FUNCTION_ARGS)
   } else
     elog(ERROR, "unrecognized strategy number: %d", strategy);
 
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 gin_triconsistent_jsonb_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -1229,6 +1317,14 @@ gin_triconsistent_jsonb_path(PG_FUNCTION_ARGS)
   } else
     elog(ERROR, "unrecognized strategy number: %d", strategy);
 
+  if (res == GIN_TRUE) {
+    DBUG_PRINT("info", "return GIN_TRUE");
+  } else if (res == GIN_MAYBE) {
+    DBUG_PRINT("info", "return GIN_MAYBE");
+  } else {
+    DBUG_PRINT("info", "return GIN_FALSE");
+  }
+
   PG_RETURN_GIN_TERNARY_VALUE(res);
 }
 
@@ -1241,6 +1337,7 @@ gin_triconsistent_jsonb_path(PG_FUNCTION_ARGS)
 static Datum
 make_text_key(char flag, const char *str, int len)
 {
+  DBUG_TRACE;
   text     *item;
   char    hashbuf[10];
 
@@ -1253,6 +1350,8 @@ make_text_key(char flag, const char *str, int len)
     len = 8;
     flag |= JGINFLAG_HASHED;
   }
+
+  DBUG_PRINT("info", "str:%s", str);
 
   /*
    * Now build the text Datum.  For simplicity we build a 4-byte-header
@@ -1278,6 +1377,7 @@ make_text_key(char flag, const char *str, int len)
 static Datum
 make_scalar_key(const JsonbValue *scalarVal, bool is_key)
 {
+  DBUG_TRACE;
   Datum   item;
   char     *cstr;
 
@@ -1285,15 +1385,18 @@ make_scalar_key(const JsonbValue *scalarVal, bool is_key)
     case jbvNull:
       Assert(!is_key);
       item = make_text_key(JGINFLAG_NULL, "", 0);
+      DBUG_PRINT("info", "jsonb scalar type: jbvNull");
       break;
 
     case jbvBool:
       Assert(!is_key);
       item = make_text_key(JGINFLAG_BOOL,
                            scalarVal->val.boolean ? "t" : "f", 1);
+      DBUG_PRINT("info", "jsonb scalar type: jbvBool");
       break;
 
     case jbvNumeric:
+      DBUG_PRINT("info", "jsonb scalar type: jbvNumeric");
       Assert(!is_key);
 
       /*
@@ -1312,6 +1415,7 @@ make_scalar_key(const JsonbValue *scalarVal, bool is_key)
       break;
 
     case jbvString:
+      DBUG_PRINT("info", "jsonb scalar type: jbvString");
       item = make_text_key(is_key ? JGINFLAG_KEY : JGINFLAG_STR,
                            scalarVal->val.string.val,
                            scalarVal->val.string.len);

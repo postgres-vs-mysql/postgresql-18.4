@@ -33,6 +33,7 @@
  *    buf_table.c -- manages the buffer lookup table
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/file.h>
 #include <unistd.h>
@@ -468,15 +469,15 @@ ForgetPrivateRefCountEntry(PrivateRefCountEntry *ref)
  *    the buffer.  We do not care whether some other backend does.
  */
 #define BufferIsPinned(bufnum) \
-( \
-  !BufferIsValid(bufnum) ? \
+  ( \
+    !BufferIsValid(bufnum) ? \
     false \
-  : \
-    BufferIsLocal(bufnum) ? \
-      (LocalRefCount[-(bufnum) - 1] > 0) \
     : \
-  (GetPrivateRefCount(bufnum) > 0) \
-)
+    BufferIsLocal(bufnum) ? \
+    (LocalRefCount[-(bufnum) - 1] > 0) \
+    : \
+    (GetPrivateRefCount(bufnum) > 0) \
+  )
 
 
 static Buffer ReadBuffer_common(Relation rel,
@@ -549,6 +550,7 @@ PrefetchSharedBuffer(SMgrRelation smgr_reln,
                      ForkNumber forkNum,
                      BlockNumber blockNum)
 {
+  DBUG_TRACE;
   PrefetchBufferResult result = {InvalidBuffer, false};
   BufferTag newTag;     /* identity of requested block */
   uint32    newHash;    /* hash value for newTag */
@@ -635,15 +637,18 @@ PrefetchSharedBuffer(SMgrRelation smgr_reln,
 PrefetchBufferResult
 PrefetchBuffer(Relation reln, ForkNumber forkNum, BlockNumber blockNum)
 {
+  DBUG_TRACE;
   Assert(RelationIsValid(reln));
   Assert(BlockNumberIsValid(blockNum));
 
   if (RelationUsesLocalBuffers(reln)) {
     /* see comments in ReadBufferExtended */
-    if (RELATION_IS_OTHER_TEMP(reln))
+    if (RELATION_IS_OTHER_TEMP(reln)) {
+      DBUG_INSTANT_PRINT("info", "cannot access temporary tables of other sessions");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot access temporary tables of other sessions")));
+    }
 
     /* pass it off to localbuf.c */
     return PrefetchLocalBuffer(RelationGetSmgr(reln), forkNum, blockNum);
@@ -664,6 +669,7 @@ bool
 ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum, BlockNumber blockNum,
                  Buffer recent_buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   BufferTag tag;
   uint32    buf_state;
@@ -715,6 +721,7 @@ ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum, BlockNumber blockN
         PinBuffer_Locked(bufHdr); /* pin for first time */
 
       pgBufferUsage.shared_blks_hit++;
+      DBUG_PRINT("info", "shared_blks_hit:%lu", pgBufferUsage.shared_blks_hit);
 
       return true;
     }
@@ -734,6 +741,7 @@ ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum, BlockNumber blockN
 Buffer
 ReadBuffer(Relation reln, BlockNumber blockNum)
 {
+  DBUG_TRACE;
   return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL);
 }
 
@@ -782,6 +790,7 @@ inline Buffer
 ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
                    ReadBufferMode mode, BufferAccessStrategy strategy)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   /*
@@ -789,10 +798,12 @@ ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
    * likely to get wrong data since we have no visibility into the owning
    * session's local buffers.
    */
-  if (RELATION_IS_OTHER_TEMP(reln))
+  if (RELATION_IS_OTHER_TEMP(reln)) {
+    DBUG_INSTANT_PRINT("info", "cannot access temporary tables of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot access temporary tables of other sessions")));
+  }
 
   /*
    * Read the buffer, and update pgstat counters to reflect a cache hit or
@@ -820,6 +831,7 @@ ReadBufferWithoutRelcache(RelFileLocator rlocator, ForkNumber forkNum,
                           BlockNumber blockNum, ReadBufferMode mode,
                           BufferAccessStrategy strategy, bool permanent)
 {
+  DBUG_TRACE;
   SMgrRelation smgr = smgropen(rlocator, INVALID_PROC_NUMBER);
 
   return ReadBuffer_common(NULL, smgr,
@@ -837,6 +849,7 @@ ExtendBufferedRel(BufferManagerRelation bmr,
                   BufferAccessStrategy strategy,
                   uint32 flags)
 {
+  DBUG_TRACE;
   Buffer    buf;
   uint32    extend_by = 1;
 
@@ -872,6 +885,7 @@ ExtendBufferedRelBy(BufferManagerRelation bmr,
                     Buffer *buffers,
                     uint32 *extended_by)
 {
+  DBUG_TRACE;
   Assert((bmr.rel != NULL) != (bmr.smgr != NULL));
   Assert(bmr.smgr == NULL || bmr.relpersistence != 0);
   Assert(extend_by > 0);
@@ -902,6 +916,7 @@ ExtendBufferedRelTo(BufferManagerRelation bmr,
                     BlockNumber extend_to,
                     ReadBufferMode mode)
 {
+  DBUG_TRACE;
   BlockNumber current_size;
   uint32    extended_by = 0;
   Buffer    buffer = InvalidBuffer;
@@ -1001,6 +1016,7 @@ ExtendBufferedRelTo(BufferManagerRelation bmr,
 static void
 ZeroAndLockBuffer(Buffer buffer, ReadBufferMode mode, bool already_valid)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   bool    need_to_zero;
   bool    isLocalBuf = BufferIsLocal(buffer);
@@ -1078,6 +1094,7 @@ PinBufferForBlock(Relation rel,
                   BufferAccessStrategy strategy,
                   bool *foundPtr)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   IOContext io_context;
   IOObject  io_object;
@@ -1112,8 +1129,10 @@ PinBufferForBlock(Relation rel,
     bufHdr = BufferAlloc(smgr, persistence, forkNum, blockNum,
                          strategy, foundPtr, io_context);
 
-    if (*foundPtr)
+    if (*foundPtr) {
       pgBufferUsage.shared_blks_hit++;
+      DBUG_PRINT("info", "shared_blks_hit:%lu", pgBufferUsage.shared_blks_hit);
+    }
   }
 
   if (rel) {
@@ -1156,6 +1175,7 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
                   BlockNumber blockNum, ReadBufferMode mode,
                   BufferAccessStrategy strategy)
 {
+  DBUG_TRACE;
   ReadBuffersOperation operation;
   Buffer    buffer;
   int     flags;
@@ -1228,6 +1248,7 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
                      int flags,
                      bool allow_forwarding)
 {
+  DBUG_TRACE;
   int     actual_nblocks = *nblocks;
   int     maxcombine = 0;
   bool    did_start_io;
@@ -1443,6 +1464,7 @@ StartReadBuffers(ReadBuffersOperation *operation,
                  int *nblocks,
                  int flags)
 {
+  DBUG_TRACE;
   return StartReadBuffersImpl(operation, buffers, blockNum, nblocks, flags,
                               true /* expect forwarded buffers */ );
 }
@@ -1461,6 +1483,7 @@ StartReadBuffer(ReadBuffersOperation *operation,
                 BlockNumber blocknum,
                 int flags)
 {
+  DBUG_TRACE;
   int     nblocks = 1;
   bool    result;
 
@@ -1514,14 +1537,18 @@ ReadBuffersCanStartIOOnce(Buffer buffer, bool nowait)
 static inline bool
 ReadBuffersCanStartIO(Buffer buffer, bool nowait)
 {
+  DBUG_TRACE;
+  bool result;
   /*
    * If this backend currently has staged IO, we need to submit the pending
    * IO before waiting for the right to issue IO, to avoid the potential for
    * deadlocks (and, more commonly, unnecessary delays for other backends).
    */
   if (!nowait && pgaio_have_staged()) {
-    if (ReadBuffersCanStartIOOnce(buffer, true))
+    if (ReadBuffersCanStartIOOnce(buffer, true)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
 
     /*
      * Unfortunately StartBufferIO() returning false doesn't allow to
@@ -1532,7 +1559,13 @@ ReadBuffersCanStartIO(Buffer buffer, bool nowait)
     pgaio_submit_staged();
   }
 
-  return ReadBuffersCanStartIOOnce(buffer, nowait);
+  result = ReadBuffersCanStartIOOnce(buffer, nowait);
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+  return result;
 }
 
 /*
@@ -1542,6 +1575,7 @@ ReadBuffersCanStartIO(Buffer buffer, bool nowait)
 static void
 ProcessReadBuffersResult(ReadBuffersOperation *operation)
 {
+  DBUG_TRACE;
   PgAioReturn *aio_ret = &operation->io_return;
   PgAioResultStatus rs = aio_ret->result.status;
   int     newly_read_blocks = 0;
@@ -1580,6 +1614,7 @@ ProcessReadBuffersResult(ReadBuffersOperation *operation)
 void
 WaitReadBuffers(ReadBuffersOperation *operation)
 {
+  DBUG_TRACE;
   PgAioReturn *aio_ret = &operation->io_return;
   IOContext io_context;
   IOObject  io_object;
@@ -1704,6 +1739,7 @@ WaitReadBuffers(ReadBuffersOperation *operation)
 static bool
 AsyncReadBuffers(ReadBuffersOperation *operation, int *nblocks_progress)
 {
+  DBUG_TRACE;
   Buffer     *buffers = &operation->buffers[0];
   int     flags = operation->flags;
   ForkNumber  forknum = operation->forknum;
@@ -1937,6 +1973,7 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
             BufferAccessStrategy strategy,
             bool *foundPtr, IOContext io_context)
 {
+  DBUG_TRACE;
   BufferTag newTag;     /* identity of requested block */
   uint32    newHash;    /* hash value for newTag */
   LWLock     *newPartitionLock; /* buffer partition lock for it */
@@ -2111,6 +2148,7 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 static void
 InvalidateBuffer(BufferDesc *buf)
 {
+  DBUG_TRACE;
   BufferTag oldTag;
   uint32    oldHash;    /* hash value for oldTag */
   LWLock     *oldPartitionLock; /* buffer partition lock for it */
@@ -2210,6 +2248,7 @@ retry:
 static bool
 InvalidateVictimBuffer(BufferDesc *buf_hdr)
 {
+  DBUG_TRACE;
   uint32    buf_state;
   uint32    hash;
   LWLock     *partition_lock;
@@ -2277,6 +2316,7 @@ InvalidateVictimBuffer(BufferDesc *buf_hdr)
 static Buffer
 GetVictimBuffer(BufferAccessStrategy strategy, IOContext io_context)
 {
+  DBUG_TRACE;
   BufferDesc *buf_hdr;
   Buffer    buf;
   uint32    buf_state;
@@ -2624,12 +2664,14 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
   }
 
   /* Fail if relation is already at maximum possible length */
-  if ((uint64) first_block + extend_by >= MaxBlockNumber)
+  if ((uint64) first_block + extend_by >= MaxBlockNumber) {
+    DBUG_INSTANT_PRINT("info", "cannot extend relation %s beyond %u blocks", relpath(bmr.smgr->smgr_rlocator, fork).str, MaxBlockNumber);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("cannot extend relation %s beyond %u blocks",
                     relpath(bmr.smgr->smgr_rlocator, fork).str,
                     MaxBlockNumber)));
+  }
 
   /*
    * Insert buffers into buffer table, mark as IO_IN_PROGRESS.
@@ -2694,12 +2736,15 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
       buffers[i] = BufferDescriptorGetBuffer(existing_hdr);
       buf_block = BufHdrGetBlock(existing_hdr);
 
-      if (valid && !PageIsNew((Page) buf_block))
+      if (valid && !PageIsNew((Page) buf_block)) {
+        DBUG_INSTANT_PRINT("info", "unexpected data beyond EOF in block %u of relation \"%s\"", existing_hdr->tag.blockNum,
+            relpath(bmr.smgr->smgr_rlocator, fork).str);
         ereport(ERROR,
                 (errmsg("unexpected data beyond EOF in block %u of relation \"%s\"",
                         existing_hdr->tag.blockNum,
                         relpath(bmr.smgr->smgr_rlocator, fork).str),
                  errhint("This has been seen to occur with buggy kernels; consider updating your system.")));
+      }
 
       /*
        * We *must* do smgr[zero]extend before succeeding, else the page
@@ -2807,17 +2852,28 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
 bool
 BufferIsExclusiveLocked(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
+  bool result;
 
   Assert(BufferIsPinned(buffer));
 
   if (BufferIsLocal(buffer)) {
     /* Content locks are not maintained for local buffers. */
+    DBUG_PRINT("info", "content locks are not maintained for local buffers");
     return true;
   } else {
     bufHdr = GetBufferDescriptor(buffer - 1);
-    return LWLockHeldByMeInMode(BufferDescriptorGetContentLock(bufHdr),
-                                LW_EXCLUSIVE);
+    result = LWLockHeldByMeInMode(BufferDescriptorGetContentLock(bufHdr),
+                                  LW_EXCLUSIVE);
+
+    if (result) {
+      DBUG_PRINT("info", "check if buffer is exclusive-locked? Yes");
+    } else {
+      DBUG_PRINT("info", "check if buffer is exclusive-locked? No");
+    }
+
+    return result;
   }
 }
 
@@ -2832,7 +2888,9 @@ BufferIsExclusiveLocked(Buffer buffer)
 bool
 BufferIsDirty(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
+  bool result;
 
   Assert(BufferIsPinned(buffer));
 
@@ -2847,7 +2905,15 @@ BufferIsDirty(Buffer buffer)
                                 LW_EXCLUSIVE));
   }
 
-  return pg_atomic_read_u32(&bufHdr->state) & BM_DIRTY;
+  result = pg_atomic_read_u32(&bufHdr->state) & BM_DIRTY;
+
+  if (result) {
+    DBUG_PRINT("info", "check if buffer is already dirty? Yes");
+  } else {
+    DBUG_PRINT("info", "check if buffer is already dirty? No");
+  }
+
+  return result;
 }
 
 /*
@@ -2862,6 +2928,7 @@ BufferIsDirty(Buffer buffer)
 void
 MarkBufferDirty(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   uint32    buf_state;
   uint32    old_buf_state;
@@ -2900,11 +2967,16 @@ MarkBufferDirty(Buffer buffer)
    * If the buffer was not dirty already, do vacuum accounting.
    */
   if (!(old_buf_state & BM_DIRTY)) {
+    DBUG_PRINT("info", "if the buffer was not dirty already, do vacuum accounting(buf_id:%d, relnum:%u, blkno:%u)",
+               bufHdr->buf_id, bufHdr->tag.relNumber, bufHdr->tag.blockNum);
     pgBufferUsage.shared_blks_dirtied++;
+    DBUG_PRINT("info", "shared_blks_dirtied:%lu", pgBufferUsage.shared_blks_dirtied);
 
     if (VacuumCostActive)
       VacuumCostBalance += VacuumCostPageDirty;
   }
+
+  DBUG_PRINT("info", "mark buffer(buf_id:%d, relnum:%u, blkno:%u) dirty", bufHdr->buf_id, bufHdr->tag.relNumber, bufHdr->tag.blockNum);
 }
 
 /*
@@ -3174,6 +3246,7 @@ UnpinBuffer(BufferDesc *buf)
 static void
 UnpinBufferNoOwner(BufferDesc *buf)
 {
+  DBUG_TRACE;
   PrivateRefCountEntry *ref;
   Buffer    b = BufferDescriptorGetBuffer(buf);
 
@@ -3184,6 +3257,7 @@ UnpinBufferNoOwner(BufferDesc *buf)
   Assert(ref != NULL);
   Assert(ref->refcount > 0);
   ref->refcount--;
+  DBUG_PRINT("info", "refcount:%d", ref->refcount);
 
   if (ref->refcount == 0) {
     uint32    buf_state;
@@ -3250,6 +3324,7 @@ UnpinBufferNoOwner(BufferDesc *buf)
 static void
 BufferSync(int flags)
 {
+  DBUG_TRACE;
   uint32    buf_state;
   int     buf_id;
   int     num_to_scan;
@@ -3262,6 +3337,8 @@ BufferSync(int flags)
   int     i;
   int     mask = BM_DIRTY;
   WritebackContext wb_context;
+
+  DBUG_PRINT("info", "write out all dirty buffers in the pool and number of buffers:%d", NBuffers);
 
   /*
    * Unless this is a shutdown checkpoint or we have been explicitly told,
@@ -3319,8 +3396,10 @@ BufferSync(int flags)
       ProcessProcSignalBarrier();
   }
 
-  if (num_to_scan == 0)
+  if (num_to_scan == 0) {
+    DBUG_PRINT("info", "nothing to do");
     return;         /* nothing to do */
+  }
 
   WritebackContextInit(&wb_context, &checkpoint_flush_after);
 
@@ -3333,6 +3412,7 @@ BufferSync(int flags)
    * end up writing to the tablespaces one-by-one; possibly overloading the
    * underlying system.
    */
+  DBUG_PRINT("info", "sort buffers that need to be written to reduce the likelihood of random IO");
   sort_checkpoint_bufferids(CkptBufferIds, num_to_scan);
 
   num_spaces = 0;
@@ -3399,6 +3479,7 @@ BufferSync(int flags)
 
   Assert(num_spaces > 0);
 
+  DBUG_PRINT("info", "build a min-heap over the write-progress in the individual tablespaces");
   /*
    * Build a min-heap over the write-progress in the individual tablespaces,
    * and compute how large a portion of the total progress a single
@@ -3407,6 +3488,8 @@ BufferSync(int flags)
   ts_heap = binaryheap_allocate(num_spaces,
                                 ts_ckpt_progress_comparator,
                                 NULL);
+
+  DBUG_PRINT("info", "number of spaces:%d", num_spaces);
 
   for (i = 0; i < num_spaces; i++) {
     CkptTsStatus *ts_stat = &per_ts_stat[i];
@@ -3426,6 +3509,7 @@ BufferSync(int flags)
    */
   num_processed = 0;
   num_written = 0;
+  DBUG_PRINT("info", "iterate through to-be-checkpointed buffers and write the ones marked with BM_CHECKPOINT_NEEDED");
 
   while (!binaryheap_empty(ts_heap)) {
     BufferDesc *bufHdr = NULL;
@@ -3469,12 +3553,14 @@ BufferSync(int flags)
 
     /* Have all the buffers from the tablespace been processed? */
     if (ts_stat->num_scanned == ts_stat->num_to_scan) {
+      DBUG_PRINT("info", "all the buffers from the tablespace have been processed");
       binaryheap_remove_first(ts_heap);
     } else {
       /* update heap with the new progress */
       binaryheap_replace_first(ts_heap, PointerGetDatum(ts_stat));
     }
 
+    DBUG_PRINT("info", "sleep to throttle our I/O rate");
     /*
      * Sleep to throttle our I/O rate.
      *
@@ -3483,6 +3569,8 @@ BufferSync(int flags)
     CheckpointWriteDelay(flags, (double) num_processed / num_to_scan);
   }
 
+  DBUG_PRINT("info", "write out all dirty buffers in the pool, num_to_scan:%d, num_processed:%d, num_written:%d",
+             num_to_scan, num_processed, num_written);
   /*
    * Issue all pending flushes. Only checkpointer calls BufferSync(), so
    * IOContext will always be IOCONTEXT_NORMAL.
@@ -3497,6 +3585,7 @@ BufferSync(int flags)
    * Update checkpoint statistics. As noted above, this doesn't include
    * buffers written by other backends or bgwriter scan.
    */
+  DBUG_PRINT("info", "Update checkpoint statistics");
   CheckpointStats.ckpt_bufs_written += num_written;
 
   TRACE_POSTGRESQL_BUFFER_SYNC_DONE(NBuffers, num_written, num_to_scan);
@@ -3516,6 +3605,7 @@ BufferSync(int flags)
 bool
 BgBufferSync(WritebackContext *wb_context)
 {
+  DBUG_TRACE;
   /* info obtained from freelist.c */
   int     strategy_buf_id;
   uint32    strategy_passes;
@@ -3552,10 +3642,13 @@ BgBufferSync(WritebackContext *wb_context)
   int     num_to_scan;
   int     num_written;
   int     reusable_buffers;
+  bool tmp_trace_disabled = false;
 
   /* Variables for final smoothed_density update */
   long    new_strategy_delta;
   uint32    new_recent_alloc;
+  size_t count = 0;
+
 
   /*
    * Find out where the freelist clock sweep currently is, and how many
@@ -3572,6 +3665,7 @@ BgBufferSync(WritebackContext *wb_context)
    * if LRU scan is turned back on later.
    */
   if (bgwriter_lru_maxpages <= 0) {
+    DBUG_PRINT("info", "if we're not running the LRU scan, just stop after doing the stats stuff");
     saved_info_valid = false;
     return true;
   }
@@ -3723,9 +3817,26 @@ BgBufferSync(WritebackContext *wb_context)
   reusable_buffers = reusable_buffers_est;
 
   /* Execute the LRU scan */
+
+  DBUG_PRINT("info", "execute the LRU scan, num_to_scan:%d, reusable_buffers:%d, upcoming_alloc_est:%d",
+             num_to_scan, reusable_buffers, upcoming_alloc_est);
+
   while (num_to_scan > 0 && reusable_buffers < upcoming_alloc_est) {
-    int     sync_state = SyncOneBuffer(next_to_clean, true,
-                                       wb_context);
+    int sync_state;
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    sync_state = SyncOneBuffer(next_to_clean, true,
+                               wb_context);
+
+    count++;
 
     if (++next_to_clean >= NBuffers) {
       next_to_clean = 0;
@@ -3745,6 +3856,15 @@ BgBufferSync(WritebackContext *wb_context)
       reusable_buffers++;
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
+
   PendingBgWriterStats.buf_written_clean += num_written;
 
 #ifdef BGW_DEBUG
@@ -3755,6 +3875,12 @@ BgBufferSync(WritebackContext *wb_context)
        num_written,
        reusable_buffers - reusable_buffers_est);
 #endif
+  DBUG_PRINT("info", "bgwriter: recent_alloc=%u smoothed=%g delta=%ld ahead=%d density=%g",
+             recent_alloc, smoothed_alloc, strategy_delta, bufs_ahead, smoothed_density);
+  DBUG_PRINT("info", "reusable_est=%d upcoming_est=%d scanned=%d wrote=%d reusable=%d",
+             reusable_buffers_est, upcoming_alloc_est,
+             bufs_to_lap - num_to_scan, num_written,
+             reusable_buffers - reusable_buffers_est);
 
   /*
    * Consider the above scan as being like a new allocation scan.
@@ -3835,6 +3961,7 @@ SyncOneBuffer(int buf_id, bool skip_recently_used, WritebackContext *wb_context)
     return result;
   }
 
+  DBUG_PRINT("info", "process a single buffer during syncing, buf_id:%d", buf_id);
   /*
    * Pin it, share-lock it, write it.  (FlushBuffer will do nothing if the
    * buffer is clean by the time we've locked it.)
@@ -3886,6 +4013,7 @@ AtEOXact_Buffers(bool isCommit)
 void
 InitBufferManagerAccess(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   /*
@@ -3938,6 +4066,7 @@ AtProcExit_Buffers(int code, Datum arg)
 static void
 CheckForBufferLeaks(void)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
   int     RefCountErrors = 0;
   PrivateRefCountEntry *res;
@@ -4158,6 +4287,7 @@ static void
 FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
             IOContext io_context)
 {
+  DBUG_TRACE;
   XLogRecPtr  recptr;
   ErrorContextCallback errcallback;
   instr_time  io_start;
@@ -4170,8 +4300,10 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
    * someone else flushed the buffer before we could, so we need not do
    * anything.
    */
-  if (!StartBufferIO(buf, false, false))
+  if (!StartBufferIO(buf, false, false)) {
+    DBUG_PRINT("info", "someone else flushed the buffer before we could, so we need not do anything");
     return;
+  }
 
   /* Setup error traceback support for ereport() */
   errcallback.callback = shared_buffer_write_error_callback;
@@ -4218,8 +4350,11 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
    * disastrous system-wide consequences.  To make sure that can't happen,
    * skip the flush if the buffer isn't permanent.
    */
-  if (buf_state & BM_PERMANENT)
+  if (buf_state & BM_PERMANENT) {
+    DBUG_PRINT("info", "force XLOG flush up to buffer's LSN:%lu", recptr);
+    DBUG_PRINT("info", "this implements the basic WAL rule that log updates must hit disk before any of the data-file changes");
     XLogFlush(recptr);
+  }
 
   /*
    * Now it's safe to write the buffer to disk. Note that no one else should
@@ -4241,6 +4376,7 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
   /*
    * bufToWrite is either the shared buffer or a copy, as appropriate.
    */
+  DBUG_PRINT("info", "write buffer(relnum:%u, blkno:%u, buf_id:%d)", buf->tag.relNumber, buf->tag.blockNum, buf->buf_id);
   smgrwrite(reln,
             BufTagGetForkNum(&buf->tag),
             buf->tag.blockNum,
@@ -4297,6 +4433,8 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
 BlockNumber
 RelationGetNumberOfBlocksInFork(Relation relation, ForkNumber forkNum)
 {
+  DBUG_TRACE;
+
   if (RELKIND_HAS_TABLE_AM(relation->rd_rel->relkind)) {
     /*
      * Not every table AM uses BLCKSZ wide fixed size blocks. Therefore
@@ -4325,11 +4463,15 @@ RelationGetNumberOfBlocksInFork(Relation relation, ForkNumber forkNum)
 bool
 BufferIsPermanent(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
+  bool result;
 
   /* Local buffers are used only for temp relations. */
-  if (BufferIsLocal(buffer))
+  if (BufferIsLocal(buffer)) {
+    DBUG_PRINT("info", "local buffers are used only for temp relations");
     return false;
+  }
 
   /* Make sure we've got a real buffer, and that we hold a pin on it. */
   Assert(BufferIsValid(buffer));
@@ -4343,7 +4485,15 @@ BufferIsPermanent(Buffer buffer)
    * not random garbage.
    */
   bufHdr = GetBufferDescriptor(buffer - 1);
-  return (pg_atomic_read_u32(&bufHdr->state) & BM_PERMANENT) != 0;
+  result = (pg_atomic_read_u32(&bufHdr->state) & BM_PERMANENT) != 0;
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -4403,6 +4553,7 @@ void
 DropRelationBuffers(SMgrRelation smgr_reln, ForkNumber *forkNum,
                     int nforks, BlockNumber *firstDelBlock)
 {
+  DBUG_TRACE;
   int     i;
   int     j;
   RelFileLocatorBackend rlocator;
@@ -4520,6 +4671,7 @@ DropRelationBuffers(SMgrRelation smgr_reln, ForkNumber *forkNum,
 void
 DropRelationsAllBuffers(SMgrRelation *smgr_reln, int nlocators)
 {
+  DBUG_TRACE;
   int     i;
   int     n = 0;
   SMgrRelation *rels;
@@ -4680,6 +4832,7 @@ FindAndDropRelationBuffers(RelFileLocator rlocator, ForkNumber forkNum,
                            BlockNumber nForkBlock,
                            BlockNumber firstDelBlock)
 {
+  DBUG_TRACE;
   BlockNumber curBlock;
 
   for (curBlock = firstDelBlock; curBlock < nForkBlock; curBlock++) {
@@ -4738,6 +4891,7 @@ FindAndDropRelationBuffers(RelFileLocator rlocator, ForkNumber forkNum,
 void
 DropDatabaseBuffers(Oid dbid)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -4786,6 +4940,7 @@ DropDatabaseBuffers(Oid dbid)
 void
 FlushRelationBuffers(Relation rel)
 {
+  DBUG_TRACE;
   int     i;
   BufferDesc *bufHdr;
   SMgrRelation srel = RelationGetSmgr(rel);
@@ -4872,6 +5027,7 @@ FlushRelationBuffers(Relation rel)
 void
 FlushRelationsAllBuffers(SMgrRelation *smgrs, int nrels)
 {
+  DBUG_TRACE;
   int     i;
   SMgrSortArray *srels;
   bool    use_bsearch;
@@ -4966,6 +5122,7 @@ RelationCopyStorageUsingBuffer(RelFileLocator srclocator,
                                RelFileLocator dstlocator,
                                ForkNumber forkNum, bool permanent)
 {
+  DBUG_TRACE;
   Buffer    srcBuf;
   Buffer    dstBuf;
   Page    srcPage;
@@ -5079,6 +5236,7 @@ void
 CreateAndCopyRelationData(RelFileLocator src_rlocator,
                           RelFileLocator dst_rlocator, bool permanent)
 {
+  DBUG_TRACE;
   char    relpersistence;
   SMgrRelation src_rel;
   SMgrRelation dst_rel;
@@ -5140,6 +5298,7 @@ CreateAndCopyRelationData(RelFileLocator src_rlocator,
 void
 FlushDatabaseBuffers(Oid dbid)
 {
+  DBUG_TRACE;
   int     i;
   BufferDesc *bufHdr;
 
@@ -5180,6 +5339,7 @@ FlushDatabaseBuffers(Oid dbid)
 void
 FlushOneBuffer(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
 
   /* currently not needed, but no fundamental reason not to support */
@@ -5217,6 +5377,7 @@ ReleaseBuffer(Buffer buffer)
 void
 UnlockReleaseBuffer(Buffer buffer)
 {
+  DBUG_TRACE;
   LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
   ReleaseBuffer(buffer);
 }
@@ -5232,17 +5393,20 @@ UnlockReleaseBuffer(Buffer buffer)
 void
 IncrBufferRefCount(Buffer buffer)
 {
+  DBUG_TRACE;
   Assert(BufferIsPinned(buffer));
   ResourceOwnerEnlarge(CurrentResourceOwner);
 
-  if (BufferIsLocal(buffer))
+  if (BufferIsLocal(buffer)) {
     LocalRefCount[-buffer - 1]++;
-  else {
+    DBUG_PRINT("info", "local refcount:%d", LocalRefCount[-buffer - 1]);
+  } else {
     PrivateRefCountEntry *ref;
 
     ref = GetPrivateRefCountEntry(buffer, true);
     Assert(ref != NULL);
     ref->refcount++;
+    DBUG_PRINT("info", "refcount:%d", ref->refcount);
   }
 
   ResourceOwnerRememberBuffer(CurrentResourceOwner, buffer);
@@ -5265,6 +5429,7 @@ IncrBufferRefCount(Buffer buffer)
 void
 MarkBufferDirtyHint(Buffer buffer, bool buffer_std)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   Page    page = BufferGetPage(buffer);
 
@@ -5384,6 +5549,7 @@ MarkBufferDirtyHint(Buffer buffer, bool buffer_std)
 
     if (dirtied) {
       pgBufferUsage.shared_blks_dirtied++;
+      DBUG_PRINT("info", "shared_blks_dirtied:%lu", pgBufferUsage.shared_blks_dirtied);
 
       if (VacuumCostActive)
         VacuumCostBalance += VacuumCostPageDirty;
@@ -5403,11 +5569,13 @@ MarkBufferDirtyHint(Buffer buffer, bool buffer_std)
 void
 UnlockBuffers(void)
 {
+  DBUG_TRACE;
   BufferDesc *buf = PinCountWaitBuf;
 
   if (buf) {
     uint32    buf_state;
 
+    DBUG_PRINT("info", "unlock buffers(buf_id:%d, relnum:%u, blkno:%u)", buf->buf_id, buf->tag.relNumber, buf->tag.blockNum);
     buf_state = LockBufHdr(buf);
 
     /*
@@ -5430,6 +5598,7 @@ UnlockBuffers(void)
 void
 LockBuffer(Buffer buffer, int mode)
 {
+  DBUG_TRACE;
   BufferDesc *buf;
 
   Assert(BufferIsPinned(buffer));
@@ -5439,13 +5608,20 @@ LockBuffer(Buffer buffer, int mode)
 
   buf = GetBufferDescriptor(buffer - 1);
 
-  if (mode == BUFFER_LOCK_UNLOCK)
+  if ((pg_atomic_read_u32(&buf->state) & BM_DIRTY) != 0) {
+    DBUG_PRINT("info", "buffer(buf_id:%d, relnum:%u, blkno:%u) is dirty", buf->buf_id, buf->tag.relNumber, buf->tag.blockNum);
+  }
+
+  if (mode == BUFFER_LOCK_UNLOCK) {
+    DBUG_PRINT("info", "lock buffer(buf_id:%d, relnum:%u, blkno:%u), mode:BUFFER_LOCK_UNLOCK", buf->buf_id, buf->tag.relNumber, buf->tag.blockNum);
     LWLockRelease(BufferDescriptorGetContentLock(buf));
-  else if (mode == BUFFER_LOCK_SHARE)
+  } else if (mode == BUFFER_LOCK_SHARE) {
+    DBUG_PRINT("info", "lock buffer(buf_id:%d, relnum:%u, blkno:%u), mode:BUFFER_LOCK_SHARE", buf->buf_id, buf->tag.relNumber, buf->tag.blockNum);
     LWLockAcquire(BufferDescriptorGetContentLock(buf), LW_SHARED);
-  else if (mode == BUFFER_LOCK_EXCLUSIVE)
+  } else if (mode == BUFFER_LOCK_EXCLUSIVE) {
+    DBUG_PRINT("info", "lock buffer(buf_id:%d, relnum:%u, blkno:%u), mode:BUFFER_LOCK_EXCLUSIVE", buf->buf_id, buf->tag.relNumber, buf->tag.blockNum);
     LWLockAcquire(BufferDescriptorGetContentLock(buf), LW_EXCLUSIVE);
-  else
+  } else
     elog(ERROR, "unrecognized buffer lock mode: %d", mode);
 }
 
@@ -5457,6 +5633,7 @@ LockBuffer(Buffer buffer, int mode)
 bool
 ConditionalLockBuffer(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *buf;
 
   Assert(BufferIsPinned(buffer));
@@ -5509,6 +5686,7 @@ CheckBufferIsPinnedOnce(Buffer buffer)
 void
 LockBufferForCleanup(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   TimestampTz waitStart = 0;
   bool    waiting = false;
@@ -5674,6 +5852,7 @@ HoldingBufferPinThatDelaysRecovery(void)
 bool
 ConditionalLockBufferForCleanup(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   uint32    buf_state,
             refcount;
@@ -5734,6 +5913,7 @@ ConditionalLockBufferForCleanup(Buffer buffer)
 bool
 IsBufferCleanupOK(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr;
   uint32    buf_state;
 
@@ -5787,6 +5967,7 @@ IsBufferCleanupOK(Buffer buffer)
 static void
 WaitIO(BufferDesc *buf)
 {
+  DBUG_TRACE;
   ConditionVariable *cv = BufferDescriptorGetIOCV(buf);
 
   ConditionVariablePrepareToSleep(cv);
@@ -5866,6 +6047,7 @@ WaitIO(BufferDesc *buf)
 bool
 StartBufferIO(BufferDesc *buf, bool forInput, bool nowait)
 {
+  DBUG_TRACE;
   uint32    buf_state;
 
   ResourceOwnerEnlarge(CurrentResourceOwner);
@@ -5878,17 +6060,22 @@ StartBufferIO(BufferDesc *buf, bool forInput, bool nowait)
 
     UnlockBufHdr(buf, buf_state);
 
-    if (nowait)
+    if (nowait) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
 
     WaitIO(buf);
   }
 
+  DBUG_PRINT("info", "blkno:%u, buf_id:%d, relnum:%u",
+             buf->tag.blockNum, buf->buf_id, buf->tag.relNumber);
   /* Once we get here, there is definitely no I/O active on this buffer */
 
   /* Check if someone else already did the I/O */
   if (forInput ? (buf_state & BM_VALID) : !(buf_state & BM_DIRTY)) {
     UnlockBufHdr(buf, buf_state);
+    DBUG_PRINT("info", "return false");
     return false;
   }
 
@@ -5898,6 +6085,7 @@ StartBufferIO(BufferDesc *buf, bool forInput, bool nowait)
   ResourceOwnerRememberBufferIO(CurrentResourceOwner,
                                 BufferDescriptorGetBuffer(buf));
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -5925,8 +6113,10 @@ void
 TerminateBufferIO(BufferDesc *buf, bool clear_dirty, uint32 set_flag_bits,
                   bool forget_owner, bool release_aio)
 {
+  DBUG_TRACE;
   uint32    buf_state;
 
+  DBUG_PRINT("info", "release a buffer(blkno:%u) we were doing I/O on", buf->tag.blockNum);
   buf_state = LockBufHdr(buf);
 
   Assert(buf_state & BM_IO_IN_PROGRESS);
@@ -5982,6 +6172,7 @@ TerminateBufferIO(BufferDesc *buf, bool clear_dirty, uint32 set_flag_bits,
 static void
 AbortBufferIO(Buffer buffer)
 {
+  DBUG_TRACE;
   BufferDesc *buf_hdr = GetBufferDescriptor(buffer - 1);
   uint32    buf_state;
 
@@ -5998,6 +6189,8 @@ AbortBufferIO(Buffer buffer)
     /* Issue notice if this is not the first failure... */
     if (buf_state & BM_IO_ERROR) {
       /* Buffer is pinned, so we can read tag without spinlock */
+      DBUG_INSTANT_PRINT("info", "could not write block %u of %s", 
+          buf_hdr->tag.blockNum, relpathperm(BufTagGetRelFileLocator(&buf_hdr->tag), BufTagGetForkNum(&buf_hdr->tag)).str);
       ereport(WARNING,
               (errcode(ERRCODE_IO_ERROR),
                errmsg("could not write block %u of %s",
@@ -6017,6 +6210,7 @@ AbortBufferIO(Buffer buffer)
 static void
 shared_buffer_write_error_callback(void *arg)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr = (BufferDesc *) arg;
 
   /* Buffer is pinned, so we can read the tag without locking the spinlock */
@@ -6033,6 +6227,7 @@ shared_buffer_write_error_callback(void *arg)
 static void
 local_buffer_write_error_callback(void *arg)
 {
+  DBUG_TRACE;
   BufferDesc *bufHdr = (BufferDesc *) arg;
 
   if (bufHdr != NULL)
@@ -6108,6 +6303,7 @@ LockBufHdr(BufferDesc *desc)
 static uint32
 WaitBufHdrUnlocked(BufferDesc *buf)
 {
+  DBUG_TRACE;
   SpinDelayStatus delayStatus;
   uint32    buf_state;
 
@@ -6223,6 +6419,7 @@ ts_ckpt_progress_comparator(Datum a, Datum b, void *arg)
 void
 WritebackContextInit(WritebackContext *context, int *max_pending)
 {
+  DBUG_TRACE;
   Assert(*max_pending <= WRITEBACK_MAX_PENDING_FLUSHES);
 
   context->max_pending = max_pending;
@@ -6236,6 +6433,7 @@ void
 ScheduleBufferTagForWriteback(WritebackContext *wb_context, IOContext io_context,
                               BufferTag *tag)
 {
+  DBUG_TRACE;
   PendingWriteback *pending;
 
   /*
@@ -6284,6 +6482,7 @@ ScheduleBufferTagForWriteback(WritebackContext *wb_context, IOContext io_context
 void
 IssuePendingWritebacks(WritebackContext *wb_context, IOContext io_context)
 {
+  DBUG_TRACE;
   instr_time  io_start;
   int     i;
 
@@ -6365,6 +6564,7 @@ IssuePendingWritebacks(WritebackContext *wb_context, IOContext io_context)
 static void
 ResOwnerReleaseBufferIO(Datum res)
 {
+  DBUG_TRACE;
   Buffer    buffer = DatumGetInt32(res);
 
   AbortBufferIO(buffer);
@@ -6373,6 +6573,7 @@ ResOwnerReleaseBufferIO(Datum res)
 static char *
 ResOwnerPrintBufferIO(Datum res)
 {
+  DBUG_TRACE;
   Buffer    buffer = DatumGetInt32(res);
 
   return psprintf("lost track of buffer IO on buffer %d", buffer);
@@ -6381,6 +6582,7 @@ ResOwnerPrintBufferIO(Datum res)
 static void
 ResOwnerReleaseBufferPin(Datum res)
 {
+  DBUG_TRACE;
   Buffer    buffer = DatumGetInt32(res);
 
   /* Like ReleaseBuffer, but don't call ResourceOwnerForgetBuffer */
@@ -6396,6 +6598,7 @@ ResOwnerReleaseBufferPin(Datum res)
 static char *
 ResOwnerPrintBufferPin(Datum res)
 {
+  DBUG_TRACE;
   return DebugPrintBufferRefcount(DatumGetInt32(res));
 }
 
@@ -6406,6 +6609,7 @@ ResOwnerPrintBufferPin(Datum res)
 static bool
 EvictUnpinnedBufferInternal(BufferDesc *desc, bool *buffer_flushed)
 {
+  DBUG_TRACE;
   uint32    buf_state;
   bool    result;
 
@@ -6467,6 +6671,7 @@ EvictUnpinnedBufferInternal(BufferDesc *desc, bool *buffer_flushed)
 bool
 EvictUnpinnedBuffer(Buffer buf, bool *buffer_flushed)
 {
+  DBUG_TRACE;
   BufferDesc *desc;
 
   Assert(BufferIsValid(buf) && !BufferIsLocal(buf));
@@ -6497,6 +6702,7 @@ void
 EvictAllUnpinnedBuffers(int32 *buffers_evicted, int32 *buffers_flushed,
                         int32 *buffers_skipped)
 {
+  DBUG_TRACE;
   *buffers_evicted = 0;
   *buffers_skipped = 0;
   *buffers_flushed = 0;
@@ -6547,6 +6753,7 @@ void
 EvictRelUnpinnedBuffers(Relation rel, int32 *buffers_evicted,
                         int32 *buffers_flushed, int32 *buffers_skipped)
 {
+  DBUG_TRACE;
   Assert(!RelationUsesLocalBuffers(rel));
 
   *buffers_skipped = 0;
@@ -6605,6 +6812,7 @@ EvictRelUnpinnedBuffers(Relation rel, int32 *buffers_evicted,
 static pg_attribute_always_inline void
 buffer_stage_common(PgAioHandle *ioh, bool is_write, bool is_temp)
 {
+  DBUG_TRACE;
   uint64     *io_data;
   uint8   handle_data_len;
   PgAioWaitRef io_ref;
@@ -6714,6 +6922,7 @@ buffer_readv_decode_error(PgAioResult result,
                           uint8 *checkfail_count,
                           uint8 *first_off)
 {
+  DBUG_TRACE;
   uint32    rem_error = result.error_data;
 
   /* see static asserts in buffer_readv_encode_error */
@@ -6760,6 +6969,7 @@ buffer_readv_encode_error(PgAioResult *result,
                           uint8 first_zeroed_off,
                           uint8 first_ignored_off)
 {
+  DBUG_TRACE;
 
   uint8   shift = 0;
   uint8   zeroed_or_error_count =
@@ -6851,6 +7061,7 @@ buffer_readv_complete_one(PgAioTargetData *td, uint8 buf_off, Buffer buffer,
                           bool *ignored_checksum,
                           bool *zeroed_buffer)
 {
+  DBUG_TRACE;
   BufferDesc *buf_hdr = is_temp ?
                         GetLocalBufferDescriptor(-buffer - 1)
                         : GetBufferDescriptor(buffer - 1);
@@ -6990,6 +7201,7 @@ static pg_attribute_always_inline PgAioResult
 buffer_readv_complete(PgAioHandle *ioh, PgAioResult prior_result,
                       uint8 cb_data, bool is_temp)
 {
+  DBUG_TRACE;
   PgAioResult result = prior_result;
   PgAioTargetData *td = pgaio_io_get_target_data(ioh);
   uint8   first_error_off = 0;
@@ -7014,6 +7226,7 @@ buffer_readv_complete(PgAioHandle *ioh, PgAioResult prior_result,
    */
   io_data = pgaio_io_get_handle_data(ioh, &handle_data_len);
 
+  DBUG_PRINT("info", "handle_data_len:%u", handle_data_len);
   for (uint8 buf_off = 0; buf_off < handle_data_len; buf_off++) {
     Buffer    buf = io_data[buf_off];
     bool    failed;
@@ -7180,6 +7393,7 @@ buffer_readv_report(PgAioResult result, const PgAioTargetData *td,
 static void
 shared_buffer_readv_stage(PgAioHandle *ioh, uint8 cb_data)
 {
+  DBUG_TRACE;
   buffer_stage_common(ioh, false, false);
 }
 
@@ -7187,6 +7401,7 @@ static PgAioResult
 shared_buffer_readv_complete(PgAioHandle *ioh, PgAioResult prior_result,
                              uint8 cb_data)
 {
+  DBUG_TRACE;
   return buffer_readv_complete(ioh, prior_result, cb_data, false);
 }
 
@@ -7201,6 +7416,7 @@ static PgAioResult
 shared_buffer_readv_complete_local(PgAioHandle *ioh, PgAioResult prior_result,
                                    uint8 cb_data)
 {
+  DBUG_TRACE;
   bool    zeroed_any,
           ignored_any;
   uint8   zeroed_or_error_count,
@@ -7230,6 +7446,7 @@ shared_buffer_readv_complete_local(PgAioHandle *ioh, PgAioResult prior_result,
 static void
 local_buffer_readv_stage(PgAioHandle *ioh, uint8 cb_data)
 {
+  DBUG_TRACE;
   buffer_stage_common(ioh, false, true);
 }
 

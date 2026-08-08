@@ -2,6 +2,7 @@
  * contrib/hstore/hstore_gist.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist.h"
 #include "access/reloptions.h"
@@ -95,6 +96,7 @@ PG_FUNCTION_INFO_V1(ghstore_out);
 Datum
 ghstore_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "ghstore")));
@@ -105,6 +107,7 @@ ghstore_in(PG_FUNCTION_ARGS)
 Datum
 ghstore_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot display a value of type %s", "ghstore")));
@@ -144,6 +147,7 @@ PG_FUNCTION_INFO_V1(ghstore_options);
 Datum
 ghstore_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   int     siglen = GET_SIGLEN();
   GISTENTRY  *retval = entry;
@@ -204,12 +208,14 @@ ghstore_compress(PG_FUNCTION_ARGS)
 Datum
 ghstore_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
 Datum
 ghstore_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTTYPE   *a = (GISTTYPE *) PG_GETARG_POINTER(0);
   GISTTYPE   *b = (GISTTYPE *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -234,6 +240,13 @@ ghstore_same(PG_FUNCTION_ARGS)
         break;
       }
     }
+  }
+
+
+  if (*result) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
   }
 
   PG_RETURN_POINTER(result);
@@ -296,6 +309,7 @@ unionkey(BITVECP sbase, GISTTYPE *add, int siglen)
 Datum
 ghstore_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int32   len = entryvec->n;
 
@@ -315,12 +329,14 @@ ghstore_union(PG_FUNCTION_ARGS)
 
   *size = VARSIZE(result);
 
+  DBUG_PRINT("hstore", "len:%d and size:%d", len, *size);
   PG_RETURN_POINTER(result);
 }
 
 Datum
 ghstore_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0); /* always ISSIGNKEY */
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -329,6 +345,7 @@ ghstore_penalty(PG_FUNCTION_ARGS)
   GISTTYPE   *newval = (GISTTYPE *) DatumGetPointer(newentry->key);
 
   *penalty = hemdist(origval, newval, siglen);
+  DBUG_PRINT("hstore", "penalty:%g", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -349,6 +366,7 @@ comparecost(const void *a, const void *b)
 Datum
 ghstore_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   OffsetNumber maxoff = entryvec->n - 2;
 
@@ -482,6 +500,7 @@ ghstore_picksplit(PG_FUNCTION_ARGS)
 Datum
 ghstore_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTTYPE   *entry = (GISTTYPE *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
 
@@ -572,12 +591,19 @@ ghstore_consistent(PG_FUNCTION_ARGS)
   } else
     elog(ERROR, "Unsupported strategy number: %d", strategy);
 
+  if (res) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 ghstore_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(GistHstoreOptions));

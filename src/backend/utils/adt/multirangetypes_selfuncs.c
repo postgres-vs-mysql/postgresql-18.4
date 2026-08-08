@@ -15,6 +15,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -135,6 +136,7 @@ default_multirange_selectivity(Oid operator)
 Datum
 multirangesel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -272,6 +274,8 @@ multirangesel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -679,6 +683,7 @@ static double
 calc_hist_selectivity_scalar(TypeCacheEntry *typcache, const RangeBound *constbound,
                              const RangeBound *hist, int hist_nvalues, bool equal)
 {
+  DBUG_TRACE;
   Selectivity selec;
   int     index;
 
@@ -694,6 +699,7 @@ calc_hist_selectivity_scalar(TypeCacheEntry *typcache, const RangeBound *constbo
     selec += get_position(typcache, constbound, &hist[index],
                           &hist[index + 1]) / (Selectivity) (hist_nvalues - 1);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -767,6 +773,7 @@ static float8
 get_position(TypeCacheEntry *typcache, const RangeBound *value, const RangeBound *hist1,
              const RangeBound *hist2)
 {
+  DBUG_TRACE;
   bool    has_subdiff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
   float8    position;
 
@@ -877,6 +884,7 @@ get_len_position(double value, double hist1, double hist2)
 static float8
 get_distance(TypeCacheEntry *typcache, const RangeBound *bound1, const RangeBound *bound2)
 {
+  DBUG_TRACE;
   bool    has_subdiff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
 
   if (!bound1->infinite && !bound2->infinite) {

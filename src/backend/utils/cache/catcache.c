@@ -248,6 +248,7 @@ int4hashfast(Datum datum)
 static bool
 texteqfast(Datum a, Datum b)
 {
+  DBUG_TRACE;
   /*
    * Catalogs only use deterministic collations, so ignore column collation
    * and use "C" locale for efficiency.
@@ -258,6 +259,7 @@ texteqfast(Datum a, Datum b)
 static uint32
 texthashfast(Datum datum)
 {
+  DBUG_TRACE;
   /*
    * Catalogs only use deterministic collations, so ignore column collation
    * and use "C" locale for efficiency.
@@ -268,12 +270,14 @@ texthashfast(Datum datum)
 static bool
 oidvectoreqfast(Datum a, Datum b)
 {
+  DBUG_TRACE;
   return DatumGetBool(DirectFunctionCall2(oidvectoreq, a, b));
 }
 
 static uint32
 oidvectorhashfast(Datum datum)
 {
+  DBUG_TRACE;
   return DatumGetInt32(DirectFunctionCall1(hashoidvector, datum));
 }
 
@@ -281,6 +285,8 @@ oidvectorhashfast(Datum datum)
 static void
 GetCCHashEqFuncs(Oid keytype, CCHashFN *hashfunc, RegProcedure *eqfunc, CCFastEqualFN *fasteqfunc)
 {
+  DBUG_TRACE;
+
   switch (keytype) {
     case BOOLOID:
       *hashfunc = charhashfast;
@@ -403,6 +409,7 @@ CatalogCacheComputeHashValue(CatCache *cache, int nkeys,
 static uint32
 CatalogCacheComputeTupleHashValue(CatCache *cache, int nkeys, HeapTuple tuple)
 {
+  DBUG_TRACE;
   Datum   v1 = 0,
           v2 = 0,
           v3 = 0,
@@ -463,14 +470,18 @@ CatalogCacheCompareTuple(const CatCache *cache, int nkeys,
                          const Datum *cachekeys,
                          const Datum *searchkeys)
 {
+  DBUG_TRACE;
   const CCFastEqualFN *cc_fastequal = cache->cc_fastequal;
   int     i;
 
   for (i = 0; i < nkeys; i++) {
-    if (!(cc_fastequal[i]) (cachekeys[i], searchkeys[i]))
+    if (!(cc_fastequal[i]) (cachekeys[i], searchkeys[i])) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -480,6 +491,7 @@ CatalogCacheCompareTuple(const CatCache *cache, int nkeys,
 static void
 CatCachePrintStats(int code, Datum arg)
 {
+  DBUG_TRACE;
   slist_iter  iter;
   long    cc_searches = 0;
   long    cc_hits = 0;
@@ -589,6 +601,7 @@ CatCacheRemoveCTup(CatCache *cache, CatCTup *ct)
 static void
 CatCacheRemoveCList(CatCache *cache, CatCList *cl)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(cl->refcount == 0);
@@ -644,6 +657,7 @@ CatCacheRemoveCList(CatCache *cache, CatCList *cl)
 void
 CatCacheInvalidate(CatCache *cache, uint32 hashValue)
 {
+  DBUG_TRACE;
   Index   hashIndex;
   dlist_mutable_iter iter;
 
@@ -720,6 +734,8 @@ CatCacheInvalidate(CatCache *cache, uint32 hashValue)
 void
 CreateCacheMemoryContext(void)
 {
+  DBUG_TRACE;
+
   /*
    * Purely for paranoia, check that context doesn't exist; caller probably
    * did so already.
@@ -803,13 +819,16 @@ ResetCatalogCache(CatCache *cache, bool debug_discard)
 void
 ResetCatalogCaches(void)
 {
+  DBUG_TRACE;
   ResetCatalogCachesExt(false);
 }
 
 void
 ResetCatalogCachesExt(bool debug_discard)
 {
+  DBUG_TRACE;
   slist_iter  iter;
+  int count = 0;
 
   CACHE_elog(DEBUG2, "ResetCatalogCaches called");
 
@@ -817,8 +836,10 @@ ResetCatalogCachesExt(bool debug_discard)
     CatCache   *cache = slist_container(CatCache, cc_next, iter.cur);
 
     ResetCatalogCache(cache, debug_discard);
+    count++;
   }
 
+  DBUG_PRINT("info", "reset all caches(%d) when a shared cache inval event forces it", count);
   CACHE_elog(DEBUG2, "end of ResetCatalogCaches call");
 }
 
@@ -838,6 +859,7 @@ ResetCatalogCachesExt(bool debug_discard)
 void
 CatalogCacheFlushCatalog(Oid catId)
 {
+  DBUG_TRACE;
   slist_iter  iter;
 
   CACHE_elog(DEBUG2, "CatalogCacheFlushCatalog called for %u", catId);
@@ -885,10 +907,12 @@ InitCatCache(int id,
              const int *key,
              int nbuckets)
 {
+  DBUG_TRACE;
   CatCache   *cp;
   MemoryContext oldcxt;
   int     i;
 
+  DBUG_PRINT("info", "id:%d, reloid:%u, indexoid:%u, nkeys:%d, nbuckets:%d", id, reloid, indexoid, nkeys, nbuckets);
   /*
    * nbuckets is the initial number of hash buckets to use in this catcache.
    * It will be enlarged later if it becomes too full.
@@ -986,6 +1010,7 @@ InitCatCache(int id,
 static void
 RehashCatCache(CatCache *cp)
 {
+  DBUG_TRACE;
   dlist_head *newbucket;
   int     newnbuckets;
   int     i;
@@ -1022,6 +1047,7 @@ RehashCatCache(CatCache *cp)
 static void
 RehashCatCacheLists(CatCache *cp)
 {
+  DBUG_TRACE;
   dlist_head *newbucket;
   int     newnbuckets;
   int     i;
@@ -1114,6 +1140,7 @@ do { \
 static void
 CatalogCacheInitializeCache(CatCache *cache)
 {
+  DBUG_TRACE;
   Relation  relation;
   MemoryContext oldcxt;
   TupleDesc tupdesc;
@@ -1150,6 +1177,7 @@ CatalogCacheInitializeCache(CatCache *cache)
 
   table_close(relation, AccessShareLock);
 
+  DBUG_PRINT("info", "CatalogCacheInitializeCache: %s, %d keys", cache->cc_relname, cache->cc_nkeys);
   CACHE_elog(DEBUG2, "CatalogCacheInitializeCache: %s, %d keys",
              cache->cc_relname, cache->cc_nkeys);
 
@@ -1220,6 +1248,7 @@ CatalogCacheInitializeCache(CatCache *cache)
 void
 InitCatCachePhase2(CatCache *cache, bool touch_index)
 {
+  DBUG_TRACE;
   ConditionalCatalogCacheInitializeCache(cache);
 
   if (touch_index &&
@@ -1270,6 +1299,8 @@ InitCatCachePhase2(CatCache *cache, bool touch_index)
 static bool
 IndexScanOK(CatCache *cache)
 {
+  DBUG_TRACE;
+
   switch (cache->id) {
     case INDEXRELID:
 
@@ -1279,8 +1310,10 @@ IndexScanOK(CatCache *cache)
        * just force all pg_index searches to be heap scans until we've
        * built the critical relcaches.
        */
-      if (!criticalRelcachesBuilt)
+      if (!criticalRelcachesBuilt) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
       break;
 
@@ -1293,6 +1326,7 @@ IndexScanOK(CatCache *cache)
        * initially building critical relcache entries, but we might as
        * well just always do it.
        */
+      DBUG_PRINT("info", "return false");
       return false;
 
     case AUTHNAME:
@@ -1304,8 +1338,10 @@ IndexScanOK(CatCache *cache)
        * Protect authentication lookups occurring before relcache has
        * collected entries for shared indexes.
        */
-      if (!criticalSharedRelcachesBuilt)
+      if (!criticalSharedRelcachesBuilt) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
 
       break;
 
@@ -1314,6 +1350,8 @@ IndexScanOK(CatCache *cache)
   }
 
   /* Normal case, allow index scan */
+  DBUG_PRINT("info", "normal case, allow index scan");
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -1340,6 +1378,7 @@ SearchCatCache(CatCache *cache,
                Datum v3,
                Datum v4)
 {
+  DBUG_TRACE;
   return SearchCatCacheInternal(cache, cache->cc_nkeys, v1, v2, v3, v4);
 }
 
@@ -1354,6 +1393,7 @@ HeapTuple
 SearchCatCache1(CatCache *cache,
                 Datum v1)
 {
+  DBUG_TRACE;
   return SearchCatCacheInternal(cache, 1, v1, 0, 0, 0);
 }
 
@@ -1362,6 +1402,7 @@ HeapTuple
 SearchCatCache2(CatCache *cache,
                 Datum v1, Datum v2)
 {
+  DBUG_TRACE;
   return SearchCatCacheInternal(cache, 2, v1, v2, 0, 0);
 }
 
@@ -1370,6 +1411,7 @@ HeapTuple
 SearchCatCache3(CatCache *cache,
                 Datum v1, Datum v2, Datum v3)
 {
+  DBUG_TRACE;
   return SearchCatCacheInternal(cache, 3, v1, v2, v3, 0);
 }
 
@@ -1378,6 +1420,7 @@ HeapTuple
 SearchCatCache4(CatCache *cache,
                 Datum v1, Datum v2, Datum v3, Datum v4)
 {
+  DBUG_TRACE;
   return SearchCatCacheInternal(cache, 4, v1, v2, v3, v4);
 }
 
@@ -1392,6 +1435,7 @@ SearchCatCacheInternal(CatCache *cache,
                        Datum v3,
                        Datum v4)
 {
+  DBUG_TRACE;
   Datum   arguments[CATCACHE_MAXKEYS];
   uint32    hashValue;
   Index   hashIndex;
@@ -1498,6 +1542,7 @@ SearchCatCacheMiss(CatCache *cache,
                    Datum v3,
                    Datum v4)
 {
+  DBUG_TRACE;
   ScanKeyData cur_skey[CATCACHE_MAXKEYS];
   Relation  relation;
   SysScanDesc scandesc;
@@ -1505,6 +1550,10 @@ SearchCatCacheMiss(CatCache *cache,
   CatCTup    *ct;
   bool    stale;
   Datum   arguments[CATCACHE_MAXKEYS];
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
+  bool stat_added = true;
+
 
   /* Initialize local parameter array */
   arguments[0] = v1;
@@ -1546,6 +1595,15 @@ SearchCatCacheMiss(CatCache *cache,
   cur_skey[3].sk_argument = v4;
 
   do {
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     scandesc = systable_beginscan(relation,
                                   cache->cc_indexoid,
                                   IndexScanOK(cache),
@@ -1555,10 +1613,14 @@ SearchCatCacheMiss(CatCache *cache,
 
     ct = NULL;
     stale = false;
+    stat_added = false;
 
     while (HeapTupleIsValid(ntp = systable_getnext(scandesc))) {
       ct = CatalogCacheCreateEntry(cache, ntp, NULL,
                                    hashValue, hashIndex);
+
+      count++;
+      stat_added = true;
 
       /* upon failure, we must start the scan over */
       if (ct == NULL) {
@@ -1573,8 +1635,20 @@ SearchCatCacheMiss(CatCache *cache,
       break;        /* assume only one match */
     }
 
+    if (!stat_added) {
+      count++;
+    }
+
     systable_endscan(scandesc);
   } while (stale);
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
 
   table_close(relation, AccessShareLock);
 
@@ -1681,6 +1755,8 @@ GetCatCacheHashValue(CatCache *cache,
                      Datum v3,
                      Datum v4)
 {
+  DBUG_TRACE;
+
   /*
    * one-time startup overhead for each cache
    */
@@ -1714,6 +1790,7 @@ SearchCatCacheList(CatCache *cache,
                    Datum v2,
                    Datum v3)
 {
+  DBUG_TRACE;
   Datum   v4 = 0;     /* dummy last-column value */
   Datum   arguments[CATCACHE_MAXKEYS];
   uint32    lHashValue;
@@ -2076,6 +2153,7 @@ SearchCatCacheList(CatCache *cache,
 void
 ReleaseCatCacheList(CatCList *list)
 {
+  DBUG_TRACE;
   ReleaseCatCacheListWithOwner(list, CurrentResourceOwner);
 }
 
@@ -2118,6 +2196,7 @@ static CatCTup *
 CatalogCacheCreateEntry(CatCache *cache, HeapTuple ntp, Datum *arguments,
                         uint32 hashValue, Index hashIndex)
 {
+  DBUG_TRACE;
   CatCTup    *ct;
   MemoryContext oldcxt;
 
@@ -2260,6 +2339,7 @@ CatalogCacheCreateEntry(CatCache *cache, HeapTuple ntp, Datum *arguments,
 static void
 CatCacheFreeKeys(TupleDesc tupdesc, int nkeys, int *attnos, Datum *keys)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < nkeys; i++) {
@@ -2285,6 +2365,7 @@ static void
 CatCacheCopyKeys(TupleDesc tupdesc, int nkeys, int *attnos,
                  Datum *srckeys, Datum *dstkeys)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -2356,6 +2437,7 @@ PrepareToInvalidateCacheTuple(Relation relation,
                               void (*function) (int, uint32, Oid, void *),
                               void *context)
 {
+  DBUG_TRACE;
   slist_iter  iter;
   Oid     reloid;
 
@@ -2411,12 +2493,14 @@ PrepareToInvalidateCacheTuple(Relation relation,
 static void
 ResOwnerReleaseCatCache(Datum res)
 {
+  DBUG_TRACE;
   ReleaseCatCacheWithOwner((HeapTuple) DatumGetPointer(res), NULL);
 }
 
 static char *
 ResOwnerPrintCatCache(Datum res)
 {
+  DBUG_TRACE;
   HeapTuple tuple = (HeapTuple) DatumGetPointer(res);
   CatCTup    *ct = (CatCTup *) (((char *) tuple) -
                                 offsetof(CatCTup, tuple));
@@ -2434,12 +2518,14 @@ ResOwnerPrintCatCache(Datum res)
 static void
 ResOwnerReleaseCatCacheList(Datum res)
 {
+  DBUG_TRACE;
   ReleaseCatCacheListWithOwner((CatCList *) DatumGetPointer(res), NULL);
 }
 
 static char *
 ResOwnerPrintCatCacheList(Datum res)
 {
+  DBUG_TRACE;
   CatCList   *list = (CatCList *) DatumGetPointer(res);
 
   return psprintf("cache %s (%d), list %p has count %d",

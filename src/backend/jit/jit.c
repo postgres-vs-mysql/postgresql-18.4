@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,6 +56,7 @@ static bool provider_init(void);
 Datum
 pg_jit_available(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_BOOL(provider_init());
 }
 
@@ -66,22 +68,29 @@ pg_jit_available(PG_FUNCTION_ARGS)
 static bool
 provider_init(void)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   JitProviderInit init;
 
   /* don't even try to load if not enabled */
-  if (!jit_enabled)
+  if (!jit_enabled) {
+    DBUG_PRINT("info", "don't even try to load if not enabled");
     return false;
+  }
 
   /*
    * Don't retry loading after failing - attempting to load JIT provider
    * isn't cheap.
    */
-  if (provider_failed_loading)
+  if (provider_failed_loading) {
+    DBUG_PRINT("info", "don't retry loading after failing");
     return false;
+  }
 
-  if (provider_successfully_loaded)
+  if (provider_successfully_loaded) {
+    DBUG_PRINT("info", "result: true");
     return true;
+  }
 
   /*
    * Check whether shared library exists. We do that check before actually
@@ -91,9 +100,12 @@ provider_init(void)
   snprintf(path, MAXPGPATH, "%s/%s%s", pkglib_path, jit_provider, DLSUFFIX);
   elog(DEBUG1, "probing availability of JIT provider at %s", path);
 
+  DBUG_PRINT("info", "probing availability of JIT provider at %s", path);
+
   if (!pg_file_exists(path)) {
     elog(DEBUG1,
          "provider not available, disabling JIT for current session");
+    DBUG_PRINT("info", "provider not available, disabling JIT for current session");
     provider_failed_loading = true;
     return false;
   }
@@ -115,6 +127,7 @@ provider_init(void)
   provider_successfully_loaded = true;
   provider_failed_loading = false;
 
+  DBUG_PRINT("info", "successfully loaded JIT provider in current session");
   elog(DEBUG1, "successfully loaded JIT provider in current session");
 
   return true;
@@ -127,6 +140,8 @@ provider_init(void)
 void
 jit_reset_after_error(void)
 {
+  DBUG_TRACE;
+
   if (provider_successfully_loaded)
     provider.reset_after_error();
 }
@@ -137,6 +152,8 @@ jit_reset_after_error(void)
 void
 jit_release_context(JitContext *context)
 {
+  DBUG_TRACE;
+
   if (provider_successfully_loaded)
     provider.release_context(context);
 
@@ -151,6 +168,10 @@ jit_release_context(JitContext *context)
 bool
 jit_compile_expr(struct ExprState *state)
 {
+  DBUG_TRACE;
+
+  DBUG_PRINT("info", "ask provider to JIT compile an expression");
+
   /*
    * We can easily create a one-off context for functions without an
    * associated PlanState (and thus EState). But because there's no executor
@@ -160,21 +181,38 @@ jit_compile_expr(struct ExprState *state)
    * usage, and worse, trigger some quadratic behaviour in gdb. Therefore,
    * at least for now, don't create a JITed function in those circumstances.
    */
-  if (!state->parent)
+  if (!state->parent) {
+    DBUG_PRINT("info", "state->parent is null, returning false");
     return false;
+  }
 
   /* if no jitting should be performed at all */
-  if (!(state->parent->state->es_jit_flags & PGJIT_PERFORM))
+  if (!(state->parent->state->es_jit_flags & PGJIT_PERFORM)) {
+    DBUG_PRINT("info", "if no jitting should be performed at all, return false");
     return false;
+  }
 
   /* or if expressions aren't JITed */
-  if (!(state->parent->state->es_jit_flags & PGJIT_EXPR))
+  if (!(state->parent->state->es_jit_flags & PGJIT_EXPR)) {
+    DBUG_PRINT("info", "if expressions aren't JITed, return false");
     return false;
+  }
 
   /* this also takes !jit_enabled into account */
-  if (provider_init())
-    return provider.compile_expr(state);
+  if (provider_init()) {
+    bool result;
+    result = provider.compile_expr(state);
 
+    if (result) {
+      DBUG_PRINT("info", "result: true");
+    } else {
+      DBUG_PRINT("info", "result: false");
+    }
+
+    return result;
+  }
+
+  DBUG_PRINT("info", "result: false");
   return false;
 }
 
@@ -182,6 +220,7 @@ jit_compile_expr(struct ExprState *state)
 void
 InstrJitAgg(JitInstrumentation *dst, JitInstrumentation *add)
 {
+  DBUG_TRACE;
   dst->created_functions += add->created_functions;
   INSTR_TIME_ADD(dst->generation_counter, add->generation_counter);
   INSTR_TIME_ADD(dst->deform_counter, add->deform_counter);

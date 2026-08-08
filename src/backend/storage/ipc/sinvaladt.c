@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <signal.h>
@@ -215,6 +216,7 @@ static void CleanupInvalidationState(int status, Datum arg);
 Size
 SharedInvalShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   size = offsetof(SISeg, procState);
@@ -231,6 +233,7 @@ SharedInvalShmemSize(void)
 void
 SharedInvalShmemInit(void)
 {
+  DBUG_TRACE;
   int     i;
   bool    found;
 
@@ -270,6 +273,7 @@ SharedInvalShmemInit(void)
 void
 SharedInvalBackendInit(bool sendOnly)
 {
+  DBUG_TRACE;
   ProcState  *stateP;
   pid_t   oldPid;
   SISeg    *segP = shmInvalBuffer;
@@ -328,6 +332,7 @@ SharedInvalBackendInit(bool sendOnly)
 static void
 CleanupInvalidationState(int status, Datum arg)
 {
+  DBUG_TRACE;
   SISeg    *segP = (SISeg *) DatumGetPointer(arg);
   ProcState  *stateP;
   int     i;
@@ -371,6 +376,7 @@ CleanupInvalidationState(int status, Datum arg)
 void
 SIInsertDataEntries(const SharedInvalidationMessage *data, int n)
 {
+  DBUG_TRACE;
   SISeg    *segP = shmInvalBuffer;
 
   /*
@@ -472,6 +478,7 @@ SIInsertDataEntries(const SharedInvalidationMessage *data, int n)
 int
 SIGetDataEntries(SharedInvalidationMessage *data, int datasize)
 {
+  DBUG_TRACE;
   SISeg    *segP;
   ProcState  *stateP;
   int     max;
@@ -491,8 +498,10 @@ SIGetDataEntries(SharedInvalidationMessage *data, int datasize)
    * invalidations, any such occurrence is not much different than if the
    * invalidation had arrived slightly later in the first place.
    */
-  if (!stateP->hasMessages)
+  if (!stateP->hasMessages) {
+    DBUG_PRINT("info", "backend has no unread messages");
     return 0;
+  }
 
   LWLockAcquire(SInvalReadLock, LW_SHARED);
 
@@ -522,6 +531,7 @@ SIGetDataEntries(SharedInvalidationMessage *data, int datasize)
     stateP->resetState = false;
     stateP->signaled = false;
     LWLockRelease(SInvalReadLock);
+    DBUG_PRINT("info", "force reset");
     return -1;
   }
 
@@ -553,6 +563,7 @@ SIGetDataEntries(SharedInvalidationMessage *data, int datasize)
     stateP->hasMessages = true;
 
   LWLockRelease(SInvalReadLock);
+  DBUG_PRINT("info", "result: %d", n);
   return n;
 }
 
@@ -575,6 +586,7 @@ SIGetDataEntries(SharedInvalidationMessage *data, int datasize)
 void
 SICleanupQueue(bool callerHasWriteLock, int minFree)
 {
+  DBUG_TRACE;
   SISeg    *segP = shmInvalBuffer;
   int     min,
           minsig,
@@ -699,6 +711,7 @@ SICleanupQueue(bool callerHasWriteLock, int minFree)
 LocalTransactionId
 GetNextLocalTransactionId(void)
 {
+  DBUG_TRACE;
   LocalTransactionId result;
 
   /* loop to avoid returning InvalidLocalTransactionId at wraparound */

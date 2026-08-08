@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "miscadmin.h"
 #include "port/atomics.h"
@@ -34,6 +35,7 @@ static WaitEventSet *LatchWaitSet;
 void
 InitializeLatchWaitSet(void)
 {
+  DBUG_TRACE;
   int     latch_pos PG_USED_FOR_ASSERTS_ONLY;
 
   Assert(LatchWaitSet == NULL);
@@ -61,6 +63,7 @@ InitializeLatchWaitSet(void)
 void
 InitLatch(Latch *latch)
 {
+  DBUG_TRACE;
   latch->is_set = false;
   latch->maybe_sleeping = false;
   latch->owner_pid = MyProcPid;
@@ -93,6 +96,7 @@ InitLatch(Latch *latch)
 void
 InitSharedLatch(Latch *latch)
 {
+  DBUG_TRACE;
 #ifdef WIN32
   SECURITY_ATTRIBUTES sa;
 
@@ -128,6 +132,7 @@ InitSharedLatch(Latch *latch)
 void
 OwnLatch(Latch *latch)
 {
+  DBUG_TRACE;
   int     owner_pid;
 
   /* Sanity checks */
@@ -147,6 +152,7 @@ OwnLatch(Latch *latch)
 void
 DisownLatch(Latch *latch)
 {
+  DBUG_TRACE;
   Assert(latch->is_shared);
   Assert(latch->owner_pid == MyProcPid);
 
@@ -176,6 +182,7 @@ int
 WaitLatch(Latch *latch, int wakeEvents, long timeout,
           uint32 wait_event_info)
 {
+  DBUG_TRACE;
   WaitEvent event;
 
   /* Postmaster-managed callers must handle postmaster death somehow. */
@@ -228,6 +235,7 @@ int
 WaitLatchOrSocket(Latch *latch, int wakeEvents, pgsocket sock,
                   long timeout, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   int     ret = 0;
   int     rc;
   WaitEvent event;

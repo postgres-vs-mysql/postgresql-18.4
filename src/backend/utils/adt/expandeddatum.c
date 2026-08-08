@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "utils/expandeddatum.h"
@@ -49,6 +50,7 @@ EOH_init_header(ExpandedObjectHeader *eohptr,
                 const ExpandedObjectMethods *methods,
                 MemoryContext obj_context)
 {
+  DBUG_TRACE;
   varatt_expanded ptr;
 
   eohptr->vl_len_ = EOH_HEADER_MAGIC;
@@ -74,6 +76,7 @@ EOH_init_header(ExpandedObjectHeader *eohptr,
 Size
 EOH_get_flat_size(ExpandedObjectHeader *eohptr)
 {
+  DBUG_TRACE;
   return eohptr->eoh_methods->get_flat_size(eohptr);
 }
 
@@ -81,6 +84,7 @@ void
 EOH_flatten_into(ExpandedObjectHeader *eohptr,
                  void *result, Size allocated_size)
 {
+  DBUG_TRACE;
   eohptr->eoh_methods->flatten_into(eohptr, result, allocated_size);
 }
 
@@ -94,16 +98,20 @@ EOH_flatten_into(ExpandedObjectHeader *eohptr,
 Datum
 MakeExpandedObjectReadOnlyInternal(Datum d)
 {
+  DBUG_TRACE;
   ExpandedObjectHeader *eohptr;
 
   /* Nothing to do if not a read-write expanded-object pointer */
-  if (!VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)))
+  if (!VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d))) {
+    DBUG_PRINT("info", "nothing to do if not a read-write expanded-object pointe");
     return d;
+  }
 
   /* Now safe to extract the object pointer */
   eohptr = DatumGetEOHP(d);
 
   /* Return the built-in read-only pointer instead of given pointer */
+  DBUG_PRINT("info", "return the built-in read-only pointer instead of given pointer");
   return EOHPGetRODatum(eohptr);
 }
 
@@ -117,6 +125,7 @@ MakeExpandedObjectReadOnlyInternal(Datum d)
 Datum
 TransferExpandedObject(Datum d, MemoryContext new_parent)
 {
+  DBUG_TRACE;
   ExpandedObjectHeader *eohptr = DatumGetEOHP(d);
 
   /* Assert caller gave a R/W pointer */
@@ -135,6 +144,7 @@ TransferExpandedObject(Datum d, MemoryContext new_parent)
 void
 DeleteExpandedObject(Datum d)
 {
+  DBUG_TRACE;
   ExpandedObjectHeader *eohptr = DatumGetEOHP(d);
 
   /* Assert caller gave a R/W pointer */

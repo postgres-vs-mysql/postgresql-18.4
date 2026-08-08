@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/extensible.h"
 #include "utils/hsearch.h"
@@ -39,6 +40,7 @@ RegisterExtensibleNodeEntry(HTAB **p_htable, const char *htable_label,
                             const char *extnodename,
                             const void *extnodemethods)
 {
+  DBUG_TRACE;
   ExtensibleNodeEntry *entry;
   bool    found;
 
@@ -74,6 +76,8 @@ RegisterExtensibleNodeEntry(HTAB **p_htable, const char *htable_label,
 void
 RegisterExtensibleNodeMethods(const ExtensibleNodeMethods *methods)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "register a new type of extensible node:%s", methods->extnodename);
   RegisterExtensibleNodeEntry(&extensible_node_methods,
                               "Extensible Node Methods",
                               methods->extnodename,
@@ -86,6 +90,8 @@ RegisterExtensibleNodeMethods(const ExtensibleNodeMethods *methods)
 void
 RegisterCustomScanMethods(const CustomScanMethods *methods)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "register a new type of custom scan node:%s", methods->CustomName);
   RegisterExtensibleNodeEntry(&custom_scan_methods,
                               "Custom Scan Methods",
                               methods->CustomName,
@@ -98,6 +104,7 @@ RegisterCustomScanMethods(const CustomScanMethods *methods)
 static const void *
 GetExtensibleNodeEntry(HTAB *htable, const char *extnodename, bool missing_ok)
 {
+  DBUG_TRACE;
   ExtensibleNodeEntry *entry = NULL;
 
   if (htable != NULL)
@@ -124,6 +131,7 @@ GetExtensibleNodeEntry(HTAB *htable, const char *extnodename, bool missing_ok)
 const ExtensibleNodeMethods *
 GetExtensibleNodeMethods(const char *extnodename, bool missing_ok)
 {
+  DBUG_TRACE;
   return (const ExtensibleNodeMethods *)
          GetExtensibleNodeEntry(extensible_node_methods,
                                 extnodename,
@@ -136,6 +144,7 @@ GetExtensibleNodeMethods(const char *extnodename, bool missing_ok)
 const CustomScanMethods *
 GetCustomScanMethods(const char *CustomName, bool missing_ok)
 {
+  DBUG_TRACE;
   return (const CustomScanMethods *)
          GetExtensibleNodeEntry(custom_scan_methods,
                                 CustomName,

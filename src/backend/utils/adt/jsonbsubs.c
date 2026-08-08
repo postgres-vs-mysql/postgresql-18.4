@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "executor/execExpr.h"
@@ -45,8 +46,11 @@ jsonb_subscript_transform(SubscriptingRef *sbsref,
                           bool isSlice,
                           bool isAssignment)
 {
+  DBUG_TRACE;
   List     *upperIndexpr = NIL;
   ListCell   *idx;
+
+  DBUG_PRINT("info", "finish parse analysis of a SubscriptingRef expression for a jsonb");
 
   /*
    * Transform and convert the subscript expressions. Jsonb subscripting
@@ -167,8 +171,11 @@ jsonb_subscript_check_subscripts(ExprState *state,
                                  ExprEvalStep *op,
                                  ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref_subscript.state;
   JsonbSubWorkspace *workspace = (JsonbSubWorkspace *) sbsrefstate->workspace;
+
+  DBUG_PRINT("info", "during execution, process the subscripts in a SubscriptingRef expression");
 
   /*
    * In case if the first subscript is an integer, the source jsonb is
@@ -223,10 +230,12 @@ jsonb_subscript_fetch(ExprState *state,
                       ExprEvalStep *op,
                       ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
   JsonbSubWorkspace *workspace = (JsonbSubWorkspace *) sbsrefstate->workspace;
   Jsonb    *jsonbSource;
 
+  DBUG_PRINT("info", "evaluate SubscriptingRef fetch for a jsonb element");
   /* Should not get here if source jsonb (or any subscript) is null */
   Assert(!(*op->resnull));
 
@@ -249,10 +258,13 @@ jsonb_subscript_assign(ExprState *state,
                        ExprEvalStep *op,
                        ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
   JsonbSubWorkspace *workspace = (JsonbSubWorkspace *) sbsrefstate->workspace;
   Jsonb    *jsonbSource;
   JsonbValue  replacevalue;
+
+  DBUG_PRINT("info", "evaluate SubscriptingRef assignment for a jsonb element assignment");
 
   if (sbsrefstate->replacenull)
     replacevalue.type = jbvNull;
@@ -306,6 +318,7 @@ jsonb_subscript_fetch_old(ExprState *state,
                           ExprEvalStep *op,
                           ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
 
   if (*op->resnull) {
@@ -333,6 +346,7 @@ jsonb_exec_setup(const SubscriptingRef *sbsref,
                  SubscriptingRefState *sbsrefstate,
                  SubscriptExecSteps *methods)
 {
+  DBUG_TRACE;
   JsonbSubWorkspace *workspace;
   ListCell   *lc;
   int     nupper = sbsref->refupperindexpr->length;
@@ -379,6 +393,8 @@ jsonb_exec_setup(const SubscriptingRef *sbsref,
 Datum
 jsonb_subscript_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   static const SubscriptRoutines sbsroutines = {
     .transform = jsonb_subscript_transform,
     .exec_setup = jsonb_exec_setup,
@@ -387,5 +403,6 @@ jsonb_subscript_handler(PG_FUNCTION_ARGS)
     .store_leakproof = false  /* ... but assignment throws error */
   };
 
+  DBUG_PRINT("info", "subscripting handler for jsonb");
   PG_RETURN_POINTER(&sbsroutines);
 }

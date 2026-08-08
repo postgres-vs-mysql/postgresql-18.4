@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "common/int.h"
@@ -198,6 +199,7 @@ static int  _bt_compare_array_elements(const void *a, const void *b, void *arg);
 void
 _bt_preprocess_keys(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   int     numberOfKeys = scan->numberOfKeys;
   int16    *indoption = scan->indexRelation->rd_indoption;
@@ -633,6 +635,7 @@ _bt_preprocess_keys(IndexScanDesc scan)
 static bool
 _bt_fix_scankey_strategy(ScanKey skey, int16 *indoption)
 {
+  DBUG_TRACE;
   int     addflags;
 
   addflags = indoption[skey->sk_attno - 1] << SK_BT_INDOPTION_SHIFT;
@@ -669,26 +672,34 @@ _bt_fix_scankey_strategy(ScanKey skey, int16 *indoption)
       skey->sk_strategy = BTEqualStrategyNumber;
       skey->sk_subtype = InvalidOid;
       skey->sk_collation = InvalidOid;
+      DBUG_PRINT("info", "set correct strategy(BTEqualStrategyNumber) for IS NULL search");
     } else if (skey->sk_flags & SK_SEARCHNOTNULL) {
-      if (skey->sk_flags & SK_BT_NULLS_FIRST)
+      if (skey->sk_flags & SK_BT_NULLS_FIRST) {
+        DBUG_PRINT("info", "set correct strategy(BTGreaterStrategyNumber) for NOT NULL search");
         skey->sk_strategy = BTGreaterStrategyNumber;
-      else
+      } else {
+        DBUG_PRINT("info", "set correct strategy(BTLessStrategyNumber) for NOT NULL search");
         skey->sk_strategy = BTLessStrategyNumber;
+      }
 
       skey->sk_subtype = InvalidOid;
       skey->sk_collation = InvalidOid;
     } else {
+      DBUG_PRINT("info", "regular qual, so it cannot be satisfied");
       /* regular qual, so it cannot be satisfied */
       return false;
     }
 
+    DBUG_PRINT("info", "needn't do the rest");
     /* Needn't do the rest */
     return true;
   }
 
   /* Adjust strategy for DESC, if we didn't already */
-  if ((addflags & SK_BT_DESC) && !(skey->sk_flags & SK_BT_DESC))
+  if ((addflags & SK_BT_DESC) && !(skey->sk_flags & SK_BT_DESC)) {
     skey->sk_strategy = BTCommuteStrategyNumber(skey->sk_strategy);
+    DBUG_PRINT("info", "adjust strategy(%d) for DESC, if we didn't already", skey->sk_strategy);
+  }
 
   skey->sk_flags |= addflags;
 
@@ -702,12 +713,16 @@ _bt_fix_scankey_strategy(ScanKey skey, int16 *indoption)
       return false;
     }
 
+    DBUG_PRINT("info", "if it's a row header, fix row member flags and strategies similarly");
+
     for (;;) {
       Assert(subkey->sk_flags & SK_ROW_MEMBER);
       addflags = indoption[subkey->sk_attno - 1] << SK_BT_INDOPTION_SHIFT;
 
-      if ((addflags & SK_BT_DESC) && !(subkey->sk_flags & SK_BT_DESC))
+      if ((addflags & SK_BT_DESC) && !(subkey->sk_flags & SK_BT_DESC)) {
         subkey->sk_strategy = BTCommuteStrategyNumber(subkey->sk_strategy);
+        DBUG_PRINT("info", "set strategy(%d) for subkey", subkey->sk_strategy);
+      }
 
       subkey->sk_flags |= addflags;
 
@@ -742,6 +757,7 @@ _bt_fix_scankey_strategy(ScanKey skey, int16 *indoption)
 static void
 _bt_mark_scankey_required(ScanKey skey)
 {
+  DBUG_TRACE;
   int     addflags;
 
   switch (skey->sk_strategy) {
@@ -840,6 +856,7 @@ _bt_compare_scankey_args(IndexScanDesc scan, ScanKey op,
                          BTArrayKeyInfo *array, FmgrInfo *orderproc,
                          bool *result)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   Oid     lefttype,
           righttype,
@@ -1068,6 +1085,7 @@ _bt_compare_array_scankey_args(IndexScanDesc scan, ScanKey arraysk, ScanKey skey
                                FmgrInfo *orderproc, BTArrayKeyInfo *array,
                                bool *qual_ok)
 {
+  DBUG_TRACE;
   Assert(arraysk->sk_attno == skey->sk_attno);
   Assert(!(arraysk->sk_flags & (SK_ISNULL | SK_ROW_HEADER | SK_ROW_MEMBER)));
   Assert((arraysk->sk_flags & SK_SEARCHARRAY) &&
@@ -1105,6 +1123,7 @@ static bool
 _bt_saoparray_shrink(IndexScanDesc scan, ScanKey arraysk, ScanKey skey,
                      FmgrInfo *orderproc, BTArrayKeyInfo *array, bool *qual_ok)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   Oid     opcintype = rel->rd_opcintype[arraysk->sk_attno - 1];
   int     cmpresult = 0,
@@ -1235,6 +1254,7 @@ static bool
 _bt_skiparray_shrink(IndexScanDesc scan, ScanKey skey, BTArrayKeyInfo *array,
                      bool *qual_ok)
 {
+  DBUG_TRACE;
   bool    test_result;
 
   Assert(array->num_elems == -1);
@@ -1356,6 +1376,7 @@ static void
 _bt_skiparray_strat_adjust(IndexScanDesc scan, ScanKey arraysk,
                            BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   MemoryContext oldContext;
 
@@ -1386,6 +1407,7 @@ static void
 _bt_skiparray_strat_decrement(IndexScanDesc scan, ScanKey arraysk,
                               BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   Oid     opfamily = rel->rd_opfamily[arraysk->sk_attno - 1],
           opcintype = rel->rd_opcintype[arraysk->sk_attno - 1],
@@ -1448,6 +1470,7 @@ static void
 _bt_skiparray_strat_increment(IndexScanDesc scan, ScanKey arraysk,
                               BTArrayKeyInfo *array)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   Oid     opfamily = rel->rd_opfamily[arraysk->sk_attno - 1],
           opcintype = rel->rd_opcintype[arraysk->sk_attno - 1],
@@ -1524,6 +1547,7 @@ _bt_skiparray_strat_increment(IndexScanDesc scan, ScanKey arraysk,
 static void
 _bt_unmark_keys(IndexScanDesc scan, int *keyDataMap)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   AttrNumber  attno;
   bool     *unmarkikey;
@@ -1763,6 +1787,7 @@ _bt_unmark_keys(IndexScanDesc scan, int *keyDataMap)
 static int
 _bt_reorder_array_cmp(const void *a, const void *b)
 {
+  DBUG_TRACE;
   BTArrayKeyInfo *arraya = (BTArrayKeyInfo *) a;
   BTArrayKeyInfo *arrayb = (BTArrayKeyInfo *) b;
 
@@ -1815,6 +1840,7 @@ _bt_reorder_array_cmp(const void *a, const void *b)
 static ScanKey
 _bt_preprocess_array_keys(IndexScanDesc scan, int *new_numberOfKeys)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   int16    *indoption = rel->rd_indoption;
@@ -2190,6 +2216,7 @@ _bt_preprocess_array_keys(IndexScanDesc scan, int *new_numberOfKeys)
 static void
 _bt_preprocess_array_keys_final(IndexScanDesc scan, int *keyDataMap)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   int     arrayidx = 0;
@@ -2373,6 +2400,7 @@ static int
 _bt_num_array_keys(IndexScanDesc scan, Oid *skip_eq_ops_out,
                    int *numSkipArrayKeys_out)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   AttrNumber  attno_skip = 1,
               attno_inkey = 1;
@@ -2534,6 +2562,7 @@ _bt_find_extreme_element(IndexScanDesc scan, ScanKey skey, Oid elemtype,
                          StrategyNumber strat,
                          Datum *elems, int nelems)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   Oid     cmp_op;
   RegProcedure cmp_proc;
@@ -2609,6 +2638,7 @@ static void
 _bt_setup_array_cmp(IndexScanDesc scan, ScanKey skey, Oid elemtype,
                     FmgrInfo *orderproc, FmgrInfo **sortprocp)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   Relation  rel = scan->indexRelation;
   RegProcedure cmp_proc;
@@ -2691,6 +2721,7 @@ static int
 _bt_sort_array_elements(ScanKey skey, FmgrInfo *sortproc, bool reverse,
                         Datum *elems, int nelems)
 {
+  DBUG_TRACE;
   BTSortArrayContext cxt;
 
   if (nelems <= 1)
@@ -2737,6 +2768,7 @@ _bt_merge_arrays(IndexScanDesc scan, ScanKey skey, FmgrInfo *sortproc,
                  Datum *elems_orig, int *nelems_orig,
                  Datum *elems_next, int nelems_next)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   BTSortArrayContext cxt;
@@ -2798,6 +2830,7 @@ _bt_merge_arrays(IndexScanDesc scan, ScanKey skey, FmgrInfo *sortproc,
 static int
 _bt_compare_array_elements(const void *a, const void *b, void *arg)
 {
+  DBUG_TRACE;
   Datum   da = *((const Datum *) a);
   Datum   db = *((const Datum *) b);
   BTSortArrayContext *cxt = (BTSortArrayContext *) arg;

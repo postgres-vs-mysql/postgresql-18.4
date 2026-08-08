@@ -162,6 +162,7 @@ InitPostmasterChildSlots(void)
 PMChild *
 AssignPostmasterChildSlot(BackendType btype)
 {
+  DBUG_TRACE;
   dlist_head *freelist;
   PMChild    *pmchild;
 

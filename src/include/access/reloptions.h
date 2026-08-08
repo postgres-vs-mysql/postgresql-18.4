@@ -77,8 +77,7 @@ typedef struct relopt_value
 {
   relopt_gen *gen;
   bool    isset;
-  union
-  {
+  union {
     bool    bool_val;
     int     int_val;
     double    real_val;

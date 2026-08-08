@@ -22,6 +22,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -161,6 +162,7 @@ check_vacuum_buffer_usage_limit(int *newval, void **extra,
 void
 ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 {
+  DBUG_TRACE;
   VacuumParams params;
   BufferAccessStrategy bstrategy = NULL;
   bool    verbose = false;
@@ -216,6 +218,8 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
       if (!parse_int(vac_buffer_size, &result, GUC_UNIT_KB, &hintmsg) ||
           (result != 0 &&
            (result < MIN_BAS_VAC_RING_SIZE_KB || result > MAX_BAS_VAC_RING_SIZE_KB))) {
+        DBUG_INSTANT_PRINT("info", "BUFFER_USAGE_LIMIT option must be 0 or between %d kB and %d kB",
+                           MIN_BAS_VAC_RING_SIZE_KB, MAX_BAS_VAC_RING_SIZE_KB);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("BUFFER_USAGE_LIMIT option must be 0 or between %d kB and %d kB",
@@ -224,15 +228,16 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
       }
 
       ring_size = result;
-    } else if (!vacstmt->is_vacuumcmd)
+    } else if (!vacstmt->is_vacuumcmd) {
+      DBUG_INSTANT_PRINT("info", "unrecognized ANALYZE option \"%s\"", opt->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized %s option \"%s\"",
                       "ANALYZE", opt->defname),
                parser_errposition(pstate, opt->location)));
 
-    /* Parse options available on VACUUM */
-    else if (strcmp(opt->defname, "analyze") == 0)
+      /* Parse options available on VACUUM */
+    } else if (strcmp(opt->defname, "analyze") == 0)
       analyze = defGetBoolean(opt);
     else if (strcmp(opt->defname, "freeze") == 0)
       freeze = defGetBoolean(opt);
@@ -261,6 +266,7 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
       params.truncate = get_vacoptval_from_boolean(opt);
     else if (strcmp(opt->defname, "parallel") == 0) {
       if (opt->arg == NULL) {
+        DBUG_INSTANT_PRINT("info", "parallel option requires a value between 0 and %d", MAX_PARALLEL_WORKER_LIMIT);
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("parallel option requires a value between 0 and %d",
@@ -271,32 +277,39 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 
         nworkers = defGetInt32(opt);
 
-        if (nworkers < 0 || nworkers > MAX_PARALLEL_WORKER_LIMIT)
+        if (nworkers < 0 || nworkers > MAX_PARALLEL_WORKER_LIMIT) {
+          DBUG_INSTANT_PRINT("info", "parallel workers for vacuum must be between 0 and %d", MAX_PARALLEL_WORKER_LIMIT);
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("parallel workers for vacuum must be between 0 and %d",
                           MAX_PARALLEL_WORKER_LIMIT),
                    parser_errposition(pstate, opt->location)));
+        }
 
         /*
          * Disable parallel vacuum, if user has specified parallel
          * degree as zero.
          */
-        if (nworkers == 0)
+        if (nworkers == 0) {
           params.nworkers = -1;
-        else
+          DBUG_PRINT("info", "disable parallel vacuum");
+        } else {
+          DBUG_PRINT("info", "parallel vacuum workers:%d", nworkers);
           params.nworkers = nworkers;
+        }
       }
     } else if (strcmp(opt->defname, "skip_database_stats") == 0)
       skip_database_stats = defGetBoolean(opt);
     else if (strcmp(opt->defname, "only_database_stats") == 0)
       only_database_stats = defGetBoolean(opt);
-    else
+    else {
+      DBUG_INSTANT_PRINT("info", "unrecognized VACUUM option \"%s\"", opt->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized %s option \"%s\"",
                       "VACUUM", opt->defname),
                parser_errposition(pstate, opt->location)));
+    }
   }
 
   /* Set vacuum options */
@@ -318,10 +331,12 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
   Assert((params.options & VACOPT_VACUUM) ||
          !(params.options & (VACOPT_FULL | VACOPT_FREEZE)));
 
-  if ((params.options & VACOPT_FULL) && params.nworkers > 0)
+  if ((params.options & VACOPT_FULL) && params.nworkers > 0) {
+    DBUG_INSTANT_PRINT("info", "VACUUM FULL cannot be performed in parallel");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("VACUUM FULL cannot be performed in parallel")));
+  }
 
   /*
    * BUFFER_USAGE_LIMIT does nothing for VACUUM (FULL) so just raise an
@@ -329,10 +344,12 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
    * we'll permit that.
    */
   if (ring_size != -1 && (params.options & VACOPT_FULL) &&
-      !(params.options & VACOPT_ANALYZE))
+      !(params.options & VACOPT_ANALYZE)) {
+    DBUG_INSTANT_PRINT("info", "BUFFER_USAGE_LIMIT cannot be specified for VACUUM FULL");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("BUFFER_USAGE_LIMIT cannot be specified for VACUUM FULL")));
+  }
 
   /*
    * Make sure VACOPT_ANALYZE is specified if any column lists are present.
@@ -341,10 +358,12 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
     foreach(lc, vacstmt->rels) {
       VacuumRelation *vrel = lfirst_node(VacuumRelation, lc);
 
-      if (vrel->va_cols != NIL)
+      if (vrel->va_cols != NIL) {
+        DBUG_INSTANT_PRINT("info", "ANALYZE option must be specified when a column list is provided");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("ANALYZE option must be specified when a column list is provided")));
+      }
     }
   }
 
@@ -353,36 +372,44 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
    * Sanity check DISABLE_PAGE_SKIPPING option.
    */
   if ((params.options & VACOPT_FULL) != 0 &&
-      (params.options & VACOPT_DISABLE_PAGE_SKIPPING) != 0)
+      (params.options & VACOPT_DISABLE_PAGE_SKIPPING) != 0) {
+    DBUG_INSTANT_PRINT("info", "VACUUM option DISABLE_PAGE_SKIPPING cannot be used with FULL");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("VACUUM option DISABLE_PAGE_SKIPPING cannot be used with FULL")));
+  }
 
   /* sanity check for PROCESS_TOAST */
   if ((params.options & VACOPT_FULL) != 0 &&
-      (params.options & VACOPT_PROCESS_TOAST) == 0)
+      (params.options & VACOPT_PROCESS_TOAST) == 0) {
+    DBUG_INSTANT_PRINT("info", "PROCESS_TOAST required with VACUUM FULL");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("PROCESS_TOAST required with VACUUM FULL")));
+  }
 
   /* sanity check for ONLY_DATABASE_STATS */
   if (params.options & VACOPT_ONLY_DATABASE_STATS) {
     Assert(params.options & VACOPT_VACUUM);
 
-    if (vacstmt->rels != NIL)
+    if (vacstmt->rels != NIL) {
+      DBUG_INSTANT_PRINT("info", "ONLY_DATABASE_STATS cannot be specified with a list of tables");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("ONLY_DATABASE_STATS cannot be specified with a list of tables")));
+    }
 
     /* don't require people to turn off PROCESS_TOAST/MAIN explicitly */
     if (params.options & ~(VACOPT_VACUUM |
                            VACOPT_VERBOSE |
                            VACOPT_PROCESS_MAIN |
                            VACOPT_PROCESS_TOAST |
-                           VACOPT_ONLY_DATABASE_STATS))
+                           VACOPT_ONLY_DATABASE_STATS)) {
+      DBUG_INSTANT_PRINT("info", "ONLY_DATABASE_STATS cannot be specified with other VACUUM options");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("ONLY_DATABASE_STATS cannot be specified with other VACUUM options")));
+    }
   }
 
   /*
@@ -484,6 +511,7 @@ void
 vacuum(List *relations, VacuumParams *params, BufferAccessStrategy bstrategy,
        MemoryContext vac_context, bool isTopLevel)
 {
+  DBUG_TRACE;
   static bool in_vacuum = false;
 
   const char *stmttype;
@@ -513,11 +541,13 @@ vacuum(List *relations, VacuumParams *params, BufferAccessStrategy bstrategy,
    * FULL or ANALYZE calls a hostile index expression that itself calls
    * ANALYZE.
    */
-  if (in_vacuum)
+  if (in_vacuum) {
+    DBUG_INSTANT_PRINT("info", "%s cannot be executed from VACUUM or ANALYZE", stmttype);
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("%s cannot be executed from VACUUM or ANALYZE",
                     stmttype)));
+  }
 
   /*
    * Build list of relation(s) to process, putting any new data in
@@ -572,6 +602,12 @@ vacuum(List *relations, VacuumParams *params, BufferAccessStrategy bstrategy,
       use_own_xacts = true;
     else
       use_own_xacts = false;
+  }
+
+  if (use_own_xacts) {
+    DBUG_PRINT("info", "we need to start/commit our own transactions");
+  } else {
+    DBUG_PRINT("info", "we do not start/commit our own transactions");
   }
 
   /*
@@ -754,6 +790,7 @@ Relation
 vacuum_open_relation(Oid relid, RangeVar *relation, bits32 options,
                      bool verbose, LOCKMODE lmode)
 {
+  DBUG_TRACE;
   Relation  rel;
   bool    rel_lock = true;
   int     elevel;
@@ -863,6 +900,7 @@ static List *
 expand_vacuum_rel(VacuumRelation *vrel, MemoryContext vac_context,
                   int options)
 {
+  DBUG_TRACE;
   List     *vacrels = NIL;
   MemoryContext oldcontext;
 
@@ -1014,6 +1052,7 @@ expand_vacuum_rel(VacuumRelation *vrel, MemoryContext vac_context,
 static List *
 get_all_vacuum_rels(MemoryContext vac_context, int options)
 {
+  DBUG_TRACE;
   List     *vacrels = NIL;
   Relation  pgclass;
   TableScanDesc scan;
@@ -1076,6 +1115,7 @@ bool
 vacuum_get_cutoffs(Relation rel, const VacuumParams *params,
                    struct VacuumCutoffs *cutoffs)
 {
+  DBUG_TRACE;
   int     freeze_min_age,
           multixact_freeze_min_age,
           freeze_table_age,
@@ -1164,6 +1204,7 @@ vacuum_get_cutoffs(Relation rel, const VacuumParams *params,
     freeze_min_age = vacuum_freeze_min_age;
 
   freeze_min_age = Min(freeze_min_age, autovacuum_freeze_max_age / 2);
+  DBUG_PRINT("info", "autovacuum_freeze_max_age:%d, freeze_min_age:%d", autovacuum_freeze_max_age, freeze_min_age);
   Assert(freeze_min_age >= 0);
 
   /* Compute FreezeLimit, being careful to generate a normal XID */
@@ -1260,6 +1301,7 @@ vacuum_get_cutoffs(Relation rel, const VacuumParams *params,
 bool
 vacuum_xid_failsafe_check(const struct VacuumCutoffs *cutoffs)
 {
+  DBUG_TRACE;
   TransactionId relfrozenxid = cutoffs->relfrozenxid;
   MultiXactId relminmxid = cutoffs->relminmxid;
   TransactionId xid_skip_limit;
@@ -1282,6 +1324,8 @@ vacuum_xid_failsafe_check(const struct VacuumCutoffs *cutoffs)
 
   if (TransactionIdPrecedes(relfrozenxid, xid_skip_limit)) {
     /* The table's relfrozenxid is too old */
+    DBUG_PRINT("info", "the table's relfrozenxid is too old:%u", relfrozenxid);
+    DBUG_PRINT("info", "VACUUM caller triggers the failsafe");
     return true;
   }
 
@@ -1299,6 +1343,8 @@ vacuum_xid_failsafe_check(const struct VacuumCutoffs *cutoffs)
     multi_skip_limit = FirstMultiXactId;
 
   if (MultiXactIdPrecedes(relminmxid, multi_skip_limit)) {
+    DBUG_PRINT("info", "the table's relminmxid is too old:%u", relminmxid);
+    DBUG_PRINT("info", "VACUUM caller triggers the failsafe");
     /* The table's relminmxid is too old */
     return true;
   }
@@ -1325,6 +1371,7 @@ vac_estimate_reltuples(Relation relation,
                        BlockNumber scanned_pages,
                        double scanned_tuples)
 {
+  DBUG_TRACE;
   BlockNumber old_rel_pages = relation->rd_rel->relpages;
   double    old_rel_tuples = relation->rd_rel->reltuples;
   double    old_density;
@@ -1426,6 +1473,7 @@ vac_update_relstats(Relation relation,
                     bool *frozenxid_updated, bool *minmulti_updated,
                     bool in_outer_xact)
 {
+  DBUG_TRACE;
   Oid     relid = RelationGetRelid(relation);
   Relation  rd;
   ScanKeyData key[1];
@@ -1439,6 +1487,7 @@ vac_update_relstats(Relation relation,
   MultiXactId oldminmulti;
 
   rd = table_open(RelationRelationId, RowExclusiveLock);
+  DBUG_PRINT("info", "fetch a copy of the tuple to scribble on");
 
   /* Fetch a copy of the tuple to scribble on */
   ScanKeyInit(&key[0],
@@ -1456,6 +1505,7 @@ vac_update_relstats(Relation relation,
 
   /* Apply statistical updates, if any, to copied tuple */
 
+  DBUG_PRINT("info", "apply statistical updates, if any, to copied tuple");
   dirty = false;
 
   if (pgcform->relpages != (int32) num_pages) {
@@ -1479,6 +1529,8 @@ vac_update_relstats(Relation relation,
   }
 
   /* Apply DDL updates, but not inside an outer transaction (see above) */
+
+  DBUG_PRINT("info", "apply DDL updates, but not inside an outer transaction");
 
   if (!in_outer_xact) {
     /*
@@ -1529,8 +1581,10 @@ vac_update_relstats(Relation relation,
       pgcform->relfrozenxid = frozenxid;
       dirty = true;
 
-      if (frozenxid_updated)
+      if (frozenxid_updated) {
         *frozenxid_updated = true;
+        DBUG_PRINT("info", "update relfrozenxid:%u", frozenxid);
+      }
     }
   }
 
@@ -1553,8 +1607,10 @@ vac_update_relstats(Relation relation,
       pgcform->relminmxid = minmulti;
       dirty = true;
 
-      if (minmulti_updated)
+      if (minmulti_updated) {
         *minmulti_updated = true;
+        DBUG_PRINT("info", "update relminmxid:%u", minmulti);
+      }
     }
   }
 
@@ -1603,6 +1659,7 @@ vac_update_relstats(Relation relation,
 void
 vac_update_datfrozenxid(void)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_database dbform;
   Relation  relation;
@@ -1614,8 +1671,10 @@ vac_update_datfrozenxid(void)
   MultiXactId lastSaneMinMulti;
   bool    bogus = false;
   bool    dirty = false;
+  bool tmp_trace_disabled = false;
   ScanKeyData key[1];
   void     *inplace_state;
+  size_t count = 0;
 
   /*
    * Restrict this task to one backend per database.  This avoids race
@@ -1663,6 +1722,17 @@ vac_update_datfrozenxid(void)
     volatile FormData_pg_class *classForm = (Form_pg_class) GETSTRUCT(classTup);
     TransactionId relfrozenxid = classForm->relfrozenxid;
     TransactionId relminmxid = classForm->relminmxid;
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
 
     /*
      * Only consider relations able to hold unfrozen XIDs (anything else
@@ -1716,6 +1786,14 @@ vac_update_datfrozenxid(void)
       if (MultiXactIdPrecedes(relminmxid, newMinMulti))
         newMinMulti = relminmxid;
     }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /* we're done with pg_class */
@@ -1815,6 +1893,7 @@ vac_truncate_clog(TransactionId frozenXID,
                   TransactionId lastSaneFrozenXid,
                   MultiXactId lastSaneMinMulti)
 {
+  DBUG_TRACE;
   TransactionId nextXID = ReadNextTransactionId();
   Relation  relation;
   TableScanDesc scan;
@@ -1982,6 +2061,7 @@ static bool
 vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
            BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   LOCKMODE  lmode;
   Relation  rel;
   LockRelId lockrelid;
@@ -1991,6 +2071,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
   int     save_sec_context;
   int     save_nestlevel;
   VacuumParams toast_vacuum_params;
+  const char   *relation_name;
 
   Assert(params != NULL);
 
@@ -2065,8 +2146,13 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
   if (!rel) {
     PopActiveSnapshot();
     CommitTransactionCommand();
+    DBUG_PRINT("info", "leave if relation could not be opened or locked");
     return false;
   }
+
+
+  relation_name = NameStr(rel->rd_rel->relname);
+  DBUG_PRINT("info", "vacuum relation:%s", relation_name);
 
   /*
    * When recursing to a TOAST table, check privileges on the parent.  NB:
@@ -2088,6 +2174,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
   if (!vacuum_is_permitted_for_relation(priv_relid,
                                         rel->rd_rel,
                                         params->options & ~VACOPT_ANALYZE)) {
+    DBUG_PRINT("info", "relation needs to be skipped based on privileges");
     relation_close(rel, lmode);
     PopActiveSnapshot();
     CommitTransactionCommand();
@@ -2101,6 +2188,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
       rel->rd_rel->relkind != RELKIND_MATVIEW &&
       rel->rd_rel->relkind != RELKIND_TOASTVALUE &&
       rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+    DBUG_PRINT("info", "skipping %s --- cannot vacuum non-tables or special system tables", RelationGetRelationName(rel));
     ereport(WARNING,
             (errmsg("skipping \"%s\" --- cannot vacuum non-tables or special system tables",
                     RelationGetRelationName(rel))));
@@ -2118,6 +2206,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
    * VACUUM.)
    */
   if (RELATION_IS_OTHER_TEMP(rel)) {
+    DBUG_PRINT("info", "silently ignore tables that are temp tables of other backends");
     relation_close(rel, lmode);
     PopActiveSnapshot();
     CommitTransactionCommand();
@@ -2133,6 +2222,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
     relation_close(rel, lmode);
     PopActiveSnapshot();
     CommitTransactionCommand();
+    DBUG_PRINT("info", "it's OK to proceed with ANALYZE on this table");
     /* It's OK to proceed with ANALYZE on this table */
     return true;
   }
@@ -2265,12 +2355,15 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params,
         cluster_params.options |= CLUOPT_VERBOSE;
 
       /* VACUUM FULL is now a variant of CLUSTER; see cluster.c */
+      DBUG_PRINT("info", "VACUUM FULL is now a variant of CLUSTER");
       cluster_rel(rel, InvalidOid, &cluster_params);
       /* cluster_rel closes the relation, but keeps lock */
 
       rel = NULL;
-    } else
+    } else {
       table_relation_vacuum(rel, params, bstrategy);
+      DBUG_PRINT("info", "vacuuming of the table:%s has completed successfully", RelationGetRelationName(rel));
+    }
   }
 
   /* Roll back any GUC changes executed by index functions */
@@ -2335,6 +2428,7 @@ void
 vac_open_indexes(Relation relation, LOCKMODE lockmode,
                  int *nindexes, Relation **Irel)
 {
+  DBUG_TRACE;
   List     *indexoidlist;
   ListCell   *indexoidscan;
   int     i;
@@ -2378,6 +2472,8 @@ vac_open_indexes(Relation relation, LOCKMODE lockmode,
 void
 vac_close_indexes(int nindexes, Relation *Irel, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
+
   if (Irel == NULL)
     return;
 
@@ -2399,14 +2495,18 @@ vac_close_indexes(int nindexes, Relation *Irel, LOCKMODE lockmode)
 void
 vacuum_delay_point(bool is_analyze)
 {
+  DBUG_TRACE;
   double    msec = 0;
 
+  DBUG_PRINT("info", "check for interrupts and cost-based delay");
   /* Always check for interrupts */
   CHECK_FOR_INTERRUPTS();
 
   if (InterruptPending ||
-      (!VacuumCostActive && !ConfigReloadPending))
+      (!VacuumCostActive && !ConfigReloadPending)) {
+    DBUG_PRINT("info", "return early");
     return;
+  }
 
   /*
    * Autovacuum workers should reload the configuration file if requested.
@@ -2424,8 +2524,10 @@ vacuum_delay_point(bool is_analyze)
    * If we disabled cost-based delays after reloading the config file,
    * return.
    */
-  if (!VacuumCostActive)
+  if (!VacuumCostActive) {
+    DBUG_PRINT("info", "we disabled cost-based delays after reloading the config file and return");
     return;
+  }
 
   /*
    * For parallel vacuum, the delay is computed based on the shared cost
@@ -2447,6 +2549,7 @@ vacuum_delay_point(bool is_analyze)
       INSTR_TIME_SET_CURRENT(delay_start);
 
     pgstat_report_wait_start(WAIT_EVENT_VACUUM_DELAY);
+    DBUG_PRINT("info", "sleep for msec:%g", msec);
     pg_usleep(msec * 1000);
     pgstat_report_wait_end();
 
@@ -2500,8 +2603,10 @@ vacuum_delay_point(bool is_analyze)
      * WaitLatch() approach here because we want microsecond-based sleep
      * durations above.
      */
-    if (IsUnderPostmaster && !PostmasterIsAlive())
+    if (IsUnderPostmaster && !PostmasterIsAlive()) {
+      DBUG_PRINT("info", "exit here");
       exit(1);
+    }
 
     VacuumCostBalance = 0;
 
@@ -2545,6 +2650,7 @@ vacuum_delay_point(bool is_analyze)
 static double
 compute_parallel_delay(void)
 {
+  DBUG_TRACE;
   double    msec = 0;
   uint32    shared_balance;
   int     nworkers;
@@ -2576,6 +2682,7 @@ compute_parallel_delay(void)
    */
   VacuumCostBalance = 0;
 
+  DBUG_PRINT("info", "computes the vacuum delay for parallel workers:%g", msec);
   return msec;
 }
 
@@ -2600,6 +2707,7 @@ IndexBulkDeleteResult *
 vac_bulkdel_one_index(IndexVacuumInfo *ivinfo, IndexBulkDeleteResult *istat,
                       TidStore *dead_items, VacDeadItemsInfo *dead_items_info)
 {
+  DBUG_TRACE;
   /* Do bulk deletion */
   istat = index_bulk_delete(ivinfo, istat, vac_tid_reaped,
                             dead_items);
@@ -2620,6 +2728,7 @@ vac_bulkdel_one_index(IndexVacuumInfo *ivinfo, IndexBulkDeleteResult *istat,
 IndexBulkDeleteResult *
 vac_cleanup_one_index(IndexVacuumInfo *ivinfo, IndexBulkDeleteResult *istat)
 {
+  DBUG_TRACE;
   istat = index_vacuum_cleanup(ivinfo, istat);
 
   if (istat)

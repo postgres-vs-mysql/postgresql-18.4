@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/itup.h"
@@ -247,7 +248,7 @@ PageAddItemExtended(Page page,
        * group at the end of the line pointer array.
        */
       for (offsetNumber = FirstOffsetNumber;
-           offsetNumber < limit;  /* limit is maxoff+1 */
+           offsetNumber < limit; /* limit is maxoff+1 */
            offsetNumber++) {
         itemId = PageGetItemId(page, offsetNumber);
 
@@ -455,6 +456,7 @@ typedef itemIdCompactData *itemIdCompact;
 static void
 compactify_tuples(itemIdCompact itemidbase, int nitems, Page page, bool presorted)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   Offset    upper;
   Offset    copy_tail;
@@ -678,6 +680,7 @@ compactify_tuples(itemIdCompact itemidbase, int nitems, Page page, bool presorte
 void
 PageRepairFragmentation(Page page)
 {
+  DBUG_TRACE;
   Offset    pd_lower = ((PageHeader) page)->pd_lower;
   Offset    pd_upper = ((PageHeader) page)->pd_upper;
   Offset    pd_special = ((PageHeader) page)->pd_special;
@@ -809,6 +812,7 @@ PageRepairFragmentation(Page page)
 void
 PageTruncateLinePointerArray(Page page)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   bool    countdone = false,
           sethint = false;
@@ -1017,6 +1021,7 @@ PageGetHeapFreeSpace(const PageData *page)
 void
 PageIndexTupleDelete(Page page, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   char     *addr;
   ItemId    tup;
@@ -1127,6 +1132,7 @@ PageIndexTupleDelete(Page page, OffsetNumber offnum)
 void
 PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   Offset    pd_lower = phdr->pd_lower;
   Offset    pd_upper = phdr->pd_upper;
@@ -1259,6 +1265,7 @@ PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems)
 void
 PageIndexTupleDeleteNoCompact(Page page, OffsetNumber offnum)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   char     *addr;
   ItemId    tup;
@@ -1368,6 +1375,7 @@ bool
 PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
                         Item newtup, Size newsize)
 {
+  DBUG_TRACE;
   PageHeader  phdr = (PageHeader) page;
   ItemId    tupid;
   int     oldsize;

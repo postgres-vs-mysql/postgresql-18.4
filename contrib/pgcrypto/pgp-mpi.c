@@ -32,6 +32,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 int
 pgp_mpi_alloc(int bits, PGP_MPI **mpi)
@@ -55,6 +56,7 @@ pgp_mpi_alloc(int bits, PGP_MPI **mpi)
 int
 pgp_mpi_create(uint8 *data, int bits, PGP_MPI **mpi)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *n;
 
@@ -71,6 +73,8 @@ pgp_mpi_create(uint8 *data, int bits, PGP_MPI **mpi)
 int
 pgp_mpi_free(PGP_MPI *mpi)
 {
+  DBUG_TRACE;
+
   if (mpi == NULL)
     return 0;
 
@@ -82,6 +86,7 @@ pgp_mpi_free(PGP_MPI *mpi)
 int
 pgp_mpi_read(PullFilter *src, PGP_MPI **mpi)
 {
+  DBUG_TRACE;
   int     res;
   uint8   hdr[2];
   int     bits;
@@ -112,6 +117,7 @@ pgp_mpi_read(PullFilter *src, PGP_MPI **mpi)
 int
 pgp_mpi_write(PushFilter *dst, PGP_MPI *n)
 {
+  DBUG_TRACE;
   int     res;
   uint8   buf[2];
 
@@ -128,6 +134,7 @@ pgp_mpi_write(PushFilter *dst, PGP_MPI *n)
 int
 pgp_mpi_hash(PX_MD *md, PGP_MPI *n)
 {
+  DBUG_TRACE;
   uint8   buf[2];
 
   buf[0] = n->bits >> 8;
@@ -141,6 +148,7 @@ pgp_mpi_hash(PX_MD *md, PGP_MPI *n)
 unsigned
 pgp_mpi_cksum(unsigned cksum, PGP_MPI *n)
 {
+  DBUG_TRACE;
   int     i;
 
   cksum += n->bits >> 8;

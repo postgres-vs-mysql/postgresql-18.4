@@ -19,6 +19,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <unistd.h>
@@ -250,6 +251,7 @@ CopyFromBinaryEnd(CopyFromState cstate)
 void
 CopyFromErrorCallback(void *arg)
 {
+  DBUG_TRACE;
   CopyFromState cstate = (CopyFromState) arg;
 
   if (cstate->relname_only) {
@@ -318,6 +320,7 @@ CopyFromErrorCallback(void *arg)
 char *
 CopyLimitPrintoutLength(const char *str)
 {
+  DBUG_TRACE;
 #define MAX_COPY_DATA_DISPLAY 100
 
   int     slen = strlen(str);
@@ -348,6 +351,7 @@ CopyLimitPrintoutLength(const char *str)
 static CopyMultiInsertBuffer *
 CopyMultiInsertBufferInit(ResultRelInfo *rri)
 {
+  DBUG_TRACE;
   CopyMultiInsertBuffer *buffer;
 
   buffer = (CopyMultiInsertBuffer *) palloc(sizeof(CopyMultiInsertBuffer));
@@ -366,6 +370,7 @@ static inline void
 CopyMultiInsertInfoSetupBuffer(CopyMultiInsertInfo *miinfo,
                                ResultRelInfo *rri)
 {
+  DBUG_TRACE;
   CopyMultiInsertBuffer *buffer;
 
   buffer = CopyMultiInsertBufferInit(rri);
@@ -387,6 +392,7 @@ CopyMultiInsertInfoInit(CopyMultiInsertInfo *miinfo, ResultRelInfo *rri,
                         CopyFromState cstate, EState *estate, CommandId mycid,
                         int ti_options)
 {
+  DBUG_TRACE;
   miinfo->multiInsertBuffers = NIL;
   miinfo->bufferedTuples = 0;
   miinfo->bufferedBytes = 0;
@@ -434,6 +440,7 @@ CopyMultiInsertBufferFlush(CopyMultiInsertInfo *miinfo,
                            CopyMultiInsertBuffer *buffer,
                            int64 *processed)
 {
+  DBUG_TRACE;
   CopyFromState cstate = miinfo->cstate;
   EState     *estate = miinfo->estate;
   int     nused = buffer->nused;
@@ -598,6 +605,7 @@ static inline void
 CopyMultiInsertBufferCleanup(CopyMultiInsertInfo *miinfo,
                              CopyMultiInsertBuffer *buffer)
 {
+  DBUG_TRACE;
   ResultRelInfo *resultRelInfo = buffer->resultRelInfo;
   int     i;
 
@@ -638,6 +646,7 @@ static inline void
 CopyMultiInsertInfoFlush(CopyMultiInsertInfo *miinfo, ResultRelInfo *curr_rri,
                          int64 *processed)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, miinfo->multiInsertBuffers) {
@@ -688,6 +697,7 @@ CopyMultiInsertInfoFlush(CopyMultiInsertInfo *miinfo, ResultRelInfo *curr_rri,
 static inline void
 CopyMultiInsertInfoCleanup(CopyMultiInsertInfo *miinfo)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, miinfo->multiInsertBuffers)
@@ -708,6 +718,7 @@ static inline TupleTableSlot *
 CopyMultiInsertInfoNextFreeSlot(CopyMultiInsertInfo *miinfo,
                                 ResultRelInfo *rri)
 {
+  DBUG_TRACE;
   CopyMultiInsertBuffer *buffer = rri->ri_CopyMultiInsertBuffer;
   int     nused;
 
@@ -730,6 +741,7 @@ static inline void
 CopyMultiInsertInfoStore(CopyMultiInsertInfo *miinfo, ResultRelInfo *rri,
                          TupleTableSlot *slot, int tuplen, uint64 lineno)
 {
+  DBUG_TRACE;
   CopyMultiInsertBuffer *buffer = rri->ri_CopyMultiInsertBuffer;
 
   Assert(buffer != NULL);
@@ -752,6 +764,7 @@ CopyMultiInsertInfoStore(CopyMultiInsertInfo *miinfo, ResultRelInfo *rri,
 uint64
 CopyFrom(CopyFromState cstate)
 {
+  DBUG_TRACE;
   ResultRelInfo *resultRelInfo;
   ResultRelInfo *target_resultRelInfo;
   ResultRelInfo *prevResultRelInfo = NULL;
@@ -790,27 +803,32 @@ CopyFrom(CopyFromState cstate)
       cstate->rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE &&
       !(cstate->rel->trigdesc &&
         cstate->rel->trigdesc->trig_insert_instead_row)) {
-    if (cstate->rel->rd_rel->relkind == RELKIND_VIEW)
+    if (cstate->rel->rd_rel->relkind == RELKIND_VIEW) {
+      DBUG_PRINT("info", "cannot copy to view \"%s\"", RelationGetRelationName(cstate->rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy to view \"%s\"",
                       RelationGetRelationName(cstate->rel)),
                errhint("To enable copying to a view, provide an INSTEAD OF INSERT trigger.")));
-    else if (cstate->rel->rd_rel->relkind == RELKIND_MATVIEW)
+    } else if (cstate->rel->rd_rel->relkind == RELKIND_MATVIEW) {
+      DBUG_PRINT("info", "cannot copy to materialized view \"%s\"", RelationGetRelationName(cstate->rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy to materialized view \"%s\"",
                       RelationGetRelationName(cstate->rel))));
-    else if (cstate->rel->rd_rel->relkind == RELKIND_SEQUENCE)
+    } else if (cstate->rel->rd_rel->relkind == RELKIND_SEQUENCE) {
+      DBUG_PRINT("info", "cannot copy sequence \"%s\"", RelationGetRelationName(cstate->rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy to sequence \"%s\"",
                       RelationGetRelationName(cstate->rel))));
-    else
+    } else {
+      DBUG_PRINT("info", "cannot copy to non-table relation \"%s\"", RelationGetRelationName(cstate->rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot copy to non-table relation \"%s\"",
                       RelationGetRelationName(cstate->rel))));
+    }
   }
 
   /*
@@ -845,6 +863,7 @@ CopyFrom(CopyFromState cstate)
      * raise an ERROR for partitioned tables.
      */
     if (cstate->rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
+      DBUG_PRINT("info", "cannot perform COPY FREEZE on a partitioned table");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot perform COPY FREEZE on a partitioned table")));
@@ -866,16 +885,20 @@ CopyFrom(CopyFromState cstate)
      */
     InvalidateCatalogSnapshot();
 
-    if (!ThereAreNoPriorRegisteredSnapshots() || !ThereAreNoReadyPortals())
+    if (!ThereAreNoPriorRegisteredSnapshots() || !ThereAreNoReadyPortals()) {
+      DBUG_PRINT("info", "cannot perform COPY FREEZE because of prior transaction activity");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
                errmsg("cannot perform COPY FREEZE because of prior transaction activity")));
+    }
 
     if (cstate->rel->rd_createSubid != GetCurrentSubTransactionId() &&
-        cstate->rel->rd_newRelfilelocatorSubid != GetCurrentSubTransactionId())
+        cstate->rel->rd_newRelfilelocatorSubid != GetCurrentSubTransactionId()) {
+      DBUG_PRINT("info", "cannot perform COPY FREEZE because the table was not created or truncated in the current subtransaction");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("cannot perform COPY FREEZE because the table was not created or truncated in the current subtransaction")));
+    }
 
     ti_options |= TABLE_INSERT_FROZEN;
   }
@@ -1469,6 +1492,7 @@ BeginCopyFrom(ParseState *pstate,
               List *attnamelist,
               List *options)
 {
+  DBUG_TRACE;
   CopyFromState cstate;
   bool    pipe = (filename == NULL);
   TupleDesc tupDesc;
@@ -1537,12 +1561,14 @@ BeginCopyFrom(ParseState *pstate,
       int     attnum = lfirst_int(cur);
       Form_pg_attribute attr = TupleDescAttr(tupDesc, attnum - 1);
 
-      if (!list_member_int(cstate->attnumlist, attnum))
+      if (!list_member_int(cstate->attnumlist, attnum)) {
+        DBUG_PRINT("info", "%s column \"%s\" not referenced by COPY", "FORCE_NOT_NULL", NameStr(attr->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  /*- translator: first %s is the name of a COPY option, e.g. FORCE_NOT_NULL */
                  errmsg("%s column \"%s\" not referenced by COPY",
                         "FORCE_NOT_NULL", NameStr(attr->attname))));
+      }
 
       cstate->opts.force_notnull_flags[attnum - 1] = true;
     }
@@ -1578,12 +1604,14 @@ BeginCopyFrom(ParseState *pstate,
       int     attnum = lfirst_int(cur);
       Form_pg_attribute attr = TupleDescAttr(tupDesc, attnum - 1);
 
-      if (!list_member_int(cstate->attnumlist, attnum))
+      if (!list_member_int(cstate->attnumlist, attnum)) {
+        DBUG_PRINT("info", "%s column \"%s\" not referenced by COPY", "FORCE_NULL", NameStr(attr->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  /*- translator: first %s is the name of a COPY option, e.g. FORCE_NOT_NULL */
                  errmsg("%s column \"%s\" not referenced by COPY",
                         "FORCE_NULL", NameStr(attr->attname))));
+      }
 
       cstate->opts.force_null_flags[attnum - 1] = true;
     }
@@ -1602,11 +1630,13 @@ BeginCopyFrom(ParseState *pstate,
       int     attnum = lfirst_int(cur);
       Form_pg_attribute attr = TupleDescAttr(tupDesc, attnum - 1);
 
-      if (!list_member_int(cstate->attnumlist, attnum))
+      if (!list_member_int(cstate->attnumlist, attnum)) {
+        DBUG_PRINT("info", "selected column \"%s\" not referenced by COPY", NameStr(attr->attname));
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
                  errmsg_internal("selected column \"%s\" not referenced by COPY",
                                  NameStr(attr->attname))));
+      }
 
       cstate->convert_select_flags[attnum - 1] = true;
     }
@@ -1630,12 +1660,15 @@ BeginCopyFrom(ParseState *pstate,
     cstate->conversion_proc = FindDefaultConversionProc(cstate->file_encoding,
                               GetDatabaseEncoding());
 
-    if (!OidIsValid(cstate->conversion_proc))
+    if (!OidIsValid(cstate->conversion_proc)) {
+      DBUG_PRINT("info", "default conversion function for encoding \"%s\" to \"%s\" does not exist",
+                 pg_encoding_to_char(cstate->file_encoding), pg_encoding_to_char(GetDatabaseEncoding()));
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_FUNCTION),
                errmsg("default conversion function for encoding \"%s\" to \"%s\" does not exist",
                       pg_encoding_to_char(cstate->file_encoding),
                       pg_encoding_to_char(GetDatabaseEncoding()))));
+    }
   }
 
   cstate->copy_src = COPY_FILE; /* default */
@@ -1777,11 +1810,13 @@ BeginCopyFrom(ParseState *pstate,
       progress_vals[1] = PROGRESS_COPY_TYPE_PROGRAM;
       cstate->copy_file = OpenPipeStream(cstate->filename, PG_BINARY_R);
 
-      if (cstate->copy_file == NULL)
+      if (cstate->copy_file == NULL) {
+        DBUG_PRINT("info", "could not execute command \"%s\": %m", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not execute command \"%s\": %m",
                         cstate->filename)));
+      }
     } else {
       struct stat st;
 
@@ -1792,6 +1827,7 @@ BeginCopyFrom(ParseState *pstate,
         /* copy errno because ereport subfunctions might change it */
         int     save_errno = errno;
 
+        DBUG_PRINT("info", "could not open file \"%s\" for reading", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not open file \"%s\" for reading: %m",
@@ -1801,16 +1837,20 @@ BeginCopyFrom(ParseState *pstate,
                          "You may want a client-side facility such as psql's \\copy.") : 0));
       }
 
-      if (fstat(fileno(cstate->copy_file), &st))
+      if (fstat(fileno(cstate->copy_file), &st)) {
+        DBUG_PRINT("info", "could not stat file \"%s\" for reading", cstate->filename);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not stat file \"%s\": %m",
                         cstate->filename)));
+      }
 
-      if (S_ISDIR(st.st_mode))
+      if (S_ISDIR(st.st_mode)) {
+        DBUG_PRINT("info", "\"%s\" is a directory", cstate->filename);
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is a directory", cstate->filename)));
+      }
 
       progress_vals[2] = st.st_size;
     }
@@ -1831,6 +1871,7 @@ BeginCopyFrom(ParseState *pstate,
 void
 EndCopyFrom(CopyFromState cstate)
 {
+  DBUG_TRACE;
   /* Invoke the end callback */
   cstate->routine->CopyFromEnd(cstate);
 
@@ -1838,11 +1879,13 @@ EndCopyFrom(CopyFromState cstate)
   if (cstate->is_program) {
     ClosePipeFromProgram(cstate);
   } else {
-    if (cstate->filename != NULL && FreeFile(cstate->copy_file))
+    if (cstate->filename != NULL && FreeFile(cstate->copy_file)) {
+      DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", cstate->filename);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not close file \"%s\": %m",
                       cstate->filename)));
+    }
   }
 
   pgstat_progress_end_command();
@@ -1857,17 +1900,20 @@ EndCopyFrom(CopyFromState cstate)
 static void
 ClosePipeFromProgram(CopyFromState cstate)
 {
+  DBUG_TRACE;
   int     pclose_rc;
 
   Assert(cstate->is_program);
 
   pclose_rc = ClosePipeStream(cstate->copy_file);
 
-  if (pclose_rc == -1)
+  if (pclose_rc == -1) {
+    DBUG_PRINT("info", "could not close pipe to external command");
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not close pipe to external command: %m")));
-  else if (pclose_rc != 0) {
+
+  } else if (pclose_rc != 0) {
     /*
      * If we ended a COPY FROM PROGRAM before reaching EOF, then it's
      * expectable for the called program to fail with SIGPIPE, and we
@@ -1878,6 +1924,7 @@ ClosePipeFromProgram(CopyFromState cstate)
         wait_result_is_signal(pclose_rc, SIGPIPE))
       return;
 
+    DBUG_PRINT("info", "program \"%s\" failed", cstate->filename);
     ereport(ERROR,
             (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
              errmsg("program \"%s\" failed",

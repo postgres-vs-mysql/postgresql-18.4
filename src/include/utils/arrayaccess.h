@@ -48,27 +48,21 @@ typedef struct array_iter
 static inline void
 array_iter_setup(array_iter *it, AnyArrayType *a)
 {
-  if (VARATT_IS_EXPANDED_HEADER(a))
-  {
-    if (a->xpn.dvalues)
-    {
+  if (VARATT_IS_EXPANDED_HEADER(a)) {
+    if (a->xpn.dvalues) {
       it->datumptr = a->xpn.dvalues;
       it->isnullptr = a->xpn.dnulls;
       /* we must fill all fields to prevent compiler warnings */
       it->dataptr = NULL;
       it->bitmapptr = NULL;
-    }
-    else
-    {
+    } else {
       /* Work with flat array embedded in the expanded datum */
       it->datumptr = NULL;
       it->isnullptr = NULL;
       it->dataptr = ARR_DATA_PTR(a->xpn.fvalue);
       it->bitmapptr = ARR_NULLBITMAP(a->xpn.fvalue);
     }
-  }
-  else
-  {
+  } else {
     it->datumptr = NULL;
     it->isnullptr = NULL;
     it->dataptr = ARR_DATA_PTR((ArrayType *) a);
@@ -84,20 +78,14 @@ array_iter_next(array_iter *it, bool *isnull, int i,
 {
   Datum   ret;
 
-  if (it->datumptr)
-  {
+  if (it->datumptr) {
     ret = it->datumptr[i];
     *isnull = it->isnullptr ? it->isnullptr[i] : false;
-  }
-  else
-  {
-    if (it->bitmapptr && (*(it->bitmapptr) & it->bitmask) == 0)
-    {
+  } else {
+    if (it->bitmapptr && (*(it->bitmapptr) & it->bitmask) == 0) {
       *isnull = true;
       ret = (Datum) 0;
-    }
-    else
-    {
+    } else {
       *isnull = false;
       ret = fetch_att(it->dataptr, elmbyval, elmlen);
       it->dataptr = att_addlength_pointer(it->dataptr, elmlen,
@@ -107,8 +95,7 @@ array_iter_next(array_iter *it, bool *isnull, int i,
 
     it->bitmask <<= 1;
 
-    if (it->bitmask == 0x100)
-    {
+    if (it->bitmask == 0x100) {
       if (it->bitmapptr)
         it->bitmapptr++;
 

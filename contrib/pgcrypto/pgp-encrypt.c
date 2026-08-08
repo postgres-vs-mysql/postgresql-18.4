@@ -36,6 +36,7 @@
 #include "mbuf.h"
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 #define MDC_DIGEST_LEN 20
 #define STREAM_ID 0xE0
@@ -44,6 +45,8 @@
 static uint8 *
 render_newlen(uint8 *h, int len)
 {
+  DBUG_TRACE;
+
   if (len <= 191) {
     *h++ = len & 255;
   } else if (len > 191 && len <= 8383) {
@@ -63,6 +66,7 @@ render_newlen(uint8 *h, int len)
 static int
 write_tag_only(PushFilter *dst, int tag)
 {
+  DBUG_TRACE;
   uint8   hdr = 0xC0 | tag;
 
   return pushf_write(dst, &hdr, 1);
@@ -71,6 +75,7 @@ write_tag_only(PushFilter *dst, int tag)
 static int
 write_normal_header(PushFilter *dst, int tag, int len)
 {
+  DBUG_TRACE;
   uint8   hdr[8];
   uint8    *h = hdr;
 
@@ -87,6 +92,7 @@ write_normal_header(PushFilter *dst, int tag, int len)
 static int
 mdc_init(PushFilter *dst, void *init_arg, void **priv_p)
 {
+  DBUG_TRACE;
   int     res;
   PX_MD    *md;
 
@@ -102,6 +108,7 @@ mdc_init(PushFilter *dst, void *init_arg, void **priv_p)
 static int
 mdc_write(PushFilter *dst, void *priv, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   PX_MD    *md = priv;
 
   px_md_update(md, data, len);
@@ -111,6 +118,7 @@ mdc_write(PushFilter *dst, void *priv, const uint8 *data, int len)
 static int
 mdc_flush(PushFilter *dst, void *priv)
 {
+  DBUG_TRACE;
   int     res;
   uint8   pkt[2 + MDC_DIGEST_LEN];
   PX_MD    *md = priv;
@@ -131,6 +139,7 @@ mdc_flush(PushFilter *dst, void *priv)
 static void
 mdc_free(void *priv)
 {
+  DBUG_TRACE;
   PX_MD    *md = priv;
 
   px_md_free(md);
@@ -153,6 +162,7 @@ struct EncStat {
 static int
 encrypt_init(PushFilter *next, void *init_arg, void **priv_p)
 {
+  DBUG_TRACE;
   struct EncStat *st;
   PGP_Context *ctx = init_arg;
   PGP_CFB    *ciph;
@@ -186,6 +196,7 @@ encrypt_init(PushFilter *next, void *init_arg, void **priv_p)
 static int
 encrypt_process(PushFilter *next, void *priv, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     res;
   struct EncStat *st = priv;
   int     avail = len;
@@ -213,6 +224,7 @@ encrypt_process(PushFilter *next, void *priv, const uint8 *data, int len)
 static void
 encrypt_free(void *priv)
 {
+  DBUG_TRACE;
   struct EncStat *st = priv;
 
   if (st->ciph)
@@ -238,6 +250,7 @@ struct PktStreamStat {
 static int
 pkt_stream_init(PushFilter *next, void *init_arg, void **priv_p)
 {
+  DBUG_TRACE;
   struct PktStreamStat *st;
 
   st = palloc(sizeof(*st));
@@ -251,6 +264,7 @@ pkt_stream_init(PushFilter *next, void *init_arg, void **priv_p)
 static int
 pkt_stream_process(PushFilter *next, void *priv, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     res;
   uint8   hdr[8];
   uint8    *h = hdr;
@@ -277,6 +291,7 @@ pkt_stream_process(PushFilter *next, void *priv, const uint8 *data, int len)
 static int
 pkt_stream_flush(PushFilter *next, void *priv)
 {
+  DBUG_TRACE;
   int     res;
   uint8   hdr[8];
   uint8    *h = hdr;
@@ -299,6 +314,7 @@ pkt_stream_flush(PushFilter *next, void *priv)
 static void
 pkt_stream_free(void *priv)
 {
+  DBUG_TRACE;
   struct PktStreamStat *st = priv;
 
   px_memset(st, 0, sizeof(*st));
@@ -312,6 +328,7 @@ static const PushFilterOps pkt_stream_filter = {
 int
 pgp_create_pkt_writer(PushFilter *dst, int tag, PushFilter **res_p)
 {
+  DBUG_TRACE;
   int     res;
 
   res = write_tag_only(dst, tag);
@@ -329,6 +346,7 @@ pgp_create_pkt_writer(PushFilter *dst, int tag, PushFilter **res_p)
 static int
 crlf_process(PushFilter *dst, void *priv, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   const uint8 *data_end = data + len;
   const uint8 *p2,
         *p1 = data;
@@ -380,6 +398,7 @@ static const PushFilterOps crlf_filter = {
 static int
 init_litdata_packet(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   int     res;
   int     hdrlen;
   uint8   hdr[6];
@@ -437,6 +456,7 @@ init_litdata_packet(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 static int
 init_compress(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   int     res;
   uint8   type = ctx->compress_algo;
   PushFilter *pkt;
@@ -468,6 +488,7 @@ init_compress(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 static int
 init_encdata_packet(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   int     res;
   int     tag;
 
@@ -490,6 +511,7 @@ init_encdata_packet(PushFilter **pf_res, PGP_Context *ctx, PushFilter *dst)
 static int
 write_prefix(PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   uint8   prefix[PGP_MAX_BLOCK + 2];
   int     res,
           bs;
@@ -514,6 +536,7 @@ write_prefix(PGP_Context *ctx, PushFilter *dst)
 static int
 symencrypt_sesskey(PGP_Context *ctx, uint8 *dst)
 {
+  DBUG_TRACE;
   int     res;
   PGP_CFB    *cfb;
   uint8   algo = ctx->cipher_algo;
@@ -535,6 +558,7 @@ symencrypt_sesskey(PGP_Context *ctx, uint8 *dst)
 static int
 write_symenc_sesskey(PGP_Context *ctx, PushFilter *dst)
 {
+  DBUG_TRACE;
   uint8   pkt[256];
   int     pktlen;
   int     res;
@@ -579,6 +603,7 @@ write_symenc_sesskey(PGP_Context *ctx, PushFilter *dst)
 static int
 init_s2k_key(PGP_Context *ctx)
 {
+  DBUG_TRACE;
   int     res;
 
   if (ctx->s2k_cipher_algo < 0)
@@ -596,6 +621,8 @@ init_s2k_key(PGP_Context *ctx)
 static int
 init_sess_key(PGP_Context *ctx)
 {
+  DBUG_TRACE;
+
   if (ctx->use_sess_key || ctx->pub_key) {
     ctx->sess_key_len = pgp_get_cipher_key_size(ctx->cipher_algo);
 
@@ -615,6 +642,7 @@ init_sess_key(PGP_Context *ctx)
 int
 pgp_encrypt(PGP_Context *ctx, MBuf *src, MBuf *dst)
 {
+  DBUG_TRACE;
   int     res;
   int     len;
   uint8    *buf;

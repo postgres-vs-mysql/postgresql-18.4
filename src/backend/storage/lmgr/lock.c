@@ -28,6 +28,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <signal.h>
 #include <unistd.h>
@@ -439,6 +440,7 @@ static void GetSingleProcBlockerStatusData(PGPROC *blocked_proc,
 void
 LockManagerShmemInit(void)
 {
+  DBUG_TRACE;
   HASHCTL   info;
   long    init_table_size,
           max_table_size;
@@ -699,13 +701,17 @@ LockHasWaiters(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
   LWLock     *partitionLock;
   bool    hasWaiters = false;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
-  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
+  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock mode: %d", lockmode);
     elog(ERROR, "unrecognized lock mode: %d", lockmode);
+  }
 
 #ifdef LOCK_DEBUG
 
@@ -731,6 +737,7 @@ LockHasWaiters(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
    * let the caller print its own error message, too. Do not ereport(ERROR).
    */
   if (!locallock || locallock->nLocks <= 0) {
+    DBUG_INSTANT_PRINT("info", "you don't own a lock of type %s", lockMethodTable->lockModeNames[lockmode]);
     elog(WARNING, "you don't own a lock of type %s",
          lockMethodTable->lockModeNames[lockmode]);
     return false;
@@ -760,6 +767,7 @@ LockHasWaiters(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
   if (!(proclock->holdMask & LOCKBIT_ON(lockmode))) {
     PROCLOCK_PRINT("LockHasWaiters: WRONGTYPE", proclock);
     LWLockRelease(partitionLock);
+    DBUG_INSTANT_PRINT("info", "you don't own a lock of type %s", lockMethodTable->lockModeNames[lockmode]);
     elog(WARNING, "you don't own a lock of type %s",
          lockMethodTable->lockModeNames[lockmode]);
     RemoveLocalLock(locallock);
@@ -852,23 +860,30 @@ LockAcquireExtended(const LOCKTAG *locktag,
   ProcWaitStatus waitResult;
   bool    log_lock = false;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
-  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
+  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock mode: %d", lockmode);
     elog(ERROR, "unrecognized lock mode: %d", lockmode);
+  }
 
   if (RecoveryInProgress() && !InRecovery &&
       (locktag->locktag_type == LOCKTAG_OBJECT ||
        locktag->locktag_type == LOCKTAG_RELATION) &&
-      lockmode > RowExclusiveLock)
+      lockmode > RowExclusiveLock) {
+    DBUG_INSTANT_PRINT("info", "cannot acquire lock mode %s on database objects while recovery is in progress",
+        lockMethodTable->lockModeNames[lockmode]);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("cannot acquire lock mode %s on database objects while recovery is in progress",
                     lockMethodTable->lockModeNames[lockmode]),
              errhint("Only RowExclusiveLock or less can be acquired on database objects during recovery.")));
+  }
 
 #ifdef LOCK_DEBUG
 
@@ -1036,13 +1051,15 @@ LockAcquireExtended(const LOCKTAG *locktag,
       if (locallockp)
         *locallockp = NULL;
 
-      if (reportMemoryError)
+      if (reportMemoryError) {
+        DBUG_INSTANT_PRINT("info", "out of shared memory");
         ereport(ERROR,
                 (errcode(ERRCODE_OUT_OF_MEMORY),
                  errmsg("out of shared memory"),
                  errhint("You might need to increase \"%s\".", "max_locks_per_transaction")));
-      else
+       } else {
         return LOCKACQUIRE_NOT_AVAIL;
+       }
     }
   }
 
@@ -1077,13 +1094,15 @@ LockAcquireExtended(const LOCKTAG *locktag,
     if (locallockp)
       *locallockp = NULL;
 
-    if (reportMemoryError)
+    if (reportMemoryError) {
+      DBUG_INSTANT_PRINT("info", "out of shared memory");
       ereport(ERROR,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of shared memory"),
                errhint("You might need to increase \"%s\".", "max_locks_per_transaction")));
-    else
+    } else {
       return LOCKACQUIRE_NOT_AVAIL;
+    }
   }
 
   locallock->proclock = proclock;
@@ -1137,8 +1156,10 @@ LockAcquireExtended(const LOCKTAG *locktag,
                                        &(proclock->tag),
                                        proclock_hashcode,
                                        HASH_REMOVE,
-                                       NULL))
+                                       NULL)) {
+        DBUG_INSTANT_PRINT("info", "proclock table corrupted");
         elog(PANIC, "proclock table corrupted");
+      }
     } else
       PROCLOCK_PRINT("LockAcquire: did not join wait queue", proclock);
 
@@ -1349,8 +1370,10 @@ SetupLockInTable(LockMethod lockMethodTable, PGPROC *proc,
                                        &(lock->tag),
                                        hashcode,
                                        HASH_REMOVE,
-                                       NULL))
+                                       NULL)) {
+        DBUG_INSTANT_PRINT("info", "lock table corrupted");
         elog(PANIC, "lock table corrupted");
+      }
     }
 
     return NULL;
@@ -1408,6 +1431,9 @@ SetupLockInTable(LockMethod lockMethodTable, PGPROC *proc,
           if (i >= (int) lockmode)
             break;  /* safe: we have a lock >= req level */
 
+          DBUG_INSTANT_PRINT("info", "deadlock risk: raising lock level from %s to %s on object %u/%u/%u",
+              lockMethodTable->lockModeNames[i], lockMethodTable->lockModeNames[lockmode],
+              lock->tag.locktag_field1, lock->tag.locktag_field2, lock->tag.locktag_field3);
           elog(LOG, "deadlock risk: raising lock level"
                " from %s to %s on object %u/%u/%u",
                lockMethodTable->lockModeNames[i],
@@ -1434,11 +1460,14 @@ SetupLockInTable(LockMethod lockMethodTable, PGPROC *proc,
    * We shouldn't already hold the desired lock; else locallock table is
    * broken.
    */
-  if (proclock->holdMask & LOCKBIT_ON(lockmode))
+  if (proclock->holdMask & LOCKBIT_ON(lockmode)) {
+    DBUG_INSTANT_PRINT("info", "lock %s on object %u/%u/%u is already held",
+        lockMethodTable->lockModeNames[lockmode], lock->tag.locktag_field1, lock->tag.locktag_field2, lock->tag.locktag_field3);
     elog(ERROR, "lock %s on object %u/%u/%u is already held",
          lockMethodTable->lockModeNames[lockmode],
          lock->tag.locktag_field1, lock->tag.locktag_field2,
          lock->tag.locktag_field3);
+  }
 
   return proclock;
 }
@@ -1496,8 +1525,10 @@ RemoveLocalLock(LOCALLOCK *locallock)
 
   if (!hash_search(LockMethodLocalHash,
                    &(locallock->tag),
-                   HASH_REMOVE, NULL))
+                   HASH_REMOVE, NULL)) {
+    DBUG_INSTANT_PRINT("info", "locallock table corrupted");
     elog(WARNING, "locallock table corrupted");
+  }
 
   /*
    * Indicate that the lock is released for certain types of locks
@@ -1610,8 +1641,10 @@ LockCheckConflicts(LockMethod lockMethodTable,
 
       for (i = 1; i <= numLockModes; i++) {
         if ((intersectMask & LOCKBIT_ON(i)) != 0) {
-          if (conflictsRemaining[i] <= 0)
+          if (conflictsRemaining[i] <= 0) {
+            DBUG_INSTANT_PRINT("info", "proclocks held do not match lock");
             elog(PANIC, "proclocks held do not match lock");
+          }
 
           conflictsRemaining[i]--;
           totalConflictsRemaining--;
@@ -1744,8 +1777,10 @@ CleanUpLock(LOCK *lock, PROCLOCK *proclock,
                                      &(proclock->tag),
                                      proclock_hashcode,
                                      HASH_REMOVE,
-                                     NULL))
+                                     NULL)) {
+      DBUG_INSTANT_PRINT("info", "proclock table corrupted");
       elog(PANIC, "proclock table corrupted");
+    }
   }
 
   if (lock->nRequested == 0) {
@@ -1760,8 +1795,10 @@ CleanUpLock(LOCK *lock, PROCLOCK *proclock,
                                      &(lock->tag),
                                      hashcode,
                                      HASH_REMOVE,
-                                     NULL))
+                                     NULL)) {
+      DBUG_INSTANT_PRINT("info", "lock table corrupted");
       elog(PANIC, "lock table corrupted");
+    }
   } else if (wakeupNeeded) {
     /* There are waiters on this lock, so wake them up. */
     ProcLockWakeup(lockMethodTable, lock);
@@ -1919,6 +1956,7 @@ MarkLockClear(LOCALLOCK *locallock)
 static ProcWaitStatus
 WaitOnLock(LOCALLOCK *locallock, ResourceOwner owner)
 {
+  DBUG_TRACE;
   ProcWaitStatus result;
 
   TRACE_POSTGRESQL_LOCK_WAIT_START(locallock->tag.lock.locktag_field1,
@@ -2068,13 +2106,17 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
   LWLock     *partitionLock;
   bool    wakeupNeeded;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
-  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
+  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock mode: %d", lockmode);
     elog(ERROR, "unrecognized lock mode: %d", lockmode);
+  }
 
 #ifdef LOCK_DEBUG
 
@@ -2100,6 +2142,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
    * let the caller print its own error message, too. Do not ereport(ERROR).
    */
   if (!locallock || locallock->nLocks <= 0) {
+    DBUG_INSTANT_PRINT("info", "you don't own a lock of type %s", lockMethodTable->lockModeNames[lockmode]);
     elog(WARNING, "you don't own a lock of type %s",
          lockMethodTable->lockModeNames[lockmode]);
     return false;
@@ -2139,6 +2182,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
     }
 
     if (i < 0) {
+      DBUG_INSTANT_PRINT("info", "you don't own a lock of type %s", lockMethodTable->lockModeNames[lockmode]);
       /* don't release a lock belonging to another owner */
       elog(WARNING, "you don't own a lock of type %s",
            lockMethodTable->lockModeNames[lockmode]);
@@ -2211,8 +2255,10 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
            HASH_FIND,
            NULL);
 
-    if (!lock)
+    if (!lock) {
+      DBUG_INSTANT_PRINT("info", "failed to re-find shared lock object");
       elog(ERROR, "failed to re-find shared lock object");
+    }
 
     locallock->lock = lock;
 
@@ -2223,8 +2269,10 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
                           HASH_FIND,
                           NULL);
 
-    if (!locallock->proclock)
+    if (!locallock->proclock) {
+      DBUG_INSTANT_PRINT("info", "failed to re-find shared proclock object");
       elog(ERROR, "failed to re-find shared proclock object");
+    }
   }
 
   LOCK_PRINT("LockRelease: found", lock, lockmode);
@@ -2238,6 +2286,7 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
   if (!(proclock->holdMask & LOCKBIT_ON(lockmode))) {
     PROCLOCK_PRINT("LockRelease: WRONGTYPE", proclock);
     LWLockRelease(partitionLock);
+    DBUG_INSTANT_PRINT("info", "you don't own a lock of type %s", lockMethodTable->lockModeNames[lockmode]);
     elog(WARNING, "you don't own a lock of type %s",
          lockMethodTable->lockModeNames[lockmode]);
     RemoveLocalLock(locallock);
@@ -2279,8 +2328,10 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
   int     partition;
   bool    have_fast_path_lwlock = false;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
@@ -2360,8 +2411,10 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
      * Tuple locks are currently held only for short durations within a
      * transaction. Check that we didn't forget to release one.
      */
-    if (LOCALLOCK_LOCKTAG(*locallock) == LOCKTAG_TUPLE && !allLocks)
+    if (LOCALLOCK_LOCKTAG(*locallock) == LOCKTAG_TUPLE && !allLocks) {
+      DBUG_INSTANT_PRINT("info", "tuple lock held at commit");
       elog(WARNING, "tuple lock held at commit");
+    }
 
 #endif
 
@@ -2374,8 +2427,10 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
       Oid     relid;
 
       /* Verify that a fast-path lock is what we've got. */
-      if (!EligibleForRelationFastPath(&locallock->tag.lock, lockmode))
+      if (!EligibleForRelationFastPath(&locallock->tag.lock, lockmode)) {
+        DBUG_INSTANT_PRINT("info", "locallock table corrupted");
         elog(PANIC, "locallock table corrupted");
+      }
 
       /*
        * If we don't currently hold the LWLock that protects our
@@ -2543,8 +2598,10 @@ LockReleaseSession(LOCKMETHODID lockmethodid)
   HASH_SEQ_STATUS status;
   LOCALLOCK  *locallock;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   hash_seq_init(&status, LockMethodLocalHash);
 
@@ -2641,6 +2698,7 @@ ReleaseLockIfHeld(LOCALLOCK *locallock, bool sessionLock)
         if (!LockRelease(&locallock->tag.lock,
                          locallock->tag.mode,
                          sessionLock))
+          DBUG_INSTANT_PRINT("info", "ReleaseLockIfHeld: failed??");
           elog(WARNING, "ReleaseLockIfHeld: failed??");
       }
 
@@ -2948,6 +3006,7 @@ FastPathGetRelationLockEntry(LOCALLOCK *locallock)
     if (!proclock) {
       LWLockRelease(partitionLock);
       LWLockRelease(&MyProc->fpInfoLock);
+      DBUG_INSTANT_PRINT("info", "out of shared memory");
       ereport(ERROR,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of shared memory"),
@@ -2979,8 +3038,10 @@ FastPathGetRelationLockEntry(LOCALLOCK *locallock)
            HASH_FIND,
            NULL);
 
-    if (!lock)
+    if (!lock) {
+      DBUG_INSTANT_PRINT("info", "failed to re-find shared lock object");
       elog(ERROR, "failed to re-find shared lock object");
+    }
 
     proclocktag.myLock = lock;
     proclocktag.myProc = MyProc;
@@ -2993,8 +3054,10 @@ FastPathGetRelationLockEntry(LOCALLOCK *locallock)
                                            HASH_FIND,
                                            NULL);
 
-    if (!proclock)
+    if (!proclock) {
+      DBUG_INSTANT_PRINT("info", "failed to re-find shared proclock object");
       elog(ERROR, "failed to re-find shared proclock object");
+    }
 
     LWLockRelease(partitionLock);
   }
@@ -3036,13 +3099,17 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
   int     count = 0;
   int     fast_count = 0;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
-  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
+  if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock mode: %d", lockmode);
     elog(ERROR, "unrecognized lock mode: %d", lockmode);
+  }
 
   /*
    * Allocate memory to store results, and fill with InvalidVXID.  We only
@@ -3217,8 +3284,10 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 
   LWLockRelease(partitionLock);
 
-  if (count > MaxBackends + max_prepared_xacts) /* should never happen */
+  if (count > MaxBackends + max_prepared_xacts) /* should never happen */ {
+    DBUG_INSTANT_PRINT("info", "too many conflicting locks found");
     elog(PANIC, "too many conflicting locks found");
+  }
 
   vxids[count].procNumber = INVALID_PROC_NUMBER;
   vxids[count].localTransactionId = InvalidLocalTransactionId;
@@ -3267,8 +3336,10 @@ LockRefindAndRelease(LockMethod lockMethodTable, PGPROC *proc,
          HASH_FIND,
          NULL);
 
-  if (!lock)
+  if (!lock) {
+    DBUG_INSTANT_PRINT("info", "failed to re-find shared lock object");
     elog(PANIC, "failed to re-find shared lock object");
+  }
 
   /*
    * Re-find the proclock object (ditto).
@@ -3284,8 +3355,10 @@ LockRefindAndRelease(LockMethod lockMethodTable, PGPROC *proc,
              HASH_FIND,
              NULL);
 
-  if (!proclock)
+  if (!proclock) {
+    DBUG_INSTANT_PRINT("info", "failed to re-find shared proclock object");
     elog(PANIC, "failed to re-find shared proclock object");
+  }
 
   /*
    * Double-check that we are actually holding a lock of the type we want to
@@ -3408,10 +3481,12 @@ CheckForSessionAndXactLocks(void)
      * We can throw error immediately when we see both types of locks; no
      * need to wait around to see if there are more violations.
      */
-    if (hentry->sessLock && hentry->xactLock)
+    if (hentry->sessLock && hentry->xactLock) {
+      DBUG_INSTANT_PRINT("info", "cannot PREPARE while holding both session-level and transaction-level locks on the same object");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot PREPARE while holding both session-level and transaction-level locks on the same object")));
+    }
   }
 
   /* Success, so clean up */
@@ -3475,10 +3550,12 @@ AtPrepare_Locks(void)
       continue;
 
     /* This can't happen, because we already checked it */
-    if (haveSessionLock)
+    if (haveSessionLock) {
+      DBUG_INSTANT_PRINT("info", "cannot PREPARE while holding both session-level and transaction-level locks on the same object");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot PREPARE while holding both session-level and transaction-level locks on the same object")));
+    }
 
     /*
      * If the local lock was taken via the fast-path, we need to move it
@@ -3588,10 +3665,12 @@ PostPrepare_Locks(TransactionId xid)
       continue;
 
     /* This can't happen, because we already checked it */
-    if (haveSessionLock)
+    if (haveSessionLock) {
+      DBUG_INSTANT_PRINT("info", "cannot PREPARE while holding both session-level and transaction-level locks on the same object");
       ereport(PANIC,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("cannot PREPARE while holding both session-level and transaction-level locks on the same object")));
+    }
 
     /* Mark the proclock to show we need to release this lockmode */
     if (locallock->nLocks > 0)
@@ -3647,8 +3726,10 @@ PostPrepare_Locks(TransactionId xid)
         continue;
 
       /* Else we should be releasing all locks */
-      if (proclock->releaseMask != proclock->holdMask)
+      if (proclock->releaseMask != proclock->holdMask) {
+        DBUG_INSTANT_PRINT("info", "we seem to have dropped a bit somewhere");
         elog(PANIC, "we seem to have dropped a bit somewhere");
+      }
 
       /*
        * We cannot simply modify proclock->tag.myProc to reassign
@@ -3685,8 +3766,10 @@ PostPrepare_Locks(TransactionId xid)
        */
       if (!hash_update_hash_key(LockMethodProcLockHash,
                                 proclock,
-                                &proclocktag))
+                                &proclocktag)) {
+        DBUG_INSTANT_PRINT("info", "duplicate entry found while reassigning a prepared transaction's locks");
         elog(PANIC, "duplicate entry found while reassigning a prepared transaction's locks");
+      }
 
       /* Re-link into the new proc's proclock list */
       dlist_push_tail(&newproc->myProcLocks[partition], &proclock->procLink);
@@ -4315,8 +4398,10 @@ lock_twophase_recover(TransactionId xid, uint16 info,
   lockmode = rec->lockmode;
   lockmethodid = locktag->locktag_lockmethodid;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
@@ -4337,6 +4422,7 @@ lock_twophase_recover(TransactionId xid, uint16 info,
 
   if (!lock) {
     LWLockRelease(partitionLock);
+    DBUG_INSTANT_PRINT("info", "out of shared memory");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("out of shared memory"),
@@ -4395,11 +4481,14 @@ lock_twophase_recover(TransactionId xid, uint16 info,
                                        &(lock->tag),
                                        hashcode,
                                        HASH_REMOVE,
-                                       NULL))
+                                       NULL)) {
+        DBUG_INSTANT_PRINT("info", "lock table corrupted");
         elog(PANIC, "lock table corrupted");
+      }
     }
 
     LWLockRelease(partitionLock);
+    DBUG_INSTANT_PRINT("info", "out of shared memory");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("out of shared memory"),
@@ -4435,11 +4524,15 @@ lock_twophase_recover(TransactionId xid, uint16 info,
   /*
    * We shouldn't already hold the desired lock.
    */
-  if (proclock->holdMask & LOCKBIT_ON(lockmode))
+  if (proclock->holdMask & LOCKBIT_ON(lockmode)) {
+    DBUG_INSTANT_PRINT("info", "lock %s on object %u/%u/%u is already held",
+        lockMethodTable->lockModeNames[lockmode], lock->tag.locktag_field1, lock->tag.locktag_field2,
+        lock->tag.locktag_field3);
     elog(ERROR, "lock %s on object %u/%u/%u is already held",
          lockMethodTable->lockModeNames[lockmode],
          lock->tag.locktag_field1, lock->tag.locktag_field2,
          lock->tag.locktag_field3);
+  }
 
   /*
    * We ignore any possible conflicts and just grant ourselves the lock. Not
@@ -4481,8 +4574,10 @@ lock_twophase_standby_recover(TransactionId xid, uint16 info,
   lockmode = rec->lockmode;
   lockmethodid = locktag->locktag_lockmethodid;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   if (lockmode == AccessExclusiveLock &&
       locktag->locktag_type == LOCKTAG_RELATION) {
@@ -4512,8 +4607,10 @@ lock_twophase_postcommit(TransactionId xid, uint16 info,
   locktag = &rec->locktag;
   lockmethodid = locktag->locktag_lockmethodid;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   lockMethodTable = LockMethods[lockmethodid];
 
@@ -4743,6 +4840,7 @@ VirtualXactLock(VirtualTransactionId vxid, bool wait)
     if (!proclock) {
       LWLockRelease(partitionLock);
       LWLockRelease(&proc->fpInfoLock);
+      DBUG_INSTANT_PRINT("info", "out of shared memory");
       ereport(ERROR,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of shared memory"),
@@ -4791,8 +4889,10 @@ LockWaiterCount(const LOCKTAG *locktag)
   LWLock     *partitionLock;
   int     waiters = 0;
 
-  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
+  if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods)) {
+    DBUG_INSTANT_PRINT("info", "unrecognized lock method: %d", lockmethodid);
     elog(ERROR, "unrecognized lock method: %d", lockmethodid);
+  }
 
   hashcode = LockTagHashCode(locktag);
   partitionLock = LockHashPartitionLock(hashcode);

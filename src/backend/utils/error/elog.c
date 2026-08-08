@@ -53,6 +53,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <time.h>
@@ -340,6 +341,7 @@ errstart_cold(int elevel, const char *domain)
 bool
 errstart(int elevel, const char *domain)
 {
+  DBUG_TRACE;
   ErrorData  *edata;
   bool    output_to_server;
   bool    output_to_client = false;
@@ -354,8 +356,10 @@ errstart(int elevel, const char *domain)
      * If we are inside a critical section, all errors become PANIC
      * errors.  See miscadmin.h.
      */
-    if (CritSectionCount > 0)
+    if (CritSectionCount > 0) {
+      DBUG_PRINT("info", "when we are inside a critical section, all errors become PANIC errors");
       elevel = PANIC;
+    }
 
     /*
      * Check reasons for treating ERROR as FATAL:
@@ -372,8 +376,10 @@ errstart(int elevel, const char *domain)
     if (elevel == ERROR) {
       if (PG_exception_stack == NULL ||
           ExitOnAnyError ||
-          proc_exit_inprogress)
+          proc_exit_inprogress) {
+        DBUG_PRINT("info", "treat ERROR as FATAL");
         elevel = FATAL;
+      }
     }
 
     /*
@@ -396,8 +402,10 @@ errstart(int elevel, const char *domain)
   output_to_server = should_output_to_server(elevel);
   output_to_client = should_output_to_client(elevel);
 
-  if (elevel < ERROR && !output_to_server && !output_to_client)
+  if (elevel < ERROR && !output_to_server && !output_to_client) {
+    DBUG_PRINT("info", "if it's warning or less and not enabled for logging, just return false without starting up any error logging machinery");
     return false;
+  }
 
   /*
    * We need to do some actual work.  Make sure that memory context
@@ -405,6 +413,7 @@ errstart(int elevel, const char *domain)
    */
   if (ErrorContext == NULL) {
     /* Oops, hard crash time; very little we can do safely here */
+    DBUG_INSTANT_PRINT("info", "error occurred before error message processing is available");
     write_stderr("error occurred before error message processing is available\n");
     exit(2);
   }
@@ -454,6 +463,7 @@ errstart(int elevel, const char *domain)
   edata->assoc_context = ErrorContext;
 
   recursion_depth--;
+  DBUG_INSTANT_PRINT("info", "recursion_depth:%d and return true in normal case", recursion_depth);
   return true;
 }
 
@@ -468,6 +478,7 @@ errstart(int elevel, const char *domain)
 void
 errfinish(const char *filename, int lineno, const char *funcname)
 {
+  DBUG_TRACE;
   ErrorData  *edata = &errordata[errordata_stack_depth];
   int     elevel;
   MemoryContext oldcontext;
@@ -528,7 +539,7 @@ errfinish(const char *filename, int lineno, const char *funcname)
      * Note that we leave CurrentMemoryContext set to ErrorContext. The
      * handler should reset it to something else soon.
      */
-
+    DBUG_INSTANT_PRINT("info", "if ERROR we pass it off to the current handler");
     recursion_depth--;
     PG_RE_THROW();
   }
@@ -572,6 +583,7 @@ errfinish(const char *filename, int lineno, const char *funcname)
     if (pgStatSessionEndCause == DISCONNECT_NORMAL)
       pgStatSessionEndCause = DISCONNECT_FATAL;
 
+    DBUG_INSTANT_PRINT("info", "perform error recovery action as specified by elevel");
     /*
      * Do normal process-exit cleanup, then return exit code 1 to indicate
      * FATAL termination.  The postmaster may or may not consider this
@@ -588,6 +600,7 @@ errfinish(const char *filename, int lineno, const char *funcname)
      * XXX: what if we are *in* the postmaster?  abort() won't kill our
      * children...
      */
+    DBUG_INSTANT_PRINT("info", "postmaster will observe SIGABRT process exit status and kill the other backends too");
     fflush(NULL);
     abort();
   }
@@ -621,6 +634,7 @@ errfinish(const char *filename, int lineno, const char *funcname)
 bool
 errsave_start(struct Node *context, const char *domain)
 {
+  DBUG_TRACE;
   ErrorSaveContext *escontext;
   ErrorData  *edata;
 
@@ -674,6 +688,7 @@ void
 errsave_finish(struct Node *context, const char *filename, int lineno,
                const char *funcname)
 {
+  DBUG_TRACE;
   ErrorSaveContext *escontext = (ErrorSaveContext *) context;
   ErrorData  *edata = &errordata[errordata_stack_depth];
 
@@ -742,6 +757,7 @@ errsave_finish(struct Node *context, const char *filename, int lineno,
 static ErrorData *
 get_error_stack_entry(void)
 {
+  DBUG_TRACE;
   ErrorData  *edata;
 
   /* Allocate error frame */
@@ -818,10 +834,14 @@ set_stack_entry_location(ErrorData *edata,
 static bool
 matches_backtrace_functions(const char *funcname)
 {
+  DBUG_TRACE;
   const char *p;
+  int count = 0;
 
-  if (!backtrace_function_list || funcname == NULL || funcname[0] == '\0')
+  if (!backtrace_function_list || funcname == NULL || funcname[0] == '\0') {
+    DBUG_PRINT("info", "the given funcname(%s) does not match backtrace_functions", funcname);
     return false;
+  }
 
   p = backtrace_function_list;
 
@@ -829,11 +849,17 @@ matches_backtrace_functions(const char *funcname)
     if (*p == '\0')     /* end of backtrace_function_list */
       break;
 
-    if (strcmp(funcname, p) == 0)
+    if (strcmp(funcname, p) == 0) {
+      DBUG_PRINT("info", "the given funcname(%s) matches backtrace_functions", funcname);
       return true;
+    }
 
+    count++;
     p += strlen(p) + 1;
   }
+
+
+  DBUG_PRINT("info", "the given funcname(%s) does not match backtrace_functions(count:%d)", funcname, count);
 
   return false;
 }
@@ -870,6 +896,7 @@ errcode(int sqlerrcode)
 int
 errcode_for_file_access(void)
 {
+  DBUG_TRACE;
   ErrorData  *edata = &errordata[errordata_stack_depth];
 
   /* we don't bother incrementing recursion_depth */
@@ -946,6 +973,7 @@ errcode_for_file_access(void)
 int
 errcode_for_socket_access(void)
 {
+  DBUG_TRACE;
   ErrorData  *edata = &errordata[errordata_stack_depth];
 
   /* we don't bother incrementing recursion_depth */
@@ -2110,6 +2138,7 @@ pg_re_throw(void)
 char *
 GetErrorContextStack(void)
 {
+  DBUG_TRACE;
   ErrorData  *edata;
   ErrorContextCallback *econtext;
 
@@ -2162,6 +2191,7 @@ GetErrorContextStack(void)
 void
 DebugFileOpen(void)
 {
+  DBUG_TRACE;
   int     fd,
           istty;
 
@@ -2218,6 +2248,7 @@ DebugFileOpen(void)
 bool
 check_backtrace_functions(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   int     newvallen = strlen(*newval);
   char     *someval;
   int     validlen;
@@ -2288,6 +2319,7 @@ assign_backtrace_functions(const char *newval, void *extra)
 bool
 check_log_destination(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   char     *rawstring;
   List     *elemlist;
   ListCell   *l;
@@ -2422,6 +2454,7 @@ assign_syslog_facility(int newval, void *extra)
 static void
 write_syslog(int level, const char *line)
 {
+  DBUG_TRACE;
   static unsigned long seq = 0;
 
   int     len;
@@ -2545,6 +2578,7 @@ GetACPEncoding(void)
 static void
 write_eventlog(int level, const char *line, int len)
 {
+  DBUG_TRACE;
   WCHAR    *utf16;
   int     eventlevel = EVENTLOG_ERROR_TYPE;
   static HANDLE evtHandle = INVALID_HANDLE_VALUE;
@@ -2635,6 +2669,7 @@ write_eventlog(int level, const char *line, int len)
 static void
 write_console(const char *line, int len)
 {
+  DBUG_TRACE;
   int     rc;
 
 #ifdef WIN32
@@ -3282,6 +3317,7 @@ unpack_sql_state(int sql_state)
 static void
 send_message_to_server_log(ErrorData *edata)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   bool    fallback_to_stderr = false;
 
@@ -3580,6 +3616,7 @@ err_sendstring(StringInfo buf, const char *str)
 static void
 send_message_to_frontend(ErrorData *edata)
 {
+  DBUG_TRACE;
   StringInfoData msgbuf;
 
   /*

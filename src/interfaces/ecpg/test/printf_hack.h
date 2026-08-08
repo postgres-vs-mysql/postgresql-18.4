@@ -15,8 +15,7 @@ print_double(double x)
 
   if (vallen >= 6 &&
       convert[vallen - 5] == 'e' &&
-      convert[vallen - 3] == '0')
-  {
+      convert[vallen - 3] == '0') {
     convert[vallen - 3] = convert[vallen - 2];
     convert[vallen - 2] = convert[vallen - 1];
     convert[vallen - 1] = '\0';

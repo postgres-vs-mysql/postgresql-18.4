@@ -319,6 +319,19 @@ static const struct config_enum_entry compute_query_id_options[] = {
   {NULL, 0, false}
 };
 
+
+static const struct config_enum_entry enable_global_trace_options[] = {
+  {"on", 1, false},
+  {"off", 0, false},
+  {"true", 1, true},
+  {"false", 0, true},
+  {"yes", 1, true},
+  {"no", 0, true},
+  {"1", 1, true},
+  {"0", 0, true},
+  {NULL, 0, false}
+};
+
 /*
  * Although only "on", "off", and "partition" are documented, we
  * accept all the likely variants of "on" and "off".
@@ -4137,6 +4150,34 @@ struct config_int ConfigureNamesInt[] = {
     NULL, NULL, NULL
   },
 
+  {
+    {
+      "max_trace_iterations", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+      gettext_noop("Max trace iterations."),
+      NULL
+    },
+    &max_trace_iterations,
+    100, 0,
+    100000000,
+    NULL,
+    assign_max_trace_iterations,
+    NULL
+  },
+
+  {
+    {
+      "min_trace_iterations", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+      gettext_noop("Min trace iterations."),
+      NULL
+    },
+    &min_trace_iterations,
+    5,
+    0,
+    10000,
+    NULL,
+    assign_min_trace_iterations,
+    NULL
+  },
   /* End-of-list marker */
   {
     {NULL, 0, 0, NULL, NULL}, NULL, 0, 0, 0, NULL, NULL, NULL
@@ -5843,6 +5884,41 @@ struct config_enum ConfigureNamesEnum[] = {
     DEFAULT_IO_METHOD, io_method_options,
     NULL, assign_io_method, NULL
   },
+
+  {
+    {
+      "enable_global_trace", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+      gettext_noop("Enable global tracing for all processes."),
+      NULL
+    },
+    &enable_global_trace,
+    1, enable_global_trace_options,
+    NULL, assign_enable_global_trace, NULL
+  },
+
+  {
+    {
+      "enable_session_trace", PGC_USERSET, DEVELOPER_OPTIONS,
+      gettext_noop("Enable session tracing."),
+      NULL
+    },
+    &enable_session_trace,
+    1, enable_global_trace_options,
+    NULL, assign_enable_session_trace, NULL
+  },
+
+  {
+    {
+      "enable_autovacuum_trace", PGC_POSTMASTER, DEVELOPER_OPTIONS,
+      gettext_noop("Enable autovacuum tracing."),
+      NULL
+    },
+    &enable_autovacuum_trace,
+    0, enable_global_trace_options,
+    NULL, assign_enable_autovacuum_trace, NULL
+  },
+
+
 
   /* End-of-list marker */
   {

@@ -2,6 +2,7 @@
  * contrib/pg_trgm/trgm_gist.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/reloptions.h"
 #include "access/stratnum.h"
@@ -54,6 +55,7 @@ PG_FUNCTION_INFO_V1(gtrgm_options);
 Datum
 gtrgm_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "gtrgm")));
@@ -64,6 +66,7 @@ gtrgm_in(PG_FUNCTION_ARGS)
 Datum
 gtrgm_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot display a value of type %s", "gtrgm")));
@@ -111,6 +114,7 @@ makesign(BITVECP sign, TRGM *a, int siglen)
 Datum
 gtrgm_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   int     siglen = GET_SIGLEN();
   GISTENTRY  *retval = entry;
@@ -149,6 +153,7 @@ gtrgm_compress(PG_FUNCTION_ARGS)
 Datum
 gtrgm_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
   text     *key;
@@ -170,6 +175,7 @@ gtrgm_decompress(PG_FUNCTION_ARGS)
 static int32
 cnt_sml_sign_common(TRGM *qtrg, BITVECP sign, int siglen)
 {
+  DBUG_TRACE;
   int32   count = 0;
   int32   k,
           len = ARRNELEM(qtrg);
@@ -187,6 +193,7 @@ cnt_sml_sign_common(TRGM *qtrg, BITVECP sign, int siglen)
 Datum
 gtrgm_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   text     *query = PG_GETARG_TEXT_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -447,6 +454,7 @@ gtrgm_consistent(PG_FUNCTION_ARGS)
 Datum
 gtrgm_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   text     *query = PG_GETARG_TEXT_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -523,12 +531,14 @@ gtrgm_distance(PG_FUNCTION_ARGS)
       break;
   }
 
+  DBUG_PRINT("trgm", "distance:%g", res);
   PG_RETURN_FLOAT8(res);
 }
 
 static int32
 unionkey(BITVECP sbase, TRGM *add, int siglen)
 {
+  DBUG_TRACE;
   int32   i;
 
   if (ISSIGNKEY(add)) {
@@ -556,6 +566,7 @@ unionkey(BITVECP sbase, TRGM *add, int siglen)
 Datum
 gtrgm_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int32   len = entryvec->n;
   int      *size = (int *) PG_GETARG_POINTER(1);
@@ -580,6 +591,7 @@ gtrgm_union(PG_FUNCTION_ARGS)
 Datum
 gtrgm_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TRGM     *a = (TRGM *) PG_GETARG_POINTER(0);
   TRGM     *b = (TRGM *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -628,6 +640,12 @@ gtrgm_same(PG_FUNCTION_ARGS)
     }
   }
 
+  if (result) {
+    DBUG_PRINT("trgm", "return true");
+  } else {
+    DBUG_PRINT("trgm", "return false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 
@@ -640,6 +658,7 @@ sizebitvec(BITVECP sign, int siglen)
 static int
 hemdistsign(BITVECP a, BITVECP b, int siglen)
 {
+  DBUG_TRACE;
   int     i,
           diff,
           dist = 0;
@@ -655,6 +674,8 @@ hemdistsign(BITVECP a, BITVECP b, int siglen)
 static int
 hemdist(TRGM *a, TRGM *b, int siglen)
 {
+  DBUG_TRACE;
+
   if (ISALLTRUE(a)) {
     if (ISALLTRUE(b))
       return 0;
@@ -669,6 +690,7 @@ hemdist(TRGM *a, TRGM *b, int siglen)
 Datum
 gtrgm_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0); /* always ISSIGNKEY */
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -721,6 +743,7 @@ gtrgm_penalty(PG_FUNCTION_ARGS)
   } else
     *penalty = hemdist(origval, newval, siglen);
 
+  DBUG_PRINT("trgm", "penalty:%g", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -776,6 +799,7 @@ hemdistcache(CACHESIGN *a, CACHESIGN *b, int siglen)
 Datum
 gtrgm_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   OffsetNumber maxoff = entryvec->n - 1;
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
@@ -925,6 +949,7 @@ gtrgm_picksplit(PG_FUNCTION_ARGS)
 Datum
 gtrgm_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(TrgmGistOptions));

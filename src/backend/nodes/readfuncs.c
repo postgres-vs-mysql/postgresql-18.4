@@ -24,6 +24,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -210,6 +211,7 @@ nullable_string(const char *token, int length)
 static Bitmapset *
 _readBitmapset(void)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
 
   READ_TEMP_LOCALS();
@@ -260,6 +262,7 @@ _readBitmapset(void)
 Bitmapset *
 readBitmapset(void)
 {
+  DBUG_TRACE;
   return _readBitmapset();
 }
 
@@ -274,6 +277,7 @@ readBitmapset(void)
 static Const *
 _readConst(void)
 {
+  DBUG_TRACE;
   READ_LOCALS(Const);
 
   READ_OID_FIELD(consttype);
@@ -297,6 +301,7 @@ _readConst(void)
 static BoolExpr *
 _readBoolExpr(void)
 {
+  DBUG_TRACE;
   READ_LOCALS(BoolExpr);
 
   /* do-it-yourself enum representation */
@@ -321,6 +326,7 @@ _readBoolExpr(void)
 static A_Const *
 _readA_Const(void)
 {
+  DBUG_TRACE;
   READ_LOCALS(A_Const);
 
   /* We expect either NULL or :val here */
@@ -368,6 +374,7 @@ _readA_Const(void)
 static RangeTblEntry *
 _readRangeTblEntry(void)
 {
+  DBUG_TRACE;
   READ_LOCALS(RangeTblEntry);
 
   READ_NODE_FIELD(alias);
@@ -473,6 +480,7 @@ _readRangeTblEntry(void)
 static A_Expr *
 _readA_Expr(void)
 {
+  DBUG_TRACE;
   READ_LOCALS(A_Expr);
 
   token = pg_strtok(&length);
@@ -534,6 +542,7 @@ _readA_Expr(void)
 static ExtensibleNode *
 _readExtensibleNode(void)
 {
+  DBUG_TRACE;
   const ExtensibleNodeMethods *methods;
   ExtensibleNode *local_node;
   const char *extnodename;
@@ -572,6 +581,7 @@ _readExtensibleNode(void)
 Node *
 parseNodeString(void)
 {
+  DBUG_TRACE;
   READ_TEMP_LOCALS();
 
   /* Guard against stack overflow due to overly complex expressions */
@@ -599,6 +609,7 @@ parseNodeString(void)
 Datum
 readDatum(bool typbyval)
 {
+  DBUG_TRACE;
   Size    length,
           i;
   int     tokenLength;

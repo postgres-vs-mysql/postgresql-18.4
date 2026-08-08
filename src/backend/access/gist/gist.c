@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist_private.h"
 #include "access/gistscan.h"
@@ -58,6 +59,7 @@ static void gistprunepage(Relation rel, Page page, Buffer buffer,
 Datum
 gisthandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
   amroutine->amstrategies = 0;
@@ -127,6 +129,7 @@ gisthandler(PG_FUNCTION_ARGS)
 MemoryContext
 createTempGistContext(void)
 {
+  DBUG_TRACE;
   return AllocSetContextCreate(CurrentMemoryContext,
                                "GiST temporary context",
                                ALLOCSET_DEFAULT_SIZES);
@@ -138,6 +141,7 @@ createTempGistContext(void)
 void
 gistbuildempty(Relation index)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* Initialize the root page */
@@ -168,6 +172,7 @@ gistinsert(Relation r, Datum *values, bool *isnull,
            bool indexUnchanged,
            IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   GISTSTATE  *giststate = (GISTSTATE *) indexInfo->ii_AmCache;
   IndexTuple  itup;
   MemoryContext oldCxt;
@@ -236,11 +241,14 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
                 Relation heapRel,
                 bool is_build)
 {
+  DBUG_TRACE;
   BlockNumber blkno = BufferGetBlockNumber(buffer);
   Page    page = BufferGetPage(buffer);
   bool    is_leaf = (GistPageIsLeaf(page)) ? true : false;
   XLogRecPtr  recptr;
   bool    is_split;
+
+  DBUG_PRINT("info", "place tuples from 'itup' to 'buffer'");
 
   /*
    * Refuse to modify a page that's incompletely split. This should not
@@ -276,6 +284,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
    * check again.
    */
   if (is_split && GistPageIsLeaf(page) && GistPageHasGarbage(page)) {
+    DBUG_PRINT("info", "if leaf page is full, try at first to delete dead tuples");
     gistprunepage(rel, page, buffer, heapRel);
     is_split = gistnospace(page, itup, ntup, oldoffnum, freespace);
   }
@@ -292,6 +301,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
     bool    is_rootsplit;
     int     npage;
 
+    DBUG_PRINT("info", "no space for insertion");
     is_rootsplit = (blkno == GIST_ROOT_BLKNO);
 
     /*
@@ -329,6 +339,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
       elog(ERROR, "GiST page split into too many halves (%d, maximum %d)",
            npage, GIST_MAX_SPLIT_PAGES);
 
+    DBUG_PRINT("info", "npage:%d", npage);
     /*
      * Set up pages to work with. Allocate new buffers for all but the
      * leftmost page. The original page becomes the new leftmost page, and
@@ -385,6 +396,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
       int     ndownlinks = 0;
       int     i;
 
+      DBUG_PRINT("info", "if this is a root split, we construct the new root page with the downlinks here directly");
       rootpg.buffer = buffer;
       rootpg.page = PageGetTempPageCopySpecial(BufferGetPage(rootpg.buffer));
       GistPageGetOpaque(rootpg.page)->flags = 0;
@@ -407,6 +419,8 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
       rootpg.next = dist;
       dist = &rootpg;
     } else {
+      DBUG_PRINT("info", "prepare split-info to be returned to caller");
+
       /* Prepare split-info to be returned to caller */
       for (ptr = dist; ptr; ptr = ptr->next) {
         GISTPageSplitInfo *si = palloc(sizeof(GISTPageSplitInfo));
@@ -505,6 +519,8 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
      * later. (There can't be any concurrent scans during index build, so
      * we don't need to be able to detect concurrent splits yet.)
      */
+    DBUG_PRINT("info", "write the WAL record");
+
     if (is_build)
       recptr = GistBuildLSN;
     else {
@@ -623,6 +639,7 @@ void
 gistdoinsert(Relation r, IndexTuple itup, Size freespace,
              GISTSTATE *giststate, Relation heapRel, bool is_build)
 {
+  DBUG_TRACE;
   ItemId    iid;
   IndexTuple  idxtuple;
   GISTInsertStack firststack;
@@ -630,6 +647,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
   GISTInsertState state;
   bool    xlocked = false;
 
+  DBUG_PRINT("info", "workhouse routine for doing insertion into a GiST index");
   memset(&state, 0, sizeof(GISTInsertState));
   state.freespace = freespace;
   state.r = r;
@@ -637,6 +655,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
   state.is_build = is_build;
 
   /* Start from the root */
+  DBUG_PRINT("info", "start from the root(blkno:%u)", firststack.blkno);
   firststack.blkno = GIST_ROOT_BLKNO;
   firststack.lsn = 0;
   firststack.retry_from_parent = false;
@@ -716,6 +735,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
        * the tuple we're inserting anymore, so go back to parent and
        * rechoose the best child.
        */
+      DBUG_PRINT("info", "concurrent split or page deletion detected");
       UnlockReleaseBuffer(stack->buffer);
       xlocked = false;
       state.stack = stack = stack->parent;
@@ -732,10 +752,13 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
       GISTInsertStack *item;
       OffsetNumber downlinkoffnum;
 
+      DBUG_PRINT("info", "this is an internal page so continue to walk down the tree");
       downlinkoffnum = gistchoose(state.r, stack->page, itup, giststate);
       iid = PageGetItemId(stack->page, downlinkoffnum);
       idxtuple = (IndexTuple) PageGetItem(stack->page, iid);
       childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+
+      DBUG_PRINT("info", "find the child node(blkno:%u) that has the minimum insertion penalty", childblkno);
 
       /*
        * Check that it's not a leftover invalid tuple from pre-9.1
@@ -803,6 +826,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 
       /* descend to the chosen child */
       item = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
+      DBUG_PRINT("info", "descend to the chosen child(blkno:%u)", childblkno);
       item->blkno = childblkno;
       item->parent = stack;
       item->downlinkoffnum = downlinkoffnum;
@@ -818,6 +842,8 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
        * Swap shared lock for an exclusive one. Be careful, the page may
        * change while we unlock/lock the page...
        */
+      DBUG_PRINT("info", "leaf page");
+
       if (!xlocked) {
         LockBuffer(stack->buffer, GIST_UNLOCK);
         LockBuffer(stack->buffer, GIST_EXCLUSIVE);
@@ -885,6 +911,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 static GISTInsertStack *
 gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 {
+  DBUG_TRACE;
   Page    page;
   Buffer    buffer;
   OffsetNumber i,
@@ -896,6 +923,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
                   *ptr;
   BlockNumber blkno;
 
+  DBUG_PRINT("info", "traverse the tree to find path from root page to specified child block(blkno:%u)", child);
   top = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
   top->blkno = GIST_ROOT_BLKNO;
   top->downlinkoffnum = InvalidOffsetNumber;
@@ -956,6 +984,8 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 
     maxoff = PageGetMaxOffsetNumber(page);
 
+    DBUG_PRINT("info", "FirstOffsetNumber:%u, maxoff:%u", FirstOffsetNumber, maxoff);
+
     for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
       iid = PageGetItemId(page, i);
       idxtuple = (IndexTuple) PageGetItem(page, iid);
@@ -968,6 +998,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
         return top;
       } else {
         /* Append this child to the list of pages to visit later */
+        DBUG_PRINT("info", "append this child to the list of pages to visit later");
         ptr = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
         ptr->blkno = blkno;
         ptr->downlinkoffnum = i;
@@ -993,6 +1024,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 static void
 gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 {
+  DBUG_TRACE;
   GISTInsertStack *parent = child->parent;
   ItemId    iid;
   IndexTuple  idxtuple;
@@ -1008,8 +1040,12 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
     iid = PageGetItemId(parent->page, child->downlinkoffnum);
     idxtuple = (IndexTuple) PageGetItem(parent->page, iid);
 
-    if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == child->blkno)
+    DBUG_PRINT("info", "check if the downlink is still where it was before");
+
+    if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == child->blkno) {
+      DBUG_PRINT("info", "still there");
       return;       /* still there */
+    }
   }
 
   /*
@@ -1026,6 +1062,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
    * if 'parent' had been updated by an earlier call to this function on its
    * grandchild, which had to move right.
    */
+  DBUG_PRINT("info", "the page has changed since we looked (parent->lsn:%lu, new:%lu)", parent->lsn, PageGetLSN(parent->page));
   Assert(parent->lsn != PageGetLSN(parent->page) || is_build ||
          child->downlinkoffnum == InvalidOffsetNumber);
 
@@ -1034,10 +1071,13 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
    * have moved to a different page, so follow the right links until we find
    * it.
    */
+  DBUG_PRINT("info", "scan the page to re-find the downlink");
+
   while (true) {
     OffsetNumber i;
 
     maxoff = PageGetMaxOffsetNumber(parent->page);
+    DBUG_PRINT("info", "FirstOffsetNumber:%u, maxoff:%u", FirstOffsetNumber, maxoff);
 
     for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
       iid = PageGetItemId(parent->page, i);
@@ -1045,6 +1085,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 
       if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == child->blkno) {
         /* yes!!, found */
+        DBUG_PRINT("info", "yes!!, found");
         child->downlinkoffnum = i;
         return;
       }
@@ -1059,6 +1100,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
        * End of chain and still didn't find parent. It's a very-very
        * rare situation when the root was split.
        */
+      DBUG_PRINT("info", "end of chain and still didn't find parent");
       break;
     }
 
@@ -1073,6 +1115,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
    * release all old parent
    */
 
+  DBUG_PRINT("info", "we need search tree to find parent ...");
   ptr = child->parent->parent;  /* child->parent already released above */
 
   while (ptr) {
@@ -1106,12 +1149,14 @@ static IndexTuple
 gistformdownlink(Relation rel, Buffer buf, GISTSTATE *giststate,
                  GISTInsertStack *stack, bool is_build)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   OffsetNumber maxoff;
   OffsetNumber offset;
   IndexTuple  downlink = NULL;
 
   maxoff = PageGetMaxOffsetNumber(page);
+  DBUG_PRINT("info", "FirstOffsetNumber:%u, maxoff:%u", FirstOffsetNumber, maxoff);
 
   for (offset = FirstOffsetNumber; offset <= maxoff; offset = OffsetNumberNext(offset)) {
     IndexTuple  ituple = (IndexTuple)
@@ -1164,11 +1209,14 @@ gistformdownlink(Relation rel, Buffer buf, GISTSTATE *giststate,
 static void
 gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   GISTInsertStack *stack = state->stack;
   Buffer    buf;
   Page    page;
   List     *splitinfo = NIL;
 
+  DBUG_PRINT("info", "complete the incomplete split of state->stack->page");
+  DBUG_PRINT("info", "fixing incomplete split in index,block %u", stack->blkno);
   ereport(LOG,
           (errmsg("fixing incomplete split in index \"%s\", block %u",
                   RelationGetRelationName(state->r), stack->blkno)));
@@ -1205,6 +1253,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
   }
 
   /* Insert the downlinks */
+  DBUG_PRINT("info", "insert the downlinks");
   gistfinishsplit(state, stack, giststate, splitinfo, false);
 }
 
@@ -1222,6 +1271,7 @@ static bool
 gistinserttuple(GISTInsertState *state, GISTInsertStack *stack,
                 GISTSTATE *giststate, IndexTuple tuple, OffsetNumber oldoffnum)
 {
+  DBUG_TRACE;
   return gistinserttuples(state, stack, giststate, &tuple, 1, oldoffnum,
                           InvalidBuffer, InvalidBuffer, false, false);
 }
@@ -1259,6 +1309,7 @@ gistinserttuples(GISTInsertState *state, GISTInsertStack *stack,
                  Buffer leftchild, Buffer rightchild,
                  bool unlockbuf, bool unlockleftchild)
 {
+  DBUG_TRACE;
   List     *splitinfo;
   bool    is_split;
 
@@ -1296,10 +1347,18 @@ gistinserttuples(GISTInsertState *state, GISTInsertStack *stack,
    * gistfinishsplit() to do that as soon as it's safe to do so. If we
    * didn't have to split, release it ourselves.
    */
-  if (splitinfo)
+  if (splitinfo) {
+    DBUG_PRINT("info", "if we had to split, insert/update the downlinks in the parent");
     gistfinishsplit(state, stack, giststate, splitinfo, unlockbuf);
-  else if (unlockbuf)
+  } else if (unlockbuf) {
     LockBuffer(stack->buffer, GIST_UNLOCK);
+  }
+
+  if (is_split) {
+    DBUG_PRINT("info", "it returns true if the page had to be split");
+  } else {
+    DBUG_PRINT("info", "it returns false");
+  }
 
   return is_split;
 }
@@ -1317,6 +1376,7 @@ static void
 gistfinishsplit(GISTInsertState *state, GISTInsertStack *stack,
                 GISTSTATE *giststate, List *splitinfo, bool unlockbuf)
 {
+  DBUG_TRACE;
   GISTPageSplitInfo *right;
   GISTPageSplitInfo *left;
   IndexTuple  tuples[2];
@@ -1351,6 +1411,7 @@ gistfinishsplit(GISTInsertState *state, GISTInsertStack *stack,
        * If the parent page was split, the existing downlink might have
        * moved.
        */
+      DBUG_PRINT("info", "if the parent page was split, the existing downlink might have moved");
       stack->downlinkoffnum = InvalidOffsetNumber;
     }
 
@@ -1416,12 +1477,14 @@ gistSplit(Relation r,
           int len,
           GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   IndexTuple *lvectup,
              *rvectup;
   GistSplitVector v;
   int     i;
   SplitPageLayout *res = NULL;
 
+  DBUG_PRINT("info", "split a page(len:%d) in the tree and fill struct used for XLOG and real writes buffers", len);
   /* this should never recurse very deeply, but better safe than sorry */
   check_stack_depth();
 
@@ -1432,12 +1495,16 @@ gistSplit(Relation r,
    * If a single tuple doesn't fit on a page, no amount of splitting will
    * help.
    */
-  if (len == 1)
+  if (len == 1) {
+    DBUG_PRINT("info", "if a single tuple doesn't fit on a page, no amount of splitting will help");
+    DBUG_INSTANT_PRINT("info", "index row size %zu exceeds maximum %zu for index \"%s\"",
+                       IndexTupleSize(itup[0]), GiSTPageSize, RelationGetRelationName(r));
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
                     IndexTupleSize(itup[0]), GiSTPageSize,
                     RelationGetRelationName(r))));
+  }
 
   memset(v.spl_lisnull, true,
          sizeof(bool) * giststate->nonLeafTupdesc->natts);
@@ -1457,6 +1524,7 @@ gistSplit(Relation r,
 
   /* finalize splitting (may need another split) */
   if (!gistfitpage(rvectup, v.splitVector.spl_nright)) {
+    DBUG_PRINT("info", "need another split");
     res = gistSplit(r, page, rvectup, v.splitVector.spl_nright, giststate);
   } else {
     ROTATEDIST(res);
@@ -1493,6 +1561,7 @@ gistSplit(Relation r,
 GISTSTATE *
 initGISTstate(Relation index)
 {
+  DBUG_TRACE;
   GISTSTATE  *giststate;
   MemoryContext scanCxt;
   MemoryContext oldCxt;
@@ -1618,6 +1687,7 @@ initGISTstate(Relation index)
 void
 freeGISTstate(GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   /* It's sufficient to delete the scanCxt */
   MemoryContextDelete(giststate->scanCxt);
 }
@@ -1629,6 +1699,7 @@ freeGISTstate(GISTSTATE *giststate)
 static void
 gistprunepage(Relation rel, Page page, Buffer buffer, Relation heapRel)
 {
+  DBUG_TRACE;
   OffsetNumber deletable[MaxIndexTuplesPerPage];
   int     ndeletable = 0;
   OffsetNumber offnum,
@@ -1641,6 +1712,7 @@ gistprunepage(Relation rel, Page page, Buffer buffer, Relation heapRel)
    * LP_DEAD flags.
    */
   maxoff = PageGetMaxOffsetNumber(page);
+  DBUG_PRINT("info", "FirstOffsetNumber:%u, maxoff:%u", FirstOffsetNumber, maxoff);
 
   for (offnum = FirstOffsetNumber;
        offnum <= maxoff;

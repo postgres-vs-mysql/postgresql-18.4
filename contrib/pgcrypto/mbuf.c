@@ -33,6 +33,7 @@
 
 #include "mbuf.h"
 #include "px.h"
+#include "debug_trace.h"
 
 #define STEP  (16*1024)
 
@@ -72,6 +73,7 @@ mbuf_free(MBuf *mbuf)
 static void
 prepare_room(MBuf *mbuf, int block_len)
 {
+  DBUG_TRACE;
   uint8    *newbuf;
   unsigned  newlen;
 
@@ -92,6 +94,8 @@ prepare_room(MBuf *mbuf, int block_len)
 int
 mbuf_append(MBuf *dst, const uint8 *buf, int len)
 {
+  DBUG_TRACE;
+
   if (dst->no_write) {
     px_debug("mbuf_append: no_write");
     return PXE_BUG;
@@ -108,6 +112,7 @@ mbuf_append(MBuf *dst, const uint8 *buf, int len)
 MBuf *
 mbuf_create(int len)
 {
+  DBUG_TRACE;
   MBuf     *mbuf;
 
   if (!len)
@@ -128,6 +133,7 @@ mbuf_create(int len)
 MBuf *
 mbuf_create_from_data(uint8 *data, int len)
 {
+  DBUG_TRACE;
   MBuf     *mbuf;
 
   mbuf = palloc(sizeof * mbuf);
@@ -146,6 +152,8 @@ mbuf_create_from_data(uint8 *data, int len)
 int
 mbuf_grab(MBuf *mbuf, int len, uint8 **data_p)
 {
+  DBUG_TRACE;
+
   if (len > mbuf_avail(mbuf))
     len = mbuf_avail(mbuf);
 
@@ -159,6 +167,7 @@ mbuf_grab(MBuf *mbuf, int len, uint8 **data_p)
 int
 mbuf_steal_data(MBuf *mbuf, uint8 **data_p)
 {
+  DBUG_TRACE;
   int     len = mbuf_size(mbuf);
 
   mbuf->no_write = true;
@@ -187,6 +196,7 @@ struct PullFilter {
 int
 pullf_create(PullFilter **pf_p, const PullFilterOps *op, void *init_arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PullFilter *pf;
   void     *priv;
   int     res;
@@ -222,6 +232,8 @@ pullf_create(PullFilter **pf_p, const PullFilterOps *op, void *init_arg, PullFil
 void
 pullf_free(PullFilter *pf)
 {
+  DBUG_TRACE;
+
   if (pf->op->free)
     pf->op->free(pf->priv);
 
@@ -238,6 +250,7 @@ pullf_free(PullFilter *pf)
 int
 pullf_read(PullFilter *pf, int len, uint8 **data_p)
 {
+  DBUG_TRACE;
   int     res;
 
   if (pf->op->pull) {
@@ -255,6 +268,7 @@ pullf_read(PullFilter *pf, int len, uint8 **data_p)
 int
 pullf_read_max(PullFilter *pf, int len, uint8 **data_p, uint8 *tmpbuf)
 {
+  DBUG_TRACE;
   int     res,
           total;
   uint8    *tmp;
@@ -296,6 +310,7 @@ pullf_read_max(PullFilter *pf, int len, uint8 **data_p, uint8 *tmpbuf)
 int
 pullf_read_fixed(PullFilter *src, int len, uint8 *dst)
 {
+  DBUG_TRACE;
   int     res;
   uint8    *p;
 
@@ -322,6 +337,7 @@ static int
 pull_from_mbuf(void *arg, PullFilter *src, int len,
                uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   MBuf     *mbuf = arg;
 
   return mbuf_grab(mbuf, len, data_p);
@@ -334,6 +350,7 @@ static const struct PullFilterOps mbuf_reader = {
 int
 pullf_create_mbuf_reader(PullFilter **mp_p, MBuf *src)
 {
+  DBUG_TRACE;
   return pullf_create(mp_p, &mbuf_reader, src, NULL);
 }
 
@@ -354,6 +371,7 @@ struct PushFilter {
 int
 pushf_create(PushFilter **mp_p, const PushFilterOps *op, void *init_arg, PushFilter *next)
 {
+  DBUG_TRACE;
   PushFilter *mp;
   void     *priv;
   int     res;
@@ -389,6 +407,8 @@ pushf_create(PushFilter **mp_p, const PushFilterOps *op, void *init_arg, PushFil
 void
 pushf_free(PushFilter *mp)
 {
+  DBUG_TRACE;
+
   if (mp->op->free)
     mp->op->free(mp->priv);
 
@@ -404,6 +424,7 @@ pushf_free(PushFilter *mp)
 void
 pushf_free_all(PushFilter *mp)
 {
+  DBUG_TRACE;
   PushFilter *tmp;
 
   while (mp) {
@@ -416,6 +437,7 @@ pushf_free_all(PushFilter *mp)
 static int
 wrap_process(PushFilter *mp, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     res;
 
   if (mp->op->push != NULL)
@@ -433,6 +455,7 @@ wrap_process(PushFilter *mp, const uint8 *data, int len)
 int
 pushf_write(PushFilter *mp, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     need,
           res;
 
@@ -494,6 +517,7 @@ pushf_write(PushFilter *mp, const uint8 *data, int len)
 int
 pushf_flush(PushFilter *mp)
 {
+  DBUG_TRACE;
   int     res;
 
   while (mp) {
@@ -524,6 +548,7 @@ pushf_flush(PushFilter *mp)
 static int
 push_into_mbuf(PushFilter *next, void *arg, const uint8 *data, int len)
 {
+  DBUG_TRACE;
   int     res = 0;
   MBuf     *mbuf = arg;
 
@@ -540,5 +565,6 @@ static const struct PushFilterOps mbuf_filter = {
 int
 pushf_create_mbuf_writer(PushFilter **res, MBuf *dst)
 {
+  DBUG_TRACE;
   return pushf_create(res, &mbuf_filter, dst, NULL);
 }

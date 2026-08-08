@@ -10,6 +10,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -46,10 +47,13 @@ typedef struct {
 static void
 flushCachedPage(Relation index, BloomBuildState *buildstate)
 {
+  DBUG_TRACE;
   Page    page;
   Buffer    buffer = BloomNewBuffer(index);
   GenericXLogState *state;
 
+
+  DBUG_PRINT("bloom", "flush page cached in BloomBuildState");
   state = GenericXLogStart(index);
   page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
   memcpy(page, buildstate->data.data, BLCKSZ);
@@ -74,10 +78,12 @@ static void
 bloomBuildCallback(Relation index, ItemPointer tid, Datum *values,
                    bool *isnull, bool tupleIsAlive, void *state)
 {
+  DBUG_TRACE;
   BloomBuildState *buildstate = (BloomBuildState *) state;
   MemoryContext oldCtx;
   BloomTuple *itup;
 
+  DBUG_PRINT("bloom", "per-tuple callback for table_index_build_scan");
   oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
   itup = BloomFormTuple(&buildstate->blstate, tid, values, isnull);
@@ -105,6 +111,7 @@ bloomBuildCallback(Relation index, ItemPointer tid, Datum *values,
 
   /* Update total tuple count */
   buildstate->indtuples += 1;
+  DBUG_PRINT("bloom", "update total tuple count:%ld", buildstate->indtuples);
 
   MemoryContextSwitchTo(oldCtx);
   MemoryContextReset(buildstate->tmpCtx);
@@ -116,6 +123,7 @@ bloomBuildCallback(Relation index, ItemPointer tid, Datum *values,
 IndexBuildResult *
 blbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   double    reltuples;
   BloomBuildState buildstate;
@@ -124,6 +132,7 @@ blbuild(Relation heap, Relation index, IndexInfo *indexInfo)
     elog(ERROR, "index \"%s\" already contains data",
          RelationGetRelationName(index));
 
+  DBUG_PRINT("bloom", "build a new bloom index");
   /* Initialize the meta page */
   BloomInitMetapage(index, MAIN_FORKNUM);
 
@@ -159,6 +168,8 @@ blbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 void
 blbuildempty(Relation index)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("bloom", "build an empty bloom index in the initialization fork");
   /* Initialize the meta page */
   BloomInitMetapage(index, INIT_FORKNUM);
 }
@@ -173,6 +184,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
          bool indexUnchanged,
          IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   BloomState  blstate;
   BloomTuple *itup;
   MemoryContext oldCtx;
@@ -186,6 +198,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
   OffsetNumber nStart;
   GenericXLogState *state;
 
+  DBUG_PRINT("bloom", "insert new tuple to the bloom index");
   insertCtx = AllocSetContextCreate(CurrentMemoryContext,
                                     "Bloom insert temporary context",
                                     ALLOCSET_DEFAULT_SIZES);

@@ -21,6 +21,7 @@
 static const char rcsid[] = "Id: inet_net_pton.c,v 1.4.2.3 2004/03/17 00:40:11 marka Exp $";
 #endif
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/socket.h>
@@ -60,6 +61,8 @@ static int  inet_cidr_pton_ipv6(const char *src, u_char *dst, size_t size);
 int
 pg_inet_net_pton(int af, const char *src, void *dst, size_t size)
 {
+  DBUG_TRACE;
+
   switch (af) {
     case PGSQL_AF_INET:
       return size == -1 ?
@@ -96,6 +99,7 @@ pg_inet_net_pton(int af, const char *src, void *dst, size_t size)
 static int
 inet_cidr_pton_ipv4(const char *src, u_char *dst, size_t size)
 {
+  DBUG_TRACE;
   static const char xdigits[] = "0123456789abcdef";
   static const char digits[] = "0123456789";
   int     n,
@@ -273,6 +277,7 @@ emsgsize:
 static int
 inet_net_pton_ipv4(const char *src, u_char *dst)
 {
+  DBUG_TRACE;
   static const char digits[] = "0123456789";
   const u_char *odst = dst;
   int     n,
@@ -406,6 +411,7 @@ getbits(const char *src, int *bitsp)
 static int
 getv4(const char *src, u_char *dst, int *bitsp)
 {
+  DBUG_TRACE;
   static const char digits[] = "0123456789";
   u_char     *odst = dst;
   int     n;
@@ -473,6 +479,7 @@ inet_net_pton_ipv6(const char *src, u_char *dst)
 static int
 inet_cidr_pton_ipv6(const char *src, u_char *dst, size_t size)
 {
+  DBUG_TRACE;
   static const char xdigits_l[] = "0123456789abcdef",
                                   xdigits_u[] = "0123456789ABCDEF";
   u_char    tmp[NS_IN6ADDRSZ],

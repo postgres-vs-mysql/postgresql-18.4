@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relation.h"
 #include "access/xact.h"
@@ -45,6 +46,7 @@ static ObjectAddress
 DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
                       List *options, Query *viewParse)
 {
+  DBUG_TRACE;
   Oid     viewOid;
   LOCKMODE  lockmode;
   List     *attrList;
@@ -70,12 +72,14 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
        * collation could not be resolved, so double-check.
        */
       if (type_is_collatable(exprType((Node *) tle->expr))) {
-        if (!OidIsValid(def->collOid))
+        if (!OidIsValid(def->collOid)) {
+          DBUG_INSTANT_PRINT("info", "could not determine which collation to use for view column \"%s\"", def->colname);
           ereport(ERROR,
                   (errcode(ERRCODE_INDETERMINATE_COLLATION),
                    errmsg("could not determine which collation to use for view column \"%s\"",
                           def->colname),
                    errhint("Use the COLLATE clause to set the collation explicitly.")));
+        }
       } else
         Assert(!OidIsValid(def->collOid));
 
@@ -103,11 +107,13 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
     rel = relation_open(viewOid, NoLock);
 
     /* Make sure it *is* a view. */
-    if (rel->rd_rel->relkind != RELKIND_VIEW)
+    if (rel->rd_rel->relkind != RELKIND_VIEW) {
+      DBUG_INSTANT_PRINT("info", "\"%s\" is not a view", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is not a view",
                       RelationGetRelationName(rel))));
+    }
 
     /* Also check it's not in use already */
     CheckTableNotInUse(rel, "CREATE OR REPLACE VIEW");
@@ -258,30 +264,37 @@ DefineVirtualRelation(RangeVar *relation, List *tlist, bool replace,
 static void
 checkViewColumns(TupleDesc newdesc, TupleDesc olddesc)
 {
+  DBUG_TRACE;
   int     i;
 
-  if (newdesc->natts < olddesc->natts)
+  if (newdesc->natts < olddesc->natts) {
+    DBUG_INSTANT_PRINT("info", "cannot drop columns from view");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
              errmsg("cannot drop columns from view")));
+  }
 
   for (i = 0; i < olddesc->natts; i++) {
     Form_pg_attribute newattr = TupleDescAttr(newdesc, i);
     Form_pg_attribute oldattr = TupleDescAttr(olddesc, i);
 
     /* XXX msg not right, but we don't support DROP COL on view anyway */
-    if (newattr->attisdropped != oldattr->attisdropped)
+    if (newattr->attisdropped != oldattr->attisdropped) {
+      DBUG_INSTANT_PRINT("info", "cannot drop columns from view");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("cannot drop columns from view")));
+    }
 
-    if (strcmp(NameStr(newattr->attname), NameStr(oldattr->attname)) != 0)
+    if (strcmp(NameStr(newattr->attname), NameStr(oldattr->attname)) != 0) {
+      DBUG_INSTANT_PRINT("info", "cannot change name of view column \"%s\" to \"%s\"", NameStr(oldattr->attname), NameStr(newattr->attname));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("cannot change name of view column \"%s\" to \"%s\"",
                       NameStr(oldattr->attname),
                       NameStr(newattr->attname)),
                errhint("Use ALTER VIEW ... RENAME COLUMN ... to change name of view column instead.")));
+    }
 
     /*
      * We cannot allow type, typmod, or collation to change, since these
@@ -289,7 +302,10 @@ checkViewColumns(TupleDesc newdesc, TupleDesc olddesc)
      * this one.  Other column attributes can be ignored.
      */
     if (newattr->atttypid != oldattr->atttypid ||
-        newattr->atttypmod != oldattr->atttypmod)
+        newattr->atttypmod != oldattr->atttypmod) {
+      DBUG_INSTANT_PRINT("info", "cannot change data type of view column \"%s\" from %s to %s",
+                         NameStr(oldattr->attname), format_type_with_typemod(oldattr->atttypid, oldattr->atttypmod),
+                         format_type_with_typemod(newattr->atttypid, newattr->atttypmod));
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("cannot change data type of view column \"%s\" from %s to %s",
@@ -298,18 +314,24 @@ checkViewColumns(TupleDesc newdesc, TupleDesc olddesc)
                           oldattr->atttypmod),
                       format_type_with_typemod(newattr->atttypid,
                           newattr->atttypmod))));
+    }
 
     /*
      * At this point, attcollations should be both valid or both invalid,
      * so applying get_collation_name unconditionally should be fine.
      */
-    if (newattr->attcollation != oldattr->attcollation)
+    if (newattr->attcollation != oldattr->attcollation) {
+      char *collation_name1 = get_collation_name(oldattr->attcollation);
+      char *collation_name2 = get_collation_name(newattr->attcollation);
+      DBUG_INSTANT_PRINT("info", "cannot change collation of view column \"%s\" from \"%s\" to \"%s\"",
+                         NameStr(oldattr->attname), collation_name1, collation_name2);
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                errmsg("cannot change collation of view column \"%s\" from \"%s\" to \"%s\"",
                       NameStr(oldattr->attname),
-                      get_collation_name(oldattr->attcollation),
-                      get_collation_name(newattr->attcollation))));
+                      collation_name1,
+                      collation_name2)));
+    }
   }
 
   /*
@@ -347,6 +369,7 @@ ObjectAddress
 DefineView(ViewStmt *stmt, const char *queryString,
            int stmt_location, int stmt_len)
 {
+  DBUG_TRACE;
   RawStmt    *rawstmt;
   Query    *viewParse;
   RangeVar   *view;
@@ -373,10 +396,12 @@ DefineView(ViewStmt *stmt, const char *queryString,
     elog(ERROR, "unexpected parse analysis result");
 
   if (viewParse->utilityStmt != NULL &&
-      IsA(viewParse->utilityStmt, CreateTableAsStmt))
+      IsA(viewParse->utilityStmt, CreateTableAsStmt)) {
+    DBUG_INSTANT_PRINT("info", "views must not contain SELECT INTO");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("views must not contain SELECT INTO")));
+  }
 
   if (viewParse->commandType != CMD_SELECT)
     elog(ERROR, "unexpected parse analysis result");
@@ -386,10 +411,12 @@ DefineView(ViewStmt *stmt, const char *queryString,
    * DefineQueryRewrite(), but that function will complain about a bogus ON
    * SELECT rule, and we'd rather the message complain about a view.
    */
-  if (viewParse->hasModifyingCTE)
+  if (viewParse->hasModifyingCTE) {
+    DBUG_INSTANT_PRINT("info", "views must not contain data-modifying statements in WITH");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("views must not contain data-modifying statements in WITH")));
+  }
 
   /*
    * If the user specified the WITH CHECK OPTION, add it to the list of
@@ -425,11 +452,13 @@ DefineView(ViewStmt *stmt, const char *queryString,
     const char *view_updatable_error =
       view_query_is_auto_updatable(viewParse, true);
 
-    if (view_updatable_error)
+    if (view_updatable_error) {
+      DBUG_INSTANT_PRINT("info", "WITH CHECK OPTION is supported only on automatically updatable views");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("WITH CHECK OPTION is supported only on automatically updatable views"),
                errhint("%s", _(view_updatable_error))));
+    }
   }
 
   /*
@@ -454,18 +483,22 @@ DefineView(ViewStmt *stmt, const char *queryString,
         break;      /* done assigning aliases */
     }
 
-    if (alist_item != NULL)
+    if (alist_item != NULL) {
+      DBUG_INSTANT_PRINT("info", "CREATE VIEW specifies more column names than columns");
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("CREATE VIEW specifies more column "
                       "names than columns")));
+    }
   }
 
   /* Unlogged views are not sensible. */
-  if (stmt->view->relpersistence == RELPERSISTENCE_UNLOGGED)
+  if (stmt->view->relpersistence == RELPERSISTENCE_UNLOGGED) {
+    DBUG_INSTANT_PRINT("info", "views cannot be unlogged because they do not have storage");
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("views cannot be unlogged because they do not have storage")));
+  }
 
   /*
    * If the user didn't explicitly ask for a temporary view, check whether

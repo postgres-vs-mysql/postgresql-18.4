@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "storage/aio.h"
@@ -67,6 +68,7 @@ CkptSortItem *CkptBufferIds;
 void
 BufferManagerShmemInit(void)
 {
+  DBUG_TRACE;
   bool    foundBufs,
           foundDescs,
           foundIOCV,
@@ -108,13 +110,27 @@ BufferManagerShmemInit(void)
     /* note: this path is only taken in EXEC_BACKEND case */
   } else {
     int     i;
+    size_t count = 0;
+    bool tmp_trace_disabled = false;
 
     /*
      * Initialize all the buffer headers.
      */
+    DBUG_PRINT("info", "initialize all the buffer headers(NBuffers:%d)", NBuffers);
+
     for (i = 0; i < NBuffers; i++) {
       BufferDesc *buf = GetBufferDescriptor(i);
 
+      if (count >= max_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
+
+      count++;
       ClearBufferTag(&buf->tag);
 
       pg_atomic_init_u32(&buf->state, 0);
@@ -131,9 +147,17 @@ BufferManagerShmemInit(void)
       buf->freeNext = i + 1;
 
       LWLockInitialize(BufferDescriptorGetContentLock(buf),
-                       LWTRANCHE_BUFFER_CONTENT);
+                       LWTRANCHE_BUFFER_CONTENT, i);
 
       ConditionVariableInit(BufferDescriptorGetIOCV(buf));
+    }
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
     }
 
     /* Correct last entry of linked list */
@@ -157,6 +181,7 @@ BufferManagerShmemInit(void)
 Size
 BufferManagerShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size = 0;
 
   /* size of buffer descriptors */
@@ -180,5 +205,6 @@ BufferManagerShmemSize(void)
   /* size of checkpoint sort array in bufmgr.c */
   size = add_size(size, mul_size(NBuffers, sizeof(CkptSortItem)));
 
+  DBUG_PRINT("info", "compute the size(%lu) of shared memory for the buffer pool including data pages, buffer descriptors, hash tables, etc", size);
   return size;
 }

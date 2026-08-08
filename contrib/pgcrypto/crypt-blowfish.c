@@ -37,6 +37,7 @@
 
 #include "px-crypt.h"
 #include "px.h"
+#include "debug_trace.h"
 
 #ifdef __i386__
 #define BF_ASM        0 /* 1 */
@@ -370,6 +371,7 @@ do { \
 static int
 BF_decode(BF_word *dst, const char *src, int size)
 {
+  DBUG_TRACE;
   unsigned char *dptr = (unsigned char *) dst;
   unsigned char *end = dptr + size;
   const unsigned char *sptr = (const unsigned char *) src;
@@ -403,6 +405,7 @@ BF_decode(BF_word *dst, const char *src, int size)
 static void
 BF_encode(char *dst, const BF_word *src, int size)
 {
+  DBUG_TRACE;
   const unsigned char *sptr = (const unsigned char *) src;
   const unsigned char *end = sptr + size;
   unsigned char *dptr = (unsigned char *) dst;
@@ -550,6 +553,7 @@ static void
 BF_set_key(const char *key, BF_key expanded, BF_key initial,
            int sign_extension_bug)
 {
+  DBUG_TRACE;
   const char *ptr = key;
   int     i,
           j;
@@ -581,6 +585,7 @@ char *
 _crypt_blowfish_rn(const char *key, const char *setting,
                    char *output, int size)
 {
+  DBUG_TRACE;
   struct {
     BF_ctx    ctx;
     BF_key    expanded_key;

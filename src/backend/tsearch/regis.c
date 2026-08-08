@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "tsearch/dicts/regis.h"
@@ -30,6 +31,7 @@
 bool
 RS_isRegis(const char *str)
 {
+  DBUG_TRACE;
   int     state = RS_IN_WAIT;
   const char *c = str;
 
@@ -80,6 +82,7 @@ newRegisNode(RegisNode *prev, int len)
 void
 RS_compile(Regis *r, bool issuffix, const char *str)
 {
+  DBUG_TRACE;
   int     len = strlen(str);
   int     state = RS_IN_WAIT;
   const char *c = str;
@@ -159,6 +162,7 @@ RS_free(Regis *r)
 static bool
 mb_strchr(char *str, char *c)
 {
+  DBUG_TRACE;
   int     clen,
           plen,
           i;
@@ -190,6 +194,7 @@ mb_strchr(char *str, char *c)
 bool
 RS_execute(Regis *r, char *str)
 {
+  DBUG_TRACE;
   RegisNode  *ptr = r->node;
   char     *c = str;
   int     len = 0;

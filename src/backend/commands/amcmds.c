@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -42,6 +43,7 @@ static const char *get_am_type_string(char amtype);
 ObjectAddress
 CreateAccessMethod(CreateAmStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   ObjectAddress myself;
   ObjectAddress referenced;
@@ -54,18 +56,21 @@ CreateAccessMethod(CreateAmStmt *stmt)
   rel = table_open(AccessMethodRelationId, RowExclusiveLock);
 
   /* Must be superuser */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to create access method \"%s\"", stmt->amname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create access method \"%s\"",
                     stmt->amname),
              errhint("Must be superuser to create an access method.")));
+  }
 
   /* Check if name is used */
   amoid = GetSysCacheOid1(AMNAME, Anum_pg_am_oid,
                           CStringGetDatum(stmt->amname));
 
   if (OidIsValid(amoid)) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" already exists", stmt->amname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("access method \"%s\" already exists",
@@ -128,8 +133,10 @@ CreateAccessMethod(CreateAmStmt *stmt)
 static Oid
 get_am_type_oid(const char *amname, char amtype, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Oid     oid = InvalidOid;
+  const char *am_type_str;
 
   tup = SearchSysCache1(AMNAME, CStringGetDatum(amname));
 
@@ -137,21 +144,26 @@ get_am_type_oid(const char *amname, char amtype, bool missing_ok)
     Form_pg_am  amform = (Form_pg_am) GETSTRUCT(tup);
 
     if (amtype != '\0' &&
-        amform->amtype != amtype)
+        amform->amtype != amtype) {
+      am_type_str = get_am_type_string(amtype);
+      DBUG_INSTANT_PRINT("info", "access method \"%s\" is not of type %s", NameStr(amform->amname), am_type_str);
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("access method \"%s\" is not of type %s",
                       NameStr(amform->amname),
-                      get_am_type_string(amtype))));
+                      am_type_str)));
+    }
 
     oid = amform->oid;
     ReleaseSysCache(tup);
   }
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "access method \"%s\" does not exist", amname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("access method \"%s\" does not exist", amname)));
+  }
 
   return oid;
 }
@@ -163,6 +175,7 @@ get_am_type_oid(const char *amname, char amtype, bool missing_ok)
 Oid
 get_index_am_oid(const char *amname, bool missing_ok)
 {
+  DBUG_TRACE;
   return get_am_type_oid(amname, AMTYPE_INDEX, missing_ok);
 }
 
@@ -173,6 +186,7 @@ get_index_am_oid(const char *amname, bool missing_ok)
 Oid
 get_table_am_oid(const char *amname, bool missing_ok)
 {
+  DBUG_TRACE;
   return get_am_type_oid(amname, AMTYPE_TABLE, missing_ok);
 }
 
@@ -183,6 +197,7 @@ get_table_am_oid(const char *amname, bool missing_ok)
 Oid
 get_am_oid(const char *amname, bool missing_ok)
 {
+  DBUG_TRACE;
   return get_am_type_oid(amname, '\0', missing_ok);
 }
 
@@ -192,6 +207,7 @@ get_am_oid(const char *amname, bool missing_ok)
 char *
 get_am_name(Oid amOid)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   char     *result = NULL;
 
@@ -202,6 +218,10 @@ get_am_name(Oid amOid)
 
     result = pstrdup(NameStr(amform->amname));
     ReleaseSysCache(tup);
+  }
+
+  if (result) {
+    DBUG_PRINT("info", "given an access method OID, look up its name:%s", result);
   }
 
   return result;
@@ -236,14 +256,17 @@ get_am_type_string(char amtype)
 static Oid
 lookup_am_handler_func(List *handler_name, char amtype)
 {
+  DBUG_TRACE;
   Oid     handlerOid;
   Oid     funcargtypes[1] = {INTERNALOID};
   Oid     expectedType = InvalidOid;
 
-  if (handler_name == NIL)
+  if (handler_name == NIL) {
+    DBUG_INSTANT_PRINT("info", "handler function is not specified");
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("handler function is not specified")));
+  }
 
   /* handlers have one argument of type internal */
   handlerOid = LookupFuncName(handler_name, 1, funcargtypes, false);
@@ -262,12 +285,14 @@ lookup_am_handler_func(List *handler_name, char amtype)
       elog(ERROR, "unrecognized access method type \"%c\"", amtype);
   }
 
-  if (get_func_rettype(handlerOid) != expectedType)
+  if (get_func_rettype(handlerOid) != expectedType) {
+    char *func_name = get_func_name(handlerOid);
+    char *format_type = format_type_extended(expectedType, -1, 0);
+    DBUG_INSTANT_PRINT("info", "function %s must return type %s", func_name, format_type);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
-             errmsg("function %s must return type %s",
-                    get_func_name(handlerOid),
-                    format_type_extended(expectedType, -1, 0))));
+             errmsg("function %s must return type %s", func_name, format_type)));
+  }
 
   return handlerOid;
 }

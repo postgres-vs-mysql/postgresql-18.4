@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_proc.h"
@@ -70,8 +71,10 @@ static void add_indent(StringInfo out, bool indent, int level);
 Datum
 jsonb_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *json = PG_GETARG_CSTRING(0);
 
+  DBUG_PRINT("info", "json:'%s'", json);
   return jsonb_from_cstring(json, strlen(json), false, fcinfo->context);
 }
 
@@ -86,6 +89,7 @@ jsonb_in(PG_FUNCTION_ARGS)
 Datum
 jsonb_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     version = pq_getmsgint(buf, 1);
   char     *str;
@@ -105,11 +109,13 @@ jsonb_recv(PG_FUNCTION_ARGS)
 Datum
 jsonb_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   char     *out;
 
   out = JsonbToCString(NULL, &jb->root, VARSIZE(jb));
 
+  DBUG_PRINT("info", "%s", out);
   PG_RETURN_CSTRING(out);
 }
 
@@ -121,6 +127,7 @@ jsonb_out(PG_FUNCTION_ARGS)
 Datum
 jsonb_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   StringInfoData buf;
   StringInfo  jtext = makeStringInfo();
@@ -237,6 +244,7 @@ JsonbTypeName(JsonbValue *val)
 Datum
 jsonb_typeof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   const char *result = JsonbContainerTypeName(&in->root);
 
@@ -298,6 +306,7 @@ checkStringLen(size_t len, Node *escontext)
 static JsonParseErrorType
 jsonb_in_object_start(void *pstate)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
 
   _state->res = pushJsonbValue(&_state->parseState, WJB_BEGIN_OBJECT, NULL);
@@ -309,6 +318,7 @@ jsonb_in_object_start(void *pstate)
 static JsonParseErrorType
 jsonb_in_object_end(void *pstate)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
 
   _state->res = pushJsonbValue(&_state->parseState, WJB_END_OBJECT, NULL);
@@ -319,6 +329,7 @@ jsonb_in_object_end(void *pstate)
 static JsonParseErrorType
 jsonb_in_array_start(void *pstate)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
 
   _state->res = pushJsonbValue(&_state->parseState, WJB_BEGIN_ARRAY, NULL);
@@ -329,6 +340,7 @@ jsonb_in_array_start(void *pstate)
 static JsonParseErrorType
 jsonb_in_array_end(void *pstate)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
 
   _state->res = pushJsonbValue(&_state->parseState, WJB_END_ARRAY, NULL);
@@ -339,6 +351,7 @@ jsonb_in_array_end(void *pstate)
 static JsonParseErrorType
 jsonb_in_object_field_start(void *pstate, char *fname, bool isnull)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
   JsonbValue  v;
 
@@ -359,6 +372,8 @@ jsonb_in_object_field_start(void *pstate, char *fname, bool isnull)
 static void
 jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
 {
+  DBUG_TRACE;
+
   switch (scalarVal->type) {
     case jbvNull:
       appendBinaryStringInfo(out, "null", 4);
@@ -393,6 +408,7 @@ jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
 static JsonParseErrorType
 jsonb_in_scalar(void *pstate, char *token, JsonTokenType tokentype)
 {
+  DBUG_TRACE;
   JsonbInState *_state = (JsonbInState *) pstate;
   JsonbValue  v;
   Datum   numd;
@@ -511,6 +527,7 @@ JsonbToCStringIndent(StringInfo out, JsonbContainer *in, int estimated_len)
 static char *
 JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool indent)
 {
+  DBUG_TRACE;
   bool    first = true;
   JsonbIterator *it;
   JsonbValue  v;
@@ -666,6 +683,7 @@ datum_to_jsonb_internal(Datum val, bool is_null, JsonbInState *result,
                         JsonTypeCategory tcategory, Oid outfuncoid,
                         bool key_scalar)
 {
+  DBUG_TRACE;
   char     *outputstr;
   bool    numeric_error;
   JsonbValue  jb;
@@ -878,6 +896,7 @@ array_dim_to_jsonb(JsonbInState *result, int dim, int ndims, int *dims, const Da
                    const bool *nulls, int *valcount, JsonTypeCategory tcategory,
                    Oid outfuncoid)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(dim < ndims);
@@ -904,6 +923,7 @@ array_dim_to_jsonb(JsonbInState *result, int dim, int ndims, int *dims, const Da
 static void
 array_to_jsonb_internal(Datum array, JsonbInState *result)
 {
+  DBUG_TRACE;
   ArrayType  *v = DatumGetArrayTypeP(array);
   Oid     element_type = ARR_ELEMTYPE(v);
   int      *dim;
@@ -951,6 +971,7 @@ array_to_jsonb_internal(Datum array, JsonbInState *result)
 static void
 composite_to_jsonb(Datum composite, JsonbInState *result)
 {
+  DBUG_TRACE;
   HeapTupleHeader td;
   Oid     tupType;
   int32   tupTypmod;
@@ -1023,6 +1044,7 @@ static void
 add_jsonb(Datum val, bool is_null, JsonbInState *result,
           Oid val_type, bool key_scalar)
 {
+  DBUG_TRACE;
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
 
@@ -1053,8 +1075,10 @@ add_jsonb(Datum val, bool is_null, JsonbInState *result,
 bool
 to_jsonb_is_immutable(Oid typoid)
 {
+  DBUG_TRACE;
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
+  bool result;
 
   json_categorize_type(typoid, true, &tcategory, &outfuncoid);
 
@@ -1063,25 +1087,38 @@ to_jsonb_is_immutable(Oid typoid)
     case JSONTYPE_BOOL:
     case JSONTYPE_JSON:
     case JSONTYPE_JSONB:
+      DBUG_PRINT("info", "return true");
       return true;
 
     case JSONTYPE_DATE:
     case JSONTYPE_TIMESTAMP:
     case JSONTYPE_TIMESTAMPTZ:
+      DBUG_PRINT("info", "return false");
       return false;
 
     case JSONTYPE_ARRAY:
+      DBUG_PRINT("info", "return false");
       return false;   /* TODO recurse into elements */
 
     case JSONTYPE_COMPOSITE:
+      DBUG_PRINT("info", "return false");
       return false;   /* TODO recurse into fields */
 
     case JSONTYPE_NUMERIC:
     case JSONTYPE_CAST:
     case JSONTYPE_OTHER:
-      return func_volatile(outfuncoid) == PROVOLATILE_IMMUTABLE;
+      result = func_volatile(outfuncoid) == PROVOLATILE_IMMUTABLE;
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;       /* not reached */
 }
 
@@ -1091,10 +1128,13 @@ to_jsonb_is_immutable(Oid typoid)
 Datum
 to_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   val = PG_GETARG_DATUM(0);
   Oid     val_type = get_fn_expr_argtype(fcinfo->flinfo, 0);
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
+
+  DBUG_PRINT("info", "SQL function to_jsonb(anyvalue)");
 
   if (val_type == InvalidOid)
     ereport(ERROR,
@@ -1115,6 +1155,7 @@ to_jsonb(PG_FUNCTION_ARGS)
 Datum
 datum_to_jsonb(Datum val, JsonTypeCategory tcategory, Oid outfuncoid)
 {
+  DBUG_TRACE;
   JsonbInState result;
 
   memset(&result, 0, sizeof(JsonbInState));
@@ -1129,6 +1170,7 @@ Datum
 jsonb_build_object_worker(int nargs, const Datum *args, const bool *nulls, const Oid *types,
                           bool absent_on_null, bool unique_keys)
 {
+  DBUG_TRACE;
   int     i;
   JsonbInState result;
 
@@ -1179,6 +1221,7 @@ jsonb_build_object_worker(int nargs, const Datum *args, const bool *nulls, const
 Datum
 jsonb_build_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum    *args;
   bool     *nulls;
   Oid      *types;
@@ -1199,6 +1242,7 @@ jsonb_build_object(PG_FUNCTION_ARGS)
 Datum
 jsonb_build_object_noargs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonbInState result;
 
   memset(&result, 0, sizeof(JsonbInState));
@@ -1213,6 +1257,7 @@ Datum
 jsonb_build_array_worker(int nargs, const Datum *args, const bool *nulls, const Oid *types,
                          bool absent_on_null)
 {
+  DBUG_TRACE;
   int     i;
   JsonbInState result;
 
@@ -1238,6 +1283,7 @@ jsonb_build_array_worker(int nargs, const Datum *args, const bool *nulls, const 
 Datum
 jsonb_build_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum    *args;
   bool     *nulls;
   Oid      *types;
@@ -1259,6 +1305,7 @@ jsonb_build_array(PG_FUNCTION_ARGS)
 Datum
 jsonb_build_array_noargs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonbInState result;
 
   memset(&result, 0, sizeof(JsonbInState));
@@ -1280,6 +1327,7 @@ jsonb_build_array_noargs(PG_FUNCTION_ARGS)
 Datum
 jsonb_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *in_array = PG_GETARG_ARRAYTYPE_P(0);
   int     ndims = ARR_NDIM(in_array);
   Datum    *in_datums;
@@ -1377,6 +1425,7 @@ close_object:
 Datum
 jsonb_object_two_arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *key_array = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *val_array = PG_GETARG_ARRAYTYPE_P(1);
   int     nkdims = ARR_NDIM(key_array);
@@ -1498,6 +1547,7 @@ clone_parse_state(JsonbParseState *state)
 static Datum
 jsonb_agg_transfn_worker(FunctionCallInfo fcinfo, bool absent_on_null)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext,
                 aggcontext;
   JsonbAggState *state;
@@ -1620,6 +1670,7 @@ jsonb_agg_transfn_worker(FunctionCallInfo fcinfo, bool absent_on_null)
 Datum
 jsonb_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_agg_transfn_worker(fcinfo, false);
 }
 
@@ -1629,12 +1680,14 @@ jsonb_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 jsonb_agg_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_agg_transfn_worker(fcinfo, true);
 }
 
 Datum
 jsonb_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonbAggState *arg;
   JsonbInState result;
   Jsonb    *out;
@@ -1669,6 +1722,7 @@ static Datum
 jsonb_object_agg_transfn_worker(FunctionCallInfo fcinfo,
                                 bool absent_on_null, bool unique_keys)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext,
                 aggcontext;
   JsonbInState elem;
@@ -1888,6 +1942,7 @@ jsonb_object_agg_transfn_worker(FunctionCallInfo fcinfo,
 Datum
 jsonb_object_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_object_agg_transfn_worker(fcinfo, false, false);
 }
 
@@ -1898,6 +1953,7 @@ jsonb_object_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 jsonb_object_agg_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_object_agg_transfn_worker(fcinfo, true, false);
 }
 
@@ -1907,6 +1963,7 @@ jsonb_object_agg_strict_transfn(PG_FUNCTION_ARGS)
 Datum
 jsonb_object_agg_unique_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_object_agg_transfn_worker(fcinfo, false, true);
 }
 
@@ -1916,12 +1973,14 @@ jsonb_object_agg_unique_transfn(PG_FUNCTION_ARGS)
 Datum
 jsonb_object_agg_unique_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_object_agg_transfn_worker(fcinfo, true, true);
 }
 
 Datum
 jsonb_object_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonbAggState *arg;
   JsonbInState result;
   Jsonb    *out;
@@ -1960,6 +2019,7 @@ jsonb_object_agg_finalfn(PG_FUNCTION_ARGS)
 bool
 JsonbExtractScalar(JsonbContainer *jbc, JsonbValue *res)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
   JsonbIteratorToken tok PG_USED_FOR_ASSERTS_ONLY;
   JsonbValue  tmp;
@@ -2027,6 +2087,7 @@ cannotCastJsonbValue(enum jbvType type, const char *sqltype)
 Datum
 jsonb_bool(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
 
@@ -2043,12 +2104,19 @@ jsonb_bool(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(in, 0);
 
+  if (v.val.boolean) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(v.val.boolean);
 }
 
 Datum
 jsonb_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Numeric   retValue;
@@ -2078,6 +2146,7 @@ jsonb_numeric(PG_FUNCTION_ARGS)
 Datum
 jsonb_int2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Datum   retValue;
@@ -2104,6 +2173,7 @@ jsonb_int2(PG_FUNCTION_ARGS)
 Datum
 jsonb_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Datum   retValue;
@@ -2130,6 +2200,7 @@ jsonb_int4(PG_FUNCTION_ARGS)
 Datum
 jsonb_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Datum   retValue;
@@ -2156,6 +2227,7 @@ jsonb_int8(PG_FUNCTION_ARGS)
 Datum
 jsonb_float4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Datum   retValue;
@@ -2182,6 +2254,7 @@ jsonb_float4(PG_FUNCTION_ARGS)
 Datum
 jsonb_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
   JsonbValue  v;
   Datum   retValue;

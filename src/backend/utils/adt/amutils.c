@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/amapi.h"
@@ -148,6 +149,7 @@ indexam_property(FunctionCallInfo fcinfo,
                  const char *propname,
                  Oid amoid, Oid index_oid, int attno)
 {
+  DBUG_TRACE;
   bool    res = false;
   bool    isnull = false;
   int     natts = 0;
@@ -409,6 +411,7 @@ indexam_property(FunctionCallInfo fcinfo,
 Datum
 pg_indexam_has_property(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     amoid = PG_GETARG_OID(0);
   char     *propname = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
@@ -421,6 +424,7 @@ pg_indexam_has_property(PG_FUNCTION_ARGS)
 Datum
 pg_index_has_property(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   char     *propname = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
@@ -433,6 +437,7 @@ pg_index_has_property(PG_FUNCTION_ARGS)
 Datum
 pg_index_column_has_property(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   int32   attno = PG_GETARG_INT32(1);
   char     *propname = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -451,6 +456,7 @@ pg_index_column_has_property(PG_FUNCTION_ARGS)
 Datum
 pg_indexam_progress_phasename(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     amoid = PG_GETARG_OID(0);
   int32   phasenum = PG_GETARG_INT32(1);
   IndexAmRoutine *routine;

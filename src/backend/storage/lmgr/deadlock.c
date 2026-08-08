@@ -25,6 +25,7 @@
  */
 #include "postgres.h"
 
+#include "debug_trace.h"
 #include "miscadmin.h"
 #include "pg_trace.h"
 #include "pgstat.h"
@@ -216,6 +217,7 @@ InitDeadLockChecking(void)
 DeadLockState
 DeadLockCheck(PGPROC *proc)
 {
+  DBUG_TRACE;
   /* Initialize to "no constraints" */
   nCurConstraints = 0;
   nPossibleConstraints = 0;
@@ -236,8 +238,10 @@ DeadLockCheck(PGPROC *proc)
 
     nWaitOrders = 0;
 
-    if (!FindLockCycle(proc, possibleConstraints, &nSoftEdges))
+    if (!FindLockCycle(proc, possibleConstraints, &nSoftEdges)) {
+      DBUG_INSTANT_PRINT("info", "deadlock seems to have disappeared");
       elog(FATAL, "deadlock seems to have disappeared");
+    }
 
     return DS_HARD_DEADLOCK;  /* cannot find a non-deadlocked state */
   }
@@ -308,6 +312,7 @@ GetBlockingAutoVacuumPgproc(void)
 static bool
 DeadLockCheckRecurse(PGPROC *proc)
 {
+  DBUG_TRACE;
   int     nEdges;
   int     oldPossibleConstraints;
   bool    savedList;
@@ -315,14 +320,20 @@ DeadLockCheckRecurse(PGPROC *proc)
 
   nEdges = TestConfiguration(proc);
 
-  if (nEdges < 0)
+  if (nEdges < 0) {
+    DBUG_PRINT("info", "hard deadlock --- no solution, nEdges:%d", nEdges);
     return true;      /* hard deadlock --- no solution */
+  }
 
-  if (nEdges == 0)
+  if (nEdges == 0) {
+    DBUG_PRINT("info", "good configuration found");
     return false;     /* good configuration found */
+  }
 
-  if (nCurConstraints >= maxCurConstraints)
+  if (nCurConstraints >= maxCurConstraints) {
+    DBUG_PRINT("info", "out of room for active constraints");
     return true;      /* out of room for active constraints? */
+  }
 
   oldPossibleConstraints = nPossibleConstraints;
 
@@ -335,28 +346,36 @@ DeadLockCheckRecurse(PGPROC *proc)
     savedList = false;
   }
 
+  DBUG_PRINT("info", "try each available soft edge as an addition to the configuration, nEdges:%d", nEdges);
+
   /*
    * Try each available soft edge as an addition to the configuration.
    */
   for (i = 0; i < nEdges; i++) {
     if (!savedList && i > 0) {
       /* Regenerate the list of possible added constraints */
-      if (nEdges != TestConfiguration(proc))
+      if (nEdges != TestConfiguration(proc)) {
+        DBUG_INSTANT_PRINT("info", "inconsistent results during deadlock check");
         elog(FATAL, "inconsistent results during deadlock check");
+      }
     }
 
     curConstraints[nCurConstraints] =
       possibleConstraints[oldPossibleConstraints + i];
     nCurConstraints++;
 
-    if (!DeadLockCheckRecurse(proc))
+    if (!DeadLockCheckRecurse(proc)) {
+      DBUG_PRINT("info", "found a valid solution");
       return false;   /* found a valid solution! */
+    }
 
     /* give up on that added constraint, try again */
     nCurConstraints--;
   }
 
   nPossibleConstraints = oldPossibleConstraints;
+
+  DBUG_PRINT("info", "no solution found");
   return true;        /* no solution found */
 }
 
@@ -462,6 +481,7 @@ FindLockCycleRecurse(PGPROC *checkProc,
                      EDGE *softEdges, /* output argument */
                      int *nSoftEdges) /* output argument */
 {
+  DBUG_TRACE;
   int     i;
   dlist_iter  iter;
 
@@ -539,6 +559,7 @@ FindLockCycleRecurseMember(PGPROC *checkProc,
                            EDGE *softEdges, /* output argument */
                            int *nSoftEdges) /* output argument */
 {
+  DBUG_TRACE;
   PGPROC     *proc;
   LOCK     *lock = checkProc->waitLock;
   dlist_iter  proclock_iter;
@@ -849,6 +870,7 @@ TopoSort(LOCK *lock,
          int nConstraints,
          PGPROC **ordering)   /* output argument */
 {
+  DBUG_TRACE;
   dclist_head *waitQueue = &lock->waitProcs;
   int     queue_size = dclist_count(waitQueue);
   PGPROC     *proc;
@@ -1057,6 +1079,7 @@ PrintLockQueue(LOCK *lock, const char *info)
 void
 DeadLockReport(void)
 {
+  DBUG_TRACE;
   StringInfoData clientbuf; /* errdetail for client */
   StringInfoData logbuf;    /* errdetail for server log */
   StringInfoData locktagbuf;
@@ -1109,6 +1132,7 @@ DeadLockReport(void)
                      pgstat_get_backend_current_activity(info->pid, false));
   }
 
+  DBUG_INSTANT_PRINT("info", "deadlock detected");
   pgstat_report_deadlock();
 
   ereport(ERROR,

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/nodeFuncs.h"
 #include "optimizer/clauses.h"
@@ -102,6 +103,7 @@ clauselist_selectivity(PlannerInfo *root,
                        JoinType jointype,
                        SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   return clauselist_selectivity_ext(root, clauses, varRelid,
                                     jointype, sjinfo, true);
 }
@@ -120,6 +122,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
                            SpecialJoinInfo *sjinfo,
                            bool use_extended_stats)
 {
+  DBUG_TRACE;
   Selectivity s1 = 1.0;
   RelOptInfo *rel;
   Bitmapset  *estimatedclauses = NULL;
@@ -131,10 +134,12 @@ clauselist_selectivity_ext(PlannerInfo *root,
    * If there's exactly one clause, just go directly to
    * clause_selectivity_ext(). None of what we might do below is relevant.
    */
-  if (list_length(clauses) == 1)
+  if (list_length(clauses) == 1) {
+    DBUG_PRINT("info", "there's exactly one clause and just go directly to clause_selectivity_ext()");
     return clause_selectivity_ext(root, (Node *) linitial(clauses),
                                   varRelid, jointype, sjinfo,
                                   use_extended_stats);
+  }
 
   /*
    * Determine if these clauses reference a single relation.  If so, and if
@@ -143,6 +148,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
   rel = find_single_rel_for_clauses(root, clauses);
 
   if (use_extended_stats && rel && rel->rtekind == RTE_RELATION && rel->statlist != NIL) {
+    DBUG_PRINT("info", "these clauses reference a single relation and it has extended statistics, try to apply those");
     /*
      * Estimate as many clauses as possible using extended statistics.
      *
@@ -152,6 +158,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
     s1 = statext_clauselist_selectivity(root, clauses, varRelid,
                                         jointype, sjinfo, rel,
                                         &estimatedclauses, false);
+    DBUG_PRINT("info", "now estimate as many clauses as possible using extended statistics:%g", s1);
   }
 
   /*
@@ -163,6 +170,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
    * an rqlist entry.
    */
   listidx = -1;
+  DBUG_PRINT("info", "apply normal selectivity estimates for remaining clauses");
 
   foreach(l, clauses) {
     Node     *clause = (Node *) lfirst(l);
@@ -171,16 +179,21 @@ clauselist_selectivity_ext(PlannerInfo *root,
 
     listidx++;
 
+    DBUG_PRINT("info", "list idx:%d", listidx);
+
     /*
      * Skip this clause if it's already been estimated by some other
      * statistics above.
      */
-    if (bms_is_member(listidx, estimatedclauses))
+    if (bms_is_member(listidx, estimatedclauses)) {
+      DBUG_PRINT("info", "skip this clause if it's already been estimated by some other statistics above");
       continue;
+    }
 
     /* Compute the selectivity of this clause in isolation */
     s2 = clause_selectivity_ext(root, clause, varRelid, jointype, sjinfo,
                                 use_extended_stats);
+    DBUG_PRINT("info", "compute the selectivity of this clause in isolation:%g", s2);
 
     /*
      * Check for being passed a RestrictInfo.
@@ -192,6 +205,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
       rinfo = (RestrictInfo *) clause;
 
       if (rinfo->pseudoconstant) {
+        DBUG_PRINT("info", "old selectivity:%g, new:%g, multiply:%g", s1, s1 * s2, s2);
         s1 = s1 * s2;
         continue;
       }
@@ -246,6 +260,7 @@ clauselist_selectivity_ext(PlannerInfo *root,
 
           default:
             /* Just merge the selectivity in generically */
+            DBUG_PRINT("info", "merge the selectivity in generically and old selectivity:%g, new:%g, multiply:%g", s1, s1 * s2, s2);
             s1 = s1 * s2;
             break;
         }
@@ -255,12 +270,15 @@ clauselist_selectivity_ext(PlannerInfo *root,
     }
 
     /* Not the right form, so treat it generically. */
+    DBUG_PRINT("info", "treat it generically and old selectivity:%g, new:%g, multiply:%g", s1, s1 * s2, s2);
     s1 = s1 * s2;
   }
 
   /*
    * Now scan the rangequery pair list.
    */
+  DBUG_PRINT("info", "now scan the rangequery pair list");
+
   while (rqlist != NULL) {
     RangeQueryClause *rqnext;
 
@@ -309,13 +327,19 @@ clauselist_selectivity_ext(PlannerInfo *root,
       }
 
       /* Merge in the selectivity of the pair of clauses */
+      DBUG_PRINT("info", "merge in the selectivity of the pair of clause and old selectivity:%g, new:%g, multiply:%g", s1, s1 * s2, s2);
       s1 *= s2;
     } else {
       /* Only found one of a pair, merge it in generically */
-      if (rqlist->have_lobound)
+      if (rqlist->have_lobound) {
+        DBUG_PRINT("info", "only found one of a pair, merge it in generically and old selectivity:%g, new:%g, multiply:%g",
+                   s1, s1 * rqlist->lobound, rqlist->lobound);
         s1 *= rqlist->lobound;
-      else
+      } else {
+        DBUG_PRINT("info", "only found one of a pair, merge it in generically and old selectivity:%g, new:%g, multiply:%g",
+                   s1, s1 * rqlist->hibound, rqlist->hibound);
         s1 *= rqlist->hibound;
+      }
     }
 
     /* release storage and advance */
@@ -349,6 +373,7 @@ clauselist_selectivity_or(PlannerInfo *root,
                           SpecialJoinInfo *sjinfo,
                           bool use_extended_stats)
 {
+  DBUG_TRACE;
   Selectivity s1 = 0.0;
   RelOptInfo *rel;
   Bitmapset  *estimatedclauses = NULL;
@@ -401,6 +426,7 @@ clauselist_selectivity_or(PlannerInfo *root,
     s1 = s1 + s2 - s1 * s2;
   }
 
+  DBUG_PRINT("info", "compute the selectivity of an implicitly-ORed list of boolean expression clauses:%g", s1);
   return s1;
 }
 
@@ -413,6 +439,7 @@ static void
 addRangeClause(RangeQueryClause **rqlist, Node *clause,
                bool varonleft, bool isLTsel, Selectivity s2)
 {
+  DBUG_TRACE;
   RangeQueryClause *rqelem;
   Node     *var;
   bool    is_lobound;
@@ -496,6 +523,7 @@ addRangeClause(RangeQueryClause **rqlist, Node *clause,
 static RelOptInfo *
 find_single_rel_for_clauses(PlannerInfo *root, List *clauses)
 {
+  DBUG_TRACE;
   int     lastrelid = 0;
   ListCell   *l;
 
@@ -561,17 +589,21 @@ static inline bool
 treat_as_join_clause(PlannerInfo *root, Node *clause, RestrictInfo *rinfo,
                      int varRelid, SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
+
   if (varRelid != 0) {
     /*
      * Caller is forcing restriction mode (eg, because we are examining an
      * inner indexscan qual).
      */
+    DBUG_PRINT("info", "caller is forcing restriction mode, return false");
     return false;
   } else if (sjinfo == NULL) {
     /*
      * It must be a restriction clause, since it's being evaluated at a
      * scan node.
      */
+    DBUG_PRINT("info", "it must be a restriction clause, since it's being evaluated at a scan node");
     return false;
   } else {
     /*
@@ -587,10 +619,25 @@ treat_as_join_clause(PlannerInfo *root, Node *clause, RestrictInfo *rinfo,
      * injected nulls, but we'll likely want to do that in the restriction
      * estimators rather than starting to treat such cases as join quals.
      */
-    if (rinfo)
+    if (rinfo) {
+      if  (rinfo->num_base_rels > 1) {
+        DBUG_PRINT("info", "return true, num base rels:%d", rinfo->num_base_rels);
+      } else {
+        DBUG_PRINT("info", "return false, num base rels:%d", rinfo->num_base_rels);
+      }
+
       return (rinfo->num_base_rels > 1);
-    else
-      return (NumRelids(root, clause) > 1);
+    } else {
+      int number = NumRelids(root, clause);
+
+      if  (number > 1) {
+        DBUG_PRINT("info", "return true, num rels:%d", number);
+      } else {
+        DBUG_PRINT("info", "return false, num rels:%d", number);
+      }
+
+      return (number > 1);
+    }
   }
 }
 
@@ -640,6 +687,7 @@ clause_selectivity(PlannerInfo *root,
                    JoinType jointype,
                    SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   return clause_selectivity_ext(root, clause, varRelid,
                                 jointype, sjinfo, true);
 }
@@ -658,14 +706,18 @@ clause_selectivity_ext(PlannerInfo *root,
                        SpecialJoinInfo *sjinfo,
                        bool use_extended_stats)
 {
+  DBUG_TRACE;
   Selectivity s1 = 0.5;   /* default for any unhandled clause type */
   RestrictInfo *rinfo = NULL;
   bool    cacheable = false;
 
-  if (clause == NULL)     /* can this still happen? */
+  if (clause == NULL) {   /* can this still happen? */
+    DBUG_PRINT("info", "return %g", s1);
     return s1;
+  }
 
   if (IsA(clause, RestrictInfo)) {
+    DBUG_PRINT("info", "clause is a restrictInfo");
     rinfo = (RestrictInfo *) clause;
 
     /*
@@ -677,8 +729,10 @@ clause_selectivity_ext(PlannerInfo *root,
      * bother caching the result.
      */
     if (rinfo->pseudoconstant) {
-      if (!IsA(rinfo->clause, Const))
+      if (!IsA(rinfo->clause, Const)) {
+        DBUG_PRINT("info", "return 1.0");
         return (Selectivity) 1.0;
+      }
     }
 
     /*
@@ -698,11 +752,15 @@ clause_selectivity_ext(PlannerInfo *root,
          bms_is_member(varRelid, rinfo->clause_relids))) {
       /* Cacheable --- do we already have the result? */
       if (jointype == JOIN_INNER) {
-        if (rinfo->norm_selec >= 0)
+        if (rinfo->norm_selec >= 0) {
+          DBUG_PRINT("info", "inner join and return %g", rinfo->norm_selec);
           return rinfo->norm_selec;
+        }
       } else {
-        if (rinfo->outer_selec >= 0)
+        if (rinfo->outer_selec >= 0) {
+          DBUG_PRINT("info", "return outer selec:%g", rinfo->outer_selec);
           return rinfo->outer_selec;
+        }
       }
 
       cacheable = true;
@@ -730,6 +788,7 @@ clause_selectivity_ext(PlannerInfo *root,
         (varRelid == 0 || varRelid == (int) var->varno)) {
       /* Use the restriction selectivity function for a bool Var */
       s1 = boolvarsel(root, (Node *) var, varRelid);
+      DBUG_PRINT("info", "use the restriction selectivity function for a bool Var:%g", s1);
     }
   } else if (IsA(clause, Const)) {
     /* bool constant is pretty easy... */
@@ -737,6 +796,7 @@ clause_selectivity_ext(PlannerInfo *root,
 
     s1 = con->constisnull ? 0.0 :
          DatumGetBool(con->constvalue) ? 1.0 : 0.0;
+    DBUG_PRINT("info", "bool constant is pretty easy:%g", s1);
   } else if (IsA(clause, Param)) {
     /* see if we can replace the Param */
     Node     *subst = estimate_expression_value(root, clause);
@@ -747,6 +807,7 @@ clause_selectivity_ext(PlannerInfo *root,
 
       s1 = con->constisnull ? 0.0 :
            DatumGetBool(con->constvalue) ? 1.0 : 0.0;
+      DBUG_PRINT("info", "bool constant is pretty easy:%g", s1);
     } else {
       /* XXX any way to do better than default? */
     }
@@ -758,6 +819,7 @@ clause_selectivity_ext(PlannerInfo *root,
                                       jointype,
                                       sjinfo,
                                       use_extended_stats);
+    DBUG_PRINT("info", "inverse of the selectivity of the underlying clause:%g", s1);
   } else if (is_andclause(clause)) {
     /* share code with clauselist_selectivity() */
     s1 = clauselist_selectivity_ext(root,
@@ -766,6 +828,7 @@ clause_selectivity_ext(PlannerInfo *root,
                                     jointype,
                                     sjinfo,
                                     use_extended_stats);
+    DBUG_PRINT("info", "share code with clauselist_selectivity():%g", s1);
   } else if (is_orclause(clause)) {
     /*
      * Almost the same thing as clauselist_selectivity, but with the
@@ -777,6 +840,7 @@ clause_selectivity_ext(PlannerInfo *root,
                                    jointype,
                                    sjinfo,
                                    use_extended_stats);
+    DBUG_PRINT("info", "almost the same thing as clauselist_selectivity, but with the clauses connected by OR:%g", s1);
   } else if (is_opclause(clause) || IsA(clause, DistinctExpr)) {
     OpExpr     *opclause = (OpExpr *) clause;
     Oid     opno = opclause->opno;
@@ -788,12 +852,14 @@ clause_selectivity_ext(PlannerInfo *root,
                             opclause->inputcollid,
                             jointype,
                             sjinfo);
+      DBUG_PRINT("info", "estimate selectivity for a join clause:%g", s1);
     } else {
       /* Estimate selectivity for a restriction clause. */
       s1 = restriction_selectivity(root, opno,
                                    opclause->args,
                                    opclause->inputcollid,
                                    varRelid);
+      DBUG_PRINT("info", "estimate selectivity for a restriction clause:%g", s1);
     }
 
     /*
@@ -802,8 +868,10 @@ clause_selectivity_ext(PlannerInfo *root,
      * This estimation method doesn't give the right behavior for nulls,
      * but it's better than doing nothing.
      */
-    if (IsA(clause, DistinctExpr))
+    if (IsA(clause, DistinctExpr)) {
       s1 = 1.0 - s1;
+      DBUG_PRINT("info", "we must negate the result:%g", s1);
+    }
   } else if (is_funcclause(clause)) {
     FuncExpr   *funcclause = (FuncExpr *) clause;
 
@@ -817,6 +885,7 @@ clause_selectivity_ext(PlannerInfo *root,
                               varRelid,
                               jointype,
                               sjinfo);
+    DBUG_PRINT("info", "try to get an estimate from the support function, if any:%g", s1);
   } else if (IsA(clause, ScalarArrayOpExpr)) {
     /* Use node specific selectivity calculation function */
     s1 = scalararraysel(root,
@@ -826,6 +895,7 @@ clause_selectivity_ext(PlannerInfo *root,
                         varRelid,
                         jointype,
                         sjinfo);
+    DBUG_PRINT("info", "use node specific selectivity calculation function:%g", s1);
   } else if (IsA(clause, RowCompareExpr)) {
     /* Use node specific selectivity calculation function */
     s1 = rowcomparesel(root,
@@ -833,6 +903,7 @@ clause_selectivity_ext(PlannerInfo *root,
                        varRelid,
                        jointype,
                        sjinfo);
+    DBUG_PRINT("info", "use node specific selectivity calculation function:%g", s1);
   } else if (IsA(clause, NullTest)) {
     /* Use node specific selectivity calculation function */
     s1 = nulltestsel(root,
@@ -841,6 +912,7 @@ clause_selectivity_ext(PlannerInfo *root,
                      varRelid,
                      jointype,
                      sjinfo);
+    DBUG_PRINT("info", "use node specific selectivity calculation function:%g", s1);
   } else if (IsA(clause, BooleanTest)) {
     /* Use node specific selectivity calculation function */
     s1 = booltestsel(root,
@@ -849,13 +921,16 @@ clause_selectivity_ext(PlannerInfo *root,
                      varRelid,
                      jointype,
                      sjinfo);
+    DBUG_PRINT("info", "use node specific selectivity calculation function:%g", s1);
   } else if (IsA(clause, CurrentOfExpr)) {
     /* CURRENT OF selects at most one row of its table */
     CurrentOfExpr *cexpr = (CurrentOfExpr *) clause;
     RelOptInfo *crel = find_base_rel(root, cexpr->cvarno);
 
-    if (crel->tuples > 0)
+    if (crel->tuples > 0) {
       s1 = 1.0 / crel->tuples;
+      DBUG_PRINT("info", "CURRENT OF selects at most one row of its table:%g", s1);
+    }
   } else if (IsA(clause, RelabelType)) {
     /* Not sure this case is needed, but it can't hurt */
     s1 = clause_selectivity_ext(root,
@@ -864,6 +939,7 @@ clause_selectivity_ext(PlannerInfo *root,
                                 jointype,
                                 sjinfo,
                                 use_extended_stats);
+    DBUG_PRINT("info", "not sure this case is needed, but it can't hurt:%g", s1);
   } else if (IsA(clause, CoerceToDomain)) {
     /* Not sure this case is needed, but it can't hurt */
     s1 = clause_selectivity_ext(root,
@@ -872,6 +948,7 @@ clause_selectivity_ext(PlannerInfo *root,
                                 jointype,
                                 sjinfo,
                                 use_extended_stats);
+    DBUG_PRINT("info", "not sure this case is needed, but it can't hurt:%g", s1);
   } else {
     /*
      * For anything else, see if we can consider it as a boolean variable.
@@ -881,19 +958,23 @@ clause_selectivity_ext(PlannerInfo *root,
      * selectivity if not.
      */
     s1 = boolvarsel(root, clause, varRelid);
+    DBUG_PRINT("info", "for anything else, see if we can consider it as a boolean variable:%g", s1);
   }
 
   /* Cache the result if possible */
   if (cacheable) {
-    if (jointype == JOIN_INNER)
+    if (jointype == JOIN_INNER) {
       rinfo->norm_selec = s1;
-    else
+      DBUG_PRINT("info", "set norm_selec to %g", s1);
+    } else {
       rinfo->outer_selec = s1;
+    }
   }
 
 #ifdef SELECTIVITY_DEBUG
-  elog(DEBUG4, "clause_selectivity: s1 %f", s1);
+  elog(DEBUG4, "clause_selectivity: s1 %g", s1);
 #endif              /* SELECTIVITY_DEBUG */
 
+  DBUG_PRINT("info", "clause_selectivity: s1 %g", s1);
   return s1;
 }

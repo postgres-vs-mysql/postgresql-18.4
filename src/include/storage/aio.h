@@ -131,17 +131,16 @@ typedef enum PgAioTargetID
  * be from another process, or closed since. That's not a problem for staged
  * IOs, as all staged IOs are submitted when closing an FD.
  */
-typedef union
+typedef union {
+struct
 {
-  struct
-  {
     int     fd;
     uint16    iov_length;
     uint64    offset;
   }     read;
 
-  struct
-  {
+struct
+{
     int     fd;
     uint16    iov_length;
     uint64    offset;

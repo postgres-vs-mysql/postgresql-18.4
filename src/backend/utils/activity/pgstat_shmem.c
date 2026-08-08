@@ -10,6 +10,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "pgstat.h"
@@ -153,6 +154,7 @@ StatsShmemSize(void)
 void
 StatsShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
   Size    sz;
 
@@ -326,7 +328,7 @@ pgstat_init_entry(PgStat_Kind kind,
   /* Link the new entry from the hash entry. */
   shhashent->body = chunk;
 
-  LWLockInitialize(&shheader->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&shheader->lock, LWTRANCHE_PGSTATS_DATA, 0);
 
   return shheader;
 }
@@ -447,6 +449,7 @@ PgStat_EntryRef *
 pgstat_get_entry_ref(PgStat_Kind kind, Oid dboid, uint64 objid, bool create,
                      bool *created_entry)
 {
+  DBUG_TRACE;
   PgStat_HashKey key;
   PgStatShared_HashEntry *shhashent;
   PgStatShared_Common *shheader = NULL;
@@ -585,6 +588,8 @@ static void
 pgstat_release_entry_ref(PgStat_HashKey key, PgStat_EntryRef *entry_ref,
                          bool discard_pending)
 {
+  DBUG_TRACE;
+
   if (entry_ref && entry_ref->pending) {
     if (discard_pending)
       pgstat_delete_pending_entry(entry_ref);
@@ -734,9 +739,12 @@ pgstat_need_entry_refs_gc(void)
 static void
 pgstat_gc_entry_refs(void)
 {
+  DBUG_TRACE;
   pgstat_entry_ref_hash_iterator i;
   PgStat_EntryRefHashEntry *ent;
   uint64    curage;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   curage = pg_atomic_read_u64(&pgStatLocal.shmem->gc_request_count);
   Assert(curage != 0);
@@ -749,6 +757,15 @@ pgstat_gc_entry_refs(void)
 
   while ((ent = pgstat_entry_ref_hash_iterate(pgStatEntryRefHash, &i)) != NULL) {
     PgStat_EntryRef *entry_ref = ent->entry_ref;
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
 
     Assert(!entry_ref->shared_stats ||
            entry_ref->shared_stats->magic == 0xdeadbeef);
@@ -766,7 +783,16 @@ pgstat_gc_entry_refs(void)
     if (entry_ref->pending != NULL)
       continue;
 
+    count++;
     pgstat_release_entry_ref(ent->key, entry_ref, false);
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   pgStatSharedRefAge = curage;
@@ -776,8 +802,11 @@ static void
 pgstat_release_matching_entry_refs(bool discard_pending, ReleaseMatchCB match,
                                    Datum match_data)
 {
+  DBUG_TRACE;
   pgstat_entry_ref_hash_iterator i;
   PgStat_EntryRefHashEntry *ent;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   if (pgStatEntryRefHash == NULL)
     return;
@@ -786,12 +815,30 @@ pgstat_release_matching_entry_refs(bool discard_pending, ReleaseMatchCB match,
 
   while ((ent = pgstat_entry_ref_hash_iterate(pgStatEntryRefHash, &i))
          != NULL) {
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     Assert(ent->entry_ref != NULL);
 
     if (match && !match(ent, match_data))
       continue;
 
+    count++;
     pgstat_release_entry_ref(ent->key, ent->entry_ref, discard_pending);
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 }
 
@@ -964,6 +1011,7 @@ pgstat_drop_database_and_contents(Oid dboid)
 bool
 pgstat_drop_entry(PgStat_Kind kind, Oid dboid, uint64 objid)
 {
+  DBUG_TRACE;
   PgStat_HashKey key;
   PgStatShared_HashEntry *shent;
   bool    freed = true;

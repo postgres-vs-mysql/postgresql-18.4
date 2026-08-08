@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/htup_details.h"
@@ -66,10 +67,20 @@ get_attavgwidth_hook_type get_attavgwidth_hook = NULL;
 bool
 op_in_opfamily(Oid opno, Oid opfamily)
 {
-  return SearchSysCacheExists3(AMOPOPID,
-                               ObjectIdGetDatum(opno),
-                               CharGetDatum(AMOP_SEARCH),
-                               ObjectIdGetDatum(opfamily));
+  DBUG_TRACE;
+
+  bool result = SearchSysCacheExists3(AMOPOPID,
+                                      ObjectIdGetDatum(opno),
+                                      CharGetDatum(AMOP_SEARCH),
+                                      ObjectIdGetDatum(opfamily));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /*
@@ -83,6 +94,7 @@ op_in_opfamily(Oid opno, Oid opfamily)
 int
 get_op_opfamily_strategy(Oid opno, Oid opfamily)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_amop amop_tup;
   int     result;
@@ -92,12 +104,16 @@ get_op_opfamily_strategy(Oid opno, Oid opfamily)
                        CharGetDatum(AMOP_SEARCH),
                        ObjectIdGetDatum(opfamily));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_PRINT("info", "return 0 if it's not a member of the opfamily");
     return 0;
+  }
 
   amop_tup = (Form_pg_amop) GETSTRUCT(tp);
   result = amop_tup->amopstrategy;
   ReleaseSysCache(tp);
+
+  DBUG_PRINT("info", "result:%d", result);
   return result;
 }
 
@@ -110,6 +126,7 @@ get_op_opfamily_strategy(Oid opno, Oid opfamily)
 Oid
 get_op_opfamily_sortfamily(Oid opno, Oid opfamily)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_amop amop_tup;
   Oid     result;
@@ -119,12 +136,15 @@ get_op_opfamily_sortfamily(Oid opno, Oid opfamily)
                        CharGetDatum(AMOP_ORDER),
                        ObjectIdGetDatum(opfamily));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_PRINT("info", "return InvalidOid");
     return InvalidOid;
+  }
 
   amop_tup = (Form_pg_amop) GETSTRUCT(tp);
   result = amop_tup->amopsortfamily;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "if the operator is an ordering operator within the specified opfamily, return its amopsortfamily OID:%d", result);
   return result;
 }
 
@@ -143,6 +163,7 @@ get_op_opfamily_properties(Oid opno, Oid opfamily, bool ordering_op,
                            Oid *lefttype,
                            Oid *righttype)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_amop amop_tup;
 
@@ -159,6 +180,13 @@ get_op_opfamily_properties(Oid opno, Oid opfamily, bool ordering_op,
   *strategy = amop_tup->amopstrategy;
   *lefttype = amop_tup->amoplefttype;
   *righttype = amop_tup->amoprighttype;
+
+  if (ordering_op) {
+    DBUG_PRINT("info", "ordering_op:true, strategy:%d, lefttype:%u, righttype:%u", *strategy, *lefttype, *righttype);
+  } else {
+    DBUG_PRINT("info", "ordering_op:false, strategy:%d, lefttype:%u, righttype:%u", *strategy, *lefttype, *righttype);
+  }
+
   ReleaseSysCache(tp);
 }
 
@@ -173,6 +201,7 @@ Oid
 get_opfamily_member(Oid opfamily, Oid lefttype, Oid righttype,
                     int16 strategy)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_amop amop_tup;
   Oid     result;
@@ -183,12 +212,15 @@ get_opfamily_member(Oid opfamily, Oid lefttype, Oid righttype,
                        ObjectIdGetDatum(righttype),
                        Int16GetDatum(strategy));
 
-  if (!HeapTupleIsValid(tp))
+  if (!HeapTupleIsValid(tp)) {
+    DBUG_PRINT("info", "return InvalidOid");
     return InvalidOid;
+  }
 
   amop_tup = (Form_pg_amop) GETSTRUCT(tp);
   result = amop_tup->amopopr;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "if the operator is an ordering operator within the specified opfamily, return its amopsortfamily OID:%d", result);
   return result;
 }
 
@@ -275,6 +307,7 @@ bool
 get_ordering_op_properties(Oid opno,
                            Oid *opfamily, Oid *opcintype, CompareType *cmptype)
 {
+  DBUG_TRACE;
   bool    result = false;
   CatCList   *catlist;
   int     i;
@@ -319,6 +352,12 @@ get_ordering_op_properties(Oid opno,
 
   ReleaseSysCacheList(catlist);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -336,6 +375,7 @@ get_ordering_op_properties(Oid opno,
 Oid
 get_equality_op_for_ordering_op(Oid opno, bool *reverse)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   Oid     opfamily;
   Oid     opcintype;
@@ -354,6 +394,8 @@ get_equality_op_for_ordering_op(Oid opno, bool *reverse)
       *reverse = (cmptype == COMPARE_GT);
   }
 
+
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -374,6 +416,7 @@ get_equality_op_for_ordering_op(Oid opno, bool *reverse)
 Oid
 get_ordering_op_for_equality_op(Oid opno, bool use_lhs_type)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   CatCList   *catlist;
   int     i;
@@ -416,6 +459,7 @@ get_ordering_op_for_equality_op(Oid opno, bool use_lhs_type)
 
   ReleaseSysCacheList(catlist);
 
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -441,6 +485,7 @@ get_ordering_op_for_equality_op(Oid opno, bool use_lhs_type)
 List *
 get_mergejoin_opfamilies(Oid opno)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   CatCList   *catlist;
   int     i;
@@ -488,6 +533,7 @@ bool
 get_compatible_hash_operators(Oid opno,
                               Oid *lhs_opno, Oid *rhs_opno)
 {
+  DBUG_TRACE;
   bool    result = false;
   CatCList   *catlist;
   int     i;
@@ -568,6 +614,12 @@ get_compatible_hash_operators(Oid opno,
 
   ReleaseSysCacheList(catlist);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -590,6 +642,7 @@ bool
 get_op_hash_functions(Oid opno,
                       RegProcedure *lhs_procno, RegProcedure *rhs_procno)
 {
+  DBUG_TRACE;
   bool    result = false;
   CatCList   *catlist;
   int     i;
@@ -665,6 +718,12 @@ get_op_hash_functions(Oid opno,
 
   ReleaseSysCacheList(catlist);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -681,6 +740,7 @@ get_op_hash_functions(Oid opno,
 List *
 get_op_index_interpretation(Oid opno)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   OpIndexInterpretation *thisresult;
   CatCList   *catlist;
@@ -784,6 +844,7 @@ get_op_index_interpretation(Oid opno)
 bool
 equality_ops_are_compatible(Oid opno1, Oid opno2)
 {
+  DBUG_TRACE;
   bool    result;
   CatCList   *catlist;
   int     i;
@@ -819,6 +880,12 @@ equality_ops_are_compatible(Oid opno1, Oid opno2)
 
   ReleaseSysCacheList(catlist);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -838,13 +905,17 @@ equality_ops_are_compatible(Oid opno1, Oid opno2)
 bool
 comparison_ops_are_compatible(Oid opno1, Oid opno2)
 {
+  DBUG_TRACE;
   bool    result;
   CatCList   *catlist;
   int     i;
 
   /* Easy if they're the same operator */
-  if (opno1 == opno2)
+  if (opno1 == opno2) {
+    DBUG_PRINT("info", "easy if they're the same operator");
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   /*
    * We search through all the pg_amop entries for opno1.
@@ -872,6 +943,12 @@ comparison_ops_are_compatible(Oid opno1, Oid opno2)
   }
 
   ReleaseSysCacheList(catlist);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   return result;
 }
@@ -927,6 +1004,7 @@ collations_agree_on_equality(Oid coll1, Oid coll2)
 Oid
 get_opfamily_proc(Oid opfamily, Oid lefttype, Oid righttype, int16 procnum)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_amproc amproc_tup;
   RegProcedure result;
@@ -943,6 +1021,8 @@ get_opfamily_proc(Oid opfamily, Oid lefttype, Oid righttype, int16 procnum)
   amproc_tup = (Form_pg_amproc) GETSTRUCT(tp);
   result = amproc_tup->amproc;
   ReleaseSysCache(tp);
+
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -960,6 +1040,7 @@ get_opfamily_proc(Oid opfamily, Oid lefttype, Oid righttype, int16 procnum)
 char *
 get_attname(Oid relid, AttrNumber attnum, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache2(ATTNUM,
@@ -970,6 +1051,8 @@ get_attname(Oid relid, AttrNumber attnum, bool missing_ok)
     char     *result;
 
     result = pstrdup(NameStr(att_tup->attname));
+
+    DBUG_PRINT("info", "result:'%s'", result);
     ReleaseSysCache(tp);
     return result;
   }
@@ -992,6 +1075,7 @@ get_attname(Oid relid, AttrNumber attnum, bool missing_ok)
 AttrNumber
 get_attnum(Oid relid, const char *attname)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCacheAttName(relid, attname);
@@ -1002,6 +1086,7 @@ get_attnum(Oid relid, const char *attname)
 
     result = att_tup->attnum;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "result:%d", result);
     return result;
   } else
     return InvalidAttrNumber;
@@ -1021,6 +1106,7 @@ get_attnum(Oid relid, const char *attname)
 char
 get_attgenerated(Oid relid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_attribute att_tup;
   char    result;
@@ -1036,6 +1122,8 @@ get_attgenerated(Oid relid, AttrNumber attnum)
   att_tup = (Form_pg_attribute) GETSTRUCT(tp);
   result = att_tup->attgenerated;
   ReleaseSysCache(tp);
+
+  DBUG_PRINT("info", "result:%d", result);
   return result;
 }
 
@@ -1048,6 +1136,7 @@ get_attgenerated(Oid relid, AttrNumber attnum)
 Oid
 get_atttype(Oid relid, AttrNumber attnum)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache2(ATTNUM,
@@ -1060,6 +1149,7 @@ get_atttype(Oid relid, AttrNumber attnum)
 
     result = att_tup->atttypid;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "result:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -1078,6 +1168,7 @@ void
 get_atttypetypmodcoll(Oid relid, AttrNumber attnum,
                       Oid *typid, int32 *typmod, Oid *collid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_attribute att_tup;
 
@@ -1106,6 +1197,7 @@ get_atttypetypmodcoll(Oid relid, AttrNumber attnum,
 Datum
 get_attoptions(Oid relid, int16 attnum)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Datum   attopts;
   Datum   result;
@@ -1173,6 +1265,7 @@ get_cast_oid(Oid sourcetypeid, Oid targettypeid, bool missing_ok)
 char *
 get_collation_name(Oid colloid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(COLLOID, ObjectIdGetDatum(colloid));
@@ -1183,6 +1276,7 @@ get_collation_name(Oid colloid)
 
     result = pstrdup(NameStr(colltup->collname));
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the name('%s') of a given pg_collation entry", result);
     return result;
   } else
     return NULL;
@@ -1191,6 +1285,7 @@ get_collation_name(Oid colloid)
 bool
 get_collation_isdeterministic(Oid colloid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_collation colltup;
   bool    result;
@@ -1203,6 +1298,13 @@ get_collation_isdeterministic(Oid colloid)
   colltup = (Form_pg_collation) GETSTRUCT(tp);
   result = colltup->collisdeterministic;
   ReleaseSysCache(tp);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -1220,6 +1322,7 @@ get_collation_isdeterministic(Oid colloid)
 char *
 get_constraint_name(Oid conoid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(CONSTROID, ObjectIdGetDatum(conoid));
@@ -1230,6 +1333,7 @@ get_constraint_name(Oid conoid)
 
     result = pstrdup(NameStr(contup->conname));
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "result:'%s'", result);
     return result;
   } else
     return NULL;
@@ -1251,6 +1355,7 @@ get_constraint_name(Oid conoid)
 Oid
 get_constraint_index(Oid conoid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(CONSTROID, ObjectIdGetDatum(conoid));
@@ -1261,12 +1366,14 @@ get_constraint_index(Oid conoid)
 
     if (contup->contype == CONSTRAINT_UNIQUE ||
         contup->contype == CONSTRAINT_PRIMARY ||
-        contup->contype == CONSTRAINT_EXCLUSION)
+        contup->contype == CONSTRAINT_EXCLUSION) {
       result = contup->conindid;
-    else
+    } else
       result = InvalidOid;
 
     ReleaseSysCache(tp);
+
+    DBUG_PRINT("info", "result:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -1281,6 +1388,7 @@ get_constraint_index(Oid conoid)
 char
 get_constraint_type(Oid conoid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   char    contype;
 
@@ -1292,6 +1400,8 @@ get_constraint_type(Oid conoid)
   contype = ((Form_pg_constraint) GETSTRUCT(tp))->contype;
   ReleaseSysCache(tp);
 
+
+  DBUG_PRINT("info", "result:%u", contype);
   return contype;
 }
 
@@ -1300,6 +1410,7 @@ get_constraint_type(Oid conoid)
 char *
 get_language_name(Oid langoid, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(LANGOID, ObjectIdGetDatum(langoid));
@@ -1310,6 +1421,8 @@ get_language_name(Oid langoid, bool missing_ok)
 
     result = pstrdup(NameStr(lantup->lanname));
     ReleaseSysCache(tp);
+
+    DBUG_PRINT("info", "result:'%s'", result);
     return result;
   }
 
@@ -1330,6 +1443,7 @@ get_language_name(Oid langoid, bool missing_ok)
 Oid
 get_opclass_family(Oid opclass)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_opclass cla_tup;
   Oid     result;
@@ -1343,6 +1457,8 @@ get_opclass_family(Oid opclass)
 
   result = cla_tup->opcfamily;
   ReleaseSysCache(tp);
+
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -1354,6 +1470,7 @@ get_opclass_family(Oid opclass)
 Oid
 get_opclass_input_type(Oid opclass)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_opclass cla_tup;
   Oid     result;
@@ -1367,6 +1484,7 @@ get_opclass_input_type(Oid opclass)
 
   result = cla_tup->opcintype;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -1379,6 +1497,7 @@ get_opclass_input_type(Oid opclass)
 bool
 get_opclass_opfamily_and_input_type(Oid opclass, Oid *opfamily, Oid *opcintype)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_opclass cla_tup;
 
@@ -1405,6 +1524,7 @@ get_opclass_opfamily_and_input_type(Oid opclass, Oid *opfamily, Oid *opcintype)
 Oid
 get_opclass_method(Oid opclass)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_opclass cla_tup;
   Oid     result;
@@ -1418,6 +1538,7 @@ get_opclass_method(Oid opclass)
 
   result = cla_tup->opcmethod;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -1482,6 +1603,7 @@ get_opfamily_name(Oid opfid, bool missing_ok)
 RegProcedure
 get_opcode(Oid opno)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
@@ -1492,6 +1614,7 @@ get_opcode(Oid opno)
 
     result = optup->oprcode;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the regproc id(%u) of the routine used to implement an operator given the operator oid(%u)", result, opno);
     return result;
   } else
     return (RegProcedure) InvalidOid;
@@ -1506,6 +1629,7 @@ get_opcode(Oid opno)
 char *
 get_opname(Oid opno)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
@@ -1516,6 +1640,8 @@ get_opname(Oid opno)
 
     result = pstrdup(NameStr(optup->oprname));
     ReleaseSysCache(tp);
+
+    DBUG_PRINT("info", "result:'%s'", result);
     return result;
   } else
     return NULL;
@@ -1528,6 +1654,7 @@ get_opname(Oid opno)
 Oid
 get_op_rettype(Oid opno)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
@@ -1538,6 +1665,7 @@ get_op_rettype(Oid opno)
 
     result = optup->oprresult;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "result:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -1552,6 +1680,7 @@ get_op_rettype(Oid opno)
 void
 op_input_types(Oid opno, Oid *lefttype, Oid *righttype)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_operator optup;
 
@@ -1582,6 +1711,7 @@ op_input_types(Oid opno, Oid *lefttype, Oid *righttype)
 bool
 op_mergejoinable(Oid opno, Oid inputtype)
 {
+  DBUG_TRACE;
   bool    result = false;
   HeapTuple tp;
   TypeCacheEntry *typentry;
@@ -1614,6 +1744,12 @@ op_mergejoinable(Oid opno, Oid inputtype)
     }
   }
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return result;
 }
 
@@ -1631,6 +1767,7 @@ op_mergejoinable(Oid opno, Oid inputtype)
 bool
 op_hashjoinable(Oid opno, Oid inputtype)
 {
+  DBUG_TRACE;
   bool    result = false;
   HeapTuple tp;
   TypeCacheEntry *typentry;
@@ -1656,6 +1793,12 @@ op_hashjoinable(Oid opno, Oid inputtype)
       result = optup->oprcanhash;
       ReleaseSysCache(tp);
     }
+  }
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   return result;
@@ -1747,6 +1890,7 @@ get_negator(Oid opno)
 RegProcedure
 get_oprrest(Oid opno)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
@@ -1757,6 +1901,7 @@ get_oprrest(Oid opno)
 
     result = optup->oprrest;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return procedure id for computing selectivity of an operator:%u", result);
     return result;
   } else
     return (RegProcedure) InvalidOid;
@@ -1770,8 +1915,10 @@ get_oprrest(Oid opno)
 RegProcedure
 get_oprjoin(Oid opno)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
+  DBUG_PRINT("info", "opno:%u", opno);
   tp = SearchSysCache1(OPEROID, ObjectIdGetDatum(opno));
 
   if (HeapTupleIsValid(tp)) {
@@ -1780,6 +1927,7 @@ get_oprjoin(Oid opno)
 
     result = optup->oprjoin;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return procedure id(%u) for computing selectivity of a join", result);
     return result;
   } else
     return (RegProcedure) InvalidOid;
@@ -1796,6 +1944,7 @@ get_oprjoin(Oid opno)
 char *
 get_func_name(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
@@ -1806,6 +1955,7 @@ get_func_name(Oid funcid)
 
     result = pstrdup(NameStr(functup->proname));
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the name('%s') of the function with the given funcid:%u", result, funcid);
     return result;
   } else
     return NULL;
@@ -1819,6 +1969,7 @@ get_func_name(Oid funcid)
 Oid
 get_func_namespace(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
@@ -1829,6 +1980,7 @@ get_func_namespace(Oid funcid)
 
     result = functup->pronamespace;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the pg_namespace OID(%u) associated with a given function(%u)", result, funcid);
     return result;
   } else
     return InvalidOid;
@@ -1841,6 +1993,7 @@ get_func_namespace(Oid funcid)
 Oid
 get_func_rettype(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Oid     result;
 
@@ -1851,6 +2004,8 @@ get_func_rettype(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->prorettype;
   ReleaseSysCache(tp);
+
+  DBUG_PRINT("info", "given procedure id(%u), return the function's result type:%u", funcid, result);
   return result;
 }
 
@@ -1861,6 +2016,7 @@ get_func_rettype(Oid funcid)
 int
 get_func_nargs(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   int     result;
 
@@ -1871,6 +2027,7 @@ get_func_nargs(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->pronargs;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the number of arguments:%d", funcid, result);
   return result;
 }
 
@@ -1884,6 +2041,7 @@ get_func_nargs(Oid funcid)
 Oid
 get_func_signature(Oid funcid, Oid **argtypes, int *nargs)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_proc procstruct;
   Oid     result;
@@ -1902,6 +2060,7 @@ get_func_signature(Oid funcid, Oid **argtypes, int *nargs)
   memcpy(*argtypes, procstruct->proargtypes.values, *nargs * sizeof(Oid));
 
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the function's argument and result types:%u", funcid, result);
   return result;
 }
 
@@ -1912,6 +2071,7 @@ get_func_signature(Oid funcid, Oid **argtypes, int *nargs)
 Oid
 get_func_variadictype(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Oid     result;
 
@@ -1922,6 +2082,7 @@ get_func_variadictype(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->provariadic;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the function's provariadic field:%u", funcid, result);
   return result;
 }
 
@@ -1932,6 +2093,7 @@ get_func_variadictype(Oid funcid)
 bool
 get_func_retset(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   bool    result;
 
@@ -1942,6 +2104,13 @@ get_func_retset(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->proretset;
   ReleaseSysCache(tp);
+
+  if (result) {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's proretset flag:true", funcid);
+  } else {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's proretset flag:false", funcid);
+  }
+
   return result;
 }
 
@@ -1962,6 +2131,13 @@ func_strict(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->proisstrict;
   ReleaseSysCache(tp);
+
+  if (result) {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's proisstrict flag:true", funcid);
+  } else {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's proisstrict flag:false", funcid);
+  }
+
   return result;
 }
 
@@ -1972,6 +2148,7 @@ func_strict(Oid funcid)
 char
 func_volatile(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   char    result;
 
@@ -1982,6 +2159,7 @@ func_volatile(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->provolatile;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the function's provolatile flag:%d", funcid, result);
   return result;
 }
 
@@ -1992,6 +2170,7 @@ func_volatile(Oid funcid)
 char
 func_parallel(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   char    result;
 
@@ -2002,6 +2181,7 @@ func_parallel(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->proparallel;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the function's proparallel flag:%d", funcid, result);
   return result;
 }
 
@@ -2012,6 +2192,7 @@ func_parallel(Oid funcid)
 char
 get_func_prokind(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   char    result;
 
@@ -2022,6 +2203,7 @@ get_func_prokind(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->prokind;
   ReleaseSysCache(tp);
+  DBUG_PRINT("info", "given procedure id(%u), return the routine kind:%d", funcid, result);
   return result;
 }
 
@@ -2042,6 +2224,13 @@ get_func_leakproof(Oid funcid)
 
   result = ((Form_pg_proc) GETSTRUCT(tp))->proleakproof;
   ReleaseSysCache(tp);
+
+  if (result) {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's leakproof field:true", funcid);
+  } else {
+    DBUG_PRINT("info", "given procedure id(%u), return the function's leakproof field:false", funcid);
+  }
+
   return result;
 }
 
@@ -2054,6 +2243,7 @@ get_func_leakproof(Oid funcid)
 RegProcedure
 get_func_support(Oid funcid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
@@ -2064,6 +2254,8 @@ get_func_support(Oid funcid)
 
     result = functup->prosupport;
     ReleaseSysCache(tp);
+
+    DBUG_PRINT("info", "return the support function OID(%u) associated with a given function:%u", funcid, result);
     return result;
   } else
     return (RegProcedure) InvalidOid;
@@ -2080,9 +2272,12 @@ get_func_support(Oid funcid)
 Oid
 get_relname_relid(const char *relname, Oid relnamespace)
 {
-  return GetSysCacheOid2(RELNAMENSP, Anum_pg_class_oid,
-                         PointerGetDatum(relname),
-                         ObjectIdGetDatum(relnamespace));
+  DBUG_TRACE;
+  Oid result = GetSysCacheOid2(RELNAMENSP, Anum_pg_class_oid,
+                               PointerGetDatum(relname),
+                               ObjectIdGetDatum(relnamespace));
+  DBUG_PRINT("info", "given name(%s) and namespace(%u) of a relation, look up the OID:%u", relname, relnamespace, result);
+  return result;
 }
 
 #ifdef NOT_USED
@@ -2094,6 +2289,7 @@ get_relname_relid(const char *relname, Oid relnamespace)
 int
 get_relnatts(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2104,6 +2300,7 @@ get_relnatts(Oid relid)
 
     result = reltup->relnatts;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the number of attributes for a given relation:%d", result);
     return result;
   } else
     return InvalidAttrNumber;
@@ -2122,6 +2319,7 @@ get_relnatts(Oid relid)
 char *
 get_rel_name(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2132,6 +2330,7 @@ get_rel_name(Oid relid)
 
     result = pstrdup(NameStr(reltup->relname));
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the name of a given relation:'%s'", result);
     return result;
   } else
     return NULL;
@@ -2145,6 +2344,7 @@ get_rel_name(Oid relid)
 Oid
 get_rel_namespace(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2155,6 +2355,7 @@ get_rel_namespace(Oid relid)
 
     result = reltup->relnamespace;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the pg_namespace OID associated with a given relation:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -2171,6 +2372,7 @@ get_rel_namespace(Oid relid)
 Oid
 get_rel_type_id(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2181,6 +2383,7 @@ get_rel_type_id(Oid relid)
 
     result = reltup->reltype;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the pg_type OID associated with a given relation:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -2194,6 +2397,7 @@ get_rel_type_id(Oid relid)
 char
 get_rel_relkind(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2217,6 +2421,7 @@ get_rel_relkind(Oid relid)
 bool
 get_rel_relispartition(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2243,6 +2448,7 @@ get_rel_relispartition(Oid relid)
 Oid
 get_rel_tablespace(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
@@ -2253,6 +2459,7 @@ get_rel_tablespace(Oid relid)
 
     result = reltup->reltablespace;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "return the pg_tablespace OID associated with a given relation:%u", result);
     return result;
   } else
     return InvalidOid;
@@ -2266,6 +2473,7 @@ get_rel_tablespace(Oid relid)
 char
 get_rel_persistence(Oid relid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
   Form_pg_class reltup;
   char    result;
@@ -2303,6 +2511,7 @@ get_rel_relam(Oid relid)
   result = reltup->relam;
   ReleaseSysCache(tp);
 
+  DBUG_PRINT("info", "result:%u", result);
   return result;
 }
 
@@ -2312,6 +2521,7 @@ get_rel_relam(Oid relid)
 Oid
 get_transform_fromsql(Oid typid, Oid langid, List *trftypes)
 {
+  DBUG_TRACE;
   HeapTuple tup;
 
   if (!list_member_oid(trftypes, typid))
@@ -2325,6 +2535,8 @@ get_transform_fromsql(Oid typid, Oid langid, List *trftypes)
 
     funcid = ((Form_pg_transform) GETSTRUCT(tup))->trffromsql;
     ReleaseSysCache(tup);
+
+    DBUG_PRINT("info", "result: '%d'", funcid);
     return funcid;
   } else
     return InvalidOid;
@@ -2333,6 +2545,7 @@ get_transform_fromsql(Oid typid, Oid langid, List *trftypes)
 Oid
 get_transform_tosql(Oid typid, Oid langid, List *trftypes)
 {
+  DBUG_TRACE;
   HeapTuple tup;
 
   if (!list_member_oid(trftypes, typid))
@@ -2346,6 +2559,7 @@ get_transform_tosql(Oid typid, Oid langid, List *trftypes)
 
     funcid = ((Form_pg_transform) GETSTRUCT(tup))->trftosql;
     ReleaseSysCache(tup);
+    DBUG_PRINT("info", "funcid: %u", funcid);
     return funcid;
   } else
     return InvalidOid;
@@ -2363,6 +2577,7 @@ get_transform_tosql(Oid typid, Oid langid, List *trftypes)
 bool
 get_typisdefined(Oid typid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
@@ -2373,9 +2588,18 @@ get_typisdefined(Oid typid)
 
     result = typtup->typisdefined;
     ReleaseSysCache(tp);
+
+    if (result) {
+      DBUG_PRINT("info", "given the type OID(%u), determine whether the type is defined? Yes", typid);
+    } else {
+      DBUG_PRINT("info", "given the type OID(%u), determine whether the type is defined? No", typid);
+    }
+
     return result;
-  } else
+  } else {
+    DBUG_PRINT("info", "determine whether the type is defined? No");
     return false;
+  }
 }
 
 /*
@@ -2386,6 +2610,7 @@ get_typisdefined(Oid typid)
 int16
 get_typlen(Oid typid)
 {
+  DBUG_TRACE;
   HeapTuple tp;
 
   tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
@@ -2396,6 +2621,7 @@ get_typlen(Oid typid)
 
     result = typtup->typlen;
     ReleaseSysCache(tp);
+    DBUG_PRINT("info", "given the type OID(%u), return the length of the type:%d", typid, result);
     return result;
   } else
     return 0;
@@ -2523,6 +2749,7 @@ get_type_io_data(Oid typid,
                  Oid *typioparam,
                  Oid *func)
 {
+  DBUG_TRACE;
   HeapTuple typeTuple;
   Form_pg_type typeStruct;
 
@@ -2645,6 +2872,7 @@ get_typstorage(Oid typid)
 Node *
 get_typdefault(Oid typid)
 {
+  DBUG_TRACE;
   HeapTuple typeTuple;
   Form_pg_type type;
   Datum   datum;
@@ -2684,6 +2912,7 @@ get_typdefault(Oid typid)
       /* Convert text datum to C string */
       strDefaultVal = TextDatumGetCString(datum);
       /* Convert C string to a value of the given type */
+      DBUG_PRINT("info", "convert C string to a value of the given type");
       datum = OidInputFunctionCall(type->typinput, strDefaultVal,
                                    getTypeIOParam(typeTuple), -1);
       /* Build a Const node containing the value */
@@ -3344,6 +3573,7 @@ get_typsubscript(Oid typid, Oid *typelemp)
 const struct SubscriptRoutines *
 getSubscriptingRoutines(Oid typid, Oid *typelemp)
 {
+  DBUG_TRACE;
   RegProcedure typsubscript = get_typsubscript(typid, typelemp);
 
   if (!OidIsValid(typsubscript))

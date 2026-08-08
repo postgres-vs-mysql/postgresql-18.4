@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execdebug.h"
 #include "executor/nodeNestloop.h"
@@ -59,6 +60,7 @@
 static TupleTableSlot *
 ExecNestLoop(PlanState *pstate)
 {
+  DBUG_TRACE;
   NestLoopState *node = castNode(NestLoopState, pstate);
   NestLoop   *nl;
   PlanState  *innerPlan;
@@ -69,12 +71,15 @@ ExecNestLoop(PlanState *pstate)
   ExprState  *otherqual;
   ExprContext *econtext;
   ListCell   *lc;
+  bool    tmp_trace_disabled = false;
+  size_t count = 0;
 
   CHECK_FOR_INTERRUPTS();
 
   /*
    * get information from the node
    */
+  DBUG_PRINT("info", "getting info from node");
   ENL1_printf("getting info from node");
 
   nl = (NestLoop *) node->js.ps.plan;
@@ -95,13 +100,25 @@ ExecNestLoop(PlanState *pstate)
    * qualifying join tuple.
    */
   ENL1_printf("entering main loop");
+  DBUG_PRINT("info", "entering main loop");
 
   for (;;) {
+
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /*
      * If we don't have an outer tuple, get the next one and reset the
      * inner scan.
      */
     if (node->nl_NeedNewOuter) {
+      DBUG_PRINT("info", "getting new outer tuple");
       ENL1_printf("getting new outer tuple");
       outerTupleSlot = ExecProcNode(outerPlan);
 
@@ -109,10 +126,20 @@ ExecNestLoop(PlanState *pstate)
        * if there are no more outer tuples, then the join is complete..
        */
       if (TupIsNull(outerTupleSlot)) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
+        DBUG_PRINT("info", "no outer tuple, ending join");
         ENL1_printf("no outer tuple, ending join");
         return NULL;
       }
 
+      DBUG_PRINT("info", "saving new outer tuple information");
       ENL1_printf("saving new outer tuple information");
       econtext->ecxt_outertuple = outerTupleSlot;
       node->nl_NeedNewOuter = false;
@@ -143,6 +170,7 @@ ExecNestLoop(PlanState *pstate)
       /*
        * now rescan the inner plan
        */
+      DBUG_PRINT("info", "rescanning inner plan");
       ENL1_printf("rescanning inner plan");
       ExecReScan(innerPlan);
     }
@@ -150,12 +178,15 @@ ExecNestLoop(PlanState *pstate)
     /*
      * we have an outerTuple, try to get the next inner tuple.
      */
+    count++;
+    DBUG_PRINT("info", "getting new inner tuple (count:%lu)", count);
     ENL1_printf("getting new inner tuple");
 
     innerTupleSlot = ExecProcNode(innerPlan);
     econtext->ecxt_innertuple = innerTupleSlot;
 
     if (TupIsNull(innerTupleSlot)) {
+      DBUG_PRINT("info", "no inner tuple, need new outer tuple");
       ENL1_printf("no inner tuple, need new outer tuple");
 
       node->nl_NeedNewOuter = true;
@@ -171,14 +202,24 @@ ExecNestLoop(PlanState *pstate)
          */
         econtext->ecxt_innertuple = node->nl_NullInnerTupleSlot;
 
+        DBUG_PRINT("info", "testing qualification for outer-join tuple");
         ENL1_printf("testing qualification for outer-join tuple");
 
         if (otherqual == NULL || ExecQual(otherqual, econtext)) {
+          if (tmp_trace_disabled) {
+            set_trace_enabled();
+            tmp_trace_disabled = false;
+            DBUG_PRINT("info", "...");
+            DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+            DBUG_PRINT("info", "total processed:%lu", count);
+          }
+
           /*
            * qualification was satisfied so we project and return
            * the slot containing the result tuple using
            * ExecProject().
            */
+          DBUG_PRINT("info", "qualification succeeded, projecting tuple");
           ENL1_printf("qualification succeeded, projecting tuple");
 
           return ExecProject(node->js.ps.ps_ProjInfo);
@@ -189,6 +230,7 @@ ExecNestLoop(PlanState *pstate)
       /*
        * Otherwise just return to top of loop for a new outer tuple.
        */
+      DBUG_PRINT("info", "otherwise just return to top of loop for a new outer tuple");
       continue;
     }
 
@@ -200,6 +242,7 @@ ExecNestLoop(PlanState *pstate)
      * Only the joinquals determine MatchedOuter status, but all quals
      * must pass to actually return the tuple.
      */
+    DBUG_PRINT("info", "testing qualification");
     ENL1_printf("testing qualification");
 
     if (ExecQual(joinqual, econtext)) {
@@ -207,6 +250,7 @@ ExecNestLoop(PlanState *pstate)
 
       /* In an antijoin, we never return a matched tuple */
       if (node->js.jointype == JOIN_ANTI) {
+        DBUG_PRINT("info", "return to top of loop");
         node->nl_NeedNewOuter = true;
         continue;   /* return to top of loop */
       }
@@ -220,10 +264,19 @@ ExecNestLoop(PlanState *pstate)
         node->nl_NeedNewOuter = true;
 
       if (otherqual == NULL || ExecQual(otherqual, econtext)) {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         /*
          * qualification was satisfied so we project and return the
          * slot containing the result tuple using ExecProject().
          */
+        DBUG_PRINT("info", "qualification succeeded, projecting tuple");
         ENL1_printf("qualification succeeded, projecting tuple");
 
         return ExecProject(node->js.ps.ps_ProjInfo);
@@ -237,6 +290,7 @@ ExecNestLoop(PlanState *pstate)
      */
     ResetExprContext(econtext);
 
+    DBUG_PRINT("info", "qualification failed, looping");
     ENL1_printf("qualification failed, looping");
   }
 }
@@ -248,6 +302,7 @@ ExecNestLoop(PlanState *pstate)
 NestLoopState *
 ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   NestLoopState *nlstate;
 
   /* check for unsupported flags */
@@ -256,6 +311,7 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
   NL1_printf("ExecInitNestLoop: %s\n",
              "initializing node");
 
+  DBUG_PRINT("info", "ExecInitNestLoop: initializing node");
   /*
    * create state structure
    */
@@ -310,6 +366,14 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
   nlstate->js.single_match = (node->join.inner_unique ||
                               node->join.jointype == JOIN_SEMI);
 
+  if (nlstate->js.single_match) {
+    if (node->join.inner_unique) {
+      DBUG_PRINT("info", "we need only consider the first matching inner tuple because of inner_unique:true");
+    } else {
+      DBUG_PRINT("info", "we need only consider the first matching inner tuple because of jointype:JOIN_SEMI");
+    }
+  }
+
   /* set up null tuples for outer joins, if needed */
   switch (node->join.jointype) {
     case JOIN_INNER:
@@ -335,6 +399,7 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
   nlstate->nl_NeedNewOuter = true;
   nlstate->nl_MatchedOuter = false;
 
+  DBUG_PRINT("info", "ExecInitNestLoop: node initialized");
   NL1_printf("ExecInitNestLoop: %s\n",
              "node initialized");
 
@@ -350,6 +415,7 @@ ExecInitNestLoop(NestLoop *node, EState *estate, int eflags)
 void
 ExecEndNestLoop(NestLoopState *node)
 {
+  DBUG_TRACE;
   NL1_printf("ExecEndNestLoop: %s\n",
              "ending node processing");
 
@@ -370,6 +436,7 @@ ExecEndNestLoop(NestLoopState *node)
 void
 ExecReScanNestLoop(NestLoopState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*

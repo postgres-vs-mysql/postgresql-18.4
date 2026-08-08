@@ -30,8 +30,7 @@ HeapKeyTest(HeapTuple tuple, TupleDesc tupdesc, int nkeys, ScanKey keys)
   int     cur_nkeys = nkeys;
   ScanKey   cur_key = keys;
 
-  for (; cur_nkeys--; cur_key++)
-  {
+  for (; cur_nkeys--; cur_key++) {
     Datum   atp;
     bool    isnull;
     Datum   test;
@@ -44,9 +43,9 @@ HeapKeyTest(HeapTuple tuple, TupleDesc tupdesc, int nkeys, ScanKey keys)
     if (isnull)
       return false;
 
-    test = FunctionCall2Coll(&cur_key->sk_func,
-                             cur_key->sk_collation,
-                             atp, cur_key->sk_argument);
+    test = FunctionCall2Coll_not_traced(&cur_key->sk_func,
+                                        cur_key->sk_collation,
+                                        atp, cur_key->sk_argument);
 
     if (!DatumGetBool(test))
       return false;

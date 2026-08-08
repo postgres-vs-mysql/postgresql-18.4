@@ -23,6 +23,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 #include <limits.h>
@@ -422,6 +423,7 @@ pair_count(char *s, char delim)
 Datum
 box_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   BOX      *box = (BOX *) palloc(sizeof(BOX));
@@ -446,6 +448,7 @@ box_in(PG_FUNCTION_ARGS)
     box->low.y = y;
   }
 
+  DBUG_PRINT("info", "return box(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
   PG_RETURN_BOX_P(box);
 }
 
@@ -454,9 +457,13 @@ box_in(PG_FUNCTION_ARGS)
 Datum
 box_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
 
-  PG_RETURN_CSTRING(path_encode(PATH_NONE, 2, &(box->high)));
+  char *result = path_encode(PATH_NONE, 2, &(box->high));
+
+  DBUG_PRINT("info", "convert a box to external form:%s", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -465,6 +472,7 @@ box_out(PG_FUNCTION_ARGS)
 Datum
 box_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   BOX      *box;
   float8    x,
@@ -490,6 +498,7 @@ box_recv(PG_FUNCTION_ARGS)
     box->low.y = y;
   }
 
+  DBUG_PRINT("info", "convert external binary format to box(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
   PG_RETURN_BOX_P(box);
 }
 
@@ -499,6 +508,7 @@ box_recv(PG_FUNCTION_ARGS)
 Datum
 box_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   StringInfoData buf;
 
@@ -507,6 +517,8 @@ box_send(PG_FUNCTION_ARGS)
   pq_sendfloat8(&buf, box->high.y);
   pq_sendfloat8(&buf, box->low.x);
   pq_sendfloat8(&buf, box->low.y);
+  DBUG_PRINT("info", "convert (high x:%g, y:%g; low x:%g, y:%g) to binary format", box->high.x, box->high.y, box->low.x, box->low.y);
+
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -544,11 +556,21 @@ box_construct(BOX *result, Point *pt1, Point *pt2)
 Datum
 box_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
+  bool  result;
 
-  PG_RETURN_BOOL(point_eq_point(&box1->high, &box2->high) &&
-                 point_eq_point(&box1->low, &box2->low));
+  result = (point_eq_point(&box1->high, &box2->high) &&
+            point_eq_point(&box1->low, &box2->low));
+
+  if (result) {
+    DBUG_PRINT("info", "are two boxes identical? Yes");
+  } else {
+    DBUG_PRINT("info", "are two boxes identical? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_overlap   -   does box1 overlap box2?
@@ -556,10 +578,22 @@ box_same(PG_FUNCTION_ARGS)
 Datum
 box_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(box_ov(box1, box2));
+  bool result = box_ov(box1, box2);
+
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "does box1 overlap box2? Yes");
+  } else {
+    DBUG_PRINT("info", "does box1 overlap box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 static bool
@@ -576,10 +610,22 @@ box_ov(BOX *box1, BOX *box2)
 Datum
 box_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPlt(box1->high.x, box2->low.x));
+  bool result = FPlt(box1->high.x, box2->low.x);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 strictly left of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 strictly left of box2? No");
+  }
+
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_overleft  -   is the right edge of box1 at or left of
@@ -591,10 +637,21 @@ box_left(PG_FUNCTION_ARGS)
 Datum
 box_overleft(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPle(box1->high.x, box2->high.x));
+  bool result = FPle(box1->high.x, box2->high.x);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is the right edge of box1 at or left of the right edge of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the right edge of box1 at or left of the right edge of box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_right   -   is box1 strictly right of box2?
@@ -602,10 +659,21 @@ box_overleft(PG_FUNCTION_ARGS)
 Datum
 box_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPgt(box1->low.x, box2->high.x));
+  bool result = FPgt(box1->low.x, box2->high.x);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 strictly right of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 strictly right of box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_overright -   is the left edge of box1 at or right of
@@ -617,10 +685,21 @@ box_right(PG_FUNCTION_ARGS)
 Datum
 box_overright(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPge(box1->low.x, box2->low.x));
+  bool result = FPge(box1->low.x, box2->low.x);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is the left edge of box1 at or right of the left edge of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the left edge of box1 at or right of the left edge of box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_below   -   is box1 strictly below box2?
@@ -628,10 +707,21 @@ box_overright(PG_FUNCTION_ARGS)
 Datum
 box_below(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPlt(box1->high.y, box2->low.y));
+  bool result = FPlt(box1->high.y, box2->low.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 strictly below box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 strictly below box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_overbelow -   is the upper edge of box1 at or below
@@ -640,10 +730,21 @@ box_below(PG_FUNCTION_ARGS)
 Datum
 box_overbelow(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPle(box1->high.y, box2->high.y));
+  bool result = FPle(box1->high.y, box2->high.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is the upper edge of box1 at or below the upper edge of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the upper edge of box1 at or below the upper edge of box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_above   -   is box1 strictly above box2?
@@ -651,10 +752,21 @@ box_overbelow(PG_FUNCTION_ARGS)
 Datum
 box_above(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPgt(box1->low.y, box2->high.y));
+  bool result = FPgt(box1->low.y, box2->high.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 strictly above box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 strictly above box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_overabove -   is the lower edge of box1 at or above
@@ -663,10 +775,21 @@ box_above(PG_FUNCTION_ARGS)
 Datum
 box_overabove(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPge(box1->low.y, box2->low.y));
+  bool result = FPge(box1->low.y, box2->low.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is the lower edge of box1 at or above the lower edge of box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the lower edge of box1 at or above the lower edge of box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_contained -   is box1 contained by box2?
@@ -674,10 +797,21 @@ box_overabove(PG_FUNCTION_ARGS)
 Datum
 box_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(box_contain_box(box2, box1));
+  bool result = box_contain_box(box2, box1);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 contained by box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 contained by box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    box_contain   -   does box1 contain box2?
@@ -685,10 +819,21 @@ box_contained(PG_FUNCTION_ARGS)
 Datum
 box_contain(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(box_contain_box(box1, box2));
+  bool result = box_contain_box(box1, box2);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "does box1 contain box2? Yes");
+  } else {
+    DBUG_PRINT("info", "does box1 contain box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -715,19 +860,41 @@ box_contain_box(BOX *contains_box, BOX *contained_box)
 Datum
 box_below_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPle(box1->high.y, box2->low.y));
+  bool result = FPle(box1->high.y, box2->low.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "is box1 entirely below box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 entirely below box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 box_above_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
+  bool result = FPge(box1->low.y, box2->high.y);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
 
-  PG_RETURN_BOOL(FPge(box1->low.y, box2->high.y));
+  if (result) {
+    DBUG_PRINT("info", "is box1 entirely above box2? Yes");
+  } else {
+    DBUG_PRINT("info", "is box1 entirely above box2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 
@@ -737,46 +904,103 @@ box_above_eq(PG_FUNCTION_ARGS)
 Datum
 box_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPlt(box_ar(box1), box_ar(box2)));
+  bool result = FPlt(box_ar(box1), box_ar(box2));
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 box_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPgt(box_ar(box1), box_ar(box2)));
+  bool result = FPgt(box_ar(box1), box_ar(box2));
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 box_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPeq(box_ar(box1), box_ar(box2)));
+  bool result = FPeq(box_ar(box1), box_ar(box2));
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 box_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPle(box_ar(box1), box_ar(box2)));
+  bool result = FPle(box_ar(box1), box_ar(box2));
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 box_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(FPge(box_ar(box1), box_ar(box2)));
+  bool result = FPge(box_ar(box1), box_ar(box2));
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 
@@ -789,9 +1013,14 @@ box_ge(PG_FUNCTION_ARGS)
 Datum
 box_area(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
 
-  PG_RETURN_FLOAT8(box_ar(box));
+  float8 result = box_ar(box);
+
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "return the area of the box:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -801,9 +1030,13 @@ box_area(PG_FUNCTION_ARGS)
 Datum
 box_width(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
 
-  PG_RETURN_FLOAT8(box_wd(box));
+  float8 result = box_wd(box);
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "return the width of the box(horizontal magnitude):%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -813,9 +1046,13 @@ box_width(PG_FUNCTION_ARGS)
 Datum
 box_height(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
 
-  PG_RETURN_FLOAT8(box_ht(box));
+  float8 result = box_ht(box);
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "return the height of the box(vertical magnitude):%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -825,15 +1062,24 @@ box_height(PG_FUNCTION_ARGS)
 Datum
 box_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
   Point   a,
           b;
 
+  float8 result;
   box_cn(&a, box1);
   box_cn(&b, box2);
 
-  PG_RETURN_FLOAT8(point_dt(&a, &b));
+
+  result = point_dt(&a, &b);
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+  DBUG_PRINT("info", "return the distance:%g between the center points(c1.x:%g,c1.y:%g,c2.x:%g,c2.y:%g) of two boxes",
+             result, a.x, a.y, b.x, b.y);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -842,11 +1088,13 @@ box_distance(PG_FUNCTION_ARGS)
 Datum
 box_center(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *result = (Point *) palloc(sizeof(Point));
 
   box_cn(result, box);
 
+  DBUG_PRINT("info", "return the center point(x:%g,y:%g) of the box", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -901,6 +1149,7 @@ box_ht(BOX *box)
 Datum
 box_intersect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0);
   BOX      *box2 = PG_GETARG_BOX_P(1);
   BOX      *result;
@@ -915,6 +1164,11 @@ box_intersect(PG_FUNCTION_ARGS)
   result->high.y = float8_min(box1->high.y, box2->high.y);
   result->low.y = float8_max(box1->low.y, box2->low.y);
 
+  DBUG_PRINT("info", "box1 high(x:%g, y:%g), low(x:%g, y:%g)", box1->high.x, box1->high.y, box1->low.x, box1->low.y);
+  DBUG_PRINT("info", "box2 high(x:%g, y:%g), low(x:%g, y:%g)", box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+  DBUG_PRINT("info", "return the overlapping portion(high(x:%g, y:%g), low(x:%g, y:%g)) of the boxes",
+             box2->high.x, box2->high.y, box2->low.x, box2->low.y);
+
   PG_RETURN_BOX_P(result);
 }
 
@@ -926,10 +1180,16 @@ box_intersect(PG_FUNCTION_ARGS)
 Datum
 box_diagonal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   LSEG     *result = (LSEG *) palloc(sizeof(LSEG));
 
   statlseg_construct(result, &box->high, &box->low);
+
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
+
+  DBUG_PRINT("info", "return a line segment(p1(x:%g, y:%g), p2(x:%g, y:%g)", result->p[0].x, result->p[0].y, result->p[1].x, result->p[1].y);
+
 
   PG_RETURN_LSEG_P(result);
 }
@@ -980,6 +1240,7 @@ fail:
 Datum
 line_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   LINE     *line = (LINE *) palloc(sizeof(LINE));
@@ -1018,6 +1279,7 @@ line_in(PG_FUNCTION_ARGS)
     line_construct(line, &lseg.p[0], lseg_sl(&lseg));
   }
 
+  DBUG_PRINT("info", "return line(A:%g, B:%g, C:%g)", line->A, line->B, line->C);
   PG_RETURN_LINE_P(line);
 }
 
@@ -1025,13 +1287,16 @@ line_in(PG_FUNCTION_ARGS)
 Datum
 line_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   char     *astr = float8out_internal(line->A);
   char     *bstr = float8out_internal(line->B);
   char     *cstr = float8out_internal(line->C);
+  char *result;
 
-  PG_RETURN_CSTRING(psprintf("%c%s%c%s%c%s%c", LDELIM_L, astr, DELIM, bstr,
-                             DELIM, cstr, RDELIM_L));
+  result = psprintf("%c%s%c%s%c%s%c", LDELIM_L, astr, DELIM, bstr, DELIM, cstr, RDELIM_L);
+  DBUG_PRINT("info", "return cstring:%s", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -1040,6 +1305,7 @@ line_out(PG_FUNCTION_ARGS)
 Datum
 line_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   LINE     *line;
 
@@ -1054,6 +1320,7 @@ line_recv(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
              errmsg("invalid line specification: A and B cannot both be zero")));
 
+  DBUG_PRINT("info", "convert external binary format to line(A:%g, B:%g, C:%g)", line->A, line->B, line->C);
   PG_RETURN_LINE_P(line);
 }
 
@@ -1063,6 +1330,7 @@ line_recv(PG_FUNCTION_ARGS)
 Datum
 line_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   StringInfoData buf;
 
@@ -1070,6 +1338,7 @@ line_send(PG_FUNCTION_ARGS)
   pq_sendfloat8(&buf, line->A);
   pq_sendfloat8(&buf, line->B);
   pq_sendfloat8(&buf, line->C);
+  DBUG_PRINT("info", "convert line(A:%g, B:%g, C:%g) to binary format", line->A, line->B, line->C);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -1113,9 +1382,12 @@ line_construct(LINE *result, Point *pt, float8 m)
 Datum
 line_construct_pp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
   LINE     *result = (LINE *) palloc(sizeof(LINE));
+
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
 
   if (point_eq_point(pt1, pt2))
     ereport(ERROR,
@@ -1124,6 +1396,7 @@ line_construct_pp(PG_FUNCTION_ARGS)
 
   line_construct(result, pt1, point_sl(pt1, pt2));
 
+  DBUG_PRINT("info", "return line(A:%g, B:%g, C:%g)", result->A, result->B, result->C);
   PG_RETURN_LINE_P(result);
 }
 
@@ -1135,57 +1408,147 @@ line_construct_pp(PG_FUNCTION_ARGS)
 Datum
 line_intersect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(line_interpt_line(NULL, l1, l2));
+  DBUG_PRINT("info", "line1(A:%g, B:%g, C:%g), line2(A:%g, B:%g, C:%g)", l1->A, l1->B, l1->C, l2->A, l2->B, l2->C);
+  result = line_interpt_line(NULL, l1, l2);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 line_parallel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  bool result;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
+  DBUG_PRINT("info", "line1(A:%g, B:%g, C:%g), line2(A:%g, B:%g, C:%g)", l1->A, l1->B, l1->C, l2->A, l2->B, l2->C);
+  result = !line_interpt_line(NULL, l1, l2);
 
-  PG_RETURN_BOOL(!line_interpt_line(NULL, l1, l2));
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 line_perp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  bool result;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
 
-  if (FPzero(l1->A))
-    PG_RETURN_BOOL(FPzero(l2->B));
 
-  if (FPzero(l2->A))
-    PG_RETURN_BOOL(FPzero(l1->B));
+  DBUG_PRINT("info", "line1(A:%g, B:%g, C:%g), line2(A:%g, B:%g, C:%g)", l1->A, l1->B, l1->C, l2->A, l2->B, l2->C);
 
-  if (FPzero(l1->B))
-    PG_RETURN_BOOL(FPzero(l2->A));
+  if (FPzero(l1->A)) {
+    result = FPzero(l2->B);
 
-  if (FPzero(l2->B))
-    PG_RETURN_BOOL(FPzero(l1->A));
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
 
-  PG_RETURN_BOOL(FPeq(float8_div(float8_mul(l1->A, l2->A),
-                                 float8_mul(l1->B, l2->B)), -1.0));
+    PG_RETURN_BOOL(result);
+  }
+
+  if (FPzero(l2->A)) {
+    result = (FPzero(l1->B));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+  }
+
+  if (FPzero(l1->B)) {
+    result = (FPzero(l2->A));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+  }
+
+  if (FPzero(l2->B)) {
+    result = (FPzero(l1->A));
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
+  }
+
+  result = FPeq(float8_div(float8_mul(l1->A, l2->A), float8_mul(l1->B, l2->B)), -1.0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 line_vertical(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
+  bool result;
 
-  PG_RETURN_BOOL(FPzero(line->B));
+  DBUG_PRINT("info", "line(A:%g, B:%g, C:%g)", line->A, line->B, line->C);
+  result = FPzero(line->B);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 line_horizontal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
+  bool result;
 
-  PG_RETURN_BOOL(FPzero(line->A));
+  result = FPzero(line->A);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -1195,16 +1558,24 @@ line_horizontal(PG_FUNCTION_ARGS)
 Datum
 line_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
   float8    ratio;
+  bool result;
 
   /* If any NaNs are involved, insist on exact equality */
   if (unlikely(isnan(l1->A) || isnan(l1->B) || isnan(l1->C) ||
                isnan(l2->A) || isnan(l2->B) || isnan(l2->C))) {
-    PG_RETURN_BOOL(float8_eq(l1->A, l2->A) &&
-                   float8_eq(l1->B, l2->B) &&
-                   float8_eq(l1->C, l2->C));
+    result = float8_eq(l1->A, l2->A) && float8_eq(l1->B, l2->B) && float8_eq(l1->C, l2->C);
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    PG_RETURN_BOOL(result);
   }
 
   /* Otherwise, lines whose parameters are proportional are the same */
@@ -1217,9 +1588,18 @@ line_eq(PG_FUNCTION_ARGS)
   else
     ratio = 1.0;
 
-  PG_RETURN_BOOL(FPeq(l1->A, float8_mul(ratio, l2->A)) &&
-                 FPeq(l1->B, float8_mul(ratio, l2->B)) &&
-                 FPeq(l1->C, float8_mul(ratio, l2->C)));
+
+  result = (FPeq(l1->A, float8_mul(ratio, l2->A)) &&
+            FPeq(l1->B, float8_mul(ratio, l2->B)) &&
+            FPeq(l1->C, float8_mul(ratio, l2->C)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -1233,6 +1613,8 @@ line_eq(PG_FUNCTION_ARGS)
 static inline float8
 line_sl(LINE *line)
 {
+  DBUG_TRACE;
+
   if (FPzero(line->A))
     return 0.0;
 
@@ -1249,6 +1631,8 @@ line_sl(LINE *line)
 static inline float8
 line_invsl(LINE *line)
 {
+  DBUG_TRACE;
+
   if (FPzero(line->A))
     return get_float8_infinity();
 
@@ -1265,12 +1649,16 @@ line_invsl(LINE *line)
 Datum
 line_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
   float8    ratio;
+  float8 result;
 
-  if (line_interpt_line(NULL, l1, l2))  /* intersecting? */
+  if (line_interpt_line(NULL, l1, l2)) { /* intersecting? */
+    DBUG_PRINT("info", "distance:0.0");
     PG_RETURN_FLOAT8(0.0);
+  }
 
   if (!FPzero(l1->A) && !isnan(l1->A) && !FPzero(l2->A) && !isnan(l2->A))
     ratio = float8_div(l1->A, l2->A);
@@ -1279,9 +1667,10 @@ line_distance(PG_FUNCTION_ARGS)
   else
     ratio = 1.0;
 
-  PG_RETURN_FLOAT8(float8_div(fabs(float8_mi(l1->C,
-                                   float8_mul(ratio, l2->C))),
-                              HYPOT(l1->A, l1->B)));
+  result = (float8_div(fabs(float8_mi(l1->C, float8_mul(ratio, l2->C))),
+                       HYPOT(l1->A, l1->B)));
+  DBUG_PRINT("info", "distance:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /* line_interpt()
@@ -1290,15 +1679,19 @@ line_distance(PG_FUNCTION_ARGS)
 Datum
 line_interpt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *l1 = PG_GETARG_LINE_P(0);
   LINE     *l2 = PG_GETARG_LINE_P(1);
   Point    *result;
 
   result = (Point *) palloc(sizeof(Point));
 
-  if (!line_interpt_line(result, l1, l2))
+  if (!line_interpt_line(result, l1, l2)) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "point(x:%g, y:%g) where two lines l1, l2 intersect", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -1382,13 +1775,17 @@ line_interpt_line(Point *result, LINE *l1, LINE *l2)
 Datum
 path_area(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
   float8    area = 0.0;
+  float8    result;
   int     i,
           j;
 
-  if (!path->closed)
+  if (!path->closed) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
   for (i = 0; i < path->npts; i++) {
     j = (i + 1) % path->npts;
@@ -1396,13 +1793,16 @@ path_area(PG_FUNCTION_ARGS)
     area = float8_mi(area, float8_mul(path->p[i].y, path->p[j].x));
   }
 
-  PG_RETURN_FLOAT8(float8_div(fabs(area), 2.0));
+  result = float8_div(fabs(area), 2.0);
+  DBUG_PRINT("info", "return %g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
 Datum
 path_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   PATH     *path;
@@ -1423,6 +1823,8 @@ path_in(PG_FUNCTION_ARGS)
 
   while (isspace((unsigned char) *s))
     s++;
+
+  DBUG_PRINT("info", "%s", str);
 
   /* skip single leading paren */
   if ((*s == LDELIM) && (strrchr(s, LDELIM) == s)) {
@@ -1469,6 +1871,7 @@ path_in(PG_FUNCTION_ARGS)
   /* prevent instability in unused pad bytes */
   path->dummy = 0;
 
+  DBUG_PRINT("info", "return path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
@@ -1476,9 +1879,14 @@ path_in(PG_FUNCTION_ARGS)
 Datum
 path_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
 
-  PG_RETURN_CSTRING(path_encode(path->closed ? PATH_CLOSED : PATH_OPEN, path->npts, path->p));
+  char *result;
+  result = path_encode(path->closed ? PATH_CLOSED : PATH_OPEN, path->npts, path->p);
+
+  DBUG_PRINT("info", "return cstring:%s", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -1490,6 +1898,7 @@ path_out(PG_FUNCTION_ARGS)
 Datum
 path_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   PATH     *path;
   int     closed;
@@ -1517,8 +1926,10 @@ path_recv(PG_FUNCTION_ARGS)
   for (i = 0; i < npts; i++) {
     path->p[i].x = pq_getmsgfloat8(buf);
     path->p[i].y = pq_getmsgfloat8(buf);
+    DBUG_PRINT("info", "point %d (x:%g, y:%g)", i, path->p[i].x, path->p[i].y);
   }
 
+  DBUG_PRINT("info", "return path(npts:%d, closed:%s)", npts, path->closed ? "true" : "false");
   PG_RETURN_PATH_P(path);
 }
 
@@ -1528,6 +1939,7 @@ path_recv(PG_FUNCTION_ARGS)
 Datum
 path_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
   StringInfoData buf;
   int32   i;
@@ -1556,46 +1968,101 @@ path_send(PG_FUNCTION_ARGS)
 Datum
 path_n_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
 
-  PG_RETURN_BOOL(p1->npts < p2->npts);
+  bool result = (p1->npts < p2->npts);
+  DBUG_PRINT("info", "p1->npts:%d, p2->npts:%d", p1->npts, p2->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 path_n_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
+  bool        result;
 
-  PG_RETURN_BOOL(p1->npts > p2->npts);
+  DBUG_PRINT("info", "p1->npts:%d, p2->npts:%d", p1->npts, p2->npts);
+
+  result = (p1->npts > p2->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 path_n_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(p1->npts == p2->npts);
+  DBUG_PRINT("info", "p1->npts:%d, p2->npts:%d", p1->npts, p2->npts);
+  result = (p1->npts == p2->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 path_n_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(p1->npts <= p2->npts);
+  DBUG_PRINT("info", "p1->npts:%d, p2->npts:%d", p1->npts, p2->npts);
+  result = (p1->npts <= p2->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 path_n_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(p1->npts >= p2->npts);
+  DBUG_PRINT("info", "p1->npts:%d, p2->npts:%d", p1->npts, p2->npts);
+  result = (p1->npts >= p2->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*----------------------------------------------------------
@@ -1605,7 +2072,14 @@ path_n_ge(PG_FUNCTION_ARGS)
 Datum
 path_isclosed(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
+
+  if (path->closed) {
+    DBUG_PRINT("info", "path closed:true");
+  } else {
+    DBUG_PRINT("info", "path closed:false");
+  }
 
   PG_RETURN_BOOL(path->closed);
 }
@@ -1613,7 +2087,14 @@ path_isclosed(PG_FUNCTION_ARGS)
 Datum
 path_isopen(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
+
+  if (!path->closed) {
+    DBUG_PRINT("info", "path open:true");
+  } else {
+    DBUG_PRINT("info", "path open:false");
+  }
 
   PG_RETURN_BOOL(!path->closed);
 }
@@ -1621,8 +2102,10 @@ path_isopen(PG_FUNCTION_ARGS)
 Datum
 path_npoints(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
 
+  DBUG_PRINT("info", "path npts:%d", path->npts);
   PG_RETURN_INT32(path->npts);
 }
 
@@ -1630,6 +2113,7 @@ path_npoints(PG_FUNCTION_ARGS)
 Datum
 path_close(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
 
   path->closed = true;
@@ -1640,6 +2124,7 @@ path_close(PG_FUNCTION_ARGS)
 Datum
 path_open(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
 
   path->closed = false;
@@ -1656,6 +2141,7 @@ path_open(PG_FUNCTION_ARGS)
 Datum
 path_inter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
   BOX     b1,
@@ -1687,8 +2173,10 @@ path_inter(PG_FUNCTION_ARGS)
     b2.low.y = float8_min(p2->p[i].y, b2.low.y);
   }
 
-  if (!box_ov(&b1, &b2))
+  if (!box_ov(&b1, &b2)) {
+    DBUG_PRINT("info", "does p1 intersect p2 at any point? No");
     PG_RETURN_BOOL(false);
+  }
 
   /* pairwise check lseg intersections */
   for (i = 0; i < p1->npts; i++) {
@@ -1718,12 +2206,15 @@ path_inter(PG_FUNCTION_ARGS)
       statlseg_construct(&seg1, &p1->p[iprev], &p1->p[i]);
       statlseg_construct(&seg2, &p2->p[jprev], &p2->p[j]);
 
-      if (lseg_interpt_lseg(NULL, &seg1, &seg2))
+      if (lseg_interpt_lseg(NULL, &seg1, &seg2)) {
+        DBUG_PRINT("info", "does p1 intersect p2 at any point? Yes");
         PG_RETURN_BOOL(true);
+      }
     }
   }
 
   /* if we dropped through, no two segs intersected */
+  DBUG_PRINT("info", "does p1 intersect p2 at any point? No");
   PG_RETURN_BOOL(false);
 }
 
@@ -1734,6 +2225,7 @@ path_inter(PG_FUNCTION_ARGS)
 Datum
 path_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
   float8    min = 0.0;    /* initialize to keep compiler quiet */
@@ -1780,9 +2272,12 @@ path_distance(PG_FUNCTION_ARGS)
     }
   }
 
-  if (!have_min)
+  if (!have_min) {
+    DBUG_PRINT("info", "distance: null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "distance:%g", min);
   PG_RETURN_FLOAT8(min);
 }
 
@@ -1794,6 +2289,7 @@ path_distance(PG_FUNCTION_ARGS)
 Datum
 path_length(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
   float8    result = 0.0;
   int     i;
@@ -1813,6 +2309,7 @@ path_length(PG_FUNCTION_ARGS)
     result = float8_pl(result, point_dt(&path->p[iprev], &path->p[i]));
   }
 
+  DBUG_PRINT("info", "result:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -1832,20 +2329,26 @@ path_length(PG_FUNCTION_ARGS)
 Datum
 point_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Point    *point = (Point *) palloc(sizeof(Point));
 
   /* Ignore failure from pair_decode, since our return value won't matter */
   pair_decode(str, &point->x, &point->y, NULL, "point", str, fcinfo->context);
+  DBUG_PRINT("info", "string('%s') to point(x:%g, y:%g)", str, point->x, point->y);
   PG_RETURN_POINT_P(point);
 }
 
 Datum
 point_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
+  char *result;
 
-  PG_RETURN_CSTRING(path_encode(PATH_NONE, 1, pt));
+  result = (path_encode(PATH_NONE, 1, pt));
+  DBUG_PRINT("info", "point(x:%g, y:%g) to string('%s')", pt->x, pt->y, result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -1854,12 +2357,14 @@ point_out(PG_FUNCTION_ARGS)
 Datum
 point_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   Point    *point;
 
   point = (Point *) palloc(sizeof(Point));
   point->x = pq_getmsgfloat8(buf);
   point->y = pq_getmsgfloat8(buf);
+  DBUG_PRINT("info", "convert external binary format to point(x:%g, y:%g)", point->x, point->y);
   PG_RETURN_POINT_P(point);
 }
 
@@ -1869,12 +2374,14 @@ point_recv(PG_FUNCTION_ARGS)
 Datum
 point_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   StringInfoData buf;
 
   pq_begintypsend(&buf);
   pq_sendfloat8(&buf, pt->x);
   pq_sendfloat8(&buf, pt->y);
+  DBUG_PRINT("info", "convert point(x:%g, y:%g) to binary format", pt->x, pt->y);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -1902,73 +2409,165 @@ point_construct(Point *result, float8 x, float8 y)
 Datum
 point_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPlt(pt1->x, pt2->x));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPlt(pt1->x, pt2->x);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 point_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPgt(pt1->x, pt2->x));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPgt(pt1->x, pt2->x);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 point_above(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPgt(pt1->y, pt2->y));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPgt(pt1->y, pt2->y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 point_below(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPlt(pt1->y, pt2->y));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPlt(pt1->y, pt2->y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 point_vert(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(pt1->x, pt2->x));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPeq(pt1->x, pt2->x);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 point_horiz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(pt1->y, pt2->y));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = FPeq(pt1->y, pt2->y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 point_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
 
-  PG_RETURN_BOOL(point_eq_point(pt1, pt2));
+  bool result;
+
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = point_eq_point(pt1, pt2);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 point_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(!point_eq_point(pt1, pt2));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = (!point_eq_point(pt1, pt2));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -1994,10 +2593,16 @@ point_eq_point(Point *pt1, Point *pt2)
 Datum
 point_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(point_dt(pt1, pt2));
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
+  result = point_dt(pt1, pt2);
+  DBUG_PRINT("info", "distance:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 static inline float8
@@ -2009,10 +2614,16 @@ point_dt(Point *pt1, Point *pt2)
 Datum
 point_slope(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
+  float8 result;
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
 
-  PG_RETURN_FLOAT8(point_sl(pt1, pt2));
+  result = point_sl(pt1, pt2);
+
+  DBUG_PRINT("info", "slop:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -2070,6 +2681,7 @@ point_invsl(Point *pt1, Point *pt2)
 Datum
 lseg_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   LSEG     *lseg = (LSEG *) palloc(sizeof(LSEG));
@@ -2079,6 +2691,7 @@ lseg_in(PG_FUNCTION_ARGS)
                    escontext))
     PG_RETURN_NULL();
 
+  DBUG_PRINT("info", "string:'%s' to lseg(p1 x:%g, y:%g; p2 x:%g, y:%g)", str, lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y);
   PG_RETURN_LSEG_P(lseg);
 }
 
@@ -2086,9 +2699,12 @@ lseg_in(PG_FUNCTION_ARGS)
 Datum
 lseg_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *ls = PG_GETARG_LSEG_P(0);
+  char *result = path_encode(PATH_OPEN, 2, &ls->p[0]);
 
-  PG_RETURN_CSTRING(path_encode(PATH_OPEN, 2, &ls->p[0]));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g) to string:'%s'", ls->p[0].x, ls->p[0].y, ls->p[1].x, ls->p[1].y, result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -2097,6 +2713,7 @@ lseg_out(PG_FUNCTION_ARGS)
 Datum
 lseg_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   LSEG     *lseg;
 
@@ -2107,6 +2724,8 @@ lseg_recv(PG_FUNCTION_ARGS)
   lseg->p[1].x = pq_getmsgfloat8(buf);
   lseg->p[1].y = pq_getmsgfloat8(buf);
 
+  DBUG_PRINT("info", "convert external binary format to lseg(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y);
   PG_RETURN_LSEG_P(lseg);
 }
 
@@ -2116,6 +2735,7 @@ lseg_recv(PG_FUNCTION_ARGS)
 Datum
 lseg_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *ls = PG_GETARG_LSEG_P(0);
   StringInfoData buf;
 
@@ -2124,6 +2744,8 @@ lseg_send(PG_FUNCTION_ARGS)
   pq_sendfloat8(&buf, ls->p[0].y);
   pq_sendfloat8(&buf, ls->p[1].x);
   pq_sendfloat8(&buf, ls->p[1].y);
+  DBUG_PRINT("info", "convert lseg(p1 x:%g, y:%g; p2 x:%g, y:%g) to binary format",
+             ls->p[0].x, ls->p[0].y, ls->p[1].x, ls->p[1].y);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
@@ -2134,11 +2756,15 @@ lseg_send(PG_FUNCTION_ARGS)
 Datum
 lseg_construct(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
   LSEG     *result = (LSEG *) palloc(sizeof(LSEG));
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g)", pt1->x, pt1->y, pt2->x, pt2->y);
   statlseg_construct(result, pt1, pt2);
+  DBUG_PRINT("info", "form a LSEG (p1 x:%g, y:%g; p2 x:%g, y:%g) from two Points",
+             result->p[0].x, result->p[0].y, result->p[1].x, result->p[1].y);
 
   PG_RETURN_LSEG_P(result);
 }
@@ -2177,9 +2803,13 @@ lseg_invsl(LSEG *lseg)
 Datum
 lseg_length(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
 
-  PG_RETURN_FLOAT8(point_dt(&lseg->p[0], &lseg->p[1]));
+  float8 result = point_dt(&lseg->p[0], &lseg->p[1]);
+
+  DBUG_PRINT("info", "length:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*----------------------------------------------------------
@@ -2193,20 +2823,48 @@ lseg_length(PG_FUNCTION_ARGS)
 Datum
 lseg_intersect(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(lseg_interpt_lseg(NULL, l1, l2));
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = lseg_interpt_lseg(NULL, l1, l2);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
 Datum
 lseg_parallel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(lseg_sl(l1), lseg_sl(l2)));
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = FPeq(lseg_sl(l1), lseg_sl(l2));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -2215,87 +2873,218 @@ lseg_parallel(PG_FUNCTION_ARGS)
 Datum
 lseg_perp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(lseg_sl(l1), lseg_invsl(l2)));
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = FPeq(lseg_sl(l1), lseg_invsl(l2));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 lseg_vertical(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(lseg->p[0].x, lseg->p[1].x));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y);
+
+  result = FPeq(lseg->p[0].x, lseg->p[1].x);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 lseg_horizontal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
+  bool result;
 
-  PG_RETURN_BOOL(FPeq(lseg->p[0].y, lseg->p[1].y));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y);
+
+  result = FPeq(lseg->p[0].y, lseg->p[1].y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
 Datum
 lseg_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(point_eq_point(&l1->p[0], &l2->p[0]) &&
-                 point_eq_point(&l1->p[1], &l2->p[1]));
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = point_eq_point(&l1->p[0], &l2->p[0]) && point_eq_point(&l1->p[1], &l2->p[1]);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 lseg_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_BOOL(!point_eq_point(&l1->p[0], &l2->p[0]) ||
-                 !point_eq_point(&l1->p[1], &l2->p[1]));
+  bool result;
+
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = (!point_eq_point(&l1->p[0], &l2->p[0]) || !point_eq_point(&l1->p[1], &l2->p[1]));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 lseg_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_BOOL(FPlt(point_dt(&l1->p[0], &l1->p[1]),
-                      point_dt(&l2->p[0], &l2->p[1])));
+  bool result;
+
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = (FPlt(point_dt(&l1->p[0], &l1->p[1]),
+                 point_dt(&l2->p[0], &l2->p[1])));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 lseg_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_BOOL(FPle(point_dt(&l1->p[0], &l1->p[1]),
-                      point_dt(&l2->p[0], &l2->p[1])));
+  bool result;
+
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = (FPle(point_dt(&l1->p[0], &l1->p[1]),
+                 point_dt(&l2->p[0], &l2->p[1])));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 lseg_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_BOOL(FPgt(point_dt(&l1->p[0], &l1->p[1]),
-                      point_dt(&l2->p[0], &l2->p[1])));
+  bool result;
+
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = (FPgt(point_dt(&l1->p[0], &l1->p[1]), point_dt(&l2->p[0], &l2->p[1])));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 Datum
 lseg_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_BOOL(FPge(point_dt(&l1->p[0], &l1->p[1]),
-                      point_dt(&l2->p[0], &l2->p[1])));
+  bool result;
+
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+  result = (FPge(point_dt(&l1->p[0], &l1->p[1]),
+                 point_dt(&l2->p[0], &l2->p[1])));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 
@@ -2311,16 +3100,28 @@ lseg_ge(PG_FUNCTION_ARGS)
 Datum
 lseg_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(lseg_closept_lseg(NULL, l1, l2));
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g), lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y,
+             l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+
+  result = lseg_closept_lseg(NULL, l1, l2);
+
+  DBUG_PRINT("info", "distance:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 
 Datum
 lseg_center(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   Point    *result;
 
@@ -2329,6 +3130,7 @@ lseg_center(PG_FUNCTION_ARGS)
   result->x = float8_div(float8_pl(lseg->p[0].x, lseg->p[1].x), 2.0);
   result->y = float8_div(float8_pl(lseg->p[0].y, lseg->p[1].y), 2.0);
 
+  DBUG_PRINT("info", "center point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -2343,6 +3145,7 @@ lseg_center(PG_FUNCTION_ARGS)
 static bool
 lseg_interpt_lseg(Point *result, LSEG *l1, LSEG *l2)
 {
+  DBUG_TRACE;
   Point   interpt;
   LINE    tmp;
 
@@ -2367,15 +3170,19 @@ lseg_interpt_lseg(Point *result, LSEG *l1, LSEG *l2)
 Datum
 lseg_interpt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
   Point    *result;
 
   result = (Point *) palloc(sizeof(Point));
 
-  if (!lseg_interpt_lseg(result, l1, l2))
+  if (!lseg_interpt_lseg(result, l1, l2)) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -2397,10 +3204,17 @@ lseg_interpt(PG_FUNCTION_ARGS)
 Datum
 dist_pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(line_closept_point(NULL, line, pt));
+  DBUG_PRINT("info", "line(A:%g, B:%g, C:%g), point(x:%g, y:%g)", line->A, line->B, line->C, pt->x, pt->y);
+
+  result = line_closept_point(NULL, line, pt);
+
+  DBUG_PRINT("info", "distance from a point to a line:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2409,10 +3223,18 @@ dist_pl(PG_FUNCTION_ARGS)
 Datum
 dist_lp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   Point    *pt = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(line_closept_point(NULL, line, pt));
+  DBUG_PRINT("info", "line(A:%g, B:%g, C:%g), point(x:%g, y:%g)", line->A, line->B, line->C, pt->x, pt->y);
+
+  result = line_closept_point(NULL, line, pt);
+
+  DBUG_PRINT("info", "distance from a line to a point:%g", result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 /*
@@ -2421,10 +3243,18 @@ dist_lp(PG_FUNCTION_ARGS)
 Datum
 dist_ps(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(lseg_closept_point(NULL, lseg, pt));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), point(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, pt->x, pt->y);
+
+
+  result = (lseg_closept_point(NULL, lseg, pt));
+  DBUG_PRINT("info", "distance from a point to a lseg:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2433,10 +3263,19 @@ dist_ps(PG_FUNCTION_ARGS)
 Datum
 dist_sp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   Point    *pt = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(lseg_closept_point(NULL, lseg, pt));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), point(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, pt->x, pt->y);
+
+
+  result = (lseg_closept_point(NULL, lseg, pt));
+  DBUG_PRINT("info", "distance from a lseg to a point:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 static float8
@@ -2484,10 +3323,14 @@ dist_ppath_internal(Point *pt, PATH *path)
 Datum
 dist_ppath(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   PATH     *path = PG_GETARG_PATH_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_ppath_internal(pt, path));
+  result = dist_ppath_internal(pt, path);
+  DBUG_PRINT("info", "distance from a point to a path:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2496,10 +3339,14 @@ dist_ppath(PG_FUNCTION_ARGS)
 Datum
 dist_pathp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
   Point    *pt = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_ppath_internal(pt, path));
+  result = (dist_ppath_internal(pt, path));
+  DBUG_PRINT("info", "distance from a point to a path:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2508,10 +3355,16 @@ dist_pathp(PG_FUNCTION_ARGS)
 Datum
 dist_pb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(box_closept_point(NULL, box, pt));
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g); point(x:%g, y:%g)",
+             box->high.x, box->high.y, box->low.x, box->low.y, pt->x, pt->y);
+  result = (box_closept_point(NULL, box, pt));
+  DBUG_PRINT("info", "distance from a point to a box:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2520,10 +3373,16 @@ dist_pb(PG_FUNCTION_ARGS)
 Datum
 dist_bp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *pt = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(box_closept_point(NULL, box, pt));
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g); point(x:%g, y:%g)",
+             box->high.x, box->high.y, box->low.x, box->low.y, pt->x, pt->y);
+  result = box_closept_point(NULL, box, pt);
+  DBUG_PRINT("info", "distance from a box to a point:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2532,10 +3391,19 @@ dist_bp(PG_FUNCTION_ARGS)
 Datum
 dist_sl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
 
-  PG_RETURN_FLOAT8(lseg_closept_line(NULL, lseg, line));
+  float8 result;
+
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), line(A:%g, B:%g, C:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, line->A, line->B, line->C);
+
+  result = (lseg_closept_line(NULL, lseg, line));
+  DBUG_PRINT("info", "distance from a lseg to a line:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -2544,10 +3412,19 @@ dist_sl(PG_FUNCTION_ARGS)
 Datum
 dist_ls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(lseg_closept_line(NULL, lseg, line));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), line(A:%g, B:%g, C:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, line->A, line->B, line->C);
+
+  result = (lseg_closept_line(NULL, lseg, line));
+  DBUG_PRINT("info", "distance from a line to a lseg:%g", result);
+
+  PG_RETURN_FLOAT8(result);
+
 }
 
 /*
@@ -2556,10 +3433,20 @@ dist_ls(PG_FUNCTION_ARGS)
 Datum
 dist_sb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_FLOAT8(box_closept_lseg(NULL, box, lseg));
+  float8 result;
+
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); box high(x:%g, y:%g), low(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, box->high.x, box->high.y, box->low.x, box->low.y);
+
+  result = (box_closept_lseg(NULL, box, lseg));
+  DBUG_PRINT("info", "distance from a lseg to a box:%g", result);
+
+  PG_RETURN_FLOAT8(result);
+
 }
 
 /*
@@ -2568,10 +3455,19 @@ dist_sb(PG_FUNCTION_ARGS)
 Datum
 dist_bs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
 
-  PG_RETURN_FLOAT8(box_closept_lseg(NULL, box, lseg));
+  float8 result;
+
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); box high(x:%g, y:%g), low(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, box->high.x, box->high.y, box->low.x, box->low.y);
+
+  result = box_closept_lseg(NULL, box, lseg);
+  DBUG_PRINT("info", "distance from a box to a lseg:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 static float8
@@ -2595,10 +3491,19 @@ dist_cpoly_internal(CIRCLE *circle, POLYGON *poly)
 Datum
 dist_cpoly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   POLYGON    *poly = PG_GETARG_POLYGON_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_cpoly_internal(circle, poly));
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); polygon(npts:%d)",
+             circle->center.x, circle->center.y, circle->radius, poly->npts);
+
+  result = dist_cpoly_internal(circle, poly);
+  DBUG_PRINT("info", "distance from a circle to a polygon:%g", result);
+
+  PG_RETURN_FLOAT8(result);
+
 }
 
 /*
@@ -2607,10 +3512,19 @@ dist_cpoly(PG_FUNCTION_ARGS)
 Datum
 dist_polyc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_cpoly_internal(circle, poly));
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); polygon(npts:%d)",
+             circle->center.x, circle->center.y, circle->radius, poly->npts);
+
+  result = dist_cpoly_internal(circle, poly);
+  DBUG_PRINT("info", "distance from a polygon to a circle:%g", result);
+
+  PG_RETURN_FLOAT8(result);
+
 }
 
 /*
@@ -2619,19 +3533,36 @@ dist_polyc(PG_FUNCTION_ARGS)
 Datum
 dist_ppoly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *point = PG_GETARG_POINT_P(0);
   POLYGON    *poly = PG_GETARG_POLYGON_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_ppoly_internal(point, poly));
+  DBUG_PRINT("info", "point(x:%g, y:%g); polygon(npts:%d)",
+             point->x, point->y, poly->npts);
+
+  result = dist_ppoly_internal(point, poly);
+  DBUG_PRINT("info", "distance from a point to a polygon:%g", result);
+
+  PG_RETURN_FLOAT8(result);
 }
 
 Datum
 dist_polyp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
+  float8 result;
 
-  PG_RETURN_FLOAT8(dist_ppoly_internal(point, poly));
+  DBUG_PRINT("info", "point(x:%g, y:%g); polygon(npts:%d)",
+             point->x, point->y, poly->npts);
+
+  result = dist_ppoly_internal(point, poly);
+  DBUG_PRINT("info", "distance from a polygon to a point:%g", result);
+
+  PG_RETURN_FLOAT8(result);
+
 }
 
 static float8
@@ -2682,6 +3613,7 @@ dist_ppoly_internal(Point *pt, POLYGON *poly)
 static bool
 lseg_interpt_line(Point *result, LSEG *lseg, LINE *line)
 {
+  DBUG_TRACE;
   Point   interpt;
   LINE    tmp;
 
@@ -2692,15 +3624,19 @@ lseg_interpt_line(Point *result, LSEG *lseg, LINE *line)
    */
   line_construct(&tmp, &lseg->p[0], lseg_sl(lseg));
 
-  if (!line_interpt_line(&interpt, &tmp, line))
+  if (!line_interpt_line(&interpt, &tmp, line)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * Then, we check whether the intersection point is actually on the line
    * segment.
    */
-  if (!lseg_contain_point(lseg, &interpt))
+  if (!lseg_contain_point(lseg, &interpt)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   if (result != NULL) {
     /*
@@ -2716,6 +3652,7 @@ lseg_interpt_line(Point *result, LSEG *lseg, LINE *line)
       *result = interpt;
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -2732,8 +3669,10 @@ lseg_interpt_line(Point *result, LSEG *lseg, LINE *line)
 static float8
 line_closept_point(Point *result, LINE *line, Point *point)
 {
+  DBUG_TRACE;
   Point   closept;
   LINE    tmp;
+  float8 result_value;
 
   /*
    * We drop a perpendicular to find the intersection point.  Ordinarily we
@@ -2746,18 +3685,23 @@ line_closept_point(Point *result, LINE *line, Point *point)
     if (result != NULL)
       *result = *point;
 
-    return get_float8_nan();
+    result_value = get_float8_nan();
+    DBUG_PRINT("info", "return the distance:%g of those two points", result_value);
+    return result_value;
   }
 
   if (result != NULL)
     *result = closept;
 
-  return point_dt(&closept, point);
+  result_value = point_dt(&closept, point);
+  DBUG_PRINT("info", "return the distance:%g of those two points", result_value);
+  return result_value;
 }
 
 Datum
 close_pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
   Point    *result;
@@ -2766,6 +3710,10 @@ close_pl(PG_FUNCTION_ARGS)
 
   if (isnan(line_closept_point(result, line, pt)))
     PG_RETURN_NULL();
+
+  DBUG_PRINT("info", "point(x:%g, y:%g); line(A:%g, B:%g, C:%g)", pt->x, pt->y, line->A, line->B, line->C);
+
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
 
   PG_RETURN_POINT_P(result);
 }
@@ -2799,14 +3747,22 @@ lseg_closept_point(Point *result, LSEG *lseg, Point *pt)
 Datum
 close_ps(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
   Point    *result;
 
   result = (Point *) palloc(sizeof(Point));
 
-  if (isnan(lseg_closept_point(result, lseg, pt)))
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); point(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, pt->x, pt->y);
+
+  if (isnan(lseg_closept_point(result, lseg, pt))) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
+
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
 
   PG_RETURN_POINT_P(result);
 }
@@ -2818,13 +3774,16 @@ close_ps(PG_FUNCTION_ARGS)
 static float8
 lseg_closept_lseg(Point *result, LSEG *on_lseg, LSEG *to_lseg)
 {
+  DBUG_TRACE;
   Point   point;
   float8    dist,
             d;
 
   /* First, we handle the case when the line segments are intersecting. */
-  if (lseg_interpt_lseg(result, on_lseg, to_lseg))
+  if (lseg_interpt_lseg(result, on_lseg, to_lseg)) {
+    DBUG_PRINT("info", "distance:0.0");
     return 0.0;
+  }
 
   /*
    * Then, we find the closest points from the endpoints of the second line
@@ -2859,24 +3818,35 @@ lseg_closept_lseg(Point *result, LSEG *on_lseg, LSEG *to_lseg)
       *result = on_lseg->p[1];
   }
 
+  DBUG_PRINT("info", "distance:%g", dist);
   return dist;
 }
 
 Datum
 close_lseg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *l1 = PG_GETARG_LSEG_P(0);
   LSEG     *l2 = PG_GETARG_LSEG_P(1);
   Point    *result;
 
-  if (lseg_sl(l1) == lseg_sl(l2))
+  DBUG_PRINT("info", "lseg1(p1 x:%g, y:%g; p2 x:%g, y:%g); lseg2(p1 x:%g, y:%g; p2 x:%g, y:%g)",
+             l1->p[0].x, l1->p[0].y, l1->p[1].x, l1->p[1].y, l2->p[0].x, l2->p[0].y, l2->p[1].x, l2->p[1].y);
+
+
+  if (lseg_sl(l1) == lseg_sl(l2)) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
   result = (Point *) palloc(sizeof(Point));
 
-  if (isnan(lseg_closept_lseg(result, l2, l1)))
+  if (isnan(lseg_closept_lseg(result, l2, l1))) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -2890,16 +3860,20 @@ close_lseg(PG_FUNCTION_ARGS)
 static float8
 box_closept_point(Point *result, BOX *box, Point *pt)
 {
+  DBUG_TRACE;
   float8    dist,
             d;
   Point   point,
           closept;
   LSEG    lseg;
 
+  DBUG_PRINT("info", "closest point on or in box to specified point");
+
   if (box_contain_point(box, pt)) {
     if (result != NULL)
       *result = *pt;
 
+    DBUG_PRINT("info", "distance:0.0");
     return 0.0;
   }
 
@@ -2941,21 +3915,28 @@ box_closept_point(Point *result, BOX *box, Point *pt)
       *result = closept;
   }
 
+  DBUG_PRINT("info", "distance:%g", dist);
   return dist;
 }
 
 Datum
 close_pb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
   Point    *result;
 
+  DBUG_PRINT("info", "box high(x:%g, y:%g), low(x:%g, y:%g); point(x:%g, y:%g)",
+             box->high.x, box->high.y, box->low.x, box->low.y, pt->x, pt->y);
   result = (Point *) palloc(sizeof(Point));
 
-  if (isnan(box_closept_point(result, box, pt)))
+  if (isnan(box_closept_point(result, box, pt))) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -2974,11 +3955,16 @@ close_pb(PG_FUNCTION_ARGS)
 static float8
 lseg_closept_line(Point *result, LSEG *lseg, LINE *line)
 {
+  DBUG_TRACE;
   float8    dist1,
             dist2;
 
-  if (lseg_interpt_line(result, lseg, line))
+  DBUG_PRINT("info", "closest point on line segment to line");
+
+  if (lseg_interpt_line(result, lseg, line)) {
+    DBUG_PRINT("info", "distance:0.0");
     return 0.0;
+  }
 
   dist1 = line_closept_point(NULL, line, &lseg->p[0]);
   dist2 = line_closept_point(NULL, line, &lseg->p[1]);
@@ -2987,11 +3973,13 @@ lseg_closept_line(Point *result, LSEG *lseg, LINE *line)
     if (result != NULL)
       *result = lseg->p[0];
 
+    DBUG_PRINT("info", "distance:%g", dist1);
     return dist1;
   } else {
     if (result != NULL)
       *result = lseg->p[1];
 
+    DBUG_PRINT("info", "distance:%g", dist2);
     return dist2;
   }
 }
@@ -2999,18 +3987,28 @@ lseg_closept_line(Point *result, LSEG *lseg, LINE *line)
 Datum
 close_ls(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
   Point    *result;
 
-  if (lseg_sl(lseg) == line_sl(line))
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); line(A:%g, B:%g, C:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, line->A, line->B, line->C);
+
+
+  if (lseg_sl(lseg) == line_sl(line)) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
   result = (Point *) palloc(sizeof(Point));
 
-  if (isnan(lseg_closept_line(result, lseg, line)))
+  if (isnan(lseg_closept_line(result, lseg, line))) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -3024,14 +4022,19 @@ close_ls(PG_FUNCTION_ARGS)
 static float8
 box_closept_lseg(Point *result, BOX *box, LSEG *lseg)
 {
+  DBUG_TRACE;
   float8    dist,
             d;
   Point   point,
           closept;
   LSEG    bseg;
 
-  if (box_interpt_lseg(result, box, lseg))
+  DBUG_PRINT("info", "closest point on or in box to line segment");
+
+  if (box_interpt_lseg(result, box, lseg)) {
+    DBUG_PRINT("info", "distance:0.0");
     return 0.0;
+  }
 
   /* pairwise check lseg distances */
   point.x = box->low.x;
@@ -3071,21 +4074,30 @@ box_closept_lseg(Point *result, BOX *box, LSEG *lseg)
       *result = closept;
   }
 
+  DBUG_PRINT("info", "distance:%g", dist);
   return dist;
 }
 
 Datum
 close_sb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
   Point    *result;
 
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); box(high x:%g, y:%g; low x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, box->high.x, box->high.y, box->low.x, box->low.y);
+
+
   result = (Point *) palloc(sizeof(Point));
 
-  if (isnan(box_closept_lseg(result, box, lseg)))
+  if (isnan(box_closept_lseg(result, box, lseg))) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "return point(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -3109,10 +4121,21 @@ line_contain_point(LINE *line, Point *point)
 Datum
 on_pl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(line_contain_point(line, pt));
+  DBUG_PRINT("info", "point(x:%g, y:%g); line(A:%g, B:%g, C:%g)", pt->x, pt->y, line->A, line->B, line->C);
+  result = (line_contain_point(line, pt));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3131,10 +4154,22 @@ lseg_contain_point(LSEG *lseg, Point *pt)
 Datum
 on_ps(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   LSEG     *lseg = PG_GETARG_LSEG_P(1);
+  bool result;
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), point(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, pt->x, pt->y);
 
-  PG_RETURN_BOOL(lseg_contain_point(lseg, pt));
+  result = (lseg_contain_point(lseg, pt));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3144,15 +4179,30 @@ on_ps(PG_FUNCTION_ARGS)
 static bool
 box_contain_point(BOX *box, Point *point)
 {
-  return box->high.x >= point->x && box->low.x <= point->x &&
-         box->high.y >= point->y && box->low.y <= point->y;
+  DBUG_TRACE;
+  bool result;
+  result = box->high.x >= point->x && box->low.x <= point->x &&
+           box->high.y >= point->y && box->low.y <= point->y;
+
+  if (result) {
+    DBUG_PRINT("info", "check whether the point is in the box or on its border? Yes");
+  } else {
+    DBUG_PRINT("info", "check whether the point is in the box or on its border? No");
+  }
+
+  return result;
 }
 
 Datum
 on_pb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
+
+  DBUG_PRINT("info", "point(x:%g, y:%g); box(high x:%g, y:%g; low x:%g, y:%g)",
+             pt->x, pt->y, box->high.x, box->high.y, box->low.x, box->low.y);
+
 
   PG_RETURN_BOOL(box_contain_point(box, pt));
 }
@@ -3160,10 +4210,23 @@ on_pb(PG_FUNCTION_ARGS)
 Datum
 box_contain_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  bool result;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *pt = PG_GETARG_POINT_P(1);
 
-  PG_RETURN_BOOL(box_contain_point(box, pt));
+  result = box_contain_point(box, pt);
+
+  DBUG_PRINT("info", "box high(x:%g, y:%g), box low(x:%g, y:%g); point(x:%g, y:%g)", box->high.x, box->high.y,
+             box->low.x, box->low.y, pt->x, pt->y);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /* on_ppath -
@@ -3180,12 +4243,17 @@ box_contain_pt(PG_FUNCTION_ARGS)
 Datum
 on_ppath(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   PATH     *path = PG_GETARG_PATH_P(1);
   int     i,
           n;
   float8    a,
             b;
+  bool result;
+
+  DBUG_PRINT("info", "point(x:%g, y:%g); path(npts:%d)",
+             pt->x, pt->y, path->npts);
 
   /*-- OPEN --*/
   if (!path->closed) {
@@ -3201,11 +4269,20 @@ on_ppath(PG_FUNCTION_ARGS)
       a = b;
     }
 
+    DBUG_PRINT("info", "return false");
     PG_RETURN_BOOL(false);
   }
 
   /*-- CLOSED --*/
-  PG_RETURN_BOOL(point_inside(pt, path->npts, path->p) != 0);
+  result = (point_inside(pt, path->npts, path->p) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3217,11 +4294,25 @@ on_ppath(PG_FUNCTION_ARGS)
 Datum
 on_sl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(line_contain_point(line, &lseg->p[0]) &&
-                 line_contain_point(line, &lseg->p[1]));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), line(A:%g, B:%g, C:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, line->A, line->B, line->C);
+
+
+  result = (line_contain_point(line, &lseg->p[0]) &&
+            line_contain_point(line, &lseg->p[1]));
+
+  if (result) {
+    DBUG_PRINT("info", "check whether the line segment is on the line or close enough? Yes");
+  } else {
+    DBUG_PRINT("info", "check whether the line segment is on the line or close enough? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3240,10 +4331,24 @@ box_contain_lseg(BOX *box, LSEG *lseg)
 Datum
 on_sb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(box_contain_lseg(box, lseg));
+  bool result;
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); box high(x:%g, y:%g), low(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, box->high.x, box->high.y, box->low.x, box->low.y);
+
+
+  result = (box_contain_lseg(box, lseg));
+
+  if (result) {
+    DBUG_PRINT("info", "check whether the line segment is in the box or on its border? Yes");
+  } else {
+    DBUG_PRINT("info", "check whether the line segment is in the box or on its border? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*---------------------------------------------------------------------
@@ -3254,10 +4359,24 @@ on_sb(PG_FUNCTION_ARGS)
 Datum
 inter_sl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   LINE     *line = PG_GETARG_LINE_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(lseg_interpt_line(NULL, lseg, line));
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g), line(A:%g, B:%g, C:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, line->A, line->B, line->C);
+
+
+  result = lseg_interpt_line(NULL, lseg, line);
+
+  if (result) {
+    DBUG_PRINT("info", "check whether one object intersects another? Yes");
+  } else {
+    DBUG_PRINT("info", "check whether one object intersects another? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3334,10 +4453,24 @@ box_interpt_lseg(Point *result, BOX *box, LSEG *lseg)
 Datum
 inter_sb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LSEG     *lseg = PG_GETARG_LSEG_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
 
-  PG_RETURN_BOOL(box_interpt_lseg(NULL, box, lseg));
+  bool result;
+  DBUG_PRINT("info", "lseg(p1 x:%g, y:%g; p2 x:%g, y:%g); box high(x:%g, y:%g), low(x:%g, y:%g)",
+             lseg->p[0].x, lseg->p[0].y, lseg->p[1].x, lseg->p[1].y, box->high.x, box->high.y, box->low.x, box->low.y);
+
+
+  result = box_interpt_lseg(NULL, box, lseg);
+
+  if (result) {
+    DBUG_PRINT("info", "do line segment and box intersect? Yes");
+  } else {
+    DBUG_PRINT("info", "do line segment and box intersect? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
@@ -3347,12 +4480,15 @@ inter_sb(PG_FUNCTION_ARGS)
 Datum
 inter_lb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LINE     *line = PG_GETARG_LINE_P(0);
   BOX      *box = PG_GETARG_BOX_P(1);
   LSEG    bseg;
   Point   p1,
           p2;
 
+  DBUG_PRINT("info", "box(high x:%g, y:%g; low x:%g, y:%g); line(A:%g, B:%g, C:%g)",
+             box->high.x, box->high.y, box->low.x, box->low.y, line->A, line->B, line->C);
   /* pairwise check lseg intersections */
   p1.x = box->low.x;
   p1.y = box->low.y;
@@ -3360,30 +4496,39 @@ inter_lb(PG_FUNCTION_ARGS)
   p2.y = box->high.y;
   statlseg_construct(&bseg, &p1, &p2);
 
-  if (lseg_interpt_line(NULL, &bseg, line))
+  if (lseg_interpt_line(NULL, &bseg, line)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   p1.x = box->high.x;
   p1.y = box->high.y;
   statlseg_construct(&bseg, &p1, &p2);
 
-  if (lseg_interpt_line(NULL, &bseg, line))
+  if (lseg_interpt_line(NULL, &bseg, line)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   p2.x = box->high.x;
   p2.y = box->low.y;
   statlseg_construct(&bseg, &p1, &p2);
 
-  if (lseg_interpt_line(NULL, &bseg, line))
+  if (lseg_interpt_line(NULL, &bseg, line)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
   p1.x = box->low.x;
   p1.y = box->low.y;
   statlseg_construct(&bseg, &p1, &p2);
 
-  if (lseg_interpt_line(NULL, &bseg, line))
+  if (lseg_interpt_line(NULL, &bseg, line)) {
+    DBUG_PRINT("info", "return true");
     PG_RETURN_BOOL(true);
+  }
 
+  DBUG_PRINT("info", "return false");
   /* if we dropped through, no intersection */
   PG_RETURN_BOOL(false);
 }
@@ -3444,6 +4589,7 @@ make_bound_box(POLYGON *poly)
 Datum
 poly_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   POLYGON    *poly;
@@ -3478,6 +4624,7 @@ poly_in(PG_FUNCTION_ARGS)
 
   make_bound_box(poly);
 
+  DBUG_PRINT("info", "polygon npts:%d for '%s'", poly->npts, str);
   PG_RETURN_POLYGON_P(poly);
 }
 
@@ -3488,9 +4635,13 @@ poly_in(PG_FUNCTION_ARGS)
 Datum
 poly_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
+  char *result;
 
-  PG_RETURN_CSTRING(path_encode(PATH_CLOSED, poly->npts, poly->p));
+  result = (path_encode(PATH_CLOSED, poly->npts, poly->p));
+  DBUG_PRINT("info", "convert internal POLYGON representation to '%s'", result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
@@ -3504,6 +4655,7 @@ poly_out(PG_FUNCTION_ARGS)
 Datum
 poly_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   POLYGON    *poly;
   int32   npts;
@@ -3530,6 +4682,7 @@ poly_recv(PG_FUNCTION_ARGS)
 
   make_bound_box(poly);
 
+  DBUG_PRINT("info", "polygon npts:%d", poly->npts);
   PG_RETURN_POLYGON_P(poly);
 }
 
@@ -3539,12 +4692,14 @@ poly_recv(PG_FUNCTION_ARGS)
 Datum
 poly_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   StringInfoData buf;
   int32   i;
 
   pq_begintypsend(&buf);
   pq_sendint32(&buf, poly->npts);
+  DBUG_PRINT("info", "polygon npts:%d", poly->npts);
 
   for (i = 0; i < poly->npts; i++) {
     pq_sendfloat8(&buf, poly->p[i].x);
@@ -3563,11 +4718,20 @@ poly_send(PG_FUNCTION_ARGS)
 Datum
 poly_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.high.x < polyb->boundbox.low.x;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.x:%g < polyb->boundbox.low.x:%g",
+               polya->boundbox.high.x, polyb->boundbox.low.x);
+  } else {
+    DBUG_PRINT("info", "return false because polya->boundbox.high.x:%g >= polyb->boundbox.low.x:%g",
+               polya->boundbox.high.x, polyb->boundbox.low.x);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3586,11 +4750,20 @@ poly_left(PG_FUNCTION_ARGS)
 Datum
 poly_overleft(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.high.x <= polyb->boundbox.high.x;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.x:%g <= polyb->boundbox.high.x:%g",
+               polya->boundbox.high.x, polyb->boundbox.high.x);
+  } else {
+    DBUG_PRINT("info", "return false because polya->boundbox.high.x:%g > polyb->boundbox.high.x:%g",
+               polya->boundbox.high.x, polyb->boundbox.high.x);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3609,11 +4782,20 @@ poly_overleft(PG_FUNCTION_ARGS)
 Datum
 poly_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.low.x > polyb->boundbox.high.x;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.x:%g > polyb->boundbox.high.x:%g",
+               polya->boundbox.low.x, polyb->boundbox.high.x);
+  } else {
+    DBUG_PRINT("info", "return false because polya->boundbox.low.x:%g <= polyb->boundbox.high.x:%g",
+               polya->boundbox.low.x, polyb->boundbox.high.x);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3632,11 +4814,20 @@ poly_right(PG_FUNCTION_ARGS)
 Datum
 poly_overright(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.low.x >= polyb->boundbox.low.x;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.x:%g >= polyb->boundbox.low.x:%g",
+               polya->boundbox.low.x, polyb->boundbox.low.x);
+  } else {
+    DBUG_PRINT("info", "return false because polya->boundbox.low.x:%g < polyb->boundbox.low.x:%g",
+               polya->boundbox.low.x, polyb->boundbox.low.x);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3655,11 +4846,21 @@ poly_overright(PG_FUNCTION_ARGS)
 Datum
 poly_below(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.high.y < polyb->boundbox.low.y;
+
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.y:%g < polyb->boundbox.low.y:%g",
+               polya->boundbox.high.y, polyb->boundbox.low.y);
+  } else {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.y:%g >= polyb->boundbox.low.y:%g",
+               polya->boundbox.high.y, polyb->boundbox.low.y);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3678,11 +4879,20 @@ poly_below(PG_FUNCTION_ARGS)
 Datum
 poly_overbelow(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.high.y <= polyb->boundbox.high.y;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.y:%g <= polyb->boundbox.high.y:%g",
+               polya->boundbox.high.y, polyb->boundbox.high.y);
+  } else {
+    DBUG_PRINT("info", "return true because polya->boundbox.high.y:%g > polyb->boundbox.high.y:%g",
+               polya->boundbox.high.y, polyb->boundbox.high.y);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3701,11 +4911,20 @@ poly_overbelow(PG_FUNCTION_ARGS)
 Datum
 poly_above(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.low.y > polyb->boundbox.high.y;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.y:%g > polyb->boundbox.high.y:%g",
+               polya->boundbox.low.y, polyb->boundbox.high.y);
+  } else {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.y:%g <= polyb->boundbox.high.y:%g",
+               polya->boundbox.low.y, polyb->boundbox.high.y);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3724,11 +4943,20 @@ poly_above(PG_FUNCTION_ARGS)
 Datum
 poly_overabove(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
 
   result = polya->boundbox.low.y >= polyb->boundbox.low.y;
+
+  if (result) {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.y:%g >= polyb->boundbox.low.y:%g",
+               polya->boundbox.low.y, polyb->boundbox.low.y);
+  } else {
+    DBUG_PRINT("info", "return true because polya->boundbox.low.y:%g < polyb->boundbox.low.y:%g",
+               polya->boundbox.low.y, polyb->boundbox.low.y);
+  }
 
   /*
    * Avoid leaking memory for toasted inputs ... needed for rtree indexes
@@ -3750,6 +4978,7 @@ poly_overabove(PG_FUNCTION_ARGS)
 Datum
 poly_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
@@ -3765,6 +4994,12 @@ poly_same(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(polya, 0);
   PG_FREE_IF_COPY(polyb, 1);
 
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -3774,6 +5009,7 @@ poly_same(PG_FUNCTION_ARGS)
 static bool
 poly_overlap_internal(POLYGON *polya, POLYGON *polyb)
 {
+  DBUG_TRACE;
   bool    result;
 
   Assert(polya->npts > 0 && polyb->npts > 0);
@@ -3821,12 +5057,19 @@ poly_overlap_internal(POLYGON *polya, POLYGON *polyb)
     }
   }
 
+  if (result) {
+    DBUG_PRINT("info", "determine if polygon A overlaps polygon B? Yes");
+  } else {
+    DBUG_PRINT("info", "determine if polygon A overlaps polygon B? No");
+  }
+
   return result;
 }
 
 Datum
 poly_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
@@ -3980,6 +5223,7 @@ poly_contain_poly(POLYGON *contains_poly, POLYGON *contained_poly)
 Datum
 poly_contain(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
@@ -3992,6 +5236,14 @@ poly_contain(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(polya, 0);
   PG_FREE_IF_COPY(polyb, 1);
 
+  DBUG_PRINT("info", "polya(npts:%d), polyb(npts:%d)", polya->npts, polyb->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "check whether the first polygon contains the second? Yes");
+  } else {
+    DBUG_PRINT("info", "check whether the first polygon contains the second? No");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -4002,6 +5254,7 @@ poly_contain(PG_FUNCTION_ARGS)
 Datum
 poly_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   bool    result;
@@ -4015,6 +5268,14 @@ poly_contained(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(polya, 0);
   PG_FREE_IF_COPY(polyb, 1);
 
+  DBUG_PRINT("info", "polya(npts:%d), polyb(npts:%d)", polya->npts, polyb->npts);
+
+  if (result) {
+    DBUG_PRINT("info", "determine if polygon A is contained by polygon B? Yes");
+  } else {
+    DBUG_PRINT("info", "determine if polygon A is contained by polygon B? No");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -4022,25 +5283,48 @@ poly_contained(PG_FUNCTION_ARGS)
 Datum
 poly_contain_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   Point    *p = PG_GETARG_POINT_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(point_inside(p, poly->npts, poly->p) != 0);
+  DBUG_PRINT("info", "poly(npts:%d), point(x:%g, y:%g)", poly->npts, p->x, p->y);
+  result = (point_inside(p, poly->npts, poly->p) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 pt_contained_poly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p = PG_GETARG_POINT_P(0);
   POLYGON    *poly = PG_GETARG_POLYGON_P(1);
+  bool result;
 
-  PG_RETURN_BOOL(point_inside(p, poly->npts, poly->p) != 0);
+  DBUG_PRINT("info", "poly(npts:%d), point(x:%g, y:%g)", poly->npts, p->x, p->y);
+  result = (point_inside(p, poly->npts, poly->p) != 0);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
 Datum
 poly_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *polya = PG_GETARG_POLYGON_P(0);
   POLYGON    *polyb = PG_GETARG_POLYGON_P(1);
   float8    min = 0.0;    /* initialize to keep compiler quiet */
@@ -4056,8 +5340,10 @@ poly_distance(PG_FUNCTION_ARGS)
    * path distance will not give the right answer if one poly is entirely
    * within the other.
    */
-  if (poly_overlap_internal(polya, polyb))
+  if (poly_overlap_internal(polya, polyb)) {
+    DBUG_PRINT("info", "distance:0.0");
     PG_RETURN_FLOAT8(0.0);
+  }
 
   /*
    * When they don't overlap, the distance calculation is identical to that
@@ -4092,9 +5378,12 @@ poly_distance(PG_FUNCTION_ARGS)
     }
   }
 
-  if (!have_min)
+  if (!have_min) {
+    DBUG_PRINT("info", "return null");
     PG_RETURN_NULL();
+  }
 
+  DBUG_PRINT("info", "distance:%g", min);
   PG_RETURN_FLOAT8(min);
 }
 
@@ -4131,6 +5420,7 @@ point_add_point(Point *result, Point *pt1, Point *pt2)
 Datum
 point_add(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p1 = PG_GETARG_POINT_P(0);
   Point    *p2 = PG_GETARG_POINT_P(1);
   Point    *result;
@@ -4139,6 +5429,7 @@ point_add(PG_FUNCTION_ARGS)
 
   point_add_point(result, p1, p2);
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g), result(x:%g, y:%g)", p1->x, p1->y, p2->x, p2->y, result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -4154,6 +5445,7 @@ point_sub_point(Point *result, Point *pt1, Point *pt2)
 Datum
 point_sub(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p1 = PG_GETARG_POINT_P(0);
   Point    *p2 = PG_GETARG_POINT_P(1);
   Point    *result;
@@ -4162,6 +5454,7 @@ point_sub(PG_FUNCTION_ARGS)
 
   point_sub_point(result, p1, p2);
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g), result(x:%g, y:%g)", p1->x, p1->y, p2->x, p2->y, result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -4179,6 +5472,7 @@ point_mul_point(Point *result, Point *pt1, Point *pt2)
 Datum
 point_mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p1 = PG_GETARG_POINT_P(0);
   Point    *p2 = PG_GETARG_POINT_P(1);
   Point    *result;
@@ -4187,6 +5481,7 @@ point_mul(PG_FUNCTION_ARGS)
 
   point_mul_point(result, p1, p2);
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g), result(x:%g, y:%g)", p1->x, p1->y, p2->x, p2->y, result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -4208,6 +5503,7 @@ point_div_point(Point *result, Point *pt1, Point *pt2)
 Datum
 point_div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p1 = PG_GETARG_POINT_P(0);
   Point    *p2 = PG_GETARG_POINT_P(1);
   Point    *result;
@@ -4216,6 +5512,7 @@ point_div(PG_FUNCTION_ARGS)
 
   point_div_point(result, p1, p2);
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g), result(x:%g, y:%g)", p1->x, p1->y, p2->x, p2->y, result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -4229,6 +5526,7 @@ point_div(PG_FUNCTION_ARGS)
 Datum
 points_box(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *p1 = PG_GETARG_POINT_P(0);
   Point    *p2 = PG_GETARG_POINT_P(1);
   BOX      *result;
@@ -4237,12 +5535,15 @@ points_box(PG_FUNCTION_ARGS)
 
   box_construct(result, p1, p2);
 
+  DBUG_PRINT("info", "point1(x:%g, y:%g), point2(x:%g, y:%g), new box(high x:%g, y:%g; low x:%g, y:%g)",
+             p1->x, p1->y, p2->x, p2->y, result->high.x, result->high.y, result->low.x, result->low.y);
   PG_RETURN_BOX_P(result);
 }
 
 Datum
 box_add(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *p = PG_GETARG_POINT_P(1);
   BOX      *result;
@@ -4252,12 +5553,17 @@ box_add(PG_FUNCTION_ARGS)
   point_add_point(&result->high, &box->high, p);
   point_add_point(&result->low, &box->low, p);
 
+  DBUG_PRINT("info", "point(x:%g, y:%g), old box(high x:%g, y:%g; low x:%g, y:%g)",
+             p->x, p->y, box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "new box(high x:%g, y:%g; low x:%g, y:%g)",
+             result->high.x, result->high.y, result->low.x, result->low.y);
   PG_RETURN_BOX_P(result);
 }
 
 Datum
 box_sub(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *p = PG_GETARG_POINT_P(1);
   BOX      *result;
@@ -4267,12 +5573,18 @@ box_sub(PG_FUNCTION_ARGS)
   point_sub_point(&result->high, &box->high, p);
   point_sub_point(&result->low, &box->low, p);
 
+  DBUG_PRINT("info", "point(x:%g, y:%g), old box(high x:%g, y:%g; low x:%g, y:%g)",
+             p->x, p->y, box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "new box(high x:%g, y:%g; low x:%g, y:%g)",
+             result->high.x, result->high.y, result->low.x, result->low.y);
+
   PG_RETURN_BOX_P(result);
 }
 
 Datum
 box_mul(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *p = PG_GETARG_POINT_P(1);
   BOX      *result;
@@ -4286,12 +5598,17 @@ box_mul(PG_FUNCTION_ARGS)
 
   box_construct(result, &high, &low);
 
+  DBUG_PRINT("info", "point(x:%g, y:%g), old box(high x:%g, y:%g; low x:%g, y:%g)",
+             p->x, p->y, box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "new box(high x:%g, y:%g; low x:%g, y:%g)",
+             result->high.x, result->high.y, result->low.x, result->low.y);
   PG_RETURN_BOX_P(result);
 }
 
 Datum
 box_div(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   Point    *p = PG_GETARG_POINT_P(1);
   BOX      *result;
@@ -4305,6 +5622,10 @@ box_div(PG_FUNCTION_ARGS)
 
   box_construct(result, &high, &low);
 
+  DBUG_PRINT("info", "point(x:%g, y:%g), old box(high x:%g, y:%g; low x:%g, y:%g)",
+             p->x, p->y, box->high.x, box->high.y, box->low.x, box->low.y);
+  DBUG_PRINT("info", "new box(high x:%g, y:%g; low x:%g, y:%g)",
+             result->high.x, result->high.y, result->low.x, result->low.y);
   PG_RETURN_BOX_P(result);
 }
 
@@ -4314,6 +5635,7 @@ box_div(PG_FUNCTION_ARGS)
 Datum
 point_box(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt = PG_GETARG_POINT_P(0);
   BOX      *box;
 
@@ -4324,6 +5646,9 @@ point_box(PG_FUNCTION_ARGS)
   box->high.y = pt->y;
   box->low.y = pt->y;
 
+  DBUG_PRINT("info", "convert point(x:%g, y:%g) to empty box(high x:%g, y:%g; low x:%g, y:%g)",
+             pt->x, pt->y, box->high.x, box->high.y, box->low.x, box->low.y);
+
   PG_RETURN_BOX_P(box);
 }
 
@@ -4333,16 +5658,23 @@ point_box(PG_FUNCTION_ARGS)
 Datum
 boxes_bound_box(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box1 = PG_GETARG_BOX_P(0),
             *box2 = PG_GETARG_BOX_P(1),
              *container;
 
   container = (BOX *) palloc(sizeof(BOX));
 
+  DBUG_PRINT("info", "box1(high x:%g, y:%g; low x:%g, y:%g); box2(high x:%g, y:%g; low x:%g, y:%g)",
+             box1->high.x, box1->high.y, box1->low.x, box1->low.y, box2->high.x, box2->high.y, box2->low.x, box2->low.y);
   container->high.x = float8_max(box1->high.x, box2->high.x);
   container->low.x = float8_min(box1->low.x, box2->low.x);
   container->high.y = float8_max(box1->high.y, box2->high.y);
   container->low.y = float8_min(box1->low.y, box2->low.y);
+
+  DBUG_PRINT("info", "smallest bounding box(high x:%g, y:%g; low x:%g, y:%g) that includes both of the given boxes",
+             container->high.x, container->high.y, container->low.x, container->low.y);
+
 
   PG_RETURN_BOX_P(container);
 }
@@ -4360,6 +5692,7 @@ boxes_bound_box(PG_FUNCTION_ARGS)
 Datum
 path_add(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *p1 = PG_GETARG_PATH_P(0);
   PATH     *p2 = PG_GETARG_PATH_P(1);
   PATH     *result;
@@ -4398,6 +5731,8 @@ path_add(PG_FUNCTION_ARGS)
     result->p[i + p1->npts].y = p2->p[i].y;
   }
 
+  DBUG_PRINT("info", "path1(npts:%d), path2(npts:%d) and new path(npts:%d)", p1->npts, p2->npts, result->npts);
+
   PG_RETURN_PATH_P(result);
 }
 
@@ -4407,26 +5742,34 @@ path_add(PG_FUNCTION_ARGS)
 Datum
 path_add_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
   Point    *point = PG_GETARG_POINT_P(1);
   int     i;
 
+  DBUG_PRINT("info", "old path(npts:%d), point(x:%g, y:%g)", path->npts, point->x, point->y);
+
   for (i = 0; i < path->npts; i++)
     point_add_point(&path->p[i], &path->p[i], point);
 
+  DBUG_PRINT("info", "new path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
 Datum
 path_sub_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
   Point    *point = PG_GETARG_POINT_P(1);
   int     i;
 
+  DBUG_PRINT("info", "old path(npts:%d), point(x:%g, y:%g)", path->npts, point->x, point->y);
+
   for (i = 0; i < path->npts; i++)
     point_sub_point(&path->p[i], &path->p[i], point);
 
+  DBUG_PRINT("info", "new path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
@@ -4436,26 +5779,34 @@ path_sub_pt(PG_FUNCTION_ARGS)
 Datum
 path_mul_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
   Point    *point = PG_GETARG_POINT_P(1);
   int     i;
 
+  DBUG_PRINT("info", "old path(npts:%d), point(x:%g, y:%g)", path->npts, point->x, point->y);
+
   for (i = 0; i < path->npts; i++)
     point_mul_point(&path->p[i], &path->p[i], point);
 
+  DBUG_PRINT("info", "new path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
 Datum
 path_div_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P_COPY(0);
   Point    *point = PG_GETARG_POINT_P(1);
   int     i;
 
+  DBUG_PRINT("info", "old path(npts:%d), point(x:%g, y:%g)", path->npts, point->x, point->y);
+
   for (i = 0; i < path->npts; i++)
     point_div_point(&path->p[i], &path->p[i], point);
 
+  DBUG_PRINT("info", "new path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
@@ -4463,10 +5814,13 @@ path_div_pt(PG_FUNCTION_ARGS)
 Datum
 path_poly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PATH     *path = PG_GETARG_PATH_P(0);
   POLYGON    *poly;
   int     size;
   int     i;
+
+  DBUG_PRINT("info", "path(npts:%d)", path->npts);
 
   /* This is not very consistent --- other similar cases return NULL ... */
   if (!path->closed)
@@ -4491,6 +5845,7 @@ path_poly(PG_FUNCTION_ARGS)
 
   make_bound_box(poly);
 
+  DBUG_PRINT("info", "return polygon(npts:%d)", poly->npts);
   PG_RETURN_POLYGON_P(poly);
 }
 
@@ -4504,8 +5859,10 @@ path_poly(PG_FUNCTION_ARGS)
 Datum
 poly_npoints(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
 
+  DBUG_PRINT("info", "return polygon's npoints:%d", poly->npts);
   PG_RETURN_INT32(poly->npts);
 }
 
@@ -4513,6 +5870,7 @@ poly_npoints(PG_FUNCTION_ARGS)
 Datum
 poly_center(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   Point    *result;
   CIRCLE    circle;
@@ -4522,6 +5880,7 @@ poly_center(PG_FUNCTION_ARGS)
   poly_to_circle(&circle, poly);
   *result = circle.center;
 
+  DBUG_PRINT("info", "return polygon's center(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -4529,12 +5888,14 @@ poly_center(PG_FUNCTION_ARGS)
 Datum
 poly_box(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   BOX      *box;
 
   box = (BOX *) palloc(sizeof(BOX));
   *box = poly->boundbox;
 
+  DBUG_PRINT("info", "return polygon's boundbox(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
   PG_RETURN_BOX_P(box);
 }
 
@@ -4545,10 +5906,13 @@ poly_box(PG_FUNCTION_ARGS)
 Datum
 box_poly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   POLYGON    *poly;
   int     size;
 
+  DBUG_PRINT("info", "convert a box to a polygon");
+  DBUG_PRINT("info", "old box(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
   /* map four corners of the box to a polygon */
   size = offsetof(POLYGON, p) + sizeof(poly->p[0]) * 4;
   poly = (POLYGON *) palloc(size);
@@ -4566,6 +5930,7 @@ box_poly(PG_FUNCTION_ARGS)
   poly->p[3].y = box->low.y;
 
   box_construct(&poly->boundbox, &box->high, &box->low);
+  DBUG_PRINT("info", "new polygon(npts:%d)", poly->npts);
 
   PG_RETURN_POLYGON_P(poly);
 }
@@ -4574,11 +5939,13 @@ box_poly(PG_FUNCTION_ARGS)
 Datum
 poly_path(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   PATH     *path;
   int     size;
   int     i;
 
+  DBUG_PRINT("info", "old polygon(npts:%d)", poly->npts);
   /*
    * Never overflows: the old size fit in MaxAllocSize, and the new size is
    * smaller by a small constant.
@@ -4597,6 +5964,7 @@ poly_path(PG_FUNCTION_ARGS)
     path->p[i].y = poly->p[i].y;
   }
 
+  DBUG_PRINT("info", "new path(npts:%d)", path->npts);
   PG_RETURN_PATH_P(path);
 }
 
@@ -4620,6 +5988,7 @@ poly_path(PG_FUNCTION_ARGS)
 Datum
 circle_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   CIRCLE     *circle = (CIRCLE *) palloc(sizeof(CIRCLE));
@@ -4627,6 +5996,7 @@ circle_in(PG_FUNCTION_ARGS)
            *cp;
   int     depth = 0;
 
+  DBUG_PRINT("info", "original string:%s", str);
   s = str;
 
   while (isspace((unsigned char) *s))
@@ -4683,6 +6053,10 @@ circle_in(PG_FUNCTION_ARGS)
              errmsg("invalid input syntax for type %s: \"%s\"",
                     "circle", str)));
 
+  DBUG_PRINT("info", "return circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
+
   PG_RETURN_CIRCLE_P(circle);
 }
 
@@ -4691,10 +6065,16 @@ circle_in(PG_FUNCTION_ARGS)
 Datum
 circle_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   StringInfoData str;
+  char *result;
 
   initStringInfo(&str);
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
 
   appendStringInfoChar(&str, LDELIM_C);
   appendStringInfoChar(&str, LDELIM);
@@ -4704,6 +6084,8 @@ circle_out(PG_FUNCTION_ARGS)
   single_encode(circle->radius, &str);
   appendStringInfoChar(&str, RDELIM_C);
 
+  result = (str.data);
+  DBUG_PRINT("info", "convert a circle to external form:%s", result);
   PG_RETURN_CSTRING(str.data);
 }
 
@@ -4713,6 +6095,7 @@ circle_out(PG_FUNCTION_ARGS)
 Datum
 circle_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   CIRCLE     *circle;
 
@@ -4728,6 +6111,10 @@ circle_recv(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
              errmsg("invalid radius in external \"circle\" value")));
 
+  DBUG_PRINT("info", "return circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
+
   PG_RETURN_CIRCLE_P(circle);
 }
 
@@ -4737,8 +6124,12 @@ circle_recv(PG_FUNCTION_ARGS)
 Datum
 circle_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   StringInfoData buf;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
 
   pq_begintypsend(&buf);
   pq_sendfloat8(&buf, circle->center.x);
@@ -4761,12 +6152,25 @@ circle_send(PG_FUNCTION_ARGS)
 Datum
 circle_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(((isnan(circle1->radius) && isnan(circle2->radius)) ||
-                  FPeq(circle1->radius, circle2->radius)) &&
-                 point_eq_point(&circle1->center, &circle2->center));
+
+  result = (((isnan(circle1->radius) && isnan(circle2->radius)) ||
+             FPeq(circle1->radius, circle2->radius)) &&
+            point_eq_point(&circle1->center, &circle2->center));
+
+  if (result) {
+    DBUG_PRINT("info", "circles identical? Yes");
+  } else {
+    DBUG_PRINT("info", "circles identical? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    circle_overlap  -   does circle1 overlap circle2?
@@ -4774,11 +6178,23 @@ circle_same(PG_FUNCTION_ARGS)
 Datum
 circle_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPle(point_dt(&circle1->center, &circle2->center),
-                      float8_pl(circle1->radius, circle2->radius)));
+  result = (FPle(point_dt(&circle1->center, &circle2->center),
+                 float8_pl(circle1->radius, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "does circle1 overlap circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "does circle1 overlap circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    circle_overleft -   is the right edge of circle1 at or left of
@@ -4787,11 +6203,24 @@ circle_overlap(PG_FUNCTION_ARGS)
 Datum
 circle_overleft(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPle(float8_pl(circle1->center.x, circle1->radius),
-                      float8_pl(circle2->center.x, circle2->radius)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+
+  result = (FPle(float8_pl(circle1->center.x, circle1->radius), float8_pl(circle2->center.x, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is the right edge of circle1 at or left of the right edge of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the right edge of circle1 at or left of the right edge of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*    circle_left   -   is circle1 strictly left of circle2?
@@ -4799,11 +6228,24 @@ circle_overleft(PG_FUNCTION_ARGS)
 Datum
 circle_left(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPlt(float8_pl(circle1->center.x, circle1->radius),
-                      float8_mi(circle2->center.x, circle2->radius)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPlt(float8_pl(circle1->center.x, circle1->radius),
+                 float8_mi(circle2->center.x, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is circle1 strictly left of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is circle1 strictly left of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*    circle_right  -   is circle1 strictly right of circle2?
@@ -4811,11 +6253,23 @@ circle_left(PG_FUNCTION_ARGS)
 Datum
 circle_right(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPgt(float8_mi(circle1->center.x, circle1->radius),
+                 float8_pl(circle2->center.x, circle2->radius)));
 
-  PG_RETURN_BOOL(FPgt(float8_mi(circle1->center.x, circle1->radius),
-                      float8_pl(circle2->center.x, circle2->radius)));
+  if (result) {
+    DBUG_PRINT("info", "is circle1 strictly right of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is circle1 strictly right of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*    circle_overright  - is the left edge of circle1 at or right of
@@ -4824,11 +6278,25 @@ circle_right(PG_FUNCTION_ARGS)
 Datum
 circle_overright(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPge(float8_mi(circle1->center.x, circle1->radius),
-                      float8_mi(circle2->center.x, circle2->radius)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPge(float8_mi(circle1->center.x, circle1->radius),
+                 float8_mi(circle2->center.x, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is the left edge of circle1 at or right of the left edge of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the left edge of circle1 at or right of the left edge of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 /*    circle_contained    -   is circle1 contained by circle2?
@@ -4836,11 +6304,24 @@ circle_overright(PG_FUNCTION_ARGS)
 Datum
 circle_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPle(point_dt(&circle1->center, &circle2->center),
-                      float8_mi(circle2->radius, circle1->radius)));
+
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPle(point_dt(&circle1->center, &circle2->center),
+                 float8_mi(circle2->radius, circle1->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is circle1 contained by circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is circle1 contained by circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*    circle_contain  -   does circle1 contain circle2?
@@ -4848,11 +6329,24 @@ circle_contained(PG_FUNCTION_ARGS)
 Datum
 circle_contain(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPle(point_dt(&circle1->center, &circle2->center),
-                      float8_mi(circle1->radius, circle2->radius)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPle(point_dt(&circle1->center, &circle2->center),
+                 float8_mi(circle1->radius, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "does circle1 contain circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "does circle1 contain circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 
@@ -4861,11 +6355,26 @@ circle_contain(PG_FUNCTION_ARGS)
 Datum
 circle_below(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPlt(float8_pl(circle1->center.y, circle1->radius),
-                      float8_mi(circle2->center.y, circle2->radius)));
+
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPlt(float8_pl(circle1->center.y, circle1->radius),
+                 float8_mi(circle2->center.y, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is circle1 strictly below circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is circle1 strictly below circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 /*    circle_above  -   is circle1 strictly above circle2?
@@ -4873,11 +6382,24 @@ circle_below(PG_FUNCTION_ARGS)
 Datum
 circle_above(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPgt(float8_mi(circle1->center.y, circle1->radius),
-                      float8_pl(circle2->center.y, circle2->radius)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPgt(float8_mi(circle1->center.y, circle1->radius),
+                 float8_pl(circle2->center.y, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is circle1 strictly above circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is circle1 strictly above circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*    circle_overbelow -    is the upper edge of circle1 at or below
@@ -4886,11 +6408,23 @@ circle_above(PG_FUNCTION_ARGS)
 Datum
 circle_overbelow(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+  result = (FPle(float8_pl(circle1->center.y, circle1->radius),
+                 float8_pl(circle2->center.y, circle2->radius)));
 
-  PG_RETURN_BOOL(FPle(float8_pl(circle1->center.y, circle1->radius),
-                      float8_pl(circle2->center.y, circle2->radius)));
+  if (result) {
+    DBUG_PRINT("info", "is the upper edge of circle1 at or below the upper edge of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the upper edge of circle1 at or below the upper edge of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 /*    circle_overabove  - is the lower edge of circle1 at or above
@@ -4899,11 +6433,25 @@ circle_overbelow(PG_FUNCTION_ARGS)
 Datum
 circle_overabove(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPge(float8_mi(circle1->center.y, circle1->radius),
-                      float8_mi(circle2->center.y, circle2->radius)));
+  result = (FPge(float8_mi(circle1->center.y, circle1->radius),
+                 float8_mi(circle2->center.y, circle2->radius)));
+
+  if (result) {
+    DBUG_PRINT("info", "is the lower edge of circle1 at or above the lower edge of circle2? Yes");
+  } else {
+    DBUG_PRINT("info", "is the lower edge of circle1 at or above the lower edge of circle2? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 
@@ -4913,55 +6461,146 @@ circle_overabove(PG_FUNCTION_ARGS)
 Datum
 circle_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPeq(circle_ar(circle1), circle_ar(circle2)));
+
+  result = (FPeq(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "is area(circle1) relop area(circle2), within our accuracy constraint? Yes");
+  } else {
+    DBUG_PRINT("info", "is area(circle1) relop area(circle2), within our accuracy constraint? No");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 Datum
 circle_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
 
-  PG_RETURN_BOOL(FPne(circle_ar(circle1), circle_ar(circle2)));
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+
+
+  result = (FPne(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
+
 }
 
 Datum
 circle_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPlt(circle_ar(circle1), circle_ar(circle2)));
+  result = (FPlt(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 Datum
 circle_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPgt(circle_ar(circle1), circle_ar(circle2)));
+
+  result = (FPgt(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
 }
 
 Datum
 circle_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPle(circle_ar(circle1), circle_ar(circle2)));
+
+  result = (FPle(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
+
+
 }
 
 Datum
 circle_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
+  bool result;
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
 
-  PG_RETURN_BOOL(FPge(circle_ar(circle1), circle_ar(circle2)));
+
+  result = (FPge(circle_ar(circle1), circle_ar(circle2)));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 
@@ -4975,14 +6614,22 @@ circle_ge(PG_FUNCTION_ARGS)
 Datum
 circle_add_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   CIRCLE     *result;
+
+  DBUG_PRINT("info", "old circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+
 
   result = (CIRCLE *) palloc(sizeof(CIRCLE));
 
   point_add_point(&result->center, &circle->center, point);
   result->radius = circle->radius;
+
+  DBUG_PRINT("info", "new circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
 
   PG_RETURN_CIRCLE_P(result);
 }
@@ -4990,14 +6637,22 @@ circle_add_pt(PG_FUNCTION_ARGS)
 Datum
 circle_sub_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   CIRCLE     *result;
+  DBUG_PRINT("info", "old circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+
 
   result = (CIRCLE *) palloc(sizeof(CIRCLE));
 
   point_sub_point(&result->center, &circle->center, point);
   result->radius = circle->radius;
+
+  DBUG_PRINT("info", "new circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
+
 
   PG_RETURN_CIRCLE_P(result);
 }
@@ -5009,6 +6664,7 @@ circle_sub_pt(PG_FUNCTION_ARGS)
 Datum
 circle_mul_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   CIRCLE     *result;
@@ -5017,6 +6673,10 @@ circle_mul_pt(PG_FUNCTION_ARGS)
 
   point_mul_point(&result->center, &circle->center, point);
   result->radius = float8_mul(circle->radius, HYPOT(point->x, point->y));
+  DBUG_PRINT("info", "old circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+  DBUG_PRINT("info", "new circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
 
   PG_RETURN_CIRCLE_P(result);
 }
@@ -5024,6 +6684,7 @@ circle_mul_pt(PG_FUNCTION_ARGS)
 Datum
 circle_div_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   CIRCLE     *result;
@@ -5032,6 +6693,11 @@ circle_div_pt(PG_FUNCTION_ARGS)
 
   point_div_point(&result->center, &circle->center, point);
   result->radius = float8_div(circle->radius, HYPOT(point->x, point->y));
+  DBUG_PRINT("info", "old circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+  DBUG_PRINT("info", "new circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
+
 
   PG_RETURN_CIRCLE_P(result);
 }
@@ -5042,9 +6708,17 @@ circle_div_pt(PG_FUNCTION_ARGS)
 Datum
 circle_area(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
 
-  PG_RETURN_FLOAT8(circle_ar(circle));
+  double result = circle_ar(circle);
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
+
+  DBUG_PRINT("info", "return the area of the circle:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -5053,9 +6727,16 @@ circle_area(PG_FUNCTION_ARGS)
 Datum
 circle_diameter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
+  double result = float8_mul(circle->radius, 2.0);
 
-  PG_RETURN_FLOAT8(float8_mul(circle->radius, 2.0));
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
+  DBUG_PRINT("info", "return the diameter of the circle:%g", result);
+  PG_RETURN_FLOAT8(result);
+
 }
 
 
@@ -5064,9 +6745,15 @@ circle_diameter(PG_FUNCTION_ARGS)
 Datum
 circle_radius(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
+  double result = circle->radius;
 
-  PG_RETURN_FLOAT8(circle->radius);
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
+  DBUG_PRINT("info", "return the radius of the circle:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 
@@ -5076,9 +6763,14 @@ circle_radius(PG_FUNCTION_ARGS)
 Datum
 circle_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle1 = PG_GETARG_CIRCLE_P(0);
   CIRCLE     *circle2 = PG_GETARG_CIRCLE_P(1);
   float8    result;
+
+  DBUG_PRINT("info", "circle1(center x:%g, y:%g; radius:%g); circle2(center x:%g, y:%g; radius:%g)",
+             circle1->center.x, circle1->center.y, circle1->radius, circle2->center.x, circle2->center.y, circle2->radius);
+
 
   result = float8_mi(point_dt(&circle1->center, &circle2->center),
                      float8_pl(circle1->radius, circle2->radius));
@@ -5086,6 +6778,7 @@ circle_distance(PG_FUNCTION_ARGS)
   if (result < 0.0)
     result = 0.0;
 
+  DBUG_PRINT("info", "return the distance of the circles:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -5093,24 +6786,52 @@ circle_distance(PG_FUNCTION_ARGS)
 Datum
 circle_contain_pt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   float8    d;
+  bool result;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
 
   d = point_dt(&circle->center, point);
-  PG_RETURN_BOOL(d <= circle->radius);
+  result = (d <= circle->radius);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 
 Datum
 pt_contained_circle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *point = PG_GETARG_POINT_P(0);
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(1);
   float8    d;
+  bool result;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
 
   d = point_dt(&circle->center, point);
-  PG_RETURN_BOOL(d <= circle->radius);
+
+  result = (d <= circle->radius);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
+
 }
 
 
@@ -5120,9 +6841,14 @@ pt_contained_circle(PG_FUNCTION_ARGS)
 Datum
 dist_pc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *point = PG_GETARG_POINT_P(0);
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(1);
   float8    result;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+
 
   result = float8_mi(point_dt(point, &circle->center),
                      circle->radius);
@@ -5130,6 +6856,7 @@ dist_pc(PG_FUNCTION_ARGS)
   if (result < 0.0)
     result = 0.0;
 
+  DBUG_PRINT("info", "return the distance between a point and a circle:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -5139,15 +6866,21 @@ dist_pc(PG_FUNCTION_ARGS)
 Datum
 dist_cpoint(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *point = PG_GETARG_POINT_P(1);
   float8    result;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); point(x:%g, y:%g)",
+             circle->center.x, circle->center.y, circle->radius, point->x, point->y);
+
 
   result = float8_mi(point_dt(point, &circle->center), circle->radius);
 
   if (result < 0.0)
     result = 0.0;
 
+  DBUG_PRINT("info", "return the distance between a circle to a point:%g", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -5156,13 +6889,18 @@ dist_cpoint(PG_FUNCTION_ARGS)
 Datum
 circle_center(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   Point    *result;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
 
   result = (Point *) palloc(sizeof(Point));
   result->x = circle->center.x;
   result->y = circle->center.y;
 
+  DBUG_PRINT("info", "return the center point of the circle(x:%g, y:%g)", result->x, result->y);
   PG_RETURN_POINT_P(result);
 }
 
@@ -5183,9 +6921,11 @@ circle_ar(CIRCLE *circle)
 Datum
 cr_circle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *center = PG_GETARG_POINT_P(0);
   float8    radius = PG_GETARG_FLOAT8(1);
   CIRCLE     *result;
+
 
   result = (CIRCLE *) palloc(sizeof(CIRCLE));
 
@@ -5193,15 +6933,24 @@ cr_circle(PG_FUNCTION_ARGS)
   result->center.y = center->y;
   result->radius = radius;
 
+  DBUG_PRINT("info", "return circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
+
+
   PG_RETURN_CIRCLE_P(result);
 }
 
 Datum
 circle_box(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(0);
   BOX      *box;
   float8    delta;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
 
   box = (BOX *) palloc(sizeof(BOX));
 
@@ -5212,6 +6961,9 @@ circle_box(PG_FUNCTION_ARGS)
   box->high.y = float8_pl(circle->center.y, delta);
   box->low.y = float8_mi(circle->center.y, delta);
 
+  DBUG_PRINT("info", "return box(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
+
+
   PG_RETURN_BOX_P(box);
 }
 
@@ -5221,15 +6973,21 @@ circle_box(PG_FUNCTION_ARGS)
 Datum
 box_circle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BOX      *box = PG_GETARG_BOX_P(0);
   CIRCLE     *circle;
 
+  DBUG_PRINT("info", "box(high x:%g, y:%g; low x:%g, y:%g)", box->high.x, box->high.y, box->low.x, box->low.y);
   circle = (CIRCLE *) palloc(sizeof(CIRCLE));
 
   circle->center.x = float8_div(float8_pl(box->high.x, box->low.x), 2.0);
   circle->center.y = float8_div(float8_pl(box->high.y, box->low.y), 2.0);
 
   circle->radius = point_dt(&circle->center, &box->high);
+
+  DBUG_PRINT("info", "return circle(center x:%g, y:%g; radius:%g)",
+             circle->center.x, circle->center.y, circle->radius);
+
 
   PG_RETURN_CIRCLE_P(circle);
 }
@@ -5238,6 +6996,7 @@ box_circle(PG_FUNCTION_ARGS)
 Datum
 circle_poly(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   npts = PG_GETARG_INT32(0);
   CIRCLE     *circle = PG_GETARG_CIRCLE_P(1);
   POLYGON    *poly;
@@ -5246,6 +7005,10 @@ circle_poly(PG_FUNCTION_ARGS)
   int     i;
   float8    angle;
   float8    anglestep;
+
+  DBUG_PRINT("info", "circle(center x:%g, y:%g; radius:%g); npts:%d",
+             circle->center.x, circle->center.y, circle->radius, npts);
+
 
   if (FPzero(circle->radius))
     ereport(ERROR,
@@ -5283,6 +7046,7 @@ circle_poly(PG_FUNCTION_ARGS)
 
   make_bound_box(poly);
 
+  DBUG_PRINT("info", "return polygon(npts:%d)", poly->npts);
   PG_RETURN_POLYGON_P(poly);
 }
 
@@ -5297,6 +7061,7 @@ circle_poly(PG_FUNCTION_ARGS)
 static void
 poly_to_circle(CIRCLE *result, POLYGON *poly)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(poly->npts > 0);
@@ -5321,12 +7086,17 @@ poly_to_circle(CIRCLE *result, POLYGON *poly)
 Datum
 poly_circle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   POLYGON    *poly = PG_GETARG_POLYGON_P(0);
   CIRCLE     *result;
 
+  DBUG_PRINT("info", "polygon(npts:%d)", poly->npts);
   result = (CIRCLE *) palloc(sizeof(CIRCLE));
 
   poly_to_circle(result, poly);
+
+  DBUG_PRINT("info", "return circle(center x:%g, y:%g; radius:%g)",
+             result->center.x, result->center.y, result->radius);
 
   PG_RETURN_CIRCLE_P(result);
 }
@@ -5354,6 +7124,7 @@ poly_circle(PG_FUNCTION_ARGS)
 static int
 point_inside(Point *p, int npts, Point *plist)
 {
+  DBUG_TRACE;
   float8    x0,
             y0;
   float8    prev_x,
@@ -5414,6 +7185,7 @@ point_inside(Point *p, int npts, Point *plist)
 static int
 lseg_crossing(float8 x, float8 y, float8 prev_x, float8 prev_y)
 {
+  DBUG_TRACE;
   float8    z;
   int     y_sign;
 
@@ -5478,6 +7250,7 @@ lseg_crossing(float8 x, float8 y, float8 prev_x, float8 prev_y)
 static bool
 plist_same(int npts, Point *p1, Point *p2)
 {
+  DBUG_TRACE;
   int     i,
           ii,
           j;
@@ -5540,15 +7313,24 @@ plist_same(int npts, Point *p1, Point *p2)
 float8
 pg_hypot(float8 x, float8 y)
 {
+  DBUG_TRACE;
   float8    yx,
             result;
+  float8 tmp;
+
+  DBUG_PRINT("info", "determine the hypotenuse");
 
   /* Handle INF and NaN properly */
-  if (isinf(x) || isinf(y))
+  if (isinf(x) || isinf(y)) {
+    DBUG_PRINT("info", "handle INF and NaN properly");
     return get_float8_infinity();
+  }
 
-  if (isnan(x) || isnan(y))
-    return get_float8_nan();
+  if (isnan(x) || isnan(y)) {
+    tmp = get_float8_nan();
+    DBUG_PRINT("info", "return %g", tmp);
+    return tmp;
+  }
 
   /* Else, drop any minus signs */
   x = fabs(x);
@@ -5567,8 +7349,10 @@ pg_hypot(float8 x, float8 y)
    * such cases, but more importantly it also protects against
    * divide-by-zero errors, since now x >= y.
    */
-  if (y == 0.0)
+  if (y == 0.0) {
+    DBUG_PRINT("info", "return %g", x);
     return x;
+  }
 
   /* Determine the hypotenuse */
   yx = y / x;
@@ -5580,5 +7364,6 @@ pg_hypot(float8 x, float8 y)
   if (unlikely(result == 0.0))
     float_underflow_error();
 
+  DBUG_PRINT("info", "return %g", result);
   return result;
 }

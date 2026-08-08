@@ -160,6 +160,7 @@ dsm_impl_op(dsm_op op, dsm_handle handle, Size request_size,
             void **impl_private, void **mapped_address, Size *mapped_size,
             int elevel)
 {
+  DBUG_TRACE;
   Assert(op == DSM_OP_CREATE || request_size == 0);
   Assert((op != DSM_OP_CREATE && op != DSM_OP_ATTACH) ||
          (*mapped_address == NULL && *mapped_size == 0));
@@ -217,6 +218,7 @@ dsm_impl_posix(dsm_op op, dsm_handle handle, Size request_size,
                void **impl_private, void **mapped_address, Size *mapped_size,
                int elevel)
 {
+  DBUG_TRACE;
   char    name[64];
   int     flags;
   int     fd;
@@ -356,6 +358,7 @@ dsm_impl_posix(dsm_op op, dsm_handle handle, Size request_size,
 static int
 dsm_impl_posix_resize(int fd, off_t size)
 {
+  DBUG_TRACE;
   int     rc;
   int     save_errno;
   sigset_t  save_sigmask;
@@ -429,6 +432,7 @@ dsm_impl_sysv(dsm_op op, dsm_handle handle, Size request_size,
               void **impl_private, void **mapped_address, Size *mapped_size,
               int elevel)
 {
+  DBUG_TRACE;
   key_t   key;
   int     ident;
   char     *address;
@@ -615,6 +619,7 @@ dsm_impl_windows(dsm_op op, dsm_handle handle, Size request_size,
                  void **impl_private, void **mapped_address,
                  Size *mapped_size, int elevel)
 {
+  DBUG_TRACE;
   char     *address;
   HANDLE    hmap;
   char    name[64];
@@ -791,6 +796,7 @@ dsm_impl_mmap(dsm_op op, dsm_handle handle, Size request_size,
               void **impl_private, void **mapped_address, Size *mapped_size,
               int elevel)
 {
+  DBUG_TRACE;
   char    name[64];
   int     flags;
   int     fd;
@@ -962,6 +968,8 @@ void
 dsm_impl_pin_segment(dsm_handle handle, void *impl_private,
                      void **impl_private_pm_handle)
 {
+  DBUG_TRACE;
+
   switch (dynamic_shared_memory_type) {
 #ifdef USE_DSM_WINDOWS
 
@@ -1012,6 +1020,8 @@ dsm_impl_pin_segment(dsm_handle handle, void *impl_private,
 void
 dsm_impl_unpin_segment(dsm_handle handle, void **impl_private)
 {
+  DBUG_TRACE;
+
   switch (dynamic_shared_memory_type) {
 #ifdef USE_DSM_WINDOWS
 

@@ -281,6 +281,7 @@ static bool
 tuples_equal(TupleTableSlot *slot1, TupleTableSlot *slot2,
              TypeCacheEntry **eq)
 {
+  DBUG_TRACE;
   int     attrnum;
 
   Assert(slot1->tts_tupleDescriptor->natts ==
@@ -307,8 +308,10 @@ tuples_equal(TupleTableSlot *slot1, TupleTableSlot *slot2,
      * If one value is NULL and other is not, then they are certainly not
      * equal
      */
-    if (slot1->tts_isnull[attrnum] != slot2->tts_isnull[attrnum])
+    if (slot1->tts_isnull[attrnum] != slot2->tts_isnull[attrnum]) {
+      DBUG_PRINT("info", "if one value is NULL and other is not, then they are certainly not equal");
       return false;
+    }
 
     /*
      * If both are NULL, they can be considered equal.
@@ -334,10 +337,13 @@ tuples_equal(TupleTableSlot *slot1, TupleTableSlot *slot2,
     if (!DatumGetBool(FunctionCall2Coll(&typentry->eq_opr_finfo,
                                         att->attcollation,
                                         slot1->tts_values[attrnum],
-                                        slot2->tts_values[attrnum])))
+                                        slot2->tts_values[attrnum]))) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 

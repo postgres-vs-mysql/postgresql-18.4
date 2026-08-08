@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_proc.h"
@@ -62,6 +63,7 @@ PLpgSQL_plugin **plpgsql_plugin_ptr = NULL;
 static bool
 plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   char     *rawstring;
   List     *elemlist;
   ListCell   *l;
@@ -125,12 +127,14 @@ plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source)
 static void
 plpgsql_extra_warnings_assign_hook(const char *newvalue, void *extra)
 {
+  DBUG_TRACE;
   plpgsql_extra_warnings = *((int *) extra);
 }
 
 static void
 plpgsql_extra_errors_assign_hook(const char *newvalue, void *extra)
 {
+  DBUG_TRACE;
   plpgsql_extra_errors = *((int *) extra);
 }
 
@@ -143,6 +147,7 @@ plpgsql_extra_errors_assign_hook(const char *newvalue, void *extra)
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Be sure we do initialization only once (should be redundant now) */
   static bool inited = false;
 
@@ -219,6 +224,7 @@ PG_FUNCTION_INFO_V1(plpgsql_call_handler);
 Datum
 plpgsql_call_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nonatomic;
   PLpgSQL_function *func;
   PLpgSQL_execstate *save_cur_estate;
@@ -233,6 +239,7 @@ plpgsql_call_handler(PG_FUNCTION_ARGS)
   /*
    * Connect to SPI manager
    */
+  DBUG_PRINT("info", "connect to SPI manager");
   SPI_connect_ext(nonatomic ? SPI_OPT_NONATOMIC : 0);
 
   /* Find or compile the function */
@@ -268,6 +275,7 @@ plpgsql_call_handler(PG_FUNCTION_ARGS)
       plpgsql_exec_event_trigger(func,
                                  (EventTriggerData *) fcinfo->context);
       /* there's no return value in this case */
+      DBUG_PRINT("info", "there's no return value in this case");
     } else
       retval = plpgsql_exec_function(func, fcinfo,
                                      NULL, NULL,
@@ -308,6 +316,7 @@ PG_FUNCTION_INFO_V1(plpgsql_inline_handler);
 Datum
 plpgsql_inline_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fake_fcinfo, 0);
   InlineCodeBlock *codeblock = castNode(InlineCodeBlock, DatumGetPointer(PG_GETARG_DATUM(0)));
   PLpgSQL_function *func;
@@ -320,9 +329,11 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
   /*
    * Connect to SPI manager
    */
+  DBUG_PRINT("info", "connect to SPI manager");
   SPI_connect_ext(codeblock->atomic ? 0 : SPI_OPT_NONATOMIC);
 
   /* Compile the anonymous code block */
+  DBUG_PRINT("info", "compile the anonymous code block");
   func = plpgsql_compile_inline(codeblock->source_text);
 
   /* Mark the function as busy, just pro forma */
@@ -358,6 +369,7 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
   /* And run the function */
   PG_TRY();
   {
+    DBUG_PRINT("info", "run the function");
     retval = plpgsql_exec_function(func, fake_fcinfo,
                                    simple_eval_estate,
                                    simple_eval_resowner,
@@ -416,6 +428,8 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
   /*
    * Disconnect from SPI manager
    */
+  DBUG_PRINT("info", "disconnect from SPI manager");
+
   if ((rc = SPI_finish()) != SPI_OK_FINISH)
     elog(ERROR, "SPI_finish failed: %s", SPI_result_code_string(rc));
 
@@ -434,6 +448,7 @@ PG_FUNCTION_INFO_V1(plpgsql_validator);
 Datum
 plpgsql_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcoid = PG_GETARG_OID(0);
   HeapTuple tuple;
   Form_pg_proc proc;

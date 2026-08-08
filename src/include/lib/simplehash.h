@@ -534,14 +534,12 @@ SH_GROW(SH_TYPE * tb, uint64 newsize)
    */
 
   /* search for the first element in the hash that's not wrapped around */
-  for (i = 0; i < oldsize; i++)
-  {
+  for (i = 0; i < oldsize; i++) {
     SH_ELEMENT_TYPE *oldentry = &olddata[i];
     uint32    hash;
     uint32    optimal;
 
-    if (oldentry->status != SH_STATUS_IN_USE)
-    {
+    if (oldentry->status != SH_STATUS_IN_USE) {
       startelem = i;
       break;
     }
@@ -549,8 +547,7 @@ SH_GROW(SH_TYPE * tb, uint64 newsize)
     hash = SH_ENTRY_HASH(tb, oldentry);
     optimal = SH_INITIAL_BUCKET(tb, hash);
 
-    if (optimal == i)
-    {
+    if (optimal == i) {
       startelem = i;
       break;
     }
@@ -559,12 +556,10 @@ SH_GROW(SH_TYPE * tb, uint64 newsize)
   /* and copy all elements in the old table */
   copyelem = startelem;
 
-  for (i = 0; i < oldsize; i++)
-  {
+  for (i = 0; i < oldsize; i++) {
     SH_ELEMENT_TYPE *oldentry = &olddata[copyelem];
 
-    if (oldentry->status == SH_STATUS_IN_USE)
-    {
+    if (oldentry->status == SH_STATUS_IN_USE) {
       uint32    hash;
       uint32    startelem2;
       uint32    curelem;
@@ -575,12 +570,10 @@ SH_GROW(SH_TYPE * tb, uint64 newsize)
       curelem = startelem2;
 
       /* find empty element to put data into */
-      while (true)
-      {
+      while (true) {
         newentry = &newdata[curelem];
 
-        if (newentry->status == SH_STATUS_EMPTY)
-        {
+        if (newentry->status == SH_STATUS_EMPTY) {
           break;
         }
 
@@ -594,8 +587,7 @@ SH_GROW(SH_TYPE * tb, uint64 newsize)
     /* can't use SH_NEXT here, would use new size */
     copyelem++;
 
-    if (copyelem >= oldsize)
-    {
+    if (copyelem >= oldsize) {
       copyelem = 0;
     }
   }
@@ -626,8 +618,7 @@ restart:
    * Note that this also reached when resizing the table due to
    * SH_GROW_MAX_DIB / SH_GROW_MAX_MOVE.
    */
-  if (unlikely(tb->members >= tb->grow_threshold))
-  {
+  if (unlikely(tb->members >= tb->grow_threshold)) {
     if (unlikely(tb->size == SH_MAX_SIZE))
       sh_error("hash table size exceeded");
 
@@ -644,16 +635,14 @@ restart:
   startelem = SH_INITIAL_BUCKET(tb, hash);
   curelem = startelem;
 
-  while (true)
-  {
+  while (true) {
     uint32    curdist;
     uint32    curhash;
     uint32    curoptimal;
     SH_ELEMENT_TYPE *entry = &data[curelem];
 
     /* any empty bucket can directly be used */
-    if (entry->status == SH_STATUS_EMPTY)
-    {
+    if (entry->status == SH_STATUS_EMPTY) {
       tb->members++;
       entry->SH_KEY = key;
 #ifdef SH_STORE_HASH
@@ -672,8 +661,7 @@ restart:
      * shift the colliding entry (and its followers) forward by one.
      */
 
-    if (SH_COMPARE_KEYS(tb, hash, key, entry))
-    {
+    if (SH_COMPARE_KEYS(tb, hash, key, entry)) {
       Assert(entry->status == SH_STATUS_IN_USE);
       *found = true;
       return entry;
@@ -683,23 +671,20 @@ restart:
     curoptimal = SH_INITIAL_BUCKET(tb, curhash);
     curdist = SH_DISTANCE_FROM_OPTIMAL(tb, curoptimal, curelem);
 
-    if (insertdist > curdist)
-    {
+    if (insertdist > curdist) {
       SH_ELEMENT_TYPE *lastentry = entry;
       uint32    emptyelem = curelem;
       uint32    moveelem;
       int32   emptydist = 0;
 
       /* find next empty bucket */
-      while (true)
-      {
+      while (true) {
         SH_ELEMENT_TYPE *emptyentry;
 
         emptyelem = SH_NEXT(tb, emptyelem, startelem);
         emptyentry = &data[emptyelem];
 
-        if (emptyentry->status == SH_STATUS_EMPTY)
-        {
+        if (emptyentry->status == SH_STATUS_EMPTY) {
           lastentry = emptyentry;
           break;
         }
@@ -714,8 +699,7 @@ restart:
          * explosion for some weird edge cases.
          */
         if (unlikely(++emptydist > SH_GROW_MAX_MOVE) &&
-            ((double) tb->members / tb->size) >= SH_GROW_MIN_FILLFACTOR)
-        {
+            ((double) tb->members / tb->size) >= SH_GROW_MIN_FILLFACTOR) {
           tb->grow_threshold = 0;
           goto restart;
         }
@@ -730,8 +714,7 @@ restart:
        */
       moveelem = emptyelem;
 
-      while (moveelem != curelem)
-      {
+      while (moveelem != curelem) {
         SH_ELEMENT_TYPE *moveentry;
 
         moveelem = SH_PREV(tb, moveelem, startelem);
@@ -765,8 +748,7 @@ restart:
      * explosion for some weird edge cases.
      */
     if (unlikely(insertdist > SH_GROW_MAX_DIB) &&
-        ((double) tb->members / tb->size) >= SH_GROW_MIN_FILLFACTOR)
-    {
+        ((double) tb->members / tb->size) >= SH_GROW_MIN_FILLFACTOR) {
       tb->grow_threshold = 0;
       goto restart;
     }
@@ -806,12 +788,10 @@ SH_LOOKUP_HASH_INTERNAL(SH_TYPE * tb, SH_KEY_TYPE key, uint32 hash)
   const uint32 startelem = SH_INITIAL_BUCKET(tb, hash);
   uint32    curelem = startelem;
 
-  while (true)
-  {
+  while (true) {
     SH_ELEMENT_TYPE *entry = &tb->data[curelem];
 
-    if (entry->status == SH_STATUS_EMPTY)
-    {
+    if (entry->status == SH_STATUS_EMPTY) {
       return NULL;
     }
 
@@ -864,16 +844,14 @@ SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key)
   uint32    startelem = SH_INITIAL_BUCKET(tb, hash);
   uint32    curelem = startelem;
 
-  while (true)
-  {
+  while (true) {
     SH_ELEMENT_TYPE *entry = &tb->data[curelem];
 
     if (entry->status == SH_STATUS_EMPTY)
       return false;
 
     if (entry->status == SH_STATUS_IN_USE &&
-        SH_COMPARE_KEYS(tb, hash, key, entry))
-    {
+        SH_COMPARE_KEYS(tb, hash, key, entry)) {
       SH_ELEMENT_TYPE *lastentry = entry;
 
       tb->members--;
@@ -885,8 +863,7 @@ SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key)
        * While that sounds expensive, the average chain length is short,
        * and deletions would otherwise require tombstones.
        */
-      while (true)
-      {
+      while (true) {
         SH_ELEMENT_TYPE *curentry;
         uint32    curhash;
         uint32    curoptimal;
@@ -894,8 +871,7 @@ SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key)
         curelem = SH_NEXT(tb, curelem, startelem);
         curentry = &tb->data[curelem];
 
-        if (curentry->status != SH_STATUS_IN_USE)
-        {
+        if (curentry->status != SH_STATUS_IN_USE) {
           lastentry->status = SH_STATUS_EMPTY;
           break;
         }
@@ -904,8 +880,7 @@ SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key)
         curoptimal = SH_INITIAL_BUCKET(tb, curhash);
 
         /* current is at optimal position, done */
-        if (curoptimal == curelem)
-        {
+        if (curoptimal == curelem) {
           lastentry->status = SH_STATUS_EMPTY;
           break;
         }
@@ -948,8 +923,7 @@ SH_DELETE_ITEM(SH_TYPE * tb, SH_ELEMENT_TYPE * entry)
    * While that sounds expensive, the average chain length is short, and
    * deletions would otherwise require tombstones.
    */
-  while (true)
-  {
+  while (true) {
     SH_ELEMENT_TYPE *curentry;
     uint32    curhash;
     uint32    curoptimal;
@@ -957,8 +931,7 @@ SH_DELETE_ITEM(SH_TYPE * tb, SH_ELEMENT_TYPE * entry)
     curelem = SH_NEXT(tb, curelem, startelem);
     curentry = &tb->data[curelem];
 
-    if (curentry->status != SH_STATUS_IN_USE)
-    {
+    if (curentry->status != SH_STATUS_IN_USE) {
       lastentry->status = SH_STATUS_EMPTY;
       break;
     }
@@ -967,8 +940,7 @@ SH_DELETE_ITEM(SH_TYPE * tb, SH_ELEMENT_TYPE * entry)
     curoptimal = SH_INITIAL_BUCKET(tb, curhash);
 
     /* current is at optimal position, done */
-    if (curoptimal == curelem)
-    {
+    if (curoptimal == curelem) {
       lastentry->status = SH_STATUS_EMPTY;
       break;
     }
@@ -993,12 +965,10 @@ SH_START_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter)
    * supported, we want to start/end at an element that cannot be affected
    * by elements being shifted.
    */
-  for (uint32 i = 0; i < tb->size; i++)
-  {
+  for (uint32 i = 0; i < tb->size; i++) {
     SH_ELEMENT_TYPE *entry = &tb->data[i];
 
-    if (entry->status != SH_STATUS_IN_USE)
-    {
+    if (entry->status != SH_STATUS_IN_USE) {
       startelem = i;
       break;
     }
@@ -1052,8 +1022,7 @@ SH_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter)
   Assert(iter->cur < tb->size);
   Assert(iter->end < tb->size);
 
-  while (!iter->done)
-  {
+  while (!iter->done) {
     SH_ELEMENT_TYPE *elem;
 
     elem = &tb->data[iter->cur];
@@ -1064,8 +1033,7 @@ SH_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter)
     if ((iter->cur & tb->sizemask) == (iter->end & tb->sizemask))
       iter->done = true;
 
-    if (elem->status == SH_STATUS_IN_USE)
-    {
+    if (elem->status == SH_STATUS_IN_USE) {
       return elem;
     }
   }
@@ -1091,8 +1059,7 @@ SH_STAT(SH_TYPE * tb)
   uint32    max_collisions = 0;
   double    avg_collisions;
 
-  for (i = 0; i < tb->size; i++)
-  {
+  for (i = 0; i < tb->size; i++) {
     uint32    hash;
     uint32    optimal;
     uint32    dist;
@@ -1115,8 +1082,7 @@ SH_STAT(SH_TYPE * tb)
     collisions[optimal]++;
   }
 
-  for (i = 0; i < tb->size; i++)
-  {
+  for (i = 0; i < tb->size; i++) {
     uint32    curcoll = collisions[i];
 
     if (curcoll == 0)
@@ -1133,14 +1099,11 @@ SH_STAT(SH_TYPE * tb)
   /* large enough to be worth freeing, even if just used for debugging */
   pfree(collisions);
 
-  if (tb->members > 0)
-  {
+  if (tb->members > 0) {
     fillfactor = tb->members / ((double) tb->size);
     avg_chain_length = ((double) total_chain_length) / tb->members;
     avg_collisions = ((double) total_collisions) / tb->members;
-  }
-  else
-  {
+  } else {
     fillfactor = 0;
     avg_chain_length = 0;
     avg_collisions = 0;

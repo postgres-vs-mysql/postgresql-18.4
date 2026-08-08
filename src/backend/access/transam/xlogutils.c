@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -86,12 +87,15 @@ report_invalid_page(int elevel, RelFileLocator locator, ForkNumber forkno,
 {
   RelPathStr  path = relpathperm(locator, forkno);
 
-  if (present)
+  if (present) {
+    DBUG_INSTANT_PRINT("info", "page %u of relation %s is uninitialized", blkno, path.str);
     elog(elevel, "page %u of relation %s is uninitialized",
          blkno, path.str);
-  else
+  } else {
+    DBUG_INSTANT_PRINT("info", "page %u of relation %s does not exist", blkno, path.str);
     elog(elevel, "page %u of relation %s does not exist",
          blkno, path.str);
+  }
 }
 
 /* Log a reference to an invalid page */
@@ -99,6 +103,7 @@ static void
 log_invalid_page(RelFileLocator locator, ForkNumber forkno, BlockNumber blkno,
                  bool present)
 {
+  DBUG_TRACE;
   xl_invalid_page_key key;
   xl_invalid_page *hentry;
   bool    found;
@@ -113,6 +118,7 @@ log_invalid_page(RelFileLocator locator, ForkNumber forkno, BlockNumber blkno,
    */
   if (reachedConsistency) {
     report_invalid_page(WARNING, locator, forkno, blkno, present);
+    DBUG_INSTANT_PRINT("info", "WAL contains references to invalid pages");
     elog(ignore_invalid_pages ? WARNING : PANIC,
          "WAL contains references to invalid pages");
   }
@@ -158,6 +164,7 @@ static void
 forget_invalid_pages(RelFileLocator locator, ForkNumber forkno,
                      BlockNumber minblkno)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   xl_invalid_page *hentry;
 
@@ -170,14 +177,17 @@ forget_invalid_pages(RelFileLocator locator, ForkNumber forkno,
     if (RelFileLocatorEquals(hentry->key.locator, locator) &&
         hentry->key.forkno == forkno &&
         hentry->key.blkno >= minblkno) {
+      DBUG_PRINT("info", "page %u of relation %s has been dropped", hentry->key.blkno, relpathperm(hentry->key.locator, forkno).str);
       elog(DEBUG2, "page %u of relation %s has been dropped",
            hentry->key.blkno,
            relpathperm(hentry->key.locator, forkno).str);
 
       if (hash_search(invalid_page_tab,
                       &hentry->key,
-                      HASH_REMOVE, NULL) == NULL)
+                      HASH_REMOVE, NULL) == NULL) {
+        DBUG_INSTANT_PRINT("info", "hash table corrupted");
         elog(ERROR, "hash table corrupted");
+      }
     }
   }
 }
@@ -186,6 +196,7 @@ forget_invalid_pages(RelFileLocator locator, ForkNumber forkno,
 static void
 forget_invalid_pages_db(Oid dbid)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   xl_invalid_page *hentry;
 
@@ -196,14 +207,17 @@ forget_invalid_pages_db(Oid dbid)
 
   while ((hentry = (xl_invalid_page *) hash_seq_search(&status)) != NULL) {
     if (hentry->key.locator.dbOid == dbid) {
+      DBUG_PRINT("info", "page %u of relation %s has been dropped", hentry->key.blkno, relpathperm(hentry->key.locator, hentry->key.forkno).str);
       elog(DEBUG2, "page %u of relation %s has been dropped",
            hentry->key.blkno,
            relpathperm(hentry->key.locator, hentry->key.forkno).str);
 
       if (hash_search(invalid_page_tab,
                       &hentry->key,
-                      HASH_REMOVE, NULL) == NULL)
+                      HASH_REMOVE, NULL) == NULL) {
+        DBUG_INSTANT_PRINT("info", "hash table corrupted");
         elog(ERROR, "hash table corrupted");
+      }
     }
   }
 }
@@ -223,6 +237,7 @@ XLogHaveInvalidPages(void)
 void
 XLogCheckInvalidPages(void)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS status;
   xl_invalid_page *hentry;
   bool    foundone = false;
@@ -242,9 +257,11 @@ XLogCheckInvalidPages(void)
     foundone = true;
   }
 
-  if (foundone)
+  if (foundone) {
+    DBUG_INSTANT_PRINT("info", "WAL contains references to invalid pages");
     elog(ignore_invalid_pages ? WARNING : PANIC,
          "WAL contains references to invalid pages");
+  }
 
   hash_destroy(invalid_page_tab);
   invalid_page_tab = NULL;
@@ -292,6 +309,8 @@ XLogRedoAction
 XLogReadBufferForRedo(XLogReaderState *record, uint8 block_id,
                       Buffer *buf)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "read a page during XLOG replay");
   return XLogReadBufferForRedoExtended(record, block_id, RBM_NORMAL,
                                        false, buf);
 }
@@ -303,6 +322,7 @@ XLogReadBufferForRedo(XLogReaderState *record, uint8 block_id,
 Buffer
 XLogInitBufferForRedo(XLogReaderState *record, uint8 block_id)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   XLogReadBufferForRedoExtended(record, block_id, RBM_ZERO_AND_LOCK, false,
@@ -331,6 +351,7 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
                               ReadBufferMode mode, bool get_cleanup_lock,
                               Buffer *buf)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   RelFileLocator rlocator;
   ForkNumber  forknum;
@@ -342,6 +363,7 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
 
   if (!XLogRecGetBlockTagExtended(record, block_id, &rlocator, &forknum, &blkno,
                                   &prefetch_buffer)) {
+    DBUG_INSTANT_PRINT("info", "failed to locate backup block with ID %d in WAL record", block_id);
     /* Caller specified a bogus block_id */
     elog(PANIC, "failed to locate backup block with ID %d in WAL record",
          block_id);
@@ -354,24 +376,31 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
   zeromode = (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK);
   willinit = (XLogRecGetBlock(record, block_id)->flags & BKPBLOCK_WILL_INIT) != 0;
 
-  if (willinit && !zeromode)
+  if (willinit && !zeromode) {
+    DBUG_INSTANT_PRINT("info", "block with WILL_INIT flag in WAL record must be zeroed by redo routine");
     elog(PANIC, "block with WILL_INIT flag in WAL record must be zeroed by redo routine");
+  }
 
-  if (!willinit && zeromode)
+  if (!willinit && zeromode) {
+    DBUG_INSTANT_PRINT("info", "block to be initialized in redo routine must be marked with WILL_INIT flag in the WAL record");
     elog(PANIC, "block to be initialized in redo routine must be marked with WILL_INIT flag in the WAL record");
+  }
 
   /* If it has a full-page image and it should be restored, do it. */
   if (XLogRecBlockImageApply(record, block_id)) {
+    DBUG_PRINT("info", "if it has a full-page image and it should be restored, do i");
     Assert(XLogRecHasBlockImage(record, block_id));
     *buf = XLogReadBufferExtended(rlocator, forknum, blkno,
                                   get_cleanup_lock ? RBM_ZERO_AND_CLEANUP_LOCK : RBM_ZERO_AND_LOCK,
                                   prefetch_buffer);
     page = BufferGetPage(*buf);
 
-    if (!RestoreBlockImage(record, block_id, page))
+    if (!RestoreBlockImage(record, block_id, page)) {
+      DBUG_INSTANT_PRINT("info", "internal error");
       ereport(ERROR,
               (errcode(ERRCODE_INTERNAL_ERROR),
                errmsg_internal("%s", record->errormsg_buf)));
+    }
 
     /*
      * The page may be uninitialized. If so, we can't set the LSN because
@@ -392,6 +421,7 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
     if (forknum == INIT_FORKNUM)
       FlushOneBuffer(*buf);
 
+    DBUG_PRINT("info", "return BLK_RESTORED for blkno:%u", block_id);
     return BLK_RESTORED;
   } else {
     *buf = XLogReadBufferExtended(rlocator, forknum, blkno, mode, prefetch_buffer);
@@ -404,12 +434,17 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
           LockBuffer(*buf, BUFFER_LOCK_EXCLUSIVE);
       }
 
-      if (lsn <= PageGetLSN(BufferGetPage(*buf)))
+      if (lsn <= PageGetLSN(BufferGetPage(*buf))) {
+        DBUG_PRINT("info", "return BLK_DONE for blkno:%u", block_id);
         return BLK_DONE;
-      else
+      } else {
+        DBUG_PRINT("info", "return BLK_NEEDS_REDO for blkno:%u", block_id);
         return BLK_NEEDS_REDO;
-    } else
+      }
+    } else {
+      DBUG_PRINT("info", "return BLK_NOTFOUND for blkno:%u", block_id);
       return BLK_NOTFOUND;
+    }
   }
 }
 
@@ -447,11 +482,14 @@ XLogReadBufferExtended(RelFileLocator rlocator, ForkNumber forknum,
                        BlockNumber blkno, ReadBufferMode mode,
                        Buffer recent_buffer)
 {
+  DBUG_TRACE;
   BlockNumber lastblock;
   Buffer    buffer;
   SMgrRelation smgr;
 
   Assert(blkno != P_NEW);
+
+  DBUG_PRINT("info", "read a page during XLOG replay");
 
   /* Do we have a clue where the buffer might be already? */
   if (BufferIsValid(recent_buffer) &&
@@ -462,6 +500,7 @@ XLogReadBufferExtended(RelFileLocator rlocator, ForkNumber forknum,
   }
 
   /* Open the relation at smgr level */
+  DBUG_PRINT("info", "open the relation at smgr level");
   smgr = smgropen(rlocator, INVALID_PROC_NUMBER);
 
   /*
@@ -478,9 +517,12 @@ XLogReadBufferExtended(RelFileLocator rlocator, ForkNumber forknum,
 
   if (blkno < lastblock) {
     /* page exists in file */
+    DBUG_PRINT("info", "page exists in file");
     buffer = ReadBufferWithoutRelcache(rlocator, forknum, blkno,
                                        mode, NULL, true);
   } else {
+    DBUG_PRINT("info", "page doesn't exist in file");
+
     /* hm, page doesn't exist in file */
     if (mode == RBM_NORMAL) {
       log_invalid_page(rlocator, forknum, blkno, false);
@@ -492,6 +534,8 @@ XLogReadBufferExtended(RelFileLocator rlocator, ForkNumber forknum,
 
     /* OK to extend the file */
     /* we do this in recovery only - no rel-extension lock needed */
+    DBUG_PRINT("info", "ok to extend the file");
+    DBUG_PRINT("info", "we do this in recovery only - no rel-extension lock needed");
     Assert(InRecovery);
     buffer = ExtendBufferedRelTo(BMR_SMGR(smgr, RELPERSISTENCE_PERMANENT),
                                  forknum,
@@ -610,6 +654,7 @@ FreeFakeRelcacheEntry(Relation fakerel)
 void
 XLogDropRelation(RelFileLocator rlocator, ForkNumber forknum)
 {
+  DBUG_TRACE;
   forget_invalid_pages(rlocator, forknum, 0);
 }
 
@@ -621,12 +666,14 @@ XLogDropRelation(RelFileLocator rlocator, ForkNumber forknum)
 void
 XLogDropDatabase(Oid dbid)
 {
+  DBUG_TRACE;
   /*
    * This is unnecessarily heavy-handed, as it will close SMgrRelation
    * objects for other databases as well. DROP DATABASE occurs seldom enough
    * that it's not worth introducing a variant of smgrdestroy for just this
    * purpose.
    */
+  DBUG_PRINT("info", "drop a whole database during XLOG replay");
   smgrdestroyall();
 
   forget_invalid_pages_db(dbid);
@@ -641,6 +688,8 @@ void
 XLogTruncateRelation(RelFileLocator rlocator, ForkNumber forkNum,
                      BlockNumber nblocks)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "truncate a relation during XLOG replay");
   forget_invalid_pages(rlocator, forkNum, nblocks);
 }
 
@@ -688,6 +737,7 @@ void
 XLogReadDetermineTimeline(XLogReaderState *state, XLogRecPtr wantPage,
                           uint32 wantLength, TimeLineID currTLI)
 {
+  DBUG_TRACE;
   const XLogRecPtr lastReadPage = (state->seg.ws_segno *
                                    state->segcxt.ws_segsize + state->segoff);
 
@@ -775,6 +825,7 @@ XLogReadDetermineTimeline(XLogReaderState *state, XLogRecPtr wantPage,
 
     list_free_deep(timelineHistory);
 
+    DBUG_INSTANT_PRINT("info", "switched to timeline %u valid until %X/%X", state->currTLI, LSN_FORMAT_ARGS(state->currTLIValidUntil));
     elog(DEBUG3, "switched to timeline %u valid until %X/%X",
          state->currTLI,
          LSN_FORMAT_ARGS(state->currTLIValidUntil));
@@ -786,6 +837,7 @@ void
 wal_segment_open(XLogReaderState *state, XLogSegNo nextSegNo,
                  TimeLineID *tli_p)
 {
+  DBUG_TRACE;
   TimeLineID  tli = *tli_p;
   char    path[MAXPGPATH];
 
@@ -795,16 +847,19 @@ wal_segment_open(XLogReaderState *state, XLogSegNo nextSegNo,
   if (state->seg.ws_file >= 0)
     return;
 
-  if (errno == ENOENT)
+  if (errno == ENOENT) {
+    DBUG_INSTANT_PRINT("info", "requested WAL segment %s has already been removed", path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("requested WAL segment %s has already been removed",
                     path)));
-  else
+  } else {
+    DBUG_INSTANT_PRINT("info", "could not open file \"%s\"", path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not open file \"%s\": %m",
                     path)));
+  }
 }
 
 /* stock XLogReaderRoutine->segment_close callback */
@@ -826,6 +881,7 @@ int
 read_local_xlog_page(XLogReaderState *state, XLogRecPtr targetPagePtr,
                      int reqLen, XLogRecPtr targetRecPtr, char *cur_page)
 {
+  DBUG_TRACE;
   return read_local_xlog_page_guts(state, targetPagePtr, reqLen,
                                    targetRecPtr, cur_page, true);
 }
@@ -839,6 +895,7 @@ read_local_xlog_page_no_wait(XLogReaderState *state, XLogRecPtr targetPagePtr,
                              int reqLen, XLogRecPtr targetRecPtr,
                              char *cur_page)
 {
+  DBUG_TRACE;
   return read_local_xlog_page_guts(state, targetPagePtr, reqLen,
                                    targetRecPtr, cur_page, false);
 }
@@ -851,6 +908,7 @@ read_local_xlog_page_guts(XLogReaderState *state, XLogRecPtr targetPagePtr,
                           int reqLen, XLogRecPtr targetRecPtr,
                           char *cur_page, bool wait_for_wal)
 {
+  DBUG_TRACE;
   XLogRecPtr  read_upto,
               loc;
   TimeLineID  tli;
@@ -982,6 +1040,7 @@ read_local_xlog_page_guts(XLogReaderState *state, XLogRecPtr targetPagePtr,
 void
 WALReadRaiseError(WALReadError *errinfo)
 {
+  DBUG_TRACE;
   WALOpenSegment *seg = &errinfo->wre_seg;
   char    fname[MAXFNAMELEN];
 
@@ -989,11 +1048,14 @@ WALReadRaiseError(WALReadError *errinfo)
 
   if (errinfo->wre_read < 0) {
     errno = errinfo->wre_errno;
+    DBUG_INSTANT_PRINT("info", "could not read from WAL segment %s, offset %d", fname, errinfo->wre_off);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not read from WAL segment %s, offset %d: %m",
                     fname, errinfo->wre_off)));
   } else if (errinfo->wre_read == 0) {
+    DBUG_INSTANT_PRINT("info", "could not read from WAL segment %s, offset %d: read %d of %d", fname, errinfo->wre_off,
+                       errinfo->wre_read, errinfo->wre_req);
     ereport(ERROR,
             (errcode(ERRCODE_DATA_CORRUPTED),
              errmsg("could not read from WAL segment %s, offset %d: read %d of %d",

@@ -31,8 +31,7 @@ pg_lfind8(uint8 key, uint8 *base, uint32 nelem)
   uint32    tail_idx = nelem & ~(sizeof(Vector8) - 1);
   Vector8   chunk;
 
-  for (i = 0; i < tail_idx; i += sizeof(Vector8))
-  {
+  for (i = 0; i < tail_idx; i += sizeof(Vector8)) {
     vector8_load(&chunk, &base[i]);
 
     if (vector8_has(chunk, key))
@@ -40,8 +39,7 @@ pg_lfind8(uint8 key, uint8 *base, uint32 nelem)
   }
 
   /* Process the remaining elements one at a time. */
-  for (; i < nelem; i++)
-  {
+  for (; i < nelem; i++) {
     if (key == base[i])
       return true;
   }
@@ -64,8 +62,7 @@ pg_lfind8_le(uint8 key, uint8 *base, uint32 nelem)
   uint32    tail_idx = nelem & ~(sizeof(Vector8) - 1);
   Vector8   chunk;
 
-  for (i = 0; i < tail_idx; i += sizeof(Vector8))
-  {
+  for (i = 0; i < tail_idx; i += sizeof(Vector8)) {
     vector8_load(&chunk, &base[i]);
 
     if (vector8_has_le(chunk, key))
@@ -73,8 +70,7 @@ pg_lfind8_le(uint8 key, uint8 *base, uint32 nelem)
   }
 
   /* Process the remaining elements one at a time. */
-  for (; i < nelem; i++)
-  {
+  for (; i < nelem; i++) {
     if (base[i] <= key)
       return true;
   }
@@ -91,8 +87,7 @@ pg_lfind8_le(uint8 key, uint8 *base, uint32 nelem)
 static inline bool
 pg_lfind32_one_by_one_helper(uint32 key, const uint32 *base, uint32 nelem)
 {
-  for (uint32 i = 0; i < nelem; i++)
-  {
+  for (uint32 i = 0; i < nelem; i++) {
     if (key == base[i])
       return true;
   }
@@ -182,10 +177,8 @@ pg_lfind32(uint32 key, const uint32 *base, uint32 nelem)
   /*
    * Process as many elements as possible with a block of 4 registers.
    */
-  do
-  {
-    if (pg_lfind32_simd_helper(keys, &base[i]))
-    {
+  do {
+    if (pg_lfind32_simd_helper(keys, &base[i])) {
       Assert(assert_result == true);
       return true;
     }

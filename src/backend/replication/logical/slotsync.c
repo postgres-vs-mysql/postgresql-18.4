@@ -1749,6 +1749,7 @@ SlotSyncShmemSize(void)
 void
 SlotSyncShmemInit(void)
 {
+  DBUG_TRACE;
   Size    size = SlotSyncShmemSize();
   bool    found;
 

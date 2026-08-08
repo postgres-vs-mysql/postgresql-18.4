@@ -23,6 +23,7 @@
 /* -- parts of this are adapted from D. Whitley's Genitor algorithm -- */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -62,6 +63,53 @@ static int  gimme_number_generations(int pool_size);
 #endif
 
 
+static void
+trace_pool(Pool *pool, int start, int stop)
+{
+  char output[1024];
+  char *p;
+  int         i,
+              j;
+
+  DBUG_PRINT("info", "trace pool(start:%d, stop:%d)", start, stop);
+  /* be extra careful that start and stop are valid inputs */
+
+  if (start < 0)
+    start = 0;
+
+  if (stop > pool->size)
+    stop = pool->size;
+
+  if (pool->string_length > 64) {
+    return;
+  }
+
+  if (start + stop > pool->size) {
+    start = 0;
+    stop = pool->size;
+  }
+
+  p = output;
+
+  for (i = start; i < stop; i++) {
+    /* write index */
+    p += sprintf(p, "%d):", i);
+
+    /* write gene sequence */
+    for (j = 0; j < (pool->string_length - 1); j++) {
+      p += sprintf(p, "%d-", pool->data[i].string[j]);
+    }
+
+    p += sprintf(p, "%d ", pool->data[i].string[j]);
+
+    /* write worth */
+    p += sprintf(p, "%g", pool->data[i].worth);
+    *p = '\0';
+    DBUG_PRINT("info", "%s", output);
+    p = output;
+  }
+}
+
 /*
  * geqo
  *    solution of the query optimization problem
@@ -71,6 +119,7 @@ static int  gimme_number_generations(int pool_size);
 RelOptInfo *
 geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 {
+  DBUG_TRACE;
   GeqoPrivateData private;
   int     generation;
   Chromosome *momma;
@@ -103,6 +152,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
   private.initial_rels = initial_rels;
 
   /* initialize private number generator */
+  DBUG_PRINT("info", "initialize private number generator:%g", Geqo_seed);
   geqo_set_seed(root, Geqo_seed);
 
   /* set GA parameters */
@@ -111,6 +161,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #ifdef GEQO_DEBUG
   status_interval = 10;
 #endif
+  DBUG_PRINT("info", "pool_size:%d, number_generations:%d", pool_size, number_generations);
 
   /* allocate genetic pool memory */
   pool = alloc_pool(root, pool_size, number_of_rels);
@@ -119,6 +170,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
   random_init_pool(root, pool);
 
   /* sort the pool according to cheapest path as fitness */
+  DBUG_PRINT("info", "sort the pool according to cheapest path as fitness");
   sort_pool(root, pool);    /* we have to do it only one time, since all
                  * kids replace the worst individuals in
                  * future (-> geqo_pool.c:spread_chromo ) */
@@ -129,6 +181,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
        pool->data[0].worth,
        pool->data[pool_size - 1].worth);
 #endif
+  DBUG_PRINT("info", "GEQO selected %d pool entries, best %g, worst %g", pool_size, pool->data[0].worth, pool->data[pool_size - 1].worth);
 
   /* allocate chromosome momma and daddy memory */
   momma = alloc_chromo(root, pool->string_length);
@@ -138,18 +191,21 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using edge recombination crossover [ERX]");
 #endif
+  DBUG_PRINT("info", "using edge recombination crossover [ERX]");
   /* allocate edge table memory */
   edge_table = alloc_edge_table(root, pool->string_length);
 #elif defined(PMX)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using partially matched crossover [PMX]");
 #endif
+  DBUG_PRINT("info", "using partially matched crossover [PMX]");
   /* allocate chromosome kid memory */
   kid = alloc_chromo(root, pool->string_length);
 #elif defined(CX)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using cycle crossover [CX]");
 #endif
+  DBUG_PRINT("info", "using cycle crossover [CX]");
   /* allocate city table memory */
   kid = alloc_chromo(root, pool->string_length);
   city_table = alloc_city_table(root, pool->string_length);
@@ -157,6 +213,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using position crossover [PX]");
 #endif
+  DBUG_PRINT("info", "using position crossover [PX]");
   /* allocate city table memory */
   kid = alloc_chromo(root, pool->string_length);
   city_table = alloc_city_table(root, pool->string_length);
@@ -164,6 +221,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using order crossover [OX1]");
 #endif
+  DBUG_PRINT("info", "using order crossover [OX1]");
   /* allocate city table memory */
   kid = alloc_chromo(root, pool->string_length);
   city_table = alloc_city_table(root, pool->string_length);
@@ -171,6 +229,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #ifdef GEQO_DEBUG
   elog(DEBUG2, "using order crossover [OX2]");
 #endif
+  DBUG_PRINT("info", "using order crossover [OX2]");
   /* allocate city table memory */
   kid = alloc_chromo(root, pool->string_length);
   city_table = alloc_city_table(root, pool->string_length);
@@ -182,10 +241,12 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 
   for (generation = 0; generation < number_generations; generation++) {
     /* SELECTION: using linear bias function */
+    DBUG_PRINT("info", "SELECTION: using linear bias function and generation:%d", generation);
     geqo_selection(root, momma, daddy, pool, Geqo_selection_bias);
 
 #if defined (ERX)
     /* EDGE RECOMBINATION CROSSOVER */
+    DBUG_PRINT("info", "edge recombination crossover");
     gimme_edge_table(root, momma->string, daddy->string, pool->string_length, edge_table);
 
     kid = momma;
@@ -194,25 +255,31 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
     edge_failures += gimme_tour(root, edge_table, kid->string, pool->string_length);
 #elif defined(PMX)
     /* PARTIALLY MATCHED CROSSOVER */
+    DBUG_PRINT("info", "partially matched crossover");
     pmx(root, momma->string, daddy->string, kid->string, pool->string_length);
 #elif defined(CX)
     /* CYCLE CROSSOVER */
+    DBUG_PRINT("info", "cycle crossover");
     cycle_diffs = cx(root, momma->string, daddy->string, kid->string, pool->string_length, city_table);
 
     /* mutate the child */
     if (cycle_diffs == 0) {
       mutations++;
+      DBUG_PRINT("info", "mutate the child and mutations:%d", mutations);
       geqo_mutation(root, kid->string, pool->string_length);
     }
 
 #elif defined(PX)
     /* POSITION CROSSOVER */
+    DBUG_PRINT("info", "position crossover");
     px(root, momma->string, daddy->string, kid->string, pool->string_length, city_table);
 #elif defined(OX1)
     /* ORDER CROSSOVER */
+    DBUG_PRINT("info", "order(OX1) crossover");
     ox1(root, momma->string, daddy->string, kid->string, pool->string_length, city_table);
 #elif defined(OX2)
     /* ORDER CROSSOVER */
+    DBUG_PRINT("info", "order(OX2) crossover");
     ox2(root, momma->string, daddy->string, kid->string, pool->string_length, city_table);
 #endif
 
@@ -221,6 +288,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
     kid->worth = geqo_eval(root, kid->string, pool->string_length);
 
     /* push the kid into the wilderness of life according to its worth */
+    DBUG_PRINT("info", "push the kid into the wilderness of life according to its worth");
     spread_chromo(root, kid, pool);
 
 
@@ -244,10 +312,28 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
     elog(LOG, "[GEQO] no edge failures detected");
 
 #else
+
+  if (edge_failures != 0)
+    DBUG_PRINT("info", "[GEQO] failures: %d, average: %d",
+               edge_failures, (int) number_generations / edge_failures);
+  else
+    DBUG_PRINT("info", "[GEQO] no edge failures detected");
+
   /* suppress variable-set-but-not-used warnings from some compilers */
   (void) edge_failures;
 #endif
 #endif
+
+#if defined(CX)
+
+  if (mutations != 0)
+    DBUG_PRINT("info", "[GEQO] mutations: %d, generations: %d",
+               mutations, number_generations);
+  else
+    DBUG_PRINT("info", "[GEQO] no mutations processed");
+
+#endif
+
 
 #if defined(CX) && defined(GEQO_DEBUG)
 
@@ -269,10 +355,16 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #endif
 
 
+  trace_pool(pool, 0, pool_size - 1);
+  DBUG_PRINT("info", "GEQO best is %g after %d generations", pool->data[0].worth, number_generations);
+
+
   /*
    * got the cheapest query tree processed by geqo; first element of the
    * population indicates the best query tree
    */
+  DBUG_PRINT("info", "got the cheapest query tree processed by geqo");
+  DBUG_PRINT("info", "first element of the population indicates the best query tree");
   best_tour = (Gene *) pool->data[0].string;
 
   best_rel = gimme_tree(root, best_tour, pool->string_length);

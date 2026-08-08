@@ -178,6 +178,11 @@ extern PGDLLIMPORT int MaxBackends;
 extern PGDLLIMPORT int MaxConnections;
 extern PGDLLIMPORT int max_worker_processes;
 extern PGDLLIMPORT int max_parallel_workers;
+extern PGDLLIMPORT int enable_global_trace;
+extern PGDLLIMPORT int enable_session_trace;
+extern PGDLLIMPORT int enable_autovacuum_trace;
+extern PGDLLIMPORT int max_trace_iterations;
+extern PGDLLIMPORT int min_trace_iterations;
 
 extern PGDLLIMPORT int commit_timestamp_buffers;
 extern PGDLLIMPORT int multixact_member_buffers;

@@ -15,6 +15,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/instrument.h"
 #include "storage/bufmgr.h"
@@ -180,11 +181,14 @@ pgstat_flush_io(bool nowait)
 bool
 pgstat_io_flush_cb(bool nowait)
 {
+  DBUG_TRACE;
   LWLock     *bktype_lock;
   PgStat_BktypeIO *bktype_shstats;
 
-  if (!have_iostats)
+  if (!have_iostats) {
+    DBUG_PRINT("info", "if no stats have been recorded, this function returns false");
     return false;
+  }
 
   bktype_lock = &pgStatLocal.shmem->io.locks[MyBackendType];
   bktype_shstats =
@@ -192,8 +196,10 @@ pgstat_io_flush_cb(bool nowait)
 
   if (!nowait)
     LWLockAcquire(bktype_lock, LW_EXCLUSIVE);
-  else if (!LWLockConditionalAcquire(bktype_lock, LW_EXCLUSIVE))
+  else if (!LWLockConditionalAcquire(bktype_lock, LW_EXCLUSIVE)) {
+    DBUG_PRINT("info", "if the lock could not be acquired, returns true");
     return true;
+  }
 
   for (int io_object = 0; io_object < IOOBJECT_NUM_TYPES; io_object++) {
     for (int io_context = 0; io_context < IOCONTEXT_NUM_TYPES; io_context++) {
@@ -222,6 +228,7 @@ pgstat_io_flush_cb(bool nowait)
 
   have_iostats = false;
 
+  DBUG_PRINT("info", "returns false");
   return false;
 }
 
@@ -273,7 +280,7 @@ pgstat_io_init_shmem_cb(void *stats)
   PgStatShared_IO *stat_shmem = (PgStatShared_IO *) stats;
 
   for (int i = 0; i < BACKEND_NUM_TYPES; i++)
-    LWLockInitialize(&stat_shmem->locks[i], LWTRANCHE_PGSTATS_DATA);
+    LWLockInitialize(&stat_shmem->locks[i], LWTRANCHE_PGSTATS_DATA, i);
 }
 
 void

@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "common/int.h"
@@ -147,6 +148,7 @@ anybit_typmodout(int32 typmod)
 Datum
 bit_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *input_string = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -270,6 +272,7 @@ bit_in(PG_FUNCTION_ARGS)
 Datum
 bit_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #if 1
   /* same as varbit output */
   return varbit_out(fcinfo);
@@ -322,6 +325,7 @@ bit_out(PG_FUNCTION_ARGS)
 Datum
 bit_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -368,6 +372,7 @@ bit_recv(PG_FUNCTION_ARGS)
 Datum
 bit_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Exactly the same as varbit_send, so share code */
   return varbit_send(fcinfo);
 }
@@ -383,6 +388,7 @@ bit_send(PG_FUNCTION_ARGS)
 Datum
 bit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   int32   len = PG_GETARG_INT32(1);
   bool    isExplicit = PG_GETARG_BOOL(2);
@@ -421,6 +427,7 @@ bit(PG_FUNCTION_ARGS)
 Datum
 bittypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anybit_typmodin(ta, "bit"));
@@ -429,6 +436,7 @@ bittypmodin(PG_FUNCTION_ARGS)
 Datum
 bittypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anybit_typmodout(typmod));
@@ -444,6 +452,7 @@ bittypmodout(PG_FUNCTION_ARGS)
 Datum
 varbit_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *input_string = PG_GETARG_CSTRING(0);
 #ifdef NOT_USED
   Oid     typelem = PG_GETARG_OID(1);
@@ -569,6 +578,7 @@ varbit_in(PG_FUNCTION_ARGS)
 Datum
 varbit_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *s = PG_GETARG_VARBIT_P(0);
   char     *result,
            *r;
@@ -619,6 +629,7 @@ varbit_out(PG_FUNCTION_ARGS)
 Datum
 varbit_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
 #ifdef NOT_USED
@@ -665,6 +676,7 @@ varbit_recv(PG_FUNCTION_ARGS)
 Datum
 varbit_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *s = PG_GETARG_VARBIT_P(0);
   StringInfoData buf;
 
@@ -686,6 +698,7 @@ varbit_send(PG_FUNCTION_ARGS)
 Datum
 varbit_support(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
   Node     *ret = NULL;
 
@@ -724,6 +737,7 @@ varbit_support(PG_FUNCTION_ARGS)
 Datum
 varbit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   int32   len = PG_GETARG_INT32(1);
   bool    isExplicit = PG_GETARG_BOOL(2);
@@ -756,6 +770,7 @@ varbit(PG_FUNCTION_ARGS)
 Datum
 varbittypmodin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *ta = PG_GETARG_ARRAYTYPE_P(0);
 
   PG_RETURN_INT32(anybit_typmodin(ta, "varbit"));
@@ -764,6 +779,7 @@ varbittypmodin(PG_FUNCTION_ARGS)
 Datum
 varbittypmodout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   typmod = PG_GETARG_INT32(0);
 
   PG_RETURN_CSTRING(anybit_typmodout(typmod));
@@ -825,6 +841,7 @@ bit_cmp(VarBit *arg1, VarBit *arg2)
 Datum
 biteq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -849,6 +866,7 @@ biteq(PG_FUNCTION_ARGS)
 Datum
 bitne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -873,6 +891,7 @@ bitne(PG_FUNCTION_ARGS)
 Datum
 bitlt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -888,6 +907,7 @@ bitlt(PG_FUNCTION_ARGS)
 Datum
 bitle(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -903,6 +923,7 @@ bitle(PG_FUNCTION_ARGS)
 Datum
 bitgt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -918,6 +939,7 @@ bitgt(PG_FUNCTION_ARGS)
 Datum
 bitge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   bool    result;
@@ -933,6 +955,7 @@ bitge(PG_FUNCTION_ARGS)
 Datum
 bitcmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   int32   result;
@@ -952,6 +975,7 @@ bitcmp(PG_FUNCTION_ARGS)
 Datum
 bitcat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
 
@@ -1022,6 +1046,7 @@ bit_catenate(VarBit *arg1, VarBit *arg2)
 Datum
 bitsubstr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_VARBIT_P(bitsubstring(PG_GETARG_VARBIT_P(0),
                                   PG_GETARG_INT32(1),
                                   PG_GETARG_INT32(2),
@@ -1031,6 +1056,7 @@ bitsubstr(PG_FUNCTION_ARGS)
 Datum
 bitsubstr_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_VARBIT_P(bitsubstring(PG_GETARG_VARBIT_P(0),
                                   PG_GETARG_INT32(1),
                                   -1, true));
@@ -1129,6 +1155,7 @@ bitsubstring(VarBit *arg, int32 s, int32 l, bool length_not_specified)
 Datum
 bitoverlay(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *t1 = PG_GETARG_VARBIT_P(0);
   VarBit     *t2 = PG_GETARG_VARBIT_P(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -1140,6 +1167,7 @@ bitoverlay(PG_FUNCTION_ARGS)
 Datum
 bitoverlay_no_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *t1 = PG_GETARG_VARBIT_P(0);
   VarBit     *t2 = PG_GETARG_VARBIT_P(1);
   int     sp = PG_GETARG_INT32(2);  /* substring start position */
@@ -1188,6 +1216,7 @@ bit_overlay(VarBit *t1, VarBit *t2, int sp, int sl)
 Datum
 bit_bit_count(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
 
   PG_RETURN_INT64(pg_popcount((char *) VARBITS(arg), VARBITBYTES(arg)));
@@ -1200,6 +1229,7 @@ bit_bit_count(PG_FUNCTION_ARGS)
 Datum
 bitlength(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
 
   PG_RETURN_INT32(VARBITLEN(arg));
@@ -1208,6 +1238,7 @@ bitlength(PG_FUNCTION_ARGS)
 Datum
 bitoctetlength(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
 
   PG_RETURN_INT32(VARBITBYTES(arg));
@@ -1220,6 +1251,7 @@ bitoctetlength(PG_FUNCTION_ARGS)
 Datum
 bit_and(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   VarBit     *result;
@@ -1263,6 +1295,7 @@ bit_and(PG_FUNCTION_ARGS)
 Datum
 bit_or(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   VarBit     *result;
@@ -1306,6 +1339,7 @@ bit_or(PG_FUNCTION_ARGS)
 Datum
 bitxor(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   VarBit     *arg2 = PG_GETARG_VARBIT_P(1);
   VarBit     *result;
@@ -1349,6 +1383,7 @@ bitxor(PG_FUNCTION_ARGS)
 Datum
 bitnot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   VarBit     *result;
   bits8    *p,
@@ -1377,6 +1412,7 @@ bitnot(PG_FUNCTION_ARGS)
 Datum
 bitshiftleft(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   int32   shft = PG_GETARG_INT32(1);
   VarBit     *result;
@@ -1385,6 +1421,8 @@ bitshiftleft(PG_FUNCTION_ARGS)
           len;
   bits8    *p,
            *r;
+
+  DBUG_PRINT("info", "do a left shift(%d)", shft);
 
   /* Negative shift is a shift to the right */
   if (shft < 0) {
@@ -1441,6 +1479,7 @@ bitshiftleft(PG_FUNCTION_ARGS)
 Datum
 bitshiftright(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   int32   shft = PG_GETARG_INT32(1);
   VarBit     *result;
@@ -1449,6 +1488,8 @@ bitshiftright(PG_FUNCTION_ARGS)
           len;
   bits8    *p,
            *r;
+
+  DBUG_PRINT("info", "do a right shift(%d)", shft);
 
   /* Negative shift is a shift to the left */
   if (shft < 0) {
@@ -1510,6 +1551,7 @@ bitshiftright(PG_FUNCTION_ARGS)
 Datum
 bitfromint4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   a = PG_GETARG_INT32(0);
   int32   typmod = PG_GETARG_INT32(1);
   VarBit     *result;
@@ -1567,6 +1609,7 @@ bitfromint4(PG_FUNCTION_ARGS)
 Datum
 bittoint4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   uint32    result;
   bits8    *r;
@@ -1593,6 +1636,7 @@ bittoint4(PG_FUNCTION_ARGS)
 Datum
 bitfromint8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   a = PG_GETARG_INT64(0);
   int32   typmod = PG_GETARG_INT32(1);
   VarBit     *result;
@@ -1650,6 +1694,7 @@ bitfromint8(PG_FUNCTION_ARGS)
 Datum
 bittoint8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg = PG_GETARG_VARBIT_P(0);
   uint64    result;
   bits8    *r;
@@ -1683,6 +1728,7 @@ bittoint8(PG_FUNCTION_ARGS)
 Datum
 bitposition(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *str = PG_GETARG_VARBIT_P(0);
   VarBit     *substr = PG_GETARG_VARBIT_P(1);
   int     substr_length,
@@ -1798,6 +1844,7 @@ bitposition(PG_FUNCTION_ARGS)
 Datum
 bitsetbit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   int32   n = PG_GETARG_INT32(1);
   int32   newBit = PG_GETARG_INT32(2);
@@ -1861,6 +1908,7 @@ bitsetbit(PG_FUNCTION_ARGS)
 Datum
 bitgetbit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   VarBit     *arg1 = PG_GETARG_VARBIT_P(0);
   int32   n = PG_GETARG_INT32(1);
   int     bitlen;

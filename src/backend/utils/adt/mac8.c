@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/hashfn.h"
 #include "libpq/pqformat.h"
@@ -98,6 +99,7 @@ invalid_input:
 Datum
 macaddr8_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const unsigned char *str = (unsigned char *) PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   const unsigned char *ptr = str;
@@ -236,6 +238,7 @@ fail:
 Datum
 macaddr8_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   char     *result;
 
@@ -256,6 +259,7 @@ macaddr8_out(PG_FUNCTION_ARGS)
 Datum
 macaddr8_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   macaddr8   *addr;
 
@@ -286,6 +290,7 @@ macaddr8_recv(PG_FUNCTION_ARGS)
 Datum
 macaddr8_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   StringInfoData buf;
 
@@ -324,6 +329,7 @@ macaddr8_cmp_internal(macaddr8 *a1, macaddr8 *a2)
 Datum
 macaddr8_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -337,6 +343,7 @@ macaddr8_cmp(PG_FUNCTION_ARGS)
 Datum
 macaddr8_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -346,6 +353,7 @@ macaddr8_lt(PG_FUNCTION_ARGS)
 Datum
 macaddr8_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -355,6 +363,7 @@ macaddr8_le(PG_FUNCTION_ARGS)
 Datum
 macaddr8_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -364,6 +373,7 @@ macaddr8_eq(PG_FUNCTION_ARGS)
 Datum
 macaddr8_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -373,6 +383,7 @@ macaddr8_ge(PG_FUNCTION_ARGS)
 Datum
 macaddr8_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -382,6 +393,7 @@ macaddr8_gt(PG_FUNCTION_ARGS)
 Datum
 macaddr8_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *a1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *a2 = PG_GETARG_MACADDR8_P(1);
 
@@ -394,6 +406,7 @@ macaddr8_ne(PG_FUNCTION_ARGS)
 Datum
 hashmacaddr8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *key = PG_GETARG_MACADDR8_P(0);
 
   return hash_any((unsigned char *) key, sizeof(macaddr8));
@@ -402,6 +415,7 @@ hashmacaddr8(PG_FUNCTION_ARGS)
 Datum
 hashmacaddr8extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *key = PG_GETARG_MACADDR8_P(0);
 
   return hash_any_extended((unsigned char *) key, sizeof(macaddr8),
@@ -414,6 +428,7 @@ hashmacaddr8extended(PG_FUNCTION_ARGS)
 Datum
 macaddr8_not(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   macaddr8   *result;
 
@@ -433,6 +448,7 @@ macaddr8_not(PG_FUNCTION_ARGS)
 Datum
 macaddr8_and(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *addr2 = PG_GETARG_MACADDR8_P(1);
   macaddr8   *result;
@@ -453,6 +469,7 @@ macaddr8_and(PG_FUNCTION_ARGS)
 Datum
 macaddr8_or(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr1 = PG_GETARG_MACADDR8_P(0);
   macaddr8   *addr2 = PG_GETARG_MACADDR8_P(1);
   macaddr8   *result;
@@ -476,6 +493,7 @@ macaddr8_or(PG_FUNCTION_ARGS)
 Datum
 macaddr8_trunc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   macaddr8   *result;
 
@@ -499,6 +517,7 @@ macaddr8_trunc(PG_FUNCTION_ARGS)
 Datum
 macaddr8_set7bit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   macaddr8   *result;
 
@@ -523,6 +542,7 @@ macaddr8_set7bit(PG_FUNCTION_ARGS)
 Datum
 macaddrtomacaddr8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr6 = PG_GETARG_MACADDR_P(0);
   macaddr8   *result;
 
@@ -544,6 +564,7 @@ macaddrtomacaddr8(PG_FUNCTION_ARGS)
 Datum
 macaddr8tomacaddr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr8   *addr = PG_GETARG_MACADDR8_P(0);
   macaddr    *result;
 

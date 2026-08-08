@@ -32,6 +32,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -85,6 +86,7 @@ static inline uint32 mod_m(uint32 val, uint64 m);
 bloom_filter *
 bloom_create(int64 total_elems, int bloom_work_mem, uint64 seed)
 {
+  DBUG_TRACE;
   bloom_filter *filter;
   int     bloom_power;
   uint64    bitset_bytes;
@@ -124,6 +126,7 @@ bloom_create(int64 total_elems, int bloom_work_mem, uint64 seed)
 void
 bloom_free(bloom_filter *filter)
 {
+  DBUG_TRACE;
   pfree(filter);
 }
 
@@ -133,6 +136,7 @@ bloom_free(bloom_filter *filter)
 void
 bloom_add_element(bloom_filter *filter, unsigned char *elem, size_t len)
 {
+  DBUG_TRACE;
   uint32    hashes[MAX_HASH_FUNCS];
   int     i;
 
@@ -154,6 +158,7 @@ bloom_add_element(bloom_filter *filter, unsigned char *elem, size_t len)
 bool
 bloom_lacks_element(bloom_filter *filter, unsigned char *elem, size_t len)
 {
+  DBUG_TRACE;
   uint32    hashes[MAX_HASH_FUNCS];
   int     i;
 
@@ -206,6 +211,7 @@ bloom_prop_bits_set(bloom_filter *filter)
 static int
 my_bloom_power(uint64 target_bitset_bits)
 {
+  DBUG_TRACE;
   int     bloom_power = -1;
 
   while (target_bitset_bits > 0 && bloom_power < 32) {

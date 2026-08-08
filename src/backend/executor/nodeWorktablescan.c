@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeWorktablescan.h"
@@ -29,6 +30,7 @@ static TupleTableSlot *WorkTableScanNext(WorkTableScanState *node);
 static TupleTableSlot *
 WorkTableScanNext(WorkTableScanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
   Tuplestorestate *tuplestorestate;
 
@@ -80,6 +82,7 @@ WorkTableScanRecheck(WorkTableScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecWorkTableScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   WorkTableScanState *node = castNode(WorkTableScanState, pstate);
 
   /*
@@ -128,6 +131,7 @@ ExecWorkTableScan(PlanState *pstate)
 WorkTableScanState *
 ExecInitWorkTableScan(WorkTableScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   WorkTableScanState *scanstate;
 
   /* check for unsupported flags */
@@ -189,6 +193,8 @@ ExecInitWorkTableScan(WorkTableScan *node, EState *estate, int eflags)
 void
 ExecReScanWorkTableScan(WorkTableScanState *node)
 {
+  DBUG_TRACE;
+
   if (node->ss.ps.ps_ResultTupleSlot)
     ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 

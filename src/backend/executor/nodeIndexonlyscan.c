@@ -29,6 +29,7 @@
  *    ExecIndexOnlyScanInitializeWorker attach to DSM info in parallel worker
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/relscan.h"
@@ -60,6 +61,7 @@ static void StoreIndexTuple(IndexOnlyScanState *node, TupleTableSlot *slot,
 static TupleTableSlot *
 IndexOnlyNext(IndexOnlyScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate;
   ExprContext *econtext;
   ScanDirection direction;
@@ -88,6 +90,8 @@ IndexOnlyNext(IndexOnlyScanState *node)
      * serially executing an index only scan that was planned to be
      * parallel.
      */
+    DBUG_PRINT("info", "we reach here if the index only scan is not parallel");
+    DBUG_PRINT("info", "or if we're serially executing an index only scan that was planned to be parallel");
     scandesc = index_beginscan(node->ss.ss_currentRelation,
                                node->ioss_RelationDesc,
                                estate->es_snapshot,
@@ -117,6 +121,8 @@ IndexOnlyNext(IndexOnlyScanState *node)
   /*
    * OK, now that we have what we need, fetch the next tuple.
    */
+  DBUG_PRINT("info", "OK, now that we have what we need, fetch the next tuple");
+
   while ((tid = index_getnext_tid(scandesc, direction)) != NULL) {
     bool    tuple_from_heap = false;
 
@@ -163,6 +169,7 @@ IndexOnlyNext(IndexOnlyScanState *node)
        * Rats, we have to visit the heap to check visibility.
        */
       InstrCountTuples2(node, 1);
+      DBUG_PRINT("info", "we have to visit the heap to check visibility.");
 
       if (!index_fetch_heap(scandesc, node->ioss_TableSlot))
         continue;   /* no visible tuple, try next index entry */
@@ -264,6 +271,7 @@ static void
 StoreIndexTuple(IndexOnlyScanState *node, TupleTableSlot *slot,
                 IndexTuple itup, TupleDesc itupdesc)
 {
+  DBUG_TRACE;
   /*
    * Note: we must use the tupdesc supplied by the AM in index_deform_tuple,
    * not the slot's tupdesc, in case the latter has different datatypes
@@ -329,6 +337,7 @@ IndexOnlyRecheck(IndexOnlyScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecIndexOnlyScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   IndexOnlyScanState *node = castNode(IndexOnlyScanState, pstate);
 
   /*
@@ -356,6 +365,8 @@ ExecIndexOnlyScan(PlanState *pstate)
 void
 ExecReScanIndexOnlyScan(IndexOnlyScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * If we are doing runtime key calculations (ie, any of the index key
    * values weren't simple Consts), compute the new key values.  But first,
@@ -391,6 +402,7 @@ ExecReScanIndexOnlyScan(IndexOnlyScanState *node)
 void
 ExecEndIndexOnlyScan(IndexOnlyScanState *node)
 {
+  DBUG_TRACE;
   Relation  indexRelationDesc;
   IndexScanDesc indexScanDesc;
 
@@ -446,6 +458,7 @@ ExecEndIndexOnlyScan(IndexOnlyScanState *node)
 void
 ExecIndexOnlyMarkPos(IndexOnlyScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   EPQState   *epqstate = estate->es_epq_active;
 
@@ -483,6 +496,7 @@ ExecIndexOnlyMarkPos(IndexOnlyScanState *node)
 void
 ExecIndexOnlyRestrPos(IndexOnlyScanState *node)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   EPQState   *epqstate = estate->es_epq_active;
 
@@ -519,6 +533,7 @@ ExecIndexOnlyRestrPos(IndexOnlyScanState *node)
 IndexOnlyScanState *
 ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   IndexOnlyScanState *indexstate;
   Relation  currentRelation;
   Relation  indexRelation;
@@ -619,7 +634,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
                          &indexstate->ioss_NumScanKeys,
                          &indexstate->ioss_RuntimeKeys,
                          &indexstate->ioss_NumRuntimeKeys,
-                         NULL,  /* no ArrayKeys */
+                         NULL, /* no ArrayKeys */
                          NULL);
 
   /*
@@ -633,7 +648,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
                          &indexstate->ioss_NumOrderByKeys,
                          &indexstate->ioss_RuntimeKeys,
                          &indexstate->ioss_NumRuntimeKeys,
-                         NULL,  /* no ArrayKeys */
+                         NULL, /* no ArrayKeys */
                          NULL);
 
   /*
@@ -714,6 +729,7 @@ void
 ExecIndexOnlyScanEstimate(IndexOnlyScanState *node,
                           ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   bool    instrument = (node->ss.ps.instrument != NULL);
   bool    parallel_aware = node->ss.ps.plan->parallel_aware;
@@ -743,6 +759,7 @@ void
 ExecIndexOnlyScanInitializeDSM(IndexOnlyScanState *node,
                                ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   ParallelIndexScanDesc piscan;
   bool    instrument = node->ss.ps.instrument != NULL;
@@ -810,6 +827,7 @@ void
 ExecIndexOnlyScanInitializeWorker(IndexOnlyScanState *node,
                                   ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   ParallelIndexScanDesc piscan;
   bool    instrument = node->ss.ps.instrument != NULL;
   bool    parallel_aware = node->ss.ps.plan->parallel_aware;

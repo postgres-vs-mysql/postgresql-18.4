@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <sys/time.h>
@@ -156,6 +157,7 @@ static void
 enable_timeout(TimeoutId id, TimestampTz now, TimestampTz fin_time,
                int interval_in_ms)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Assert request is sane */
@@ -207,6 +209,8 @@ enable_timeout(TimeoutId id, TimestampTz now, TimestampTz fin_time,
 static void
 schedule_alarm(TimestampTz now)
 {
+  DBUG_TRACE;
+
   if (num_active_timeouts > 0) {
     struct itimerval timeval;
     TimestampTz nearest_timeout;
@@ -461,6 +465,7 @@ handle_sig_alarm(SIGNAL_ARGS)
 void
 InitializeTimeouts(void)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Initialize, or re-initialize, all local state */
@@ -495,12 +500,15 @@ InitializeTimeouts(void)
 TimeoutId
 RegisterTimeout(TimeoutId id, timeout_handler_proc handler)
 {
+  DBUG_TRACE;
   Assert(all_timeouts_initialized);
 
   /* There's no need to disable the signal handler here. */
 
   if (id >= USER_TIMEOUT) {
     /* Allocate a user-defined timeout reason */
+    DBUG_PRINT("info", "allocate a user-defined timeout(id:%d) reason", id);
+
     for (id = USER_TIMEOUT; id < MAX_TIMEOUTS; id++)
       if (all_timeouts[id].timeout_handler == NULL)
         break;
@@ -509,6 +517,8 @@ RegisterTimeout(TimeoutId id, timeout_handler_proc handler)
       ereport(FATAL,
               (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
                errmsg("cannot add more timeout reasons")));
+  } else {
+    DBUG_PRINT("info", "for predefined timeouts(id:%d), this just registers the callback function", id);
   }
 
   Assert(all_timeouts[id].timeout_handler == NULL);
@@ -530,6 +540,8 @@ RegisterTimeout(TimeoutId id, timeout_handler_proc handler)
 void
 reschedule_timeouts(void)
 {
+  DBUG_TRACE;
+
   /* For flexibility, allow this to be called before we're initialized. */
   if (!all_timeouts_initialized)
     return;
@@ -550,6 +562,7 @@ reschedule_timeouts(void)
 void
 enable_timeout_after(TimeoutId id, int delay_ms)
 {
+  DBUG_TRACE;
   TimestampTz now;
   TimestampTz fin_time;
 
@@ -574,6 +587,7 @@ enable_timeout_after(TimeoutId id, int delay_ms)
 void
 enable_timeout_every(TimeoutId id, TimestampTz fin_time, int delay_ms)
 {
+  DBUG_TRACE;
   TimestampTz now;
 
   /* Disable timeout interrupts for safety. */
@@ -597,6 +611,7 @@ enable_timeout_every(TimeoutId id, TimestampTz fin_time, int delay_ms)
 void
 enable_timeout_at(TimeoutId id, TimestampTz fin_time)
 {
+  DBUG_TRACE;
   TimestampTz now;
 
   /* Disable timeout interrupts for safety. */
@@ -620,6 +635,7 @@ enable_timeout_at(TimeoutId id, TimestampTz fin_time)
 void
 enable_timeouts(const EnableTimeoutParams *timeouts, int count)
 {
+  DBUG_TRACE;
   TimestampTz now;
   int     i;
 
@@ -673,6 +689,7 @@ enable_timeouts(const EnableTimeoutParams *timeouts, int count)
 void
 disable_timeout(TimeoutId id, bool keep_indicator)
 {
+  DBUG_TRACE;
   /* Assert request is sane */
   Assert(all_timeouts_initialized);
   Assert(all_timeouts[id].timeout_handler != NULL);
@@ -706,6 +723,7 @@ disable_timeout(TimeoutId id, bool keep_indicator)
 void
 disable_timeouts(const DisableTimeoutParams *timeouts, int count)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(all_timeouts_initialized);
@@ -738,6 +756,7 @@ disable_timeouts(const DisableTimeoutParams *timeouts, int count)
 void
 disable_all_timeouts(bool keep_indicators)
 {
+  DBUG_TRACE;
   int     i;
 
   disable_alarm();

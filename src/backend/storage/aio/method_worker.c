@@ -28,6 +28,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
@@ -129,6 +130,7 @@ pgaio_worker_shmem_size(void)
 static void
 pgaio_worker_shmem_init(bool first_time)
 {
+  DBUG_TRACE;
   bool    found;
   int     queue_size;
 
@@ -161,6 +163,7 @@ pgaio_worker_shmem_init(bool first_time)
 static int
 pgaio_worker_choose_idle(void)
 {
+  DBUG_TRACE;
   int     worker;
 
   if (io_worker_control->idle_worker_mask == 0)
@@ -171,12 +174,14 @@ pgaio_worker_choose_idle(void)
   io_worker_control->idle_worker_mask &= ~(UINT64_C(1) << worker);
   Assert(io_worker_control->workers[worker].in_use);
 
+  DBUG_PRINT("info", "worker:%d", worker);
   return worker;
 }
 
 static bool
 pgaio_worker_submission_queue_insert(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   PgAioWorkerSubmissionQueue *queue;
   uint32    new_head;
 
@@ -184,6 +189,7 @@ pgaio_worker_submission_queue_insert(PgAioHandle *ioh)
   new_head = (queue->head + 1) & (queue->size - 1);
 
   if (new_head == queue->tail) {
+    DBUG_PRINT("info", "io queue is full, at %u elements", io_worker_submission_queue->size);
     pgaio_debug(DEBUG3, "io queue is full, at %u elements",
                 io_worker_submission_queue->size);
     return false;     /* full */
@@ -198,6 +204,7 @@ pgaio_worker_submission_queue_insert(PgAioHandle *ioh)
 static int
 pgaio_worker_submission_queue_consume(void)
 {
+  DBUG_TRACE;
   PgAioWorkerSubmissionQueue *queue;
   int     result;
 
@@ -209,12 +216,14 @@ pgaio_worker_submission_queue_consume(void)
   result = queue->sqes[queue->tail];
   queue->tail = (queue->tail + 1) & (queue->size - 1);
 
+  DBUG_PRINT("info", "return result:%d", result);
   return result;
 }
 
 static uint32
 pgaio_worker_submission_queue_depth(void)
 {
+  DBUG_TRACE;
   uint32    head;
   uint32    tail;
 
@@ -226,12 +235,14 @@ pgaio_worker_submission_queue_depth(void)
 
   Assert(head >= tail);
 
+  DBUG_PRINT("info", "return result:%u", head - tail);
   return head - tail;
 }
 
 static bool
 pgaio_worker_needs_synchronous_execution(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   return
     !IsUnderPostmaster
     || ioh->flags & PGAIO_HF_REFERENCES_LOCAL
@@ -241,6 +252,7 @@ pgaio_worker_needs_synchronous_execution(PgAioHandle *ioh)
 static void
 pgaio_worker_submit_internal(int num_staged_ios, PgAioHandle **staged_ios)
 {
+  DBUG_TRACE;
   PgAioHandle *synchronous_ios[PGAIO_SUBMIT_BATCH_SIZE];
   int     nsync = 0;
   Latch    *wakeup = NULL;
@@ -250,6 +262,7 @@ pgaio_worker_submit_internal(int num_staged_ios, PgAioHandle **staged_ios)
 
   LWLockAcquire(AioWorkerSubmissionQueueLock, LW_EXCLUSIVE);
 
+  DBUG_PRINT("info", "num_staged_ios:%d", num_staged_ios);
   for (int i = 0; i < num_staged_ios; ++i) {
     Assert(!pgaio_worker_needs_synchronous_execution(staged_ios[i]));
 
@@ -269,6 +282,7 @@ pgaio_worker_submit_internal(int num_staged_ios, PgAioHandle **staged_ios)
       if (worker >= 0)
         wakeup = io_worker_control->workers[worker].latch;
 
+      DBUG_PRINT("info", "choosing worker %d", worker);
       pgaio_debug_io(DEBUG4, staged_ios[i],
                      "choosing worker %d",
                      worker);
@@ -282,6 +296,7 @@ pgaio_worker_submit_internal(int num_staged_ios, PgAioHandle **staged_ios)
 
   /* Run whatever is left synchronously. */
   if (nsync > 0) {
+    DBUG_PRINT("info", "run whatever is left synchronously(nsync:%d)", nsync);
     for (int i = 0; i < nsync; ++i) {
       pgaio_io_perform_synchronously(synchronous_ios[i]);
     }
@@ -291,6 +306,7 @@ pgaio_worker_submit_internal(int num_staged_ios, PgAioHandle **staged_ios)
 static int
 pgaio_worker_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 {
+  DBUG_TRACE;
   for (int i = 0; i < num_staged_ios; i++) {
     PgAioHandle *ioh = staged_ios[i];
 
@@ -299,6 +315,7 @@ pgaio_worker_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 
   pgaio_worker_submit_internal(num_staged_ios, staged_ios);
 
+  DBUG_PRINT("info", "return num_staged_ios:%d", num_staged_ios);
   return num_staged_ios;
 }
 
@@ -309,6 +326,7 @@ pgaio_worker_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 static void
 pgaio_worker_die(int code, Datum arg)
 {
+  DBUG_TRACE;
   LWLockAcquire(AioWorkerSubmissionQueueLock, LW_EXCLUSIVE);
   Assert(io_worker_control->workers[MyIoWorkerId].in_use);
   Assert(io_worker_control->workers[MyIoWorkerId].latch == MyLatch);
@@ -326,6 +344,7 @@ pgaio_worker_die(int code, Datum arg)
 static void
 pgaio_worker_register(void)
 {
+  DBUG_TRACE;
   MyIoWorkerId = -1;
 
   /*
@@ -357,6 +376,7 @@ pgaio_worker_register(void)
 static void
 pgaio_worker_error_callback(void *arg)
 {
+  DBUG_TRACE;
   ProcNumber  owner;
   PGPROC     *owner_proc;
   int32   owner_pid;
@@ -378,6 +398,7 @@ pgaio_worker_error_callback(void *arg)
 void
 IoWorkerMain(const void *startup_data, size_t startup_data_len)
 {
+  DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   PgAioHandle *volatile error_ioh = NULL;
   ErrorContextCallback errcallback = {0};
@@ -497,6 +518,7 @@ IoWorkerMain(const void *startup_data, size_t startup_data_len)
       error_ioh = ioh;
       errcallback.arg = ioh;
 
+      DBUG_PRINT("info", "worker %d processing IO", MyIoWorkerId);
       pgaio_debug_io(DEBUG4, ioh,
                      "worker %d processing IO",
                      MyIoWorkerId);

@@ -76,6 +76,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 
@@ -552,6 +553,7 @@ ltsInitReadBuffer(LogicalTape *lt)
 LogicalTapeSet *
 LogicalTapeSetCreate(bool preallocate, SharedFileSet *fileset, int worker)
 {
+  DBUG_TRACE;
   LogicalTapeSet *lts;
 
   /*
@@ -569,6 +571,8 @@ LogicalTapeSetCreate(bool preallocate, SharedFileSet *fileset, int worker)
 
   lts->fileset = fileset;
   lts->worker = worker;
+
+  DBUG_PRINT("info", "create temp BufFile storage as required");
 
   /*
    * Create temp BufFile storage as required.
@@ -603,6 +607,7 @@ LogicalTapeSetCreate(bool preallocate, SharedFileSet *fileset, int worker)
 LogicalTape *
 LogicalTapeImport(LogicalTapeSet *lts, int worker, TapeShare *shared)
 {
+  DBUG_TRACE;
   LogicalTape *lt;
   int64   tapeblocks;
   char    filename[MAXPGPATH];
@@ -841,6 +846,7 @@ LogicalTapeWrite(LogicalTape *lt, const void *ptr, size_t size)
 void
 LogicalTapeRewindForRead(LogicalTape *lt, size_t buffer_size)
 {
+  DBUG_TRACE;
   LogicalTapeSet *lts = lt->tapeSet;
 
   /*
@@ -919,6 +925,7 @@ LogicalTapeRewindForRead(LogicalTape *lt, size_t buffer_size)
 size_t
 LogicalTapeRead(LogicalTape *lt, void *ptr, size_t size)
 {
+  DBUG_TRACE;
   size_t    nread = 0;
   size_t    nthistime;
 
@@ -949,6 +956,7 @@ LogicalTapeRead(LogicalTape *lt, void *ptr, size_t size)
     nread += nthistime;
   }
 
+  DBUG_PRINT("info", "nread:%lu", nread);
   return nread;
 }
 
@@ -972,6 +980,7 @@ LogicalTapeRead(LogicalTape *lt, void *ptr, size_t size)
 void
 LogicalTapeFreeze(LogicalTape *lt, TapeShare *share)
 {
+  DBUG_TRACE;
   LogicalTapeSet *lts = lt->tapeSet;
 
   Assert(lt->writing);
@@ -1055,6 +1064,7 @@ LogicalTapeFreeze(LogicalTape *lt, TapeShare *share)
 size_t
 LogicalTapeBackspace(LogicalTape *lt, size_t size)
 {
+  DBUG_TRACE;
   size_t    seekpos = 0;
 
   Assert(lt->frozen);
@@ -1068,6 +1078,7 @@ LogicalTapeBackspace(LogicalTape *lt, size_t size)
    */
   if (size <= (size_t) lt->pos) {
     lt->pos -= (int) size;
+    DBUG_PRINT("info", "return size:%lu", size);
     return size;
   }
 
@@ -1087,6 +1098,8 @@ LogicalTapeBackspace(LogicalTape *lt, size_t size)
         elog(ERROR, "unexpected end of tape");
 
       lt->pos = 0;
+
+      DBUG_PRINT("info", "return seekpos:%lu", seekpos);
       return seekpos;
     }
 
@@ -1111,6 +1124,7 @@ LogicalTapeBackspace(LogicalTape *lt, size_t size)
    * page.
    */
   lt->pos = seekpos - size;
+  DBUG_PRINT("info", "return size:%lu", size);
   return size;
 }
 

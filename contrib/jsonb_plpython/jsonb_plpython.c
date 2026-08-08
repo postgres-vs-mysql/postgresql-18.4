@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "plpy_elog.h"
 #include "plpy_typeio.h"
@@ -39,6 +40,7 @@ static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   /* Asserts verify that typedefs above match original declarations */
   AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
   PLyObject_AsString_p = (PLyObject_AsString_t)
@@ -68,6 +70,7 @@ _PG_init(void)
 static PyObject *
 PLyUnicode_FromJsonbValue(JsonbValue *jbv)
 {
+  DBUG_TRACE;
   Assert(jbv->type == jbvString);
 
   return PLyUnicode_FromStringAndSize(jbv->val.string.val, jbv->val.string.len);
@@ -94,6 +97,8 @@ PLyUnicode_ToJsonbValue(PyObject *obj, JsonbValue *jbvElem)
 static PyObject *
 PLyObject_FromJsonbValue(JsonbValue *jsonbValue)
 {
+  DBUG_TRACE;
+
   switch (jsonbValue->type) {
     case jbvNull:
       Py_RETURN_NONE;
@@ -134,6 +139,7 @@ PLyObject_FromJsonbValue(JsonbValue *jsonbValue)
 static PyObject *
 PLyObject_FromJsonbContainer(JsonbContainer *jsonb)
 {
+  DBUG_TRACE;
   JsonbIteratorToken r;
   JsonbValue  v;
   JsonbIterator *it;
@@ -257,6 +263,7 @@ PLyObject_FromJsonbContainer(JsonbContainer *jsonb)
 static JsonbValue *
 PLyMapping_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 {
+  DBUG_TRACE;
   Py_ssize_t  pcount;
   PyObject   *volatile items;
   JsonbValue *volatile out;
@@ -310,6 +317,7 @@ PLyMapping_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 static JsonbValue *
 PLySequence_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 {
+  DBUG_TRACE;
   Py_ssize_t  i;
   Py_ssize_t  pcount;
   PyObject   *volatile value = NULL;
@@ -347,6 +355,7 @@ PLySequence_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state)
 static JsonbValue *
 PLyNumber_ToJsonbValue(PyObject *obj, JsonbValue *jbvNum)
 {
+  DBUG_TRACE;
   Numeric   num;
   char     *str = PLyObject_AsString(obj);
 
@@ -398,6 +407,7 @@ PLyNumber_ToJsonbValue(PyObject *obj, JsonbValue *jbvNum)
 static JsonbValue *
 PLyObject_ToJsonbValue(PyObject *obj, JsonbParseState **jsonb_state, bool is_elem)
 {
+  DBUG_TRACE;
   JsonbValue *out;
 
   if (!PyUnicode_Check(obj)) {
@@ -444,6 +454,7 @@ PG_FUNCTION_INFO_V1(plpython_to_jsonb);
 Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PyObject   *obj;
   JsonbValue *out;
   JsonbParseState *jsonb_state = NULL;
@@ -462,6 +473,7 @@ PG_FUNCTION_INFO_V1(jsonb_to_plpython);
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PyObject   *result;
   Jsonb    *in = PG_GETARG_JSONB_P(0);
 

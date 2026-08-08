@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -163,6 +164,7 @@ CreateTrigger(CreateTrigStmt *stmt, const char *queryString,
               Oid funcoid, Oid parentTriggerOid, Node *whenClause,
               bool isInternal, bool in_partition)
 {
+  DBUG_TRACE;
   return
     CreateTriggerFiringOn(stmt, queryString, relOid, refRelOid,
                           constraintOid, indexOid, funcoid,
@@ -181,6 +183,7 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
                       Node *whenClause, bool isInternal, bool in_partition,
                       char trigger_fires_when)
 {
+  DBUG_TRACE;
   int16   tgtype;
   int     ncolumns;
   int16    *columns;
@@ -221,21 +224,27 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
   if (rel->rd_rel->relkind == RELKIND_RELATION) {
     /* Tables can't have INSTEAD OF triggers */
     if (stmt->timing != TRIGGER_TYPE_BEFORE &&
-        stmt->timing != TRIGGER_TYPE_AFTER)
+        stmt->timing != TRIGGER_TYPE_AFTER) {
+      DBUG_PRINT("info", "tables can't have INSTEAD OF triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a table", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a table",
                       RelationGetRelationName(rel)),
                errdetail("Tables cannot have INSTEAD OF triggers.")));
+    }
   } else if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE) {
     /* Partitioned tables can't have INSTEAD OF triggers */
     if (stmt->timing != TRIGGER_TYPE_BEFORE &&
-        stmt->timing != TRIGGER_TYPE_AFTER)
+        stmt->timing != TRIGGER_TYPE_AFTER) {
+      DBUG_PRINT("info", "partitioned tables can't have INSTEAD OF triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a table", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a table",
                       RelationGetRelationName(rel)),
                errdetail("Tables cannot have INSTEAD OF triggers.")));
+    }
 
     /*
      * FOR EACH ROW triggers have further restrictions
@@ -252,64 +261,83 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
        * the other restriction when the first partition was created,
        * which is very unfriendly behavior.
        */
-      if (stmt->transitionRels != NIL)
+      if (stmt->transitionRels != NIL) {
+        DBUG_PRINT("info", "disallow use of transition tables");
+        DBUG_INSTANT_PRINT("info", "\"%s\" is a partitioned table", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("\"%s\" is a partitioned table",
                         RelationGetRelationName(rel)),
                  errdetail("ROW triggers with transition tables are not supported on partitioned tables.")));
+      }
     }
   } else if (rel->rd_rel->relkind == RELKIND_VIEW) {
     /*
      * Views can have INSTEAD OF triggers (which we check below are
      * row-level), or statement-level BEFORE/AFTER triggers.
      */
-    if (stmt->timing != TRIGGER_TYPE_INSTEAD && stmt->row)
+    if (stmt->timing != TRIGGER_TYPE_INSTEAD && stmt->row) {
+      DBUG_PRINT("info", "views cannot have row-level BEFORE or AFTER triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a view", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a view",
                       RelationGetRelationName(rel)),
                errdetail("Views cannot have row-level BEFORE or AFTER triggers.")));
+    }
 
     /* Disallow TRUNCATE triggers on VIEWs */
-    if (TRIGGER_FOR_TRUNCATE(stmt->events))
+    if (TRIGGER_FOR_TRUNCATE(stmt->events)) {
+      DBUG_PRINT("info", "views cannot have TRUNCATE triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a view", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a view",
                       RelationGetRelationName(rel)),
                errdetail("Views cannot have TRUNCATE triggers.")));
+    }
   } else if (rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE) {
     if (stmt->timing != TRIGGER_TYPE_BEFORE &&
-        stmt->timing != TRIGGER_TYPE_AFTER)
+        stmt->timing != TRIGGER_TYPE_AFTER) {
+      DBUG_PRINT("info", "foreign tables cannot have INSTEAD OF triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a foreign table", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a foreign table",
                       RelationGetRelationName(rel)),
                errdetail("Foreign tables cannot have INSTEAD OF triggers.")));
+    }
 
     /*
      * We disallow constraint triggers to protect the assumption that
      * triggers on FKs can't be deferred.  See notes with AfterTriggers
      * data structures, below.
      */
-    if (stmt->isconstraint)
+    if (stmt->isconstraint) {
+      DBUG_PRINT("info", "foreign tables cannot have constraint triggers");
+      DBUG_INSTANT_PRINT("info", "\"%s\" is a foreign table", RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("\"%s\" is a foreign table",
                       RelationGetRelationName(rel)),
                errdetail("Foreign tables cannot have constraint triggers.")));
-  } else
+    }
+  } else {
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" cannot have triggers", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" cannot have triggers",
                     RelationGetRelationName(rel)),
              errdetail_relkind_not_supported(rel->rd_rel->relkind)));
+  }
 
-  if (!allowSystemTableMods && IsSystemRelation(rel))
+  if (!allowSystemTableMods && IsSystemRelation(rel)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     RelationGetRelationName(rel))));
+  }
 
   if (stmt->isconstraint) {
     /*
@@ -369,27 +397,35 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
   tgtype |= stmt->events;
 
   /* Disallow ROW-level TRUNCATE triggers */
-  if (TRIGGER_FOR_ROW(tgtype) && TRIGGER_FOR_TRUNCATE(tgtype))
+  if (TRIGGER_FOR_ROW(tgtype) && TRIGGER_FOR_TRUNCATE(tgtype)) {
+    DBUG_INSTANT_PRINT("info", "TRUNCATE FOR EACH ROW triggers are not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("TRUNCATE FOR EACH ROW triggers are not supported")));
+  }
 
   /* INSTEAD triggers must be row-level, and can't have WHEN or columns */
   if (TRIGGER_FOR_INSTEAD(tgtype)) {
-    if (!TRIGGER_FOR_ROW(tgtype))
+    if (!TRIGGER_FOR_ROW(tgtype)) {
+      DBUG_INSTANT_PRINT("info", "INSTEAD OF triggers must be FOR EACH ROW");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("INSTEAD OF triggers must be FOR EACH ROW")));
+    }
 
-    if (stmt->whenClause)
+    if (stmt->whenClause) {
+      DBUG_INSTANT_PRINT("info", "INSTEAD OF triggers cannot have WHEN condition");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("INSTEAD OF triggers cannot have WHEN conditions")));
+    }
 
-    if (stmt->columns != NIL)
+    if (stmt->columns != NIL) {
+      DBUG_INSTANT_PRINT("info", "INSTEAD OF triggers cannot have column lists");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("INSTEAD OF triggers cannot have column lists")));
+    }
   }
 
   /*
@@ -413,11 +449,13 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
     foreach(lc, varList) {
       TriggerTransition *tt = lfirst_node(TriggerTransition, lc);
 
-      if (!(tt->isTable))
+      if (!(tt->isTable)) {
+        DBUG_INSTANT_PRINT("info", "ROW variable naming in the REFERENCING clause is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("ROW variable naming in the REFERENCING clause is not supported"),
                  errhint("Use OLD TABLE or NEW TABLE for naming transition tables.")));
+      }
 
       /*
        * Because of the above test, we omit further ROW-related testing
@@ -425,19 +463,25 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
        * adjustments will be needed below.
        */
 
-      if (rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE)
+      if (rel->rd_rel->relkind == RELKIND_FOREIGN_TABLE) {
+        DBUG_PRINT("info", "triggers on foreign tables cannot have transition tables");
+        DBUG_INSTANT_PRINT("info", "\"%s\" is a foreign table", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is a foreign table",
                         RelationGetRelationName(rel)),
                  errdetail("Triggers on foreign tables cannot have transition tables.")));
+      }
 
-      if (rel->rd_rel->relkind == RELKIND_VIEW)
+      if (rel->rd_rel->relkind == RELKIND_VIEW) {
+        DBUG_PRINT("info", "triggers on views cannot have transition tables");
+        DBUG_INSTANT_PRINT("info", "\"%s\" is a view", RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("\"%s\" is a view",
                         RelationGetRelationName(rel)),
                  errdetail("Triggers on views cannot have transition tables.")));
+      }
 
       /*
        * We currently don't allow row-level triggers with transition
@@ -449,25 +493,32 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
        */
       if (TRIGGER_FOR_ROW(tgtype) && has_superclass(rel->rd_id)) {
         /* Use appropriate error message. */
-        if (rel->rd_rel->relispartition)
+        if (rel->rd_rel->relispartition) {
+          DBUG_INSTANT_PRINT("info", "ROW triggers with transition tables are not supported on partitions");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("ROW triggers with transition tables are not supported on partitions")));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "ROW triggers with transition tables are not supported on inheritance children");
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("ROW triggers with transition tables are not supported on inheritance children")));
+        }
       }
 
-      if (stmt->timing != TRIGGER_TYPE_AFTER)
+      if (stmt->timing != TRIGGER_TYPE_AFTER) {
+        DBUG_INSTANT_PRINT("info", "transition table name can only be specified for an AFTER trigger");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("transition table name can only be specified for an AFTER trigger")));
+      }
 
-      if (TRIGGER_FOR_TRUNCATE(tgtype))
+      if (TRIGGER_FOR_TRUNCATE(tgtype)) {
+        DBUG_INSTANT_PRINT("info", "TRUNCATE triggers with transition tables are not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("TRUNCATE triggers with transition tables are not supported")));
+      }
 
       /*
        * We currently don't allow multi-event triggers ("INSERT OR
@@ -481,10 +532,12 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
        */
       if (((TRIGGER_FOR_INSERT(tgtype) ? 1 : 0) +
            (TRIGGER_FOR_UPDATE(tgtype) ? 1 : 0) +
-           (TRIGGER_FOR_DELETE(tgtype) ? 1 : 0)) != 1)
+           (TRIGGER_FOR_DELETE(tgtype) ? 1 : 0)) != 1) {
+        DBUG_INSTANT_PRINT("info", "transition tables cannot be specified for triggers with more than one event");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("transition tables cannot be specified for triggers with more than one event")));
+      }
 
       /*
        * We currently don't allow column-specific triggers with
@@ -492,10 +545,12 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
        * accumulating separate transition tables for each combination of
        * columns, which is a lot of work for a rather marginal feature.
        */
-      if (stmt->columns != NIL)
+      if (stmt->columns != NIL) {
+        DBUG_INSTANT_PRINT("info", "transition tables cannot be specified for triggers with column lists");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("transition tables cannot be specified for triggers with column lists")));
+      }
 
       /*
        * We disallow constraint triggers with transition tables, to
@@ -508,38 +563,48 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 
       if (tt->isNew) {
         if (!(TRIGGER_FOR_INSERT(tgtype) ||
-              TRIGGER_FOR_UPDATE(tgtype)))
+              TRIGGER_FOR_UPDATE(tgtype))) {
+          DBUG_INSTANT_PRINT("info", "NEW TABLE can only be specified for an INSERT or UPDATE trigger");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                    errmsg("NEW TABLE can only be specified for an INSERT or UPDATE trigger")));
+        }
 
-        if (newtablename != NULL)
+        if (newtablename != NULL) {
+          DBUG_INSTANT_PRINT("info", "NEW TABLE cannot be specified multiple times");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                    errmsg("NEW TABLE cannot be specified multiple times")));
+        }
 
         newtablename = tt->name;
       } else {
         if (!(TRIGGER_FOR_DELETE(tgtype) ||
-              TRIGGER_FOR_UPDATE(tgtype)))
+              TRIGGER_FOR_UPDATE(tgtype))) {
+          DBUG_INSTANT_PRINT("info", "OLD TABLE can only be specified for a DELETE or UPDATE trigger");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                    errmsg("OLD TABLE can only be specified for a DELETE or UPDATE trigger")));
+        }
 
-        if (oldtablename != NULL)
+        if (oldtablename != NULL) {
+          DBUG_INSTANT_PRINT("info", "OLD TABLE cannot be specified multiple times");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                    errmsg("OLD TABLE cannot be specified multiple times")));
+        }
 
         oldtablename = tt->name;
       }
     }
 
     if (newtablename != NULL && oldtablename != NULL &&
-        strcmp(newtablename, oldtablename) == 0)
+        strcmp(newtablename, oldtablename) == 0) {
+      DBUG_INSTANT_PRINT("info", "OLD TABLE name and NEW TABLE name cannot be the same");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("OLD TABLE name and NEW TABLE name cannot be the same")));
+    }
   }
 
   /*
@@ -598,60 +663,74 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 
       switch (var->varno) {
         case PRS2_OLD_VARNO:
-          if (!TRIGGER_FOR_ROW(tgtype))
+          if (!TRIGGER_FOR_ROW(tgtype)) {
+            DBUG_INSTANT_PRINT("info", "statement trigger's WHEN condition cannot reference column values");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("statement trigger's WHEN condition cannot reference column values"),
                      parser_errposition(pstate, var->location)));
+          }
 
-          if (TRIGGER_FOR_INSERT(tgtype))
+          if (TRIGGER_FOR_INSERT(tgtype)) {
+            DBUG_INSTANT_PRINT("info", "INSERT trigger's WHEN condition cannot reference OLD values");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("INSERT trigger's WHEN condition cannot reference OLD values"),
                      parser_errposition(pstate, var->location)));
+          }
 
           /* system columns are okay here */
           break;
 
         case PRS2_NEW_VARNO:
-          if (!TRIGGER_FOR_ROW(tgtype))
+          if (!TRIGGER_FOR_ROW(tgtype)) {
+            DBUG_INSTANT_PRINT("info", "statement trigger's WHEN condition cannot reference column values");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("statement trigger's WHEN condition cannot reference column values"),
                      parser_errposition(pstate, var->location)));
+          }
 
-          if (TRIGGER_FOR_DELETE(tgtype))
+          if (TRIGGER_FOR_DELETE(tgtype)) {
+            DBUG_INSTANT_PRINT("info", "DELETE trigger's WHEN condition cannot reference NEW values");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("DELETE trigger's WHEN condition cannot reference NEW values"),
                      parser_errposition(pstate, var->location)));
+          }
 
-          if (var->varattno < 0 && TRIGGER_FOR_BEFORE(tgtype))
+          if (var->varattno < 0 && TRIGGER_FOR_BEFORE(tgtype)) {
+            DBUG_INSTANT_PRINT("info", "BEFORE trigger's WHEN condition cannot reference NEW system columns");
             ereport(ERROR,
                     (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                      errmsg("BEFORE trigger's WHEN condition cannot reference NEW system columns"),
                      parser_errposition(pstate, var->location)));
+          }
 
           if (TRIGGER_FOR_BEFORE(tgtype) &&
               var->varattno == 0 &&
               RelationGetDescr(rel)->constr &&
               (RelationGetDescr(rel)->constr->has_generated_stored ||
-               RelationGetDescr(rel)->constr->has_generated_virtual))
+               RelationGetDescr(rel)->constr->has_generated_virtual)) {
+            DBUG_INSTANT_PRINT("info", "BEFORE trigger's WHEN condition cannot reference NEW generated columns");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("BEFORE trigger's WHEN condition cannot reference NEW generated columns"),
                      errdetail("A whole-row reference is used and the table contains generated columns."),
                      parser_errposition(pstate, var->location)));
+          }
 
           if (TRIGGER_FOR_BEFORE(tgtype) &&
               var->varattno > 0 &&
-              TupleDescAttr(RelationGetDescr(rel), var->varattno - 1)->attgenerated)
+              TupleDescAttr(RelationGetDescr(rel), var->varattno - 1)->attgenerated) {
+            DBUG_INSTANT_PRINT("info", "BEFORE trigger's WHEN condition cannot reference NEW generated columns");
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                      errmsg("BEFORE trigger's WHEN condition cannot reference NEW generated columns"),
                      errdetail("Column \"%s\" is a generated column.",
                                NameStr(TupleDescAttr(RelationGetDescr(rel), var->varattno - 1)->attname)),
                      parser_errposition(pstate, var->location)));
+          }
 
           break;
 
@@ -693,11 +772,13 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
 
   funcrettype = get_func_rettype(funcoid);
 
-  if (funcrettype != TRIGGEROID)
+  if (funcrettype != TRIGGEROID) {
+    DBUG_INSTANT_PRINT("info", "function %s must return type %s", NameListToString(stmt->funcname), "trigger");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("function %s must return type %s",
                     NameListToString(stmt->funcname), "trigger")));
+  }
 
   /*
    * Scan pg_trigger to see if there is already a trigger of the same name.
@@ -751,11 +832,14 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
      * If OR REPLACE was specified, we'll replace the old trigger;
      * otherwise complain about the duplicate name.
      */
-    if (!stmt->replace)
+    if (!stmt->replace) {
+      DBUG_INSTANT_PRINT("info", "trigger \"%s\" for relation \"%s\" already exists",
+                         stmt->trigname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("trigger \"%s\" for relation \"%s\" already exists",
                       stmt->trigname, RelationGetRelationName(rel))));
+    }
 
     /*
      * An internal trigger or a child trigger (isClone) cannot be replaced
@@ -764,11 +848,14 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
      * and the check was made at the parent level.
      */
     if ((existing_isInternal || existing_isClone) &&
-        !isInternal && !in_partition)
+        !isInternal && !in_partition) {
+      DBUG_INSTANT_PRINT("info", "trigger \"%s\" for relation \"%s\" is an internal or a child trigger",
+                         stmt->trigname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("trigger \"%s\" for relation \"%s\" is an internal or a child trigger",
                       stmt->trigname, RelationGetRelationName(rel))));
+    }
 
     /*
      * It is not allowed to replace with a constraint trigger; gram.y
@@ -783,11 +870,14 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
      * partly that the command might imply changing the constraint's
      * properties as well, which doesn't seem nice.)
      */
-    if (OidIsValid(existing_constraint_oid))
+    if (OidIsValid(existing_constraint_oid)) {
+      DBUG_INSTANT_PRINT("info", "trigger \"%s\" for relation \"%s\" is a constraint trigger",
+                         stmt->trigname, RelationGetRelationName(rel));
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_OBJECT),
                errmsg("trigger \"%s\" for relation \"%s\" is a constraint trigger",
                       stmt->trigname, RelationGetRelationName(rel))));
+    }
   }
 
   /*
@@ -928,19 +1018,23 @@ CreateTriggerFiringOn(CreateTrigStmt *stmt, const char *queryString,
       /* Lookup column name.  System columns are not allowed */
       attnum = attnameAttNum(rel, name, false);
 
-      if (attnum == InvalidAttrNumber)
+      if (attnum == InvalidAttrNumber) {
+        DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", name, RelationGetRelationName(rel));
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_COLUMN),
                  errmsg("column \"%s\" of relation \"%s\" does not exist",
                         name, RelationGetRelationName(rel))));
+      }
 
       /* Check for duplicates */
       for (j = i - 1; j >= 0; j--) {
-        if (columns[j] == attnum)
+        if (columns[j] == attnum) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" specified more than once", name);
           ereport(ERROR,
                   (errcode(ERRCODE_DUPLICATE_COLUMN),
                    errmsg("column \"%s\" specified more than once",
                           name)));
+        }
       }
 
       columns[i++] = attnum;
@@ -1201,6 +1295,7 @@ TriggerSetParentTrigger(Relation trigRel,
                         Oid parentTrigId,
                         Oid childTableId)
 {
+  DBUG_TRACE;
   SysScanDesc tgscan;
   ScanKeyData skey[1];
   Form_pg_trigger trigForm;
@@ -1269,6 +1364,7 @@ TriggerSetParentTrigger(Relation trigRel,
 void
 RemoveTriggerById(Oid trigOid)
 {
+  DBUG_TRACE;
   Relation  tgrel;
   SysScanDesc tgscan;
   ScanKeyData skey[1];
@@ -1304,18 +1400,22 @@ RemoveTriggerById(Oid trigOid)
   if (rel->rd_rel->relkind != RELKIND_RELATION &&
       rel->rd_rel->relkind != RELKIND_VIEW &&
       rel->rd_rel->relkind != RELKIND_FOREIGN_TABLE &&
-      rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+      rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" cannot have triggers", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" cannot have triggers",
                     RelationGetRelationName(rel)),
              errdetail_relkind_not_supported(rel->rd_rel->relkind)));
+  }
 
-  if (!allowSystemTableMods && IsSystemRelation(rel))
+  if (!allowSystemTableMods && IsSystemRelation(rel)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     RelationGetRelationName(rel))));
+  }
 
   /*
    * Delete the pg_trigger tuple.
@@ -1349,6 +1449,7 @@ RemoveTriggerById(Oid trigOid)
 Oid
 get_trigger_oid(Oid relid, const char *trigname, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  tgrel;
   ScanKeyData skey[2];
   SysScanDesc tgscan;
@@ -1375,11 +1476,14 @@ get_trigger_oid(Oid relid, const char *trigname, bool missing_ok)
   tup = systable_getnext(tgscan);
 
   if (!HeapTupleIsValid(tup)) {
-    if (!missing_ok)
+    if (!missing_ok) {
+      char *rel_name = get_rel_name(relid);
+      DBUG_INSTANT_PRINT("info", "trigger \"%s\" for table \"%s\" does not exist", trigname, rel_name);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("trigger \"%s\" for table \"%s\" does not exist",
-                      trigname, get_rel_name(relid))));
+                      trigname, rel_name)));
+    }
 
     oid = InvalidOid;
   } else {
@@ -1398,6 +1502,7 @@ static void
 RangeVarCallbackForRenameTrigger(const RangeVar *rv, Oid relid, Oid oldrelid,
                                  void *arg)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_class form;
 
@@ -1411,22 +1516,26 @@ RangeVarCallbackForRenameTrigger(const RangeVar *rv, Oid relid, Oid oldrelid,
   /* only tables and views can have triggers */
   if (form->relkind != RELKIND_RELATION && form->relkind != RELKIND_VIEW &&
       form->relkind != RELKIND_FOREIGN_TABLE &&
-      form->relkind != RELKIND_PARTITIONED_TABLE)
+      form->relkind != RELKIND_PARTITIONED_TABLE) {
+    DBUG_INSTANT_PRINT("info", "relation \"%s\" cannot have triggers", rv->relname);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" cannot have triggers",
                     rv->relname),
              errdetail_relkind_not_supported(form->relkind)));
+  }
 
   /* you must own the table to rename one of its triggers */
   if (!object_ownercheck(RelationRelationId, relid, GetUserId()))
     aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relid)), rv->relname);
 
-  if (!allowSystemTableMods && IsSystemClass(relid, form))
+  if (!allowSystemTableMods && IsSystemClass(relid, form)) {
+    DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system catalog", rv->relname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied: \"%s\" is a system catalog",
                     rv->relname)));
+  }
 
   ReleaseSysCache(tuple);
 }
@@ -1447,6 +1556,7 @@ RangeVarCallbackForRenameTrigger(const RangeVar *rv, Oid relid, Oid oldrelid,
 ObjectAddress
 renametrig(RenameStmt *stmt)
 {
+  DBUG_TRACE;
   Oid     tgoid;
   Relation  targetrel;
   Relation  tgrel;
@@ -1503,13 +1613,15 @@ renametrig(RenameStmt *stmt)
      * to differ in name from that of its parent: that would lead to an
      * inconsistency that pg_dump would not reproduce.
      */
-    if (OidIsValid(trigform->tgparentid))
+    if (OidIsValid(trigform->tgparentid)) {
+      DBUG_INSTANT_PRINT("info", "cannot rename trigger \"%s\" on table \"%s\"", stmt->subname, RelationGetRelationName(targetrel));
       ereport(ERROR,
               errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
               errmsg("cannot rename trigger \"%s\" on table \"%s\"",
                      stmt->subname, RelationGetRelationName(targetrel)),
               errhint("Rename the trigger on the partitioned table \"%s\" instead.",
                       get_rel_name(get_partition_parent(relid, false))));
+    }
 
 
     /* Rename the trigger on this relation ... */
@@ -1528,6 +1640,8 @@ renametrig(RenameStmt *stmt)
       }
     }
   } else {
+    DBUG_INSTANT_PRINT("info", "trigger \"%s\" for table \"%s\" does not exist",
+                       stmt->subname, RelationGetRelationName(targetrel));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("trigger \"%s\" for table \"%s\" does not exist",
@@ -1559,6 +1673,7 @@ static void
 renametrig_internal(Relation tgrel, Relation targetrel, HeapTuple trigtup,
                     const char *newname, const char *expected_name)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_trigger tgform;
   ScanKeyData key[2];
@@ -1586,11 +1701,14 @@ renametrig_internal(Relation tgrel, Relation targetrel, HeapTuple trigtup,
   tgscan = systable_beginscan(tgrel, TriggerRelidNameIndexId, true,
                               NULL, 2, key);
 
-  if (HeapTupleIsValid(tuple = systable_getnext(tgscan)))
+  if (HeapTupleIsValid(tuple = systable_getnext(tgscan))) {
+    DBUG_INSTANT_PRINT("info", "trigger \"%s\" for relation \"%s\" already exists",
+                       newname, RelationGetRelationName(targetrel));
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("trigger \"%s\" for relation \"%s\" already exists",
                     newname, RelationGetRelationName(targetrel))));
+  }
 
   systable_endscan(tgscan);
 
@@ -1633,6 +1751,7 @@ static void
 renametrig_partition(Relation tgrel, Oid partitionId, Oid parentTriggerOid,
                      const char *newname, const char *expected_name)
 {
+  DBUG_TRACE;
   SysScanDesc tgscan;
   ScanKeyData key;
   HeapTuple tuple;
@@ -1707,6 +1826,7 @@ EnableDisableTrigger(Relation rel, const char *tgname, Oid tgparent,
                      char fires_when, bool skip_system, bool recurse,
                      LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  tgrel;
   int     nkeys;
   ScanKeyData keys[2];
@@ -1748,11 +1868,13 @@ EnableDisableTrigger(Relation rel, const char *tgname, Oid tgparent,
       if (skip_system)
         continue;
 
-      if (!superuser())
+      if (!superuser()) {
+        DBUG_INSTANT_PRINT("info", "permission denied: \"%s\" is a system trigger", NameStr(oldtrig->tgname));
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("permission denied: \"%s\" is a system trigger",
                         NameStr(oldtrig->tgname))));
+      }
     }
 
     found = true;
@@ -1806,11 +1928,13 @@ EnableDisableTrigger(Relation rel, const char *tgname, Oid tgparent,
 
   table_close(tgrel, RowExclusiveLock);
 
-  if (tgname && !found)
+  if (tgname && !found) {
+    DBUG_INSTANT_PRINT("info", "trigger \"%s\" for table \"%s\" does not exist", tgname, RelationGetRelationName(rel));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("trigger \"%s\" for table \"%s\" does not exist",
                     tgname, RelationGetRelationName(rel))));
+  }
 
   /*
    * If we changed anything, broadcast a SI inval message to force each
@@ -1835,6 +1959,7 @@ EnableDisableTrigger(Relation rel, const char *tgname, Oid tgparent,
 void
 RelationBuildTriggers(Relation relation)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc;
   int     numtrigs;
   int     maxtrigs;
@@ -2318,6 +2443,7 @@ ExecCallTriggerFunc(TriggerData *trigdata,
                     Instrumentation *instr,
                     MemoryContext per_tuple_context)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 0);
   PgStat_FunctionCallUsage fcusage;
   Datum   result;
@@ -2387,11 +2513,13 @@ ExecCallTriggerFunc(TriggerData *trigdata,
    * Trigger protocol allows function to return a null pointer, but NOT to
    * set the isnull result flag.
    */
-  if (fcinfo->isnull)
+  if (fcinfo->isnull) {
+    DBUG_INSTANT_PRINT("info", "trigger function %u returned null value", fcinfo->flinfo->fn_oid);
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("trigger function %u returned null value",
                     fcinfo->flinfo->fn_oid)));
+  }
 
   /*
    * If doing EXPLAIN ANALYZE, stop charging time to this trigger, and count
@@ -2406,6 +2534,7 @@ ExecCallTriggerFunc(TriggerData *trigdata,
 void
 ExecBSInsertTriggers(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc;
   int     i;
   TriggerData LocTriggerData = {0};
@@ -2449,10 +2578,12 @@ ExecBSInsertTriggers(EState *estate, ResultRelInfo *relinfo)
                                    relinfo->ri_TrigInstrument,
                                    GetPerTupleMemoryContext(estate));
 
-    if (newtuple)
+    if (newtuple) {
+      DBUG_INSTANT_PRINT("info", "BEFORE STATEMENT trigger cannot return a value");
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                errmsg("BEFORE STATEMENT trigger cannot return a value")));
+    }
   }
 }
 
@@ -2460,6 +2591,7 @@ void
 ExecASInsertTriggers(EState *estate, ResultRelInfo *relinfo,
                      TransitionCaptureState *transition_capture)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   if (trigdesc && trigdesc->trig_insert_after_statement)
@@ -2473,6 +2605,7 @@ bool
 ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
                      TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   HeapTuple newtuple = NULL;
   bool    should_free;
@@ -2527,7 +2660,8 @@ ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
        * longer fits the partition.  Verify that.
        */
       if (trigger->tgisclone &&
-          !ExecPartitionCheck(relinfo, slot, estate, false))
+          !ExecPartitionCheck(relinfo, slot, estate, false)) {
+        DBUG_INSTANT_PRINT("info", "moving row to another partition during a BEFORE FOR EACH ROW trigger is not supported");
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("moving row to another partition during a BEFORE FOR EACH ROW trigger is not supported"),
@@ -2535,6 +2669,7 @@ ExecBRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
                            trigger->tgname,
                            get_namespace_name(RelationGetNamespace(relinfo->ri_RelationDesc)),
                            RelationGetRelationName(relinfo->ri_RelationDesc))));
+      }
 
       if (should_free)
         heap_freetuple(oldtuple);
@@ -2552,6 +2687,7 @@ ExecARInsertTriggers(EState *estate, ResultRelInfo *relinfo,
                      TupleTableSlot *slot, List *recheckIndexes,
                      TransitionCaptureState *transition_capture)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   if (relinfo->ri_FdwRoutine && transition_capture &&
@@ -2576,6 +2712,7 @@ bool
 ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
                      TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   HeapTuple newtuple = NULL;
   bool    should_free;
@@ -2636,6 +2773,7 @@ ExecIRInsertTriggers(EState *estate, ResultRelInfo *relinfo,
 void
 ExecBSDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc;
   int     i;
   TriggerData LocTriggerData = {0};
@@ -2679,10 +2817,12 @@ ExecBSDeleteTriggers(EState *estate, ResultRelInfo *relinfo)
                                    relinfo->ri_TrigInstrument,
                                    GetPerTupleMemoryContext(estate));
 
-    if (newtuple)
+    if (newtuple) {
+      DBUG_INSTANT_PRINT("info", "BEFORE STATEMENT trigger cannot return a value");
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                errmsg("BEFORE STATEMENT trigger cannot return a value")));
+    }
   }
 }
 
@@ -2716,6 +2856,7 @@ ExecBRDeleteTriggers(EState *estate, EPQState *epqstate,
                      TM_FailureData *tmfd,
                      bool is_merge_delete)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot = ExecGetTriggerOldSlot(estate, relinfo);
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   bool    result = true;
@@ -2814,6 +2955,7 @@ ExecARDeleteTriggers(EState *estate,
                      TransitionCaptureState *transition_capture,
                      bool is_crosspart_update)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   if (relinfo->ri_FdwRoutine && transition_capture &&
@@ -2856,6 +2998,7 @@ bool
 ExecIRDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
                      HeapTuple trigtuple)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   TupleTableSlot *slot = ExecGetTriggerOldSlot(estate, relinfo);
   TriggerData LocTriggerData = {0};
@@ -2905,6 +3048,7 @@ ExecIRDeleteTriggers(EState *estate, ResultRelInfo *relinfo,
 void
 ExecBSUpdateTriggers(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc;
   int     i;
   TriggerData LocTriggerData = {0};
@@ -2955,10 +3099,12 @@ ExecBSUpdateTriggers(EState *estate, ResultRelInfo *relinfo)
                                    relinfo->ri_TrigInstrument,
                                    GetPerTupleMemoryContext(estate));
 
-    if (newtuple)
+    if (newtuple) {
+      DBUG_INSTANT_PRINT("info", "BEFORE STATEMENT trigger cannot return a value");
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                errmsg("BEFORE STATEMENT trigger cannot return a value")));
+    }
   }
 }
 
@@ -2966,6 +3112,7 @@ void
 ExecASUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
                      TransitionCaptureState *transition_capture)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   /* statement-level triggers operate on the parent table */
@@ -2990,6 +3137,7 @@ ExecBRUpdateTriggers(EState *estate, EPQState *epqstate,
                      TM_FailureData *tmfd,
                      bool is_merge_update)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, relinfo);
   HeapTuple newtuple = NULL;
@@ -3162,6 +3310,7 @@ ExecARUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
                      TransitionCaptureState *transition_capture,
                      bool is_crosspart_update)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   if (relinfo->ri_FdwRoutine && transition_capture &&
@@ -3223,6 +3372,7 @@ bool
 ExecIRUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
                      HeapTuple trigtuple, TupleTableSlot *newslot)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   TupleTableSlot *oldslot = ExecGetTriggerOldSlot(estate, relinfo);
   HeapTuple newtuple = NULL;
@@ -3286,6 +3436,7 @@ ExecIRUpdateTriggers(EState *estate, ResultRelInfo *relinfo,
 void
 ExecBSTruncateTriggers(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc;
   int     i;
   TriggerData LocTriggerData = {0};
@@ -3324,16 +3475,19 @@ ExecBSTruncateTriggers(EState *estate, ResultRelInfo *relinfo)
                                    relinfo->ri_TrigInstrument,
                                    GetPerTupleMemoryContext(estate));
 
-    if (newtuple)
+    if (newtuple) {
+      DBUG_INSTANT_PRINT("info", "BEFORE STATEMENT trigger cannot return a value");
       ereport(ERROR,
               (errcode(ERRCODE_E_R_I_E_TRIGGER_PROTOCOL_VIOLATED),
                errmsg("BEFORE STATEMENT trigger cannot return a value")));
+    }
   }
 }
 
 void
 ExecASTruncateTriggers(EState *estate, ResultRelInfo *relinfo)
 {
+  DBUG_TRACE;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
 
   if (trigdesc && trigdesc->trig_truncate_after_statement)
@@ -3360,6 +3514,7 @@ GetTupleForTrigger(EState *estate,
                    TM_Result *tmresultp,
                    TM_FailureData *tmfdp)
 {
+  DBUG_TRACE;
   Relation  relation = relinfo->ri_RelationDesc;
 
   if (epqslot != NULL) {
@@ -3402,11 +3557,13 @@ GetTupleForTrigger(EState *estate,
          * enumerated in ExecUpdate and ExecDelete in
          * nodeModifyTable.c.
          */
-        if (tmfd.cmax != estate->es_output_cid)
+        if (tmfd.cmax != estate->es_output_cid) {
+          DBUG_INSTANT_PRINT("info", "tuple to be updated was already modified by an operation triggered by the current command");
           ereport(ERROR,
                   (errcode(ERRCODE_TRIGGERED_DATA_CHANGE_VIOLATION),
                    errmsg("tuple to be updated was already modified by an operation triggered by the current command"),
                    errhint("Consider using an AFTER trigger instead of a BEFORE trigger to propagate changes to other rows.")));
+        }
 
         /* treat it as deleted; do not process */
         return false;
@@ -3442,28 +3599,35 @@ GetTupleForTrigger(EState *estate,
         break;
 
       case TM_Updated:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent update");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent update")));
+        }
 
+        DBUG_INSTANT_PRINT("info", "unexpected table_tuple_lock status: %u", test);
         elog(ERROR, "unexpected table_tuple_lock status: %u", test);
         break;
 
       case TM_Deleted:
-        if (IsolationUsesXactSnapshot())
+        if (IsolationUsesXactSnapshot()) {
+          DBUG_INSTANT_PRINT("info", "could not serialize access due to concurrent delete");
           ereport(ERROR,
                   (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                    errmsg("could not serialize access due to concurrent delete")));
+        }
 
         /* tuple was deleted */
         return false;
 
       case TM_Invisible:
+        DBUG_INSTANT_PRINT("info", "attempted to lock invisible tuple");
         elog(ERROR, "attempted to lock invisible tuple");
         break;
 
       default:
+        DBUG_INSTANT_PRINT("info", "unrecognized table_tuple_lock status: %u", test);
         elog(ERROR, "unrecognized table_tuple_lock status: %u", test);
         return false; /* keep compiler quiet */
     }
@@ -3473,8 +3637,10 @@ GetTupleForTrigger(EState *estate,
      * suffices.
      */
     if (!table_tuple_fetch_row_version(relation, tid, SnapshotAny,
-                                       oldslot))
+                                       oldslot)) {
+      DBUG_INSTANT_PRINT("info", "failed to fetch tuple for trigger");
       elog(ERROR, "failed to fetch tuple for trigger");
+    }
   }
 
   return true;
@@ -3489,6 +3655,8 @@ TriggerEnabled(EState *estate, ResultRelInfo *relinfo,
                Bitmapset *modifiedCols,
                TupleTableSlot *oldslot, TupleTableSlot *newslot)
 {
+  DBUG_TRACE;
+
   /* Check replication-role-dependent enable state */
   if (SessionReplicationRole == SESSION_REPLICATION_ROLE_REPLICA) {
     if (trigger->tgenabled == TRIGGER_FIRES_ON_ORIGIN ||
@@ -4316,6 +4484,7 @@ AfterTriggerExecute(EState *estate,
                     TupleTableSlot *trig_tuple_slot1,
                     TupleTableSlot *trig_tuple_slot2)
 {
+  DBUG_TRACE;
   Relation  rel = relInfo->ri_RelationDesc;
   Relation  src_rel = src_relInfo->ri_RelationDesc;
   Relation  dst_rel = dst_relInfo->ri_RelationDesc;
@@ -4584,6 +4753,7 @@ afterTriggerMarkEvents(AfterTriggerEventList *events,
                        AfterTriggerEventList *move_list,
                        bool immediate_only)
 {
+  DBUG_TRACE;
   bool    found = false;
   bool    deferred_found = false;
   AfterTriggerEvent event;
@@ -4628,10 +4798,12 @@ afterTriggerMarkEvents(AfterTriggerEventList *events,
    * security-restricted operation, we were to verify that a SET CONSTRAINTS
    * ... IMMEDIATE has fired all such triggers.  For now, don't bother.
    */
-  if (deferred_found && InSecurityRestrictedOperation())
+  if (deferred_found && InSecurityRestrictedOperation()) {
+    DBUG_INSTANT_PRINT("info", "cannot fire deferred trigger within security-restricted operation");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("cannot fire deferred trigger within security-restricted operation")));
+  }
 
   return found;
 }
@@ -4663,6 +4835,7 @@ afterTriggerInvokeEvents(AfterTriggerEventList *events,
                          EState *estate,
                          bool delete_ok)
 {
+  DBUG_TRACE;
   bool    all_fired = true;
   AfterTriggerEventChunk *chunk;
   MemoryContext per_tuple_context;
@@ -4818,6 +4991,7 @@ afterTriggerInvokeEvents(AfterTriggerEventList *events,
 static AfterTriggersTableData *
 GetAfterTriggersTableData(Oid relid, CmdType cmdType)
 {
+  DBUG_TRACE;
   AfterTriggersTableData *table;
   AfterTriggersQueryData *qs;
   MemoryContext oldcxt;
@@ -4908,6 +5082,7 @@ GetAfterTriggersStoreSlot(AfterTriggersTableData *table,
 TransitionCaptureState *
 MakeTransitionCaptureState(TriggerDesc *trigdesc, Oid relid, CmdType cmdType)
 {
+  DBUG_TRACE;
   TransitionCaptureState *state;
   bool    need_old_upd,
           need_new_upd,
@@ -5093,6 +5268,7 @@ AfterTriggerBeginQuery(void)
 void
 AfterTriggerEndQuery(EState *estate)
 {
+  DBUG_TRACE;
   AfterTriggersQueryData *qs;
 
   /* Must be inside a query, too */
@@ -5300,6 +5476,8 @@ AfterTriggerFireDeferred(void)
 void
 AfterTriggerEndXact(bool isCommit)
 {
+  DBUG_TRACE;
+
   /*
    * Forget the pending-events list.
    *
@@ -5347,6 +5525,7 @@ AfterTriggerEndXact(bool isCommit)
 void
 AfterTriggerBeginSubXact(void)
 {
+  DBUG_TRACE;
   int     my_level = GetCurrentTransactionNestLevel();
 
   /*
@@ -5391,6 +5570,7 @@ AfterTriggerBeginSubXact(void)
 void
 AfterTriggerEndSubXact(bool isCommit)
 {
+  DBUG_TRACE;
   int     my_level = GetCurrentTransactionNestLevel();
   SetConstraintState state;
   AfterTriggerEvent event;
@@ -5490,6 +5670,7 @@ GetAfterTriggersTransitionTable(int event,
                                 TupleTableSlot *newslot,
                                 TransitionCaptureState *transition_capture)
 {
+  DBUG_TRACE;
   Tuplestorestate *tuplestore = NULL;
   bool    delete_old_table = transition_capture->tcs_delete_old_table;
   bool    update_old_table = transition_capture->tcs_update_old_table;
@@ -5543,6 +5724,7 @@ TransitionTableAddTuple(EState *estate,
                         TupleTableSlot *original_insert_tuple,
                         Tuplestorestate *tuplestore)
 {
+  DBUG_TRACE;
   TupleConversionMap *map;
 
   /*
@@ -5595,6 +5777,7 @@ TransitionTableAddTuple(EState *estate,
 static void
 AfterTriggerEnlargeQueryState(void)
 {
+  DBUG_TRACE;
   int     init_depth = afterTriggers.maxquerydepth;
 
   Assert(afterTriggers.query_depth >= afterTriggers.maxquerydepth);
@@ -5712,6 +5895,7 @@ SetConstraintStateAddItem(SetConstraintState state,
 void
 AfterTriggerSetState(ConstraintsSetStmt *stmt)
 {
+  DBUG_TRACE;
   int     my_level = GetCurrentTransactionNestLevel();
 
   /* If we haven't already done so, initialize our state. */
@@ -5772,12 +5956,15 @@ AfterTriggerSetState(ConstraintsSetStmt *stmt)
       ListCell   *nslc;
 
       if (constraint->catalogname) {
-        if (strcmp(constraint->catalogname, get_database_name(MyDatabaseId)) != 0)
+        if (strcmp(constraint->catalogname, get_database_name(MyDatabaseId)) != 0) {
+          DBUG_INSTANT_PRINT("info", "cross-database references are not implemented: \"%s.%s.%s\"",
+                             constraint->catalogname, constraint->schemaname, constraint->relname);
           ereport(ERROR,
                   (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                    errmsg("cross-database references are not implemented: \"%s.%s.%s\"",
                           constraint->catalogname, constraint->schemaname,
                           constraint->relname)));
+        }
       }
 
       /*
@@ -5819,11 +6006,13 @@ AfterTriggerSetState(ConstraintsSetStmt *stmt)
 
           if (con->condeferrable)
             conoidlist = lappend_oid(conoidlist, con->oid);
-          else if (stmt->deferred)
+          else if (stmt->deferred) {
+            DBUG_INSTANT_PRINT("info", "constraint \"%s\" is not deferrable", constraint->relname);
             ereport(ERROR,
                     (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                      errmsg("constraint \"%s\" is not deferrable",
                             constraint->relname)));
+          }
 
           found = true;
         }
@@ -5843,11 +6032,13 @@ AfterTriggerSetState(ConstraintsSetStmt *stmt)
       /*
        * Not found ?
        */
-      if (!found)
+      if (!found) {
+        DBUG_INSTANT_PRINT("info", "constraint \"%s\" does not exist", constraint->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_OBJECT),
                  errmsg("constraint \"%s\" does not exist",
                         constraint->relname)));
+      }
     }
 
     /*
@@ -6008,6 +6199,7 @@ AfterTriggerSetState(ConstraintsSetStmt *stmt)
 bool
 AfterTriggerPendingOnRel(Oid relid)
 {
+  DBUG_TRACE;
   AfterTriggerEvent event;
   AfterTriggerEventChunk *chunk;
   int     depth;
@@ -6099,6 +6291,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
                       TransitionCaptureState *transition_capture,
                       bool is_crosspart_update)
 {
+  DBUG_TRACE;
   Relation  rel = relinfo->ri_RelationDesc;
   TriggerDesc *trigdesc = relinfo->ri_TrigDesc;
   AfterTriggerEventData new_event;
@@ -6498,6 +6691,7 @@ AfterTriggerSaveEvent(EState *estate, ResultRelInfo *relinfo,
 static bool
 before_stmt_triggers_fired(Oid relid, CmdType cmdType)
 {
+  DBUG_TRACE;
   bool    result;
   AfterTriggersTableData *table;
 
@@ -6544,6 +6738,7 @@ before_stmt_triggers_fired(Oid relid, CmdType cmdType)
 static void
 cancel_prior_stmt_triggers(Oid relid, CmdType cmdType, int tgevent)
 {
+  DBUG_TRACE;
   AfterTriggersTableData *table;
   AfterTriggersQueryData *qs = &afterTriggers.query_stack[afterTriggers.query_depth];
 
@@ -6633,6 +6828,7 @@ assign_session_replication_role(int newval, void *extra)
 Datum
 pg_trigger_depth(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_INT32(MyTriggerDepth);
 }
 

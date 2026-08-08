@@ -101,6 +101,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 
@@ -228,6 +229,7 @@ RewriteState
 begin_heap_rewrite(Relation old_heap, Relation new_heap, TransactionId oldest_xmin,
                    TransactionId freeze_xid, MultiXactId cutoff_multi)
 {
+  DBUG_TRACE;
   RewriteState state;
   MemoryContext rw_cxt;
   MemoryContext old_cxt;
@@ -290,6 +292,7 @@ begin_heap_rewrite(Relation old_heap, Relation new_heap, TransactionId oldest_xm
 void
 end_heap_rewrite(RewriteState state)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seq_status;
   UnresolvedTup unresolved;
 
@@ -333,6 +336,7 @@ void
 rewrite_heap_tuple(RewriteState state,
                    HeapTuple old_tuple, HeapTuple new_tuple)
 {
+  DBUG_TRACE;
   MemoryContext old_cxt;
   ItemPointerData old_tid;
   TidHashKey  hashkey;
@@ -527,6 +531,7 @@ rewrite_heap_tuple(RewriteState state,
 bool
 rewrite_heap_dead_tuple(RewriteState state, HeapTuple old_tuple)
 {
+  DBUG_TRACE;
   /*
    * If we have already seen an earlier tuple in the update chain that
    * points to this tuple, let's forget about that earlier tuple. It's in
@@ -555,6 +560,7 @@ rewrite_heap_dead_tuple(RewriteState state, HeapTuple old_tuple)
 
   if (unresolved != NULL) {
     /* Need to free the contained tuple as well as the hashtable entry */
+    DBUG_PRINT("info", "need to free the contained tuple as well as the hashtable entry");
     heap_freetuple(unresolved->tuple);
     hash_search(state->rs_unresolved_tups, &hashkey,
                 HASH_REMOVE, &found);
@@ -576,6 +582,7 @@ rewrite_heap_dead_tuple(RewriteState state, HeapTuple old_tuple)
 static void
 raw_heap_insert(RewriteState state, HeapTuple tup)
 {
+  DBUG_TRACE;
   Page    page;
   Size    pageFreeSpace,
           saveFreeSpace;
@@ -614,11 +621,13 @@ raw_heap_insert(RewriteState state, HeapTuple tup)
   /*
    * If we're gonna fail for oversize tuple, do it right away
    */
-  if (len > MaxHeapTupleSize)
+  if (len > MaxHeapTupleSize) {
+    DBUG_INSTANT_PRINT("info", "row is too big: size %zu, maximum size %zu", len, MaxHeapTupleSize);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("row is too big: size %zu, maximum size %zu",
                     len, MaxHeapTupleSize)));
+  }
 
   /* Compute desired extra freespace due to fillfactor option */
   saveFreeSpace = RelationGetTargetPageFreeSpace(state->rs_new_rel,
@@ -654,8 +663,10 @@ raw_heap_insert(RewriteState state, HeapTuple tup)
   newoff = PageAddItem(page, (Item) heaptup->t_data, heaptup->t_len,
                        InvalidOffsetNumber, false, true);
 
-  if (newoff == InvalidOffsetNumber)
+  if (newoff == InvalidOffsetNumber) {
+    DBUG_INSTANT_PRINT("info", "failed to add tuple");
     elog(ERROR, "failed to add tuple");
+  }
 
   /* Update caller's t_self to the actual position where it was stored */
   ItemPointerSet(&(tup->t_self), state->rs_blockno, newoff);
@@ -736,6 +747,7 @@ raw_heap_insert(RewriteState state, HeapTuple tup)
 static void
 logical_begin_heap_rewrite(RewriteState state)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
   TransactionId logical_xmin;
 
@@ -783,6 +795,7 @@ logical_begin_heap_rewrite(RewriteState state)
 static void
 logical_heap_rewrite_flush_mappings(RewriteState state)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seq_status;
   RewriteMappingFile *src;
   dlist_mutable_iter iter;
@@ -793,6 +806,7 @@ logical_heap_rewrite_flush_mappings(RewriteState state)
   if (state->rs_num_rewrite_mappings == 0)
     return;
 
+  DBUG_PRINT("info", "flushing %u logical rewrite mapping entries", state->rs_num_rewrite_mappings);
   elog(DEBUG1, "flushing %u logical rewrite mapping entries",
        state->rs_num_rewrite_mappings);
 
@@ -856,11 +870,13 @@ logical_heap_rewrite_flush_mappings(RewriteState state)
     written = FileWrite(src->vfd, waldata_start, len, src->off,
                         WAIT_EVENT_LOGICAL_REWRITE_WRITE);
 
-    if (written != len)
+    if (written != len) {
+      DBUG_INSTANT_PRINT("info", "could not write to file \"%s\", wrote %d of %d", src->path, written, len);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not write to file \"%s\", wrote %d of %d: %m", src->path,
                       written, len)));
+    }
 
     src->off += len;
 
@@ -883,6 +899,7 @@ logical_heap_rewrite_flush_mappings(RewriteState state)
 static void
 logical_end_heap_rewrite(RewriteState state)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seq_status;
   RewriteMappingFile *src;
 
@@ -898,10 +915,12 @@ logical_end_heap_rewrite(RewriteState state)
   hash_seq_init(&seq_status, state->rs_logical_mappings);
 
   while ((src = (RewriteMappingFile *) hash_seq_search(&seq_status)) != NULL) {
-    if (FileSync(src->vfd, WAIT_EVENT_LOGICAL_REWRITE_SYNC) != 0)
+    if (FileSync(src->vfd, WAIT_EVENT_LOGICAL_REWRITE_SYNC) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", src->path);
       ereport(data_sync_elevel(ERROR),
               (errcode_for_file_access(),
                errmsg("could not fsync file \"%s\": %m", src->path)));
+    }
 
     FileClose(src->vfd);
   }
@@ -916,6 +935,7 @@ static void
 logical_rewrite_log_mapping(RewriteState state, TransactionId xid,
                             LogicalRewriteMappingData *map)
 {
+  DBUG_TRACE;
   RewriteMappingFile *src;
   RewriteMappingDataEntry *pmap;
   Oid     relid;
@@ -952,10 +972,12 @@ logical_rewrite_log_mapping(RewriteState state, TransactionId xid,
     src->vfd = PathNameOpenFile(path,
                                 O_CREAT | O_EXCL | O_WRONLY | PG_BINARY);
 
-    if (src->vfd < 0)
+    if (src->vfd < 0) {
+      DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", path);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not create file \"%s\": %m", path)));
+    }
   }
 
   pmap = MemoryContextAlloc(state->rs_cxt,
@@ -980,6 +1002,7 @@ static void
 logical_rewrite_heap_tuple(RewriteState state, ItemPointerData old_tid,
                            HeapTuple new_tuple)
 {
+  DBUG_TRACE;
   ItemPointerData new_tid = new_tuple->t_self;
   TransactionId cutoff = state->rs_logical_xmin;
   TransactionId xmin;
@@ -1049,6 +1072,7 @@ logical_rewrite_heap_tuple(RewriteState state, ItemPointerData old_tid,
 void
 heap_xlog_logical_rewrite(XLogReaderState *r)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   int     fd;
   xl_heap_rewrite_mapping *xlrec;
@@ -1066,10 +1090,12 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
   fd = OpenTransientFile(path,
                          O_CREAT | O_WRONLY | PG_BINARY);
 
-  if (fd < 0)
+  if (fd < 0) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m", path)));
+  }
 
   /*
    * Truncate all data that's not guaranteed to have been safely fsynced (by
@@ -1077,11 +1103,13 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
    */
   pgstat_report_wait_start(WAIT_EVENT_LOGICAL_REWRITE_TRUNCATE);
 
-  if (ftruncate(fd, xlrec->offset) != 0)
+  if (ftruncate(fd, xlrec->offset) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not truncate file \"%s\" to %u", path, (uint32) xlrec->offset);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not truncate file \"%s\" to %u: %m",
                     path, (uint32) xlrec->offset)));
+  }
 
   pgstat_report_wait_end();
 
@@ -1098,6 +1126,7 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
     if (errno == 0)
       errno = ENOSPC;
 
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", path)));
@@ -1112,17 +1141,21 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
    */
   pgstat_report_wait_start(WAIT_EVENT_LOGICAL_REWRITE_MAPPING_SYNC);
 
-  if (pg_fsync(fd) != 0)
+  if (pg_fsync(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", path);
     ereport(data_sync_elevel(ERROR),
             (errcode_for_file_access(),
              errmsg("could not fsync file \"%s\": %m", path)));
+  }
 
   pgstat_report_wait_end();
 
-  if (CloseTransientFile(fd) != 0)
+  if (CloseTransientFile(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", path);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not close file \"%s\": %m", path)));
+  }
 }
 
 /* ---
@@ -1138,6 +1171,7 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
 void
 CheckPointLogicalRewriteHeap(void)
 {
+  DBUG_TRACE;
   XLogRecPtr  cutoff;
   XLogRecPtr  redo;
   DIR      *mappings_dir;
@@ -1184,18 +1218,23 @@ CheckPointLogicalRewriteHeap(void)
       continue;
 
     if (sscanf(mapping_de->d_name, LOGICAL_REWRITE_FORMAT,
-               &dboid, &relid, &hi, &lo, &rewrite_xid, &create_xid) != 6)
+               &dboid, &relid, &hi, &lo, &rewrite_xid, &create_xid) != 6) {
+      DBUG_INSTANT_PRINT("info", "could not parse filename \"%s\"", mapping_de->d_name);
       elog(ERROR, "could not parse filename \"%s\"", mapping_de->d_name);
+    }
 
     lsn = ((uint64) hi) << 32 | lo;
 
     if (lsn < cutoff || cutoff == InvalidXLogRecPtr) {
+      DBUG_PRINT("info", "removing logical rewrite file \"%s\"", path);
       elog(DEBUG1, "removing logical rewrite file \"%s\"", path);
 
-      if (unlink(path) < 0)
+      if (unlink(path) < 0) {
+        DBUG_INSTANT_PRINT("info", "could not remove file \"%s\"", path);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not remove file \"%s\": %m", path)));
+      }
     } else {
       /* on some operating systems fsyncing a file requires O_RDWR */
       int     fd = OpenTransientFile(path, O_RDWR | PG_BINARY);
@@ -1205,10 +1244,12 @@ CheckPointLogicalRewriteHeap(void)
        * is the only one removing logical mappings and only one
        * checkpoint can be in progress at a time.
        */
-      if (fd < 0)
+      if (fd < 0) {
+        DBUG_INSTANT_PRINT("info", "could not open file \"%s\"", path);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not open file \"%s\": %m", path)));
+      }
 
       /*
        * We could try to avoid fsyncing files that either haven't
@@ -1217,17 +1258,21 @@ CheckPointLogicalRewriteHeap(void)
        */
       pgstat_report_wait_start(WAIT_EVENT_LOGICAL_REWRITE_CHECKPOINT_SYNC);
 
-      if (pg_fsync(fd) != 0)
+      if (pg_fsync(fd) != 0) {
+        DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", path);
         ereport(data_sync_elevel(ERROR),
                 (errcode_for_file_access(),
                  errmsg("could not fsync file \"%s\": %m", path)));
+      }
 
       pgstat_report_wait_end();
 
-      if (CloseTransientFile(fd) != 0)
+      if (CloseTransientFile(fd) != 0) {
+        DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", path);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not close file \"%s\": %m", path)));
+      }
     }
   }
 

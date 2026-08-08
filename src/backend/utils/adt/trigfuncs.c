@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "commands/trigger.h"
@@ -27,6 +28,7 @@
 Datum
 suppress_redundant_updates_trigger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
   HeapTuple newtuple,
             oldtuple,

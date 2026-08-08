@@ -2,6 +2,7 @@
  * contrib/intarray/_intbig_gist.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -31,6 +32,7 @@ PG_FUNCTION_INFO_V1(_intbig_out);
 Datum
 _intbig_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "intbig_gkey")));
@@ -41,6 +43,7 @@ _intbig_in(PG_FUNCTION_ARGS)
 Datum
 _intbig_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot display a value of type %s", "intbig_gkey")));
@@ -111,6 +114,7 @@ _intbig_contains(GISTTYPE *a, ArrayType *b, int siglen)
 Datum
 g_intbig_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTTYPE   *a = (GISTTYPE *) PG_GETARG_POINTER(0);
   GISTTYPE   *b = (GISTTYPE *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -142,6 +146,7 @@ g_intbig_same(PG_FUNCTION_ARGS)
 Datum
 g_intbig_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   int     siglen = GET_SIGLEN();
 
@@ -235,6 +240,7 @@ hemdist(GISTTYPE *a, GISTTYPE *b, int siglen)
 Datum
 g_intbig_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(PG_GETARG_DATUM(0));
 }
 
@@ -255,6 +261,7 @@ unionkey(BITVECP sbase, GISTTYPE *add, int siglen)
 Datum
 g_intbig_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *size = (int *) PG_GETARG_POINTER(1);
   int     siglen = GET_SIGLEN();
@@ -278,6 +285,7 @@ g_intbig_union(PG_FUNCTION_ARGS)
 Datum
 g_intbig_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0); /* always ISSIGNKEY */
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
@@ -306,6 +314,7 @@ comparecost(const void *a, const void *b)
 Datum
 g_intbig_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   int     siglen = GET_SIGLEN();
@@ -439,6 +448,7 @@ g_intbig_picksplit(PG_FUNCTION_ARGS)
 Datum
 g_intbig_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   ArrayType  *query = PG_GETARG_ARRAYTYPE_P(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -555,6 +565,7 @@ g_intbig_consistent(PG_FUNCTION_ARGS)
 Datum
 g_intbig_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(GISTIntArrayBigOptions));

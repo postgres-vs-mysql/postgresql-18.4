@@ -29,6 +29,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "catalog/objectaccess.h"
@@ -141,13 +142,17 @@ static void ExecInitJsonCoercion(ExprState *state, JsonReturning *returning,
 ExprState *
 ExecInitExpr(Expr *node, PlanState *parent)
 {
+  DBUG_TRACE;
   ExprState  *state;
   ExprEvalStep scratch = {0};
 
   /* Special case: NULL expression produces a NULL ExprState pointer */
-  if (node == NULL)
+  if (node == NULL) {
+    DBUG_PRINT("info", "special case: NULL expression produces a NULL ExprState pointer");
     return NULL;
+  }
 
+  DBUG_PRINT("info", "this function builds and returns an ExprState implementing the given Expr node tree");
   /* Initialize ExprState with empty step list */
   state = makeNode(ExprState);
   state->expr = node;
@@ -158,6 +163,7 @@ ExecInitExpr(Expr *node, PlanState *parent)
   ExecCreateExprSetupSteps(state, (Node *) node);
 
   /* Compile the expression proper */
+  DBUG_PRINT("info", "compile the expression proper");
   ExecInitExprRec(node, state, &state->resvalue, &state->resnull);
 
   /* Finally, append a DONE step */
@@ -178,6 +184,7 @@ ExecInitExpr(Expr *node, PlanState *parent)
 ExprState *
 ExecInitExprWithParams(Expr *node, ParamListInfo ext_params)
 {
+  DBUG_TRACE;
   ExprState  *state;
   ExprEvalStep scratch = {0};
 
@@ -194,6 +201,7 @@ ExecInitExprWithParams(Expr *node, ParamListInfo ext_params)
   /* Insert setup steps as needed */
   ExecCreateExprSetupSteps(state, (Node *) node);
 
+  DBUG_PRINT("info", "compile the expression proper");
   /* Compile the expression proper */
   ExecInitExprRec(node, state, &state->resvalue, &state->resnull);
 
@@ -227,6 +235,7 @@ ExecInitExprWithParams(Expr *node, ParamListInfo ext_params)
 ExprState *
 ExecInitQual(List *qual, PlanState *parent)
 {
+  DBUG_TRACE;
   ExprState  *state;
   ExprEvalStep scratch = {0};
   List     *adjust_jumps = NIL;
@@ -331,6 +340,7 @@ ExecInitCheck(List *qual, PlanState *parent)
 List *
 ExecInitExprList(List *nodes, PlanState *parent)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *lc;
 
@@ -369,6 +379,7 @@ ExecBuildProjectionInfo(List *targetList,
                         PlanState *parent,
                         TupleDesc inputDesc)
 {
+  DBUG_TRACE;
   ProjectionInfo *projInfo = makeNode(ProjectionInfo);
   ExprState  *state;
   ExprEvalStep scratch = {0};
@@ -388,6 +399,8 @@ ExecBuildProjectionInfo(List *targetList,
   ExecCreateExprSetupSteps(state, (Node *) targetList);
 
   /* Now compile each tlist column */
+  DBUG_PRINT("info", "now compile each tlist column");
+
   foreach(lc, targetList) {
     TargetEntry *tle = lfirst_node(TargetEntry, lc);
     Var      *variable = NULL;
@@ -477,6 +490,7 @@ ExecBuildProjectionInfo(List *targetList,
        * matter) can change between executions.  We instead evaluate
        * into the ExprState's resvalue/resnull and then move.
        */
+      DBUG_PRINT("info", "compile the column expression normally");
       ExecInitExprRec(tle->expr, state,
                       &state->resvalue, &state->resnull);
 
@@ -543,6 +557,7 @@ ExecBuildUpdateProjection(List *targetList,
                           TupleTableSlot *slot,
                           PlanState *parent)
 {
+  DBUG_TRACE;
   ProjectionInfo *projInfo = makeNode(ProjectionInfo);
   ExprState  *state;
   int     nAssignableCols;
@@ -686,6 +701,7 @@ ExecBuildUpdateProjection(List *targetList,
        * ExecBuildProjectionInfo does; this is a relatively less-used
        * path and it doesn't seem worth expending code for that.
        */
+      DBUG_PRINT("info", "we must evaluate the TLE's expression and assign it");
       ExecInitExprRec(tle->expr, state,
                       &state->resvalue, &state->resnull);
       /* Needn't worry about read-only-ness here, either. */
@@ -753,6 +769,7 @@ ExecBuildUpdateProjection(List *targetList,
 ExprState *
 ExecPrepareExpr(Expr *node, EState *estate)
 {
+  DBUG_TRACE;
   ExprState  *result;
   MemoryContext oldcontext;
 
@@ -859,22 +876,36 @@ ExecPrepareExprList(List *nodes, EState *estate)
 bool
 ExecCheck(ExprState *state, ExprContext *econtext)
 {
+  DBUG_TRACE;
   Datum   ret;
   bool    isnull;
+  bool result;
 
   /* short-circuit (here and in ExecInitCheck) for empty restriction list */
-  if (state == NULL)
+  if (state == NULL) {
+    DBUG_PRINT("info", "short-circuit (here and in ExecInitCheck) for empty restriction list");
     return true;
+  }
 
   /* verify that expression was not compiled using ExecInitQual */
   Assert(!(state->flags & EEO_FLAG_IS_QUAL));
 
   ret = ExecEvalExprSwitchContext(state, econtext, &isnull);
 
-  if (isnull)
+  if (isnull) {
+    DBUG_PRINT("info", "isnull: true, returning true");
     return true;
+  }
 
-  return DatumGetBool(ret);
+  result = DatumGetBool(ret);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  return result;
 }
 
 /*
@@ -889,10 +920,345 @@ ExecCheck(ExprState *state, ExprContext *econtext)
 static void
 ExecReadyExpr(ExprState *state)
 {
+  DBUG_TRACE;
+
   if (jit_compile_expr(state))
     return;
 
   ExecReadyInterpretedExpr(state);
+}
+
+static void trace_node_type(int type)
+{
+  switch (type) {
+    case T_Var:
+      DBUG_PRINT("info", "node type(var)");
+      break;
+
+    case T_Const:
+      DBUG_PRINT("info", "node type(const)");
+      break;
+
+    case T_Param:
+      DBUG_PRINT("info", "node type(param)");
+      break;
+
+    case T_CaseTestExpr:
+      DBUG_PRINT("info", "node type(case test expr)");
+      break;
+
+    case T_SQLValueFunction:
+      DBUG_PRINT("info", "node type(SQL value function)");
+      break;
+
+    case T_CoerceToDomainValue:
+      DBUG_PRINT("info", "node type(coerce to domain value)");
+      break;
+
+    case T_SetToDefault:
+      DBUG_PRINT("info", "node type(set to default)");
+      break;
+
+    case T_CurrentOfExpr:
+      DBUG_PRINT("info", "node type(current of expr)");
+      break;
+
+    case T_NextValueExpr:
+      DBUG_PRINT("info", "node type(next value expr)");
+      break;
+
+    case T_RangeTblRef:
+      DBUG_PRINT("info", "node type(range table ref)");
+      break;
+
+    case T_SortGroupClause:
+      DBUG_PRINT("info", "node type(sort group clause)");
+      break;
+
+    case T_CTESearchClause:
+      DBUG_PRINT("info", "node type(cte search clause)");
+      break;
+
+    case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node type(merge support func)");
+      break;
+
+    case T_WithCheckOption:
+      DBUG_PRINT("info", "node type(with check option)");
+      break;
+
+    case T_Aggref:
+      DBUG_PRINT("info", "node type(aggref)");
+      break;
+
+    case T_GroupingFunc:
+      DBUG_PRINT("info", "node type(grouping func)");
+      break;
+
+    case T_WindowFunc:
+      DBUG_PRINT("info", "node type(window func)");
+      break;
+
+    case T_WindowFuncRunCondition:
+      DBUG_PRINT("info", "node type(window func run condition)");
+      break;
+
+    case T_SubscriptingRef:
+      DBUG_PRINT("info", "node type(subscripting ref)");
+      break;
+
+    case T_FuncExpr:
+      DBUG_PRINT("info", "node type(func expr)");
+      break;
+
+    case T_NamedArgExpr:
+      DBUG_PRINT("info", "node type(named arg expr)");
+      break;
+
+    case T_OpExpr:
+      DBUG_PRINT("info", "node type(op expr)");
+      break;
+
+    case T_DistinctExpr:  /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(distinct expr)");
+      break;
+
+    case T_NullIfExpr:    /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(null if expr)");
+      break;
+
+    case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node type(scalar array op expr)");
+      break;
+
+    case T_BoolExpr:
+      DBUG_PRINT("info", "node type(bool expr)");
+      break;
+
+    case T_SubLink:
+      DBUG_PRINT("info", "node type(sub link)");
+      break;
+
+    case T_SubPlan:
+      DBUG_PRINT("info", "node type(sub plan)");
+      break;
+
+    case T_AlternativeSubPlan:
+      DBUG_PRINT("info", "node type(alternative sub plan)");
+      break;
+
+    case T_FieldSelect:
+      DBUG_PRINT("info", "node type(field select)");
+      break;
+
+    case T_FieldStore:
+      DBUG_PRINT("info", "node type(field store)");
+      break;
+
+    case T_RelabelType:
+      DBUG_PRINT("info", "node type(relabel type)");
+      break;
+
+    case T_CoerceViaIO:
+      DBUG_PRINT("info", "node type(coerce via io)");
+      break;
+
+    case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node type(array coerce expr)");
+      break;
+
+    case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node type(convert row type expr)");
+      break;
+
+    case T_CollateExpr:
+      DBUG_PRINT("info", "node type(collate expr)");
+      break;
+
+    case T_CaseExpr:
+      DBUG_PRINT("info", "node type(case expr)");
+      break;
+
+    case T_ArrayExpr:
+      DBUG_PRINT("info", "node type(array expr)");
+      break;
+
+    case T_RowExpr:
+      DBUG_PRINT("info", "node type(row expr)");
+      break;
+
+    case T_RowCompareExpr:
+      DBUG_PRINT("info", "node type(row compare expr)");
+      break;
+
+    case T_CoalesceExpr:
+      DBUG_PRINT("info", "node type(coalesce expr)");
+      break;
+
+    case T_MinMaxExpr:
+      DBUG_PRINT("info", "node type(min max expr)");
+      break;
+
+    case T_XmlExpr:
+      DBUG_PRINT("info", "node type(xml expr)");
+      break;
+
+    case T_JsonValueExpr:
+      DBUG_PRINT("info", "node type(json value expr)");
+      break;
+
+    case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node type(json constructor expr)");
+      break;
+
+    case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node type(json is predicate)");
+      break;
+
+    case T_JsonExpr:
+      DBUG_PRINT("info", "node type(json expr)");
+      break;
+
+    case T_JsonBehavior:
+      DBUG_PRINT("info", "node type(json behavior)");
+      break;
+
+    case T_NullTest:
+      DBUG_PRINT("info", "node type(null test)");
+      break;
+
+    case T_BooleanTest:
+      DBUG_PRINT("info", "node type(boolean test)");
+      break;
+
+    case T_CoerceToDomain:
+      DBUG_PRINT("info", "node type(coerce to domain)");
+      break;
+
+    case T_TargetEntry:
+      DBUG_PRINT("info", "node type(target entry)");
+      break;
+
+    case T_Query:
+      DBUG_PRINT("info", "node type(query)");
+      break;
+
+    case T_WindowClause:
+      DBUG_PRINT("info", "node type(window clause)");
+      break;
+
+    case T_CTECycleClause:
+      DBUG_PRINT("info", "node type(cte cycle clause)");
+      break;
+
+    case T_CommonTableExpr:
+      DBUG_PRINT("info", "node type(common table expr)");
+      break;
+
+    case T_JsonKeyValue:
+      DBUG_PRINT("info", "node type(json key value)");
+      break;
+
+    case T_JsonObjectConstructor:
+      DBUG_PRINT("info", "node type(json Object constructor)");
+      break;
+
+    case T_JsonArrayConstructor:
+      DBUG_PRINT("info", "node type(json array constructor)");
+      break;
+
+    case T_JsonArrayQueryConstructor:
+      DBUG_PRINT("info", "node type(json array query constructor)");
+      break;
+
+    case T_JsonAggConstructor:
+      DBUG_PRINT("info", "node type(json agg constructor)");
+      break;
+
+    case T_JsonObjectAgg:
+      DBUG_PRINT("info", "node type(json object agg)");
+      break;
+
+    case T_JsonArrayAgg:
+      DBUG_PRINT("info", "node type(json array agg)");
+      break;
+
+    case T_PartitionBoundSpec:
+      DBUG_PRINT("info", "node type(partition bound spec)");
+      break;
+
+    case T_PartitionRangeDatum:
+      DBUG_PRINT("info", "node type(partition range datum)");
+      break;
+
+    case T_List:
+      DBUG_PRINT("info", "node type(list)");
+      break;
+
+    case T_FromExpr:
+      DBUG_PRINT("info", "node type(from expr)");
+      break;
+
+    case T_OnConflictExpr:
+      DBUG_PRINT("info", "node type(on conflict expr)");
+      break;
+
+    case T_MergeAction:
+      DBUG_PRINT("info", "node type(merge action)");
+      break;
+
+    case T_PartitionPruneStepOp:
+      DBUG_PRINT("info", "node type(partition prune step op)");
+      break;
+
+    case T_PartitionPruneStepCombine:
+      DBUG_PRINT("info", "node type(partition prune step combine)");
+      break;
+
+    case T_JoinExpr:
+      DBUG_PRINT("info", "node type(join expr)");
+      break;
+
+    case T_SetOperationStmt:
+      DBUG_PRINT("info", "node type(set operation stmt)");
+      break;
+
+    case T_IndexClause:
+      DBUG_PRINT("info", "node type(index clause)");
+      break;
+
+    case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node type(place holder var)");
+      break;
+
+    case T_InferenceElem:
+      DBUG_PRINT("info", "node type(inference elem)");
+      break;
+
+    case T_AppendRelInfo:
+      DBUG_PRINT("info", "node type(append rel info)");
+      break;
+
+    case T_PlaceHolderInfo:
+      DBUG_PRINT("info", "node type(place holder info)");
+      break;
+
+    case T_RangeTblFunction:
+      DBUG_PRINT("info", "node type(range table function)");
+      break;
+
+    case T_TableSampleClause:
+      DBUG_PRINT("info", "node type(table sample clause)");
+      break;
+
+    case T_TableFunc:
+      DBUG_PRINT("info", "node type(table func)");
+      break;
+
+    default:
+      DBUG_PRINT("info", "node tag:%d", type);
+      break;
+  }
 }
 
 /*
@@ -907,6 +1273,7 @@ static void
 ExecInitExprRec(Expr *node, ExprState *state,
                 Datum *resv, bool *resnull)
 {
+  DBUG_TRACE;
   ExprEvalStep scratch = {0};
 
   /* Guard against stack overflow due to overly complex expressions */
@@ -916,6 +1283,8 @@ ExecInitExprRec(Expr *node, ExprState *state,
   Assert(resv != NULL && resnull != NULL);
   scratch.resvalue = resv;
   scratch.resnull = resnull;
+
+  trace_node_type(nodeTag(node));
 
   /* cases should be ordered as they are in enum NodeTag */
   switch (nodeTag(node)) {
@@ -1300,6 +1669,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
        */
       if (OidIsValid(opexpr->hashfuncid)) {
         /* Evaluate scalar directly into left function argument */
+        DBUG_PRINT("info", "evaluate scalar directly into left function argument");
         ExecInitExprRec(scalararg, state,
                         &fcinfo->args[0].value, &fcinfo->args[0].isnull);
 
@@ -1310,6 +1680,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
          * EEOP_HASHED_SCALARARRAYOP, and will not be passed to
          * any other expression.
          */
+        DBUG_PRINT("info", "evaluate array argument into our return value");
         ExecInitExprRec(arrayarg, state, resv, resnull);
 
         /* And perform the operation */
@@ -1323,6 +1694,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
         ExprEvalPushStep(state, &scratch);
       } else {
         /* Evaluate scalar directly into left function argument */
+        DBUG_PRINT("info", "evaluate scalar directly into left function argument");
         ExecInitExprRec(scalararg, state,
                         &fcinfo->args[0].value,
                         &fcinfo->args[0].isnull);
@@ -1333,6 +1705,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
          * guaranteed to be overwritten by EEOP_SCALARARRAYOP, and
          * will not be passed to any other expression.
          */
+        DBUG_PRINT("info", "evaluate array argument into our return value");
         ExecInitExprRec(arrayarg, state, resv, resnull);
 
         /* And perform the operation */
@@ -1461,6 +1834,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       FieldSelect *fselect = (FieldSelect *) node;
 
       /* evaluate row/record argument into result area */
+      DBUG_PRINT("info", "evaluate row/record argument into result area");
       ExecInitExprRec(fselect->arg, state, resv, resnull);
 
       /* and extract field */
@@ -1497,6 +1871,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       rowcachep->cacheptr = NULL;
 
       /* emit code to evaluate the composite input value */
+      DBUG_PRINT("info", "emit code to evaluate the composite input value");
       ExecInitExprRec(fstore->arg, state, resv, resnull);
 
       /* next, deform the input tuple into our workspace */
@@ -1583,6 +1958,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       FunctionCallInfo fcinfo_in;
 
       /* evaluate argument into step's result area */
+      DBUG_PRINT("info", "evaluate argument into step's result area");
       ExecInitExprRec(iocoerce->arg, state, resv, resnull);
 
       /*
@@ -1644,6 +2020,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       ExprState  *elemstate;
 
       /* evaluate argument into step's result area */
+      DBUG_PRINT("info", "evaluate argument into step's result area");
       ExecInitExprRec(acoerce->arg, state, resv, resnull);
 
       resultelemtype = get_element_type(acoerce->resulttype);
@@ -1709,6 +2086,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       rowcachep[1].cacheptr = NULL;
 
       /* evaluate argument into step's result area */
+      DBUG_PRINT("info", "evaluate argument into step's result area");
       ExecInitExprRec(convert->arg, state, resv, resnull);
 
       /* and push conversion step */
@@ -1742,6 +2120,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
         caseval = palloc(sizeof(Datum));
         casenull = palloc(sizeof(bool));
 
+        DBUG_PRINT("info", "evaluate testexpr into caseval/casenull workspace");
         ExecInitExprRec(caseExpr->arg, state,
                         caseval, casenull);
 
@@ -1791,6 +2170,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
         state->innermost_casenull = casenull;
 
         /* evaluate condition into CASE's result variables */
+        DBUG_PRINT("info", "evaluate condition into CASE's result variables");
         ExecInitExprRec(when->expr, state, resv, resnull);
 
         state->innermost_caseval = save_innermost_caseval;
@@ -1806,6 +2186,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
          * If WHEN result is true, evaluate THEN result, storing
          * it into the CASE's result variables.
          */
+        DBUG_PRINT("info", "if WHEN result is true, evaluate THEN result, storing it into the CASE's result variables");
         ExecInitExprRec(when->result, state, resv, resnull);
 
         /* Emit JUMP step to jump to end of CASE's code */
@@ -1830,6 +2211,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
       /* transformCaseExpr always adds a default */
       Assert(caseExpr->defresult);
 
+      DBUG_PRINT("info", "evaluate ELSE expr into CASE's result variables");
       /* evaluate ELSE expr into CASE's result variables */
       ExecInitExprRec(caseExpr->defresult, state,
                       resv, resnull);
@@ -1989,6 +2371,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
         }
 
         /* Evaluate column expr into appropriate workspace slot */
+        DBUG_PRINT("info", "evaluate column expr into appropriate workspace slot");
         ExecInitExprRec(e, state,
                         &scratch.d.row.elemvalues[i],
                         &scratch.d.row.elemnulls[i]);
@@ -2067,6 +2450,7 @@ ExecInitExprRec(Expr *node, ExprState *state,
          */
 
         /* evaluate left and right args directly into fcinfo */
+        DBUG_PRINT("info", "evaluate left and right args directly into fcinfo");
         ExecInitExprRec(left_expr, state,
                         &fcinfo->args[0].value, &fcinfo->args[0].isnull);
         ExecInitExprRec(right_expr, state,
@@ -2611,6 +2995,7 @@ static void
 ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
              Oid inputcollid, ExprState *state)
 {
+  DBUG_TRACE;
   int     nargs = list_length(args);
   AclResult aclresult;
   FmgrInfo   *flinfo;
@@ -2799,6 +3184,7 @@ ExecCreateExprSetupSteps(ExprState *state, Node *node)
 static void
 ExecPushExprSetupSteps(ExprState *state, ExprSetupInfo *info)
 {
+  DBUG_TRACE;
   ExprEvalStep scratch = {0};
   ListCell   *lc;
 
@@ -3127,6 +3513,7 @@ static void
 ExecInitSubscriptingRef(ExprEvalStep *scratch, SubscriptingRef *sbsref,
                         ExprState *state, Datum *resv, bool *resnull)
 {
+  DBUG_TRACE;
   bool    isAssignment = (sbsref->refassgnexpr != NULL);
   int     nupper = list_length(sbsref->refupperindexpr);
   int     nlower = list_length(sbsref->reflowerindexpr);
@@ -3540,6 +3927,7 @@ ExprState *
 ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
                   bool doSort, bool doHash, bool nullcheck)
 {
+  DBUG_TRACE;
   ExprState  *state = makeNode(ExprState);
   PlanState  *parent = &aggstate->ss.ps;
   ExprEvalStep scratch = {0};
@@ -3556,6 +3944,8 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
    * First figure out which slots, and how many columns from each, we're
    * going to need.
    */
+  DBUG_PRINT("info", "aggstate->numtrans:%d", aggstate->numtrans);
+
   for (int transno = 0; transno < aggstate->numtrans; transno++) {
     AggStatePerTrans pertrans = &aggstate->pertrans[transno];
 
@@ -3576,6 +3966,8 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
   /*
    * Emit instructions for each transition value / grouping set combination.
    */
+  DBUG_PRINT("info", "emit instructions for each transition value / grouping set combination");
+
   for (int transno = 0; transno < aggstate->numtrans; transno++) {
     AggStatePerTrans pertrans = &aggstate->pertrans[transno];
     FunctionCallInfo trans_fcinfo = pertrans->transfn_fcinfo;
@@ -3593,6 +3985,7 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
      */
     if (pertrans->aggref->aggfilter && !isCombine) {
       /* evaluate filter expression */
+      DBUG_PRINT("info", "evaluate filter expression");
       ExecInitExprRec(pertrans->aggref->aggfilter, state,
                       &state->resvalue, &state->resnull);
       /* and jump out if false */
@@ -3769,6 +4162,8 @@ ExecBuildAggTrans(AggState *aggstate, AggStatePerPhase phase,
 
     /* Handle DISTINCT aggregates which have pre-sorted input */
     if (pertrans->numDistinctCols > 0 && !pertrans->aggsortrequired) {
+      DBUG_PRINT("info", "handle DISTINCT aggregates which have pre-sorted input");
+
       if (pertrans->numDistinctCols > 1)
         scratch.opcode = EEOP_AGG_PRESORTED_DISTINCT_MULTI;
       else
@@ -3862,6 +4257,7 @@ ExecBuildAggTransCall(ExprState *state, AggState *aggstate,
                       int transno, int setno, int setoff, bool ishash,
                       bool nullcheck)
 {
+  DBUG_TRACE;
   ExprContext *aggcontext;
   int     adjust_jumpnull = -1;
 
@@ -4289,6 +4685,7 @@ ExecBuildGroupingEqual(TupleDesc ldesc, TupleDesc rdesc,
                        const Oid *collations,
                        PlanState *parent)
 {
+  DBUG_TRACE;
   ExprState  *state = makeNode(ExprState);
   ExprEvalStep scratch = {0};
   int     maxatt = -1;
@@ -4449,6 +4846,7 @@ ExecBuildParamSetEqual(TupleDesc desc,
                        const List *param_exprs,
                        PlanState *parent)
 {
+  DBUG_TRACE;
   ExprState  *state = makeNode(ExprState);
   ExprEvalStep scratch = {0};
   int     maxatt = list_length(param_exprs);
@@ -4570,6 +4968,7 @@ ExecInitJsonExpr(JsonExpr *jsexpr, ExprState *state,
                  Datum *resv, bool *resnull,
                  ExprEvalStep *scratch)
 {
+  DBUG_TRACE;
   JsonExprState *jsestate = palloc0(sizeof(JsonExprState));
   ListCell   *argexprlc;
   ListCell   *argnamelc;

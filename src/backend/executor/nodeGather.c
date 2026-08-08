@@ -29,6 +29,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execParallel.h"
 #include "executor/executor.h"
@@ -52,6 +53,7 @@ static void ExecShutdownGatherWorkers(GatherState *node);
 GatherState *
 ExecInitGather(Gather *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   GatherState *gatherstate;
   Plan     *outerNode;
   TupleDesc tupDesc;
@@ -135,10 +137,12 @@ ExecInitGather(Gather *node, EState *estate, int eflags)
 static TupleTableSlot *
 ExecGather(PlanState *pstate)
 {
+  DBUG_TRACE;
   GatherState *node = castNode(GatherState, pstate);
   TupleTableSlot *slot;
   ExprContext *econtext;
 
+  DBUG_PRINT("info", "scan the relation via multiple workers and return the next qualifying tuple");
   CHECK_FOR_INTERRUPTS();
 
   /*
@@ -157,6 +161,8 @@ ExecGather(PlanState *pstate)
      */
     if (gather->num_workers > 0 && estate->es_use_parallel_mode) {
       ParallelContext *pcxt;
+
+      DBUG_PRINT("info", "gather->num_workers:%d", gather->num_workers);
 
       /* Initialize, or re-initialize, shared state needed by workers. */
       if (!node->pei)
@@ -185,6 +191,8 @@ ExecGather(PlanState *pstate)
        */
       estate->es_parallel_workers_to_launch += pcxt->nworkers_to_launch;
       estate->es_parallel_workers_launched += pcxt->nworkers_launched;
+
+      DBUG_PRINT("info", "node->nworkers_launched:%d", node->nworkers_launched);
 
       /* Set up tuple queue readers to read the results. */
       if (pcxt->nworkers_launched > 0) {
@@ -246,6 +254,7 @@ ExecGather(PlanState *pstate)
 void
 ExecEndGather(GatherState *node)
 {
+  DBUG_TRACE;
   ExecEndNode(outerPlanState(node));  /* let children clean up first */
   ExecShutdownGather(node);
 }
@@ -258,6 +267,7 @@ ExecEndGather(GatherState *node)
 static TupleTableSlot *
 gather_getnext(GatherState *gatherstate)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(gatherstate);
   TupleTableSlot *outerTupleSlot;
   TupleTableSlot *fslot = gatherstate->funnel_slot;
@@ -281,6 +291,7 @@ gather_getnext(GatherState *gatherstate)
       EState     *estate = gatherstate->ps.state;
 
       /* Install our DSA area while executing the plan. */
+      DBUG_PRINT("info", "install our DSA area while executing the plan");
       estate->es_query_dsa =
         gatherstate->pei ? gatherstate->pei->area : NULL;
       outerTupleSlot = ExecProcNode(outerPlan);
@@ -302,7 +313,10 @@ gather_getnext(GatherState *gatherstate)
 static MinimalTuple
 gather_readnext(GatherState *gatherstate)
 {
+  DBUG_TRACE;
   int     nvisited = 0;
+
+  DBUG_PRINT("info", "attempt to read a tuple from one of our parallel workers");
 
   for (;;) {
     TupleQueueReader *reader;
@@ -334,6 +348,7 @@ gather_readnext(GatherState *gatherstate)
 
       if (gatherstate->nreaders == 0) {
         ExecShutdownGatherWorkers(gatherstate);
+        DBUG_PRINT("info", "return NULL");
         return NULL;
       }
 
@@ -349,8 +364,10 @@ gather_readnext(GatherState *gatherstate)
     }
 
     /* If we got a tuple, return it. */
-    if (tup)
+    if (tup) {
+      DBUG_PRINT("info", "when we got a tuple, return it");
       return tup;
+    }
 
     /*
      * Advance nextreader pointer in round-robin fashion.  Note that we
@@ -372,10 +389,13 @@ gather_readnext(GatherState *gatherstate)
        * If (still) running plan locally, return NULL so caller can
        * generate another tuple from the local copy of the plan.
        */
-      if (gatherstate->need_to_scan_locally)
+      if (gatherstate->need_to_scan_locally) {
+        DBUG_PRINT("info", "generate another tuple from the local copy of the plan");
         return NULL;
+      }
 
       /* Nothing to do except wait for developments. */
+      DBUG_PRINT("info", "nothing to do except wait for developments");
       (void) WaitLatch(MyLatch, WL_LATCH_SET | WL_EXIT_ON_PM_DEATH, 0,
                        WAIT_EVENT_EXECUTE_GATHER);
       ResetLatch(MyLatch);
@@ -393,6 +413,8 @@ gather_readnext(GatherState *gatherstate)
 static void
 ExecShutdownGatherWorkers(GatherState *node)
 {
+  DBUG_TRACE;
+
   if (node->pei != NULL)
     ExecParallelFinish(node->pei);
 
@@ -412,6 +434,7 @@ ExecShutdownGatherWorkers(GatherState *node)
 void
 ExecShutdownGather(GatherState *node)
 {
+  DBUG_TRACE;
   ExecShutdownGatherWorkers(node);
 
   /* Now destroy the parallel context. */
@@ -435,6 +458,7 @@ ExecShutdownGather(GatherState *node)
 void
 ExecReScanGather(GatherState *node)
 {
+  DBUG_TRACE;
   Gather     *gather = (Gather *) node->ps.plan;
   PlanState  *outerPlan = outerPlanState(node);
 

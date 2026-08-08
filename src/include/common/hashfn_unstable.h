@@ -145,8 +145,7 @@ fasthash_accum(fasthash_state *hs, const char *k, size_t len)
    */
 #ifdef WORDS_BIGENDIAN
 
-  switch (len)
-  {
+  switch (len) {
     case 8:
       memcpy(&hs->accum, k, 8);
       break;
@@ -186,8 +185,7 @@ fasthash_accum(fasthash_state *hs, const char *k, size_t len)
 
 #else
 
-  switch (len)
-  {
+  switch (len) {
     case 8:
       memcpy(&hs->accum, k, 8);
       break;
@@ -245,8 +243,7 @@ fasthash_accum_cstring_unaligned(fasthash_state *hs, const char *str)
 {
   const char *const start = str;
 
-  while (*str)
-  {
+  while (*str) {
     size_t    chunk_len = 0;
 
     while (chunk_len < FH_SIZEOF_ACCUM && str[chunk_len] != '\0')
@@ -282,8 +279,7 @@ fasthash_accum_cstring_aligned(fasthash_state *hs, const char *str)
    * For every chunk of input, check for zero bytes before mixing into the
    * hash. The chunk with zeros must contain the NUL terminator.
    */
-  for (;;)
-  {
+  for (;;) {
     uint64    chunk = *(uint64 *) str;
 
     zero_byte_low = haszero64(chunk);
@@ -320,8 +316,7 @@ fasthash_accum_cstring(fasthash_state *hs, const char *str)
   len_check = fasthash_accum_cstring_unaligned(&hs_check, str);
 #endif
 
-  if (PointerIsAligned(str, uint64))
-  {
+  if (PointerIsAligned(str, uint64)) {
     len = fasthash_accum_cstring_aligned(hs, str);
     Assert(len_check == len);
     Assert(hs_check.hash == hs->hash);
@@ -389,8 +384,7 @@ fasthash64(const char *k, size_t len, uint64 seed)
   /* re-initialize the seed according to input length */
   hs.hash = seed ^ (len * 0x880355f21e6d1965);
 
-  while (len >= FH_SIZEOF_ACCUM)
-  {
+  while (len >= FH_SIZEOF_ACCUM) {
     fasthash_accum(&hs, k, FH_SIZEOF_ACCUM);
     k += FH_SIZEOF_ACCUM;
     len -= FH_SIZEOF_ACCUM;

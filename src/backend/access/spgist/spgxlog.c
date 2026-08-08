@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/spgist_private.h"
@@ -49,6 +50,8 @@ fillFakeState(SpGistState *state, spgxlogState stateSrc)
 static void
 addOrReplaceTuple(Page page, Item tuple, int size, OffsetNumber offset)
 {
+  DBUG_TRACE;
+
   if (offset <= PageGetMaxOffsetNumber(page)) {
     SpGistDeadTuple dt = (SpGistDeadTuple) PageGetItem(page,
                          PageGetItemId(page, offset));
@@ -72,6 +75,7 @@ addOrReplaceTuple(Page page, Item tuple, int size, OffsetNumber offset)
 static void
 spgRedoAddLeaf(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogAddLeaf *xldata = (spgxlogAddLeaf *) ptr;
@@ -163,6 +167,7 @@ spgRedoAddLeaf(XLogReaderState *record)
 static void
 spgRedoMoveLeafs(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogMoveLeafs *xldata = (spgxlogMoveLeafs *) ptr;
@@ -273,6 +278,7 @@ spgRedoMoveLeafs(XLogReaderState *record)
 static void
 spgRedoAddNode(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogAddNode *xldata = (spgxlogAddNode *) ptr;
@@ -438,6 +444,7 @@ spgRedoAddNode(XLogReaderState *record)
 static void
 spgRedoSplitTuple(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogSplitTuple *xldata = (spgxlogSplitTuple *) ptr;
@@ -515,6 +522,7 @@ spgRedoSplitTuple(XLogReaderState *record)
 static void
 spgRedoPickSplit(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogPickSplit *xldata = (spgxlogPickSplit *) ptr;
@@ -722,6 +730,7 @@ spgRedoPickSplit(XLogReaderState *record)
 static void
 spgRedoVacuumLeaf(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogVacuumLeaf *xldata = (spgxlogVacuumLeaf *) ptr;
@@ -803,6 +812,7 @@ spgRedoVacuumLeaf(XLogReaderState *record)
 static void
 spgRedoVacuumRoot(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogVacuumRoot *xldata = (spgxlogVacuumRoot *) ptr;
@@ -829,6 +839,7 @@ spgRedoVacuumRoot(XLogReaderState *record)
 static void
 spgRedoVacuumRedirect(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   char     *ptr = XLogRecGetData(record);
   spgxlogVacuumRedirect *xldata = (spgxlogVacuumRedirect *) ptr;
@@ -901,6 +912,7 @@ spgRedoVacuumRedirect(XLogReaderState *record)
 void
 spg_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
   MemoryContext oldCxt;
 
@@ -908,34 +920,43 @@ spg_redo(XLogReaderState *record)
 
   switch (info) {
     case XLOG_SPGIST_ADD_LEAF:
+      DBUG_PRINT("info", "XLOG_SPGIST_ADD_LEAF");
       spgRedoAddLeaf(record);
       break;
 
     case XLOG_SPGIST_MOVE_LEAFS:
+      DBUG_PRINT("info", "XLOG_SPGIST_MOVE_LEAFS");
+      spgRedoAddLeaf(record);
       spgRedoMoveLeafs(record);
       break;
 
     case XLOG_SPGIST_ADD_NODE:
+      DBUG_PRINT("info", "XLOG_SPGIST_ADD_NODE");
       spgRedoAddNode(record);
       break;
 
     case XLOG_SPGIST_SPLIT_TUPLE:
+      DBUG_PRINT("info", "XLOG_SPGIST_SPLIT_TUPLE");
       spgRedoSplitTuple(record);
       break;
 
     case XLOG_SPGIST_PICKSPLIT:
+      DBUG_PRINT("info", "XLOG_SPGIST_PICKSPLIT");
       spgRedoPickSplit(record);
       break;
 
     case XLOG_SPGIST_VACUUM_LEAF:
+      DBUG_PRINT("info", "XLOG_SPGIST_VACUUM_LEAF");
       spgRedoVacuumLeaf(record);
       break;
 
     case XLOG_SPGIST_VACUUM_ROOT:
+      DBUG_PRINT("info", "XLOG_SPGIST_VACUUM_ROOT");
       spgRedoVacuumRoot(record);
       break;
 
     case XLOG_SPGIST_VACUUM_REDIRECT:
+      DBUG_PRINT("info", "XLOG_SPGIST_VACUUM_REDIRECT");
       spgRedoVacuumRedirect(record);
       break;
 
@@ -950,6 +971,7 @@ spg_redo(XLogReaderState *record)
 void
 spg_xlog_startup(void)
 {
+  DBUG_TRACE;
   opCtx = AllocSetContextCreate(CurrentMemoryContext,
                                 "SP-GiST temporary context",
                                 ALLOCSET_DEFAULT_SIZES);
@@ -958,6 +980,7 @@ spg_xlog_startup(void)
 void
 spg_xlog_cleanup(void)
 {
+  DBUG_TRACE;
   MemoryContextDelete(opCtx);
   opCtx = NULL;
 }
@@ -968,6 +991,7 @@ spg_xlog_cleanup(void)
 void
 spg_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
   PageHeader  pagehdr = (PageHeader) page;
 

@@ -34,6 +34,7 @@
 #include "mbuf.h"
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 #define NO_CTX_SIZE   0
 #define ALLOW_CTX_SIZE  1
@@ -51,6 +52,7 @@
 static int
 parse_new_len(PullFilter *src, int *len_p)
 {
+  DBUG_TRACE;
   uint8   b;
   int     len;
   int     pkttype = PKT_NORMAL;
@@ -89,6 +91,7 @@ parse_new_len(PullFilter *src, int *len_p)
 static int
 parse_old_len(PullFilter *src, int *len_p, int lentype)
 {
+  DBUG_TRACE;
   uint8   b;
   int     len;
 
@@ -120,6 +123,7 @@ parse_old_len(PullFilter *src, int *len_p, int lentype)
 int
 pgp_parse_pkt_hdr(PullFilter *src, uint8 *tag, int *len_p, int allow_ctx)
 {
+  DBUG_TRACE;
   int     lentype;
   int     res;
   uint8    *p;
@@ -166,6 +170,7 @@ static int
 pktreader_pull(void *priv, PullFilter *src, int len,
                uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   int     res;
   struct PktData *pkt = priv;
 
@@ -201,6 +206,7 @@ pktreader_pull(void *priv, PullFilter *src, int len,
 static void
 pktreader_free(void *priv)
 {
+  DBUG_TRACE;
   struct PktData *pkt = priv;
 
   px_memset(pkt, 0, sizeof(*pkt));
@@ -216,6 +222,7 @@ int
 pgp_create_pkt_reader(PullFilter **pf_p, PullFilter *src, int len,
                       int pkttype, PGP_Context *ctx)
 {
+  DBUG_TRACE;
   int     res;
   struct PktData *pkt = palloc(sizeof(*pkt));
 
@@ -238,6 +245,7 @@ pgp_create_pkt_reader(PullFilter **pf_p, PullFilter *src, int len,
 static int
 prefix_init(void **priv_p, void *arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PGP_Context *ctx = arg;
   int     len;
   int     res;
@@ -283,6 +291,7 @@ static struct PullFilterOps prefix_filter = {
 static int
 decrypt_init(void **priv_p, void *arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PGP_CFB    *cfb = arg;
 
   *priv_p = cfb;
@@ -295,6 +304,7 @@ static int
 decrypt_read(void *priv, PullFilter *src, int len,
              uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   PGP_CFB    *cfb = priv;
   uint8    *tmp;
   int     res;
@@ -321,6 +331,7 @@ struct PullFilterOps pgp_decrypt_filter = {
 static int
 mdc_init(void **priv_p, void *arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PGP_Context *ctx = arg;
 
   *priv_p = ctx;
@@ -330,6 +341,7 @@ mdc_init(void **priv_p, void *arg, PullFilter *src)
 static void
 mdc_free(void *priv)
 {
+  DBUG_TRACE;
   PGP_Context *ctx = priv;
 
   if (ctx->use_mdcbuf_filter)
@@ -342,6 +354,7 @@ mdc_free(void *priv)
 static int
 mdc_finish(PGP_Context *ctx, PullFilter *src, int len)
 {
+  DBUG_TRACE;
   int     res;
   uint8   hash[20];
   uint8   tmpbuf[20];
@@ -396,6 +409,7 @@ static int
 mdc_read(void *priv, PullFilter *src, int len,
          uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   int     res;
   PGP_Context *ctx = priv;
 
@@ -446,6 +460,7 @@ struct MDCBufData {
 static int
 mdcbuf_init(void **priv_p, void *arg, PullFilter *src)
 {
+  DBUG_TRACE;
   PGP_Context *ctx = arg;
   struct MDCBufData *st;
 
@@ -463,6 +478,7 @@ mdcbuf_init(void **priv_p, void *arg, PullFilter *src)
 static int
 mdcbuf_finish(struct MDCBufData *st)
 {
+  DBUG_TRACE;
   uint8   hash[20];
   int     res;
 
@@ -489,6 +505,7 @@ mdcbuf_finish(struct MDCBufData *st)
 static void
 mdcbuf_load_data(struct MDCBufData *st, uint8 *src, int len)
 {
+  DBUG_TRACE;
   uint8    *dst = st->pos + st->avail;
 
   memcpy(dst, src, len);
@@ -499,6 +516,7 @@ mdcbuf_load_data(struct MDCBufData *st, uint8 *src, int len)
 static void
 mdcbuf_load_mdc(struct MDCBufData *st, uint8 *src, int len)
 {
+  DBUG_TRACE;
   memmove(st->mdc_buf + st->mdc_avail, src, len);
   st->mdc_avail += len;
 }
@@ -506,6 +524,7 @@ mdcbuf_load_mdc(struct MDCBufData *st, uint8 *src, int len)
 static int
 mdcbuf_refill(struct MDCBufData *st, PullFilter *src)
 {
+  DBUG_TRACE;
   uint8    *data;
   int     res;
   int     need;
@@ -552,6 +571,7 @@ static int
 mdcbuf_read(void *priv, PullFilter *src, int len,
             uint8 **data_p, uint8 *buf, int buflen)
 {
+  DBUG_TRACE;
   struct MDCBufData *st = priv;
   int     res;
 
@@ -574,6 +594,7 @@ mdcbuf_read(void *priv, PullFilter *src, int len,
 static void
 mdcbuf_free(void *priv)
 {
+  DBUG_TRACE;
   struct MDCBufData *st = priv;
 
   px_md_free(st->ctx->mdc_ctx);
@@ -593,6 +614,7 @@ static struct PullFilterOps mdcbuf_filter = {
 static int
 decrypt_key(PGP_Context *ctx, const uint8 *src, int len)
 {
+  DBUG_TRACE;
   int     res;
   uint8   algo;
   PGP_CFB    *cfb;
@@ -627,6 +649,7 @@ decrypt_key(PGP_Context *ctx, const uint8 *src, int len)
 static int
 parse_symenc_sesskey(PGP_Context *ctx, PullFilter *src)
 {
+  DBUG_TRACE;
   uint8    *p;
   int     res;
   uint8   tmpbuf[PGP_MAX_KEY + 2];
@@ -698,6 +721,7 @@ parse_symenc_sesskey(PGP_Context *ctx, PullFilter *src)
 static int
 copy_crlf(MBuf *dst, uint8 *data, int len, int *got_cr)
 {
+  DBUG_TRACE;
   uint8    *data_end = data + len;
   uint8   tmpbuf[1024];
   uint8    *tmp_end = tmpbuf + sizeof(tmpbuf);
@@ -750,6 +774,7 @@ copy_crlf(MBuf *dst, uint8 *data, int len, int *got_cr)
 static int
 parse_literal_data(PGP_Context *ctx, MBuf *dst, PullFilter *pkt)
 {
+  DBUG_TRACE;
   int     type;
   int     name_len;
   int     res;
@@ -829,6 +854,7 @@ static int  process_data_packets(PGP_Context *ctx, MBuf *dst,
 static int
 parse_compressed_data(PGP_Context *ctx, MBuf *dst, PullFilter *pkt)
 {
+  DBUG_TRACE;
   int     res;
   uint8   type;
   PullFilter *pf_decompr;
@@ -885,6 +911,7 @@ static int
 process_data_packets(PGP_Context *ctx, MBuf *dst, PullFilter *src,
                      int allow_compr, int need_mdc)
 {
+  DBUG_TRACE;
   uint8   tag;
   int     len,
           res;
@@ -989,6 +1016,7 @@ process_data_packets(PGP_Context *ctx, MBuf *dst, PullFilter *src,
 static int
 parse_symenc_data(PGP_Context *ctx, PullFilter *pkt, MBuf *dst)
 {
+  DBUG_TRACE;
   int     res;
   PGP_CFB    *cfb = NULL;
   PullFilter *pf_decrypt = NULL;
@@ -1029,6 +1057,7 @@ out:
 static int
 parse_symenc_mdc_data(PGP_Context *ctx, PullFilter *pkt, MBuf *dst)
 {
+  DBUG_TRACE;
   int     res;
   PGP_CFB    *cfb = NULL;
   PullFilter *pf_decrypt = NULL;
@@ -1089,6 +1118,7 @@ out:
 int
 pgp_skip_packet(PullFilter *pkt)
 {
+  DBUG_TRACE;
   int     res = 1;
   uint8    *tmp;
 
@@ -1104,6 +1134,7 @@ pgp_skip_packet(PullFilter *pkt)
 int
 pgp_expect_packet_end(PullFilter *pkt)
 {
+  DBUG_TRACE;
   int     res;
   uint8    *tmp;
 
@@ -1120,6 +1151,7 @@ pgp_expect_packet_end(PullFilter *pkt)
 int
 pgp_decrypt(PGP_Context *ctx, MBuf *msrc, MBuf *mdst)
 {
+  DBUG_TRACE;
   int     res;
   PullFilter *src = NULL;
   PullFilter *pkt = NULL;

@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/hashfn.h"
 #include "lib/hyperloglog.h"
@@ -53,6 +54,7 @@ static Datum macaddr_abbrev_convert(Datum original, SortSupport ssup);
 Datum
 macaddr_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   macaddr    *result;
@@ -126,6 +128,7 @@ macaddr_in(PG_FUNCTION_ARGS)
 Datum
 macaddr_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr = PG_GETARG_MACADDR_P(0);
   char     *result;
 
@@ -145,6 +148,7 @@ macaddr_out(PG_FUNCTION_ARGS)
 Datum
 macaddr_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   macaddr    *addr;
 
@@ -166,6 +170,7 @@ macaddr_recv(PG_FUNCTION_ARGS)
 Datum
 macaddr_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr = PG_GETARG_MACADDR_P(0);
   StringInfoData buf;
 
@@ -202,6 +207,7 @@ macaddr_cmp_internal(macaddr *a1, macaddr *a2)
 Datum
 macaddr_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -215,6 +221,7 @@ macaddr_cmp(PG_FUNCTION_ARGS)
 Datum
 macaddr_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -224,6 +231,7 @@ macaddr_lt(PG_FUNCTION_ARGS)
 Datum
 macaddr_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -233,6 +241,7 @@ macaddr_le(PG_FUNCTION_ARGS)
 Datum
 macaddr_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -242,6 +251,7 @@ macaddr_eq(PG_FUNCTION_ARGS)
 Datum
 macaddr_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -251,6 +261,7 @@ macaddr_ge(PG_FUNCTION_ARGS)
 Datum
 macaddr_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -260,6 +271,7 @@ macaddr_gt(PG_FUNCTION_ARGS)
 Datum
 macaddr_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *a1 = PG_GETARG_MACADDR_P(0);
   macaddr    *a2 = PG_GETARG_MACADDR_P(1);
 
@@ -272,6 +284,7 @@ macaddr_ne(PG_FUNCTION_ARGS)
 Datum
 hashmacaddr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *key = PG_GETARG_MACADDR_P(0);
 
   return hash_any((unsigned char *) key, sizeof(macaddr));
@@ -280,6 +293,7 @@ hashmacaddr(PG_FUNCTION_ARGS)
 Datum
 hashmacaddrextended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *key = PG_GETARG_MACADDR_P(0);
 
   return hash_any_extended((unsigned char *) key, sizeof(macaddr),
@@ -292,6 +306,7 @@ hashmacaddrextended(PG_FUNCTION_ARGS)
 Datum
 macaddr_not(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr = PG_GETARG_MACADDR_P(0);
   macaddr    *result;
 
@@ -308,6 +323,7 @@ macaddr_not(PG_FUNCTION_ARGS)
 Datum
 macaddr_and(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr1 = PG_GETARG_MACADDR_P(0);
   macaddr    *addr2 = PG_GETARG_MACADDR_P(1);
   macaddr    *result;
@@ -325,6 +341,7 @@ macaddr_and(PG_FUNCTION_ARGS)
 Datum
 macaddr_or(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr1 = PG_GETARG_MACADDR_P(0);
   macaddr    *addr2 = PG_GETARG_MACADDR_P(1);
   macaddr    *result;
@@ -346,6 +363,7 @@ macaddr_or(PG_FUNCTION_ARGS)
 Datum
 macaddr_trunc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   macaddr    *addr = PG_GETARG_MACADDR_P(0);
   macaddr    *result;
 
@@ -368,6 +386,7 @@ macaddr_trunc(PG_FUNCTION_ARGS)
 Datum
 macaddr_sortsupport(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
 
   ssup->comparator = macaddr_fast_cmp;
@@ -419,6 +438,7 @@ macaddr_fast_cmp(Datum x, Datum y, SortSupport ssup)
 static bool
 macaddr_abbrev_abort(int memtupcount, SortSupport ssup)
 {
+  DBUG_TRACE;
   macaddr_sortsupport_state *uss = ssup->ssup_extra;
   double    abbr_card;
 

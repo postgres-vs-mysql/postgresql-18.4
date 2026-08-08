@@ -45,6 +45,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/syncscan.h"
 #include "miscadmin.h"
@@ -131,6 +132,7 @@ SyncScanShmemSize(void)
 void
 SyncScanShmemInit(void)
 {
+  DBUG_TRACE;
   int     i;
   bool    found;
 
@@ -184,6 +186,7 @@ SyncScanShmemInit(void)
 static BlockNumber
 ss_search(RelFileLocator relfilelocator, BlockNumber location, bool set)
 {
+  DBUG_TRACE;
   ss_lru_item_t *item;
 
   item = scan_locations->head;
@@ -245,6 +248,7 @@ ss_search(RelFileLocator relfilelocator, BlockNumber location, bool set)
 BlockNumber
 ss_get_location(Relation rel, BlockNumber relnblocks)
 {
+  DBUG_TRACE;
   BlockNumber startloc;
 
   LWLockAcquire(SyncScanLock, LW_EXCLUSIVE);
@@ -282,6 +286,7 @@ ss_get_location(Relation rel, BlockNumber relnblocks)
 void
 ss_report_location(Relation rel, BlockNumber location)
 {
+  DBUG_TRACE;
 #ifdef TRACE_SYNCSCAN
 
   if (trace_syncscan) {

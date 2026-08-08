@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "miscadmin.h"
@@ -31,6 +32,7 @@ typedef struct NODE {
 static NODE *
 maketree(QueryItem *in)
 {
+  DBUG_TRACE;
   NODE     *node = (NODE *) palloc(sizeof(NODE));
 
   /* since this function recurses, it could be driven to stack overflow. */
@@ -61,6 +63,7 @@ typedef struct {
 static void
 plainnode(PLAINTREE *state, NODE *node)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -95,6 +98,7 @@ plainnode(PLAINTREE *state, NODE *node)
 static QueryItem *
 plaintree(NODE *root, int *len)
 {
+  DBUG_TRACE;
   PLAINTREE pl;
 
   pl.cur = 0;
@@ -113,6 +117,7 @@ plaintree(NODE *root, int *len)
 static void
 freetree(NODE *node)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -137,6 +142,7 @@ freetree(NODE *node)
 static NODE *
 clean_NOT_intree(NODE *node)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -184,6 +190,7 @@ clean_NOT_intree(NODE *node)
 QueryItem *
 clean_NOT(QueryItem *ptr, int *len)
 {
+  DBUG_TRACE;
   NODE     *root = maketree(ptr);
 
   return plaintree(clean_NOT_intree(root), len);
@@ -232,6 +239,7 @@ clean_NOT(QueryItem *ptr, int *len)
 static NODE *
 clean_stopword_intree(NODE *node, int *ladd, int *radd)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -342,6 +350,7 @@ clean_stopword_intree(NODE *node, int *ladd, int *radd)
 static int32
 calcstrlen(NODE *node)
 {
+  DBUG_TRACE;
   int32   size = 0;
 
   if (node->valnode->type == QI_VAL) {
@@ -355,6 +364,7 @@ calcstrlen(NODE *node)
       size += calcstrlen(node->left);
   }
 
+  DBUG_PRINT("info", "number of elements in query tree:%d", size);
   return size;
 }
 
@@ -364,6 +374,7 @@ calcstrlen(NODE *node)
 TSQuery
 cleanup_tsquery_stopwords(TSQuery in, bool noisy)
 {
+  DBUG_TRACE;
   int32   len,
           lenstr,
           commonlen,

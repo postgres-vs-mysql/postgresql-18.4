@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -29,6 +30,7 @@
 static void
 ginCombineData(RBTNode *existing, const RBTNode *newdata, void *arg)
 {
+  DBUG_TRACE;
   GinEntryAccumulator *eo = (GinEntryAccumulator *) existing;
   const GinEntryAccumulator *en = (const GinEntryAccumulator *) newdata;
   BuildAccumulator *accum = (BuildAccumulator *) arg;
@@ -69,6 +71,7 @@ ginCombineData(RBTNode *existing, const RBTNode *newdata, void *arg)
 static int
 cmpEntryAccumulator(const RBTNode *a, const RBTNode *b, void *arg)
 {
+  DBUG_TRACE;
   const GinEntryAccumulator *ea = (const GinEntryAccumulator *) a;
   const GinEntryAccumulator *eb = (const GinEntryAccumulator *) b;
   BuildAccumulator *accum = (BuildAccumulator *) arg;
@@ -82,6 +85,7 @@ cmpEntryAccumulator(const RBTNode *a, const RBTNode *b, void *arg)
 static RBTNode *
 ginAllocEntryAccumulator(void *arg)
 {
+  DBUG_TRACE;
   BuildAccumulator *accum = (BuildAccumulator *) arg;
   GinEntryAccumulator *ea;
 
@@ -105,6 +109,7 @@ ginAllocEntryAccumulator(void *arg)
 void
 ginInitBA(BuildAccumulator *accum)
 {
+  DBUG_TRACE;
   /* accum->ginstate is intentionally not set here */
   accum->allocatedMemory = 0;
   accum->entryallocator = NULL;
@@ -124,6 +129,7 @@ ginInitBA(BuildAccumulator *accum)
 static Datum
 getDatumCopy(BuildAccumulator *accum, OffsetNumber attnum, Datum value)
 {
+  DBUG_TRACE;
   CompactAttribute *att;
   Datum   res;
 
@@ -147,6 +153,7 @@ ginInsertBAEntry(BuildAccumulator *accum,
                  ItemPointer heapptr, OffsetNumber attnum,
                  Datum key, GinNullCategory category)
 {
+  DBUG_TRACE;
   GinEntryAccumulator eatmp;
   GinEntryAccumulator *ea;
   bool    isNew;
@@ -208,6 +215,7 @@ ginInsertBAEntries(BuildAccumulator *accum,
                    Datum *entries, GinNullCategory *categories,
                    int32 nentries)
 {
+  DBUG_TRACE;
   uint32    step = nentries;
 
   if (nentries <= 0)
@@ -264,6 +272,7 @@ ginGetBAEntry(BuildAccumulator *accum,
               OffsetNumber *attnum, Datum *key, GinNullCategory *category,
               uint32 *n)
 {
+  DBUG_TRACE;
   GinEntryAccumulator *entry;
   ItemPointerData *list;
 

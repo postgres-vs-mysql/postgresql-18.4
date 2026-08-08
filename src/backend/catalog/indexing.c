@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/heapam.h"
@@ -42,6 +43,7 @@
 CatalogIndexState
 CatalogOpenIndexes(Relation heapRel)
 {
+  DBUG_TRACE;
   ResultRelInfo *resultRelInfo;
 
   resultRelInfo = makeNode(ResultRelInfo);
@@ -60,6 +62,7 @@ CatalogOpenIndexes(Relation heapRel)
 void
 CatalogCloseIndexes(CatalogIndexState indstate)
 {
+  DBUG_TRACE;
   ExecCloseIndices(indstate);
   pfree(indstate);
 }
@@ -75,6 +78,7 @@ static void
 CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple,
                    TU_UpdateIndexes updateIndexes)
 {
+  DBUG_TRACE;
   int     i;
   int     numIndexes;
   RelationPtr relationDescs;
@@ -85,6 +89,7 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple,
   bool    isnull[INDEX_MAX_KEYS];
   bool    onlySummarized = (updateIndexes == TU_Summarizing);
 
+  DBUG_PRINT("info", "insert index entries for one catalog tuple");
   /*
    * HOT update does not require index inserts. But with asserts enabled we
    * want to check that it'd be legal to currently insert into the
@@ -116,6 +121,9 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple,
   slot = MakeSingleTupleTableSlot(RelationGetDescr(heapRelation),
                                   &TTSOpsHeapTuple);
   ExecStoreHeapTuple(heapTuple, slot, false);
+
+  DBUG_PRINT("info", "number of indexes:%d", numIndexes);
+  DBUG_PRINT("info", "for each index, form and insert the index tuple");
 
   /*
    * for each index, form and insert the index tuple
@@ -198,6 +206,8 @@ CatalogIndexInsert(CatalogIndexState indstate, HeapTuple heapTuple,
 static void
 CatalogTupleCheckConstraints(Relation heapRel, HeapTuple tup)
 {
+  DBUG_TRACE;
+
   /*
    * Currently, the only constraints implemented for system catalogs are
    * attnotnull constraints.
@@ -234,6 +244,7 @@ CatalogTupleCheckConstraints(Relation heapRel, HeapTuple tup)
 void
 CatalogTupleInsert(Relation heapRel, HeapTuple tup)
 {
+  DBUG_TRACE;
   CatalogIndexState indstate;
 
   CatalogTupleCheckConstraints(heapRel, tup);
@@ -258,6 +269,7 @@ void
 CatalogTupleInsertWithInfo(Relation heapRel, HeapTuple tup,
                            CatalogIndexState indstate)
 {
+  DBUG_TRACE;
   CatalogTupleCheckConstraints(heapRel, tup);
 
   simple_heap_insert(heapRel, tup);
@@ -275,6 +287,8 @@ void
 CatalogTuplesMultiInsertWithInfo(Relation heapRel, TupleTableSlot **slot,
                                  int ntuples, CatalogIndexState indstate)
 {
+  DBUG_TRACE;
+
   /* Nothing to do */
   if (ntuples <= 0)
     return;
@@ -313,9 +327,11 @@ CatalogTuplesMultiInsertWithInfo(Relation heapRel, TupleTableSlot **slot,
 void
 CatalogTupleUpdate(Relation heapRel, ItemPointer otid, HeapTuple tup)
 {
+  DBUG_TRACE;
   CatalogIndexState indstate;
   TU_UpdateIndexes updateIndexes = TU_All;
 
+  DBUG_PRINT("info", "do heap and indexing work for updating a catalog tuple");
   CatalogTupleCheckConstraints(heapRel, tup);
 
   indstate = CatalogOpenIndexes(heapRel);
@@ -338,6 +354,7 @@ void
 CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
                            CatalogIndexState indstate)
 {
+  DBUG_TRACE;
   TU_UpdateIndexes updateIndexes = TU_All;
 
   CatalogTupleCheckConstraints(heapRel, tup);
@@ -365,5 +382,6 @@ CatalogTupleUpdateWithInfo(Relation heapRel, ItemPointer otid, HeapTuple tup,
 void
 CatalogTupleDelete(Relation heapRel, ItemPointer tid)
 {
+  DBUG_TRACE;
   simple_heap_delete(heapRel, tid);
 }

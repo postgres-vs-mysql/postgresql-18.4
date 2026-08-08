@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <math.h>
@@ -149,12 +150,14 @@ compareQueryOperand(const void *a, const void *b, void *arg)
 static QueryOperand **
 SortAndUniqItems(TSQuery q, int *size)
 {
+  DBUG_TRACE;
   char     *operand = GETOPERAND(q);
   QueryItem  *item = GETQUERY(q);
   QueryOperand **res,
                **ptr,
                **prevptr;
 
+  DBUG_PRINT("info", "return a sorted, de-duplicated array of QueryOperands in a query");
   ptr = res = (QueryOperand **) palloc(sizeof(QueryOperand *) * *size);
 
   /* Collect all operands from the tree to res */
@@ -172,6 +175,7 @@ SortAndUniqItems(TSQuery q, int *size)
   if (*size < 2)
     return res;
 
+  DBUG_PRINT("info", "size:%d before qsort", *size);
   qsort_arg(res, *size, sizeof(QueryOperand *), compareQueryOperand, operand);
 
   ptr = res + 1;
@@ -188,12 +192,14 @@ SortAndUniqItems(TSQuery q, int *size)
   }
 
   *size = prevptr + 1 - res;
+  DBUG_PRINT("info", "size:%d after removing duplicates", *size);
   return res;
 }
 
 static float
 calc_rank_and(const float *w, TSVector t, TSQuery q)
 {
+  DBUG_TRACE;
   WordEntryPosVector **pos;
   WordEntryPosVector1 posnull;
   WordEntryPosVector *POSNULL;
@@ -273,12 +279,14 @@ calc_rank_and(const float *w, TSVector t, TSQuery q)
 
   pfree(pos);
   pfree(item);
+  DBUG_PRINT("info", "result:%g", res);
   return res;
 }
 
 static float
 calc_rank_or(const float *w, TSVector t, TSQuery q)
 {
+  DBUG_TRACE;
   WordEntry  *entry,
              *firstentry;
   WordEntryPosVector1 posnull;
@@ -346,18 +354,23 @@ calc_rank_or(const float *w, TSVector t, TSQuery q)
     res = res / size;
 
   pfree(item);
+
+  DBUG_PRINT("info", "result:%g", res);
   return res;
 }
 
 static float
 calc_rank(const float *w, TSVector t, TSQuery q, int32 method)
 {
+  DBUG_TRACE;
   QueryItem  *item = GETQUERY(q);
   float   res = 0.0;
   int     len;
 
-  if (!t->size || !q->size)
+  if (!t->size || !q->size) {
+    DBUG_PRINT("info", "result:0.0");
     return 0.0;
+  }
 
   /* XXX: What about NOT? */
   res = (item->type == QI_OPR && (item->qoperator.oper == OP_AND ||
@@ -389,6 +402,7 @@ calc_rank(const float *w, TSVector t, TSQuery q, int32 method)
   if (method & RANK_NORM_RDIVRPLUS1)
     res /= (res + 1);
 
+  DBUG_PRINT("info", "result:%g", res);
   return res;
 }
 
@@ -399,6 +413,7 @@ calc_rank(const float *w, TSVector t, TSQuery q, int32 method)
 static void
 getWeights(ArrayType *win, float *ws)
 {
+  DBUG_TRACE;
   int     i;
   float4     *arrdata;
 
@@ -434,6 +449,7 @@ getWeights(ArrayType *win, float *ws)
 Datum
 ts_rank_wttf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *win = (ArrayType *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   TSVector  txt = PG_GETARG_TSVECTOR(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -447,12 +463,14 @@ ts_rank_wttf(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(win, 0);
   PG_FREE_IF_COPY(txt, 1);
   PG_FREE_IF_COPY(query, 2);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rank_wtt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *win = (ArrayType *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   TSVector  txt = PG_GETARG_TSVECTOR(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -465,12 +483,14 @@ ts_rank_wtt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(win, 0);
   PG_FREE_IF_COPY(txt, 1);
   PG_FREE_IF_COPY(query, 2);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rank_ttf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  txt = PG_GETARG_TSVECTOR(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   int     method = PG_GETARG_INT32(2);
@@ -480,12 +500,14 @@ ts_rank_ttf(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(txt, 0);
   PG_FREE_IF_COPY(query, 1);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rank_tt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  txt = PG_GETARG_TSVECTOR(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   float   res;
@@ -494,6 +516,7 @@ ts_rank_tt(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(txt, 0);
   PG_FREE_IF_COPY(query, 1);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
@@ -558,6 +581,7 @@ static TSTernaryValue
 checkcondition_QueryOperand(void *checkval, QueryOperand *val,
                             ExecPhraseData *data)
 {
+  DBUG_TRACE;
   QueryRepresentation *qr = (QueryRepresentation *) checkval;
   QueryRepresentationOperand *opData = QR_GET_OPERAND_DATA(qr, val);
 
@@ -598,6 +622,7 @@ resetQueryRepresentation(QueryRepresentation *qr, bool reverseinsert)
 static void
 fillQueryRepresentationData(QueryRepresentation *qr, DocRepresentation *entry)
 {
+  DBUG_TRACE;
   int     i;
   int     lastPos;
   QueryRepresentationOperand *opData;
@@ -635,6 +660,7 @@ fillQueryRepresentationData(QueryRepresentation *qr, DocRepresentation *entry)
 static bool
 Cover(DocRepresentation *doc, int len, QueryRepresentation *qr, CoverExt *ext)
 {
+  DBUG_TRACE;
   DocRepresentation *ptr;
   int     lastpos = ext->pos;
   bool    found = false;
@@ -670,8 +696,10 @@ Cover(DocRepresentation *doc, int len, QueryRepresentation *qr, CoverExt *ext)
     ptr++;
   }
 
-  if (!found)
+  if (!found) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   resetQueryRepresentation(qr, true);
 
@@ -703,6 +731,7 @@ Cover(DocRepresentation *doc, int len, QueryRepresentation *qr, CoverExt *ext)
      * cover
      */
     ext->pos = (ptr - doc) + 1;
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
@@ -713,6 +742,7 @@ Cover(DocRepresentation *doc, int len, QueryRepresentation *qr, CoverExt *ext)
 static DocRepresentation *
 get_docrep(TSVector txt, QueryRepresentation *qr, int *doclen)
 {
+  DBUG_TRACE;
   QueryItem  *item = GETQUERY(qr->query);
   WordEntry  *entry,
              *firstentry;
@@ -824,6 +854,7 @@ get_docrep(TSVector txt, QueryRepresentation *qr, int *doclen)
 static float4
 calc_rank_cd(const float4 *arrdata, TSVector txt, TSQuery query, int method)
 {
+  DBUG_TRACE;
   DocRepresentation *doc;
   int     len,
           i,
@@ -924,12 +955,14 @@ calc_rank_cd(const float4 *arrdata, TSVector txt, TSQuery query, int method)
 
   pfree(qr.operandData);
 
+  DBUG_PRINT("info", "result:%g", (float4) Wdoc);
   return (float4) Wdoc;
 }
 
 Datum
 ts_rankcd_wttf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *win = (ArrayType *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   TSVector  txt = PG_GETARG_TSVECTOR(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -943,12 +976,14 @@ ts_rankcd_wttf(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(win, 0);
   PG_FREE_IF_COPY(txt, 1);
   PG_FREE_IF_COPY(query, 2);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rankcd_wtt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *win = (ArrayType *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
   TSVector  txt = PG_GETARG_TSVECTOR(1);
   TSQuery   query = PG_GETARG_TSQUERY(2);
@@ -961,12 +996,14 @@ ts_rankcd_wtt(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(win, 0);
   PG_FREE_IF_COPY(txt, 1);
   PG_FREE_IF_COPY(query, 2);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rankcd_ttf(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  txt = PG_GETARG_TSVECTOR(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   int     method = PG_GETARG_INT32(2);
@@ -976,12 +1013,14 @@ ts_rankcd_ttf(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(txt, 0);
   PG_FREE_IF_COPY(query, 1);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }
 
 Datum
 ts_rankcd_tt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSVector  txt = PG_GETARG_TSVECTOR(0);
   TSQuery   query = PG_GETARG_TSQUERY(1);
   float   res;
@@ -990,5 +1029,6 @@ ts_rankcd_tt(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(txt, 0);
   PG_FREE_IF_COPY(query, 1);
+  DBUG_PRINT("info", "result:%g", res);
   PG_RETURN_FLOAT4(res);
 }

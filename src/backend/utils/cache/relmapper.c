@@ -37,6 +37,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <fcntl.h>
@@ -161,6 +162,7 @@ static void perform_relmap_update(bool shared, const RelMapFile *updates);
 RelFileNumber
 RelationMapOidToFilenumber(Oid relationId, bool shared)
 {
+  DBUG_TRACE;
   const RelMapFile *map;
   int32   i;
 
@@ -213,6 +215,7 @@ RelationMapOidToFilenumber(Oid relationId, bool shared)
 Oid
 RelationMapFilenumberToOid(RelFileNumber filenumber, bool shared)
 {
+  DBUG_TRACE;
   const RelMapFile *map;
   int32   i;
 
@@ -259,6 +262,7 @@ RelationMapFilenumberToOid(RelFileNumber filenumber, bool shared)
 RelFileNumber
 RelationMapOidToFilenumberForDatabase(char *dbpath, Oid relationId)
 {
+  DBUG_TRACE;
   RelMapFile  map;
   int     i;
 
@@ -285,6 +289,7 @@ RelationMapOidToFilenumberForDatabase(char *dbpath, Oid relationId)
 void
 RelationMapCopy(Oid dbid, Oid tsid, char *srcdbpath, char *dstdbpath)
 {
+  DBUG_TRACE;
   RelMapFile  map;
 
   /*
@@ -319,6 +324,7 @@ void
 RelationMapUpdateMap(Oid relationId, RelFileNumber fileNumber, bool shared,
                      bool immediate)
 {
+  DBUG_TRACE;
   RelMapFile *map;
 
   if (IsBootstrapProcessingMode()) {
@@ -372,6 +378,7 @@ static void
 apply_map_update(RelMapFile *map, Oid relationId, RelFileNumber fileNumber,
                  bool add_okay)
 {
+  DBUG_TRACE;
   int32   i;
 
   /* Replace any existing mapping */
@@ -404,6 +411,7 @@ apply_map_update(RelMapFile *map, Oid relationId, RelFileNumber fileNumber,
 static void
 merge_map_updates(RelMapFile *map, const RelMapFile *updates, bool add_okay)
 {
+  DBUG_TRACE;
   int32   i;
 
   for (i = 0; i < updates->num_mappings; i++) {
@@ -425,6 +433,7 @@ merge_map_updates(RelMapFile *map, const RelMapFile *updates, bool add_okay)
 void
 RelationMapRemoveMapping(Oid relationId)
 {
+  DBUG_TRACE;
   RelMapFile *map = &active_local_updates;
   int32   i;
 
@@ -454,6 +463,8 @@ RelationMapRemoveMapping(Oid relationId)
 void
 RelationMapInvalidate(bool shared)
 {
+  DBUG_TRACE;
+
   if (shared) {
     if (shared_map.magic == RELMAPPER_FILEMAGIC)
       load_relmap_file(true, false);
@@ -473,6 +484,8 @@ RelationMapInvalidate(bool shared)
 void
 RelationMapInvalidateAll(void)
 {
+  DBUG_TRACE;
+
   if (shared_map.magic == RELMAPPER_FILEMAGIC)
     load_relmap_file(true, false);
 
@@ -488,6 +501,8 @@ RelationMapInvalidateAll(void)
 void
 AtCCI_RelationMap(void)
 {
+  DBUG_TRACE;
+
   if (pending_shared_updates.num_mappings != 0) {
     merge_map_updates(&active_shared_updates,
                       &pending_shared_updates,
@@ -524,6 +539,8 @@ AtCCI_RelationMap(void)
 void
 AtEOXact_RelationMap(bool isCommit, bool isParallelWorker)
 {
+  DBUG_TRACE;
+
   if (isCommit && !isParallelWorker) {
     /*
      * We should not get here with any "pending" updates.  (We could
@@ -567,6 +584,8 @@ AtEOXact_RelationMap(bool isCommit, bool isParallelWorker)
 void
 AtPrepare_RelationMap(void)
 {
+  DBUG_TRACE;
+
   if (active_shared_updates.num_mappings != 0 ||
       active_local_updates.num_mappings != 0 ||
       pending_shared_updates.num_mappings != 0 ||
@@ -590,6 +609,7 @@ AtPrepare_RelationMap(void)
 void
 CheckPointRelationMap(void)
 {
+  DBUG_TRACE;
   LWLockAcquire(RelationMappingLock, LW_SHARED);
   LWLockRelease(RelationMappingLock);
 }
@@ -604,6 +624,7 @@ CheckPointRelationMap(void)
 void
 RelationMapFinishBootstrap(void)
 {
+  DBUG_TRACE;
   Assert(IsBootstrapProcessingMode());
 
   /* Shouldn't be anything "pending" ... */
@@ -630,6 +651,7 @@ RelationMapFinishBootstrap(void)
 void
 RelationMapInitialize(void)
 {
+  DBUG_TRACE;
   /* The static variables should initialize to zeroes, but let's be sure */
   shared_map.magic = 0;   /* mark it not loaded */
   local_map.magic = 0;
@@ -650,6 +672,8 @@ RelationMapInitialize(void)
 void
 RelationMapInitializePhase2(void)
 {
+  DBUG_TRACE;
+
   /*
    * In bootstrap mode, the map file isn't there yet, so do nothing.
    */
@@ -671,6 +695,8 @@ RelationMapInitializePhase2(void)
 void
 RelationMapInitializePhase3(void)
 {
+  DBUG_TRACE;
+
   /*
    * In bootstrap mode, the map file isn't there yet, so do nothing.
    */
@@ -692,6 +718,7 @@ RelationMapInitializePhase3(void)
 Size
 EstimateRelationMapSpace(void)
 {
+  DBUG_TRACE;
   return sizeof(SerializedActiveRelMaps);
 }
 
@@ -703,6 +730,7 @@ EstimateRelationMapSpace(void)
 void
 SerializeRelationMap(Size maxSize, char *startAddress)
 {
+  DBUG_TRACE;
   SerializedActiveRelMaps *relmaps;
 
   Assert(maxSize >= EstimateRelationMapSpace());
@@ -720,6 +748,7 @@ SerializeRelationMap(Size maxSize, char *startAddress)
 void
 RestoreRelationMap(char *startAddress)
 {
+  DBUG_TRACE;
   SerializedActiveRelMaps *relmaps;
 
   if (active_shared_updates.num_mappings != 0 ||
@@ -744,6 +773,8 @@ RestoreRelationMap(char *startAddress)
 static void
 load_relmap_file(bool shared, bool lock_held)
 {
+  DBUG_TRACE;
+
   if (shared)
     read_relmap_file(&shared_map, "global", lock_held, FATAL);
   else
@@ -763,6 +794,7 @@ load_relmap_file(bool shared, bool lock_held)
 static void
 read_relmap_file(RelMapFile *map, char *dbpath, bool lock_held, int elevel)
 {
+  DBUG_TRACE;
   char    mapfilename[MAXPGPATH];
   pg_crc32c crc;
   int     fd;
@@ -871,6 +903,7 @@ static void
 write_relmap_file(RelMapFile *newmap, bool write_wal, bool send_sinval,
                   bool preserve_files, Oid dbid, Oid tsid, const char *dbpath)
 {
+  DBUG_TRACE;
   int     fd;
   char    mapfilename[MAXPGPATH];
   char    maptempfilename[MAXPGPATH];
@@ -1021,6 +1054,7 @@ write_relmap_file(RelMapFile *newmap, bool write_wal, bool send_sinval,
 static void
 perform_relmap_update(bool shared, const RelMapFile *updates)
 {
+  DBUG_TRACE;
   RelMapFile  newmap;
 
   /*
@@ -1078,6 +1112,7 @@ perform_relmap_update(bool shared, const RelMapFile *updates)
 void
 relmap_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /* Backup blocks are not used in relmap records */
@@ -1088,6 +1123,8 @@ relmap_redo(XLogReaderState *record)
     RelMapFile  newmap;
     char     *dbpath;
 
+    DBUG_PRINT("info", "XLOG_RELMAP_UPDATE");
+
     if (xlrec->nbytes != sizeof(RelMapFile))
       elog(PANIC, "relmap_redo: wrong size %u in relmap update record",
            xlrec->nbytes);
@@ -1096,6 +1133,7 @@ relmap_redo(XLogReaderState *record)
 
     /* We need to construct the pathname for this database */
     dbpath = GetDatabasePath(xlrec->dbid, xlrec->tsid);
+    DBUG_PRINT("info", "dbpath:'%s'", dbpath);
 
     /*
      * Write out the new map and send sinval, but of course don't write a

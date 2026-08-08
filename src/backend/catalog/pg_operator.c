@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -67,6 +68,7 @@ static Oid  get_other_operator(List *otherOp,
 static bool
 validOperatorName(const char *name)
 {
+  DBUG_TRACE;
   size_t    len = strlen(name);
 
   /* Can't be empty or too long */
@@ -126,6 +128,7 @@ OperatorGet(const char *operatorName,
             Oid rightObjectId,
             bool *defined)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Oid     operatorObjectId;
 
@@ -163,6 +166,7 @@ OperatorLookup(List *operatorName,
                Oid rightObjectId,
                bool *defined)
 {
+  DBUG_TRACE;
   Oid     operatorObjectId;
   RegProcedure oprcode;
 
@@ -192,6 +196,7 @@ OperatorShellMake(const char *operatorName,
                   Oid leftTypeId,
                   Oid rightTypeId)
 {
+  DBUG_TRACE;
   Relation  pg_operator_desc;
   Oid     operatorObjectId;
   int     i;
@@ -204,11 +209,13 @@ OperatorShellMake(const char *operatorName,
   /*
    * validate operator name
    */
-  if (!validOperatorName(operatorName))
+  if (!validOperatorName(operatorName)) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a valid operator name", operatorName);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_NAME),
              errmsg("\"%s\" is not a valid operator name",
                     operatorName)));
+  }
 
   /*
    * open pg_operator
@@ -326,6 +333,7 @@ OperatorCreate(const char *operatorName,
                bool canMerge,
                bool canHash)
 {
+  DBUG_TRACE;
   Relation  pg_operator_desc;
   HeapTuple tup;
   bool    isUpdate;
@@ -345,11 +353,13 @@ OperatorCreate(const char *operatorName,
   /*
    * Sanity checks
    */
-  if (!validOperatorName(operatorName))
+  if (!validOperatorName(operatorName)) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not a valid operator name", operatorName);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_NAME),
              errmsg("\"%s\" is not a valid operator name",
                     operatorName)));
+  }
 
   operResultType = get_func_rettype(procedureId);
 
@@ -369,11 +379,13 @@ OperatorCreate(const char *operatorName,
                                  rightTypeId,
                                  &operatorAlreadyDefined);
 
-  if (operatorAlreadyDefined)
+  if (operatorAlreadyDefined) {
+    DBUG_INSTANT_PRINT("info", "operator %s already exists", operatorName);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_FUNCTION),
              errmsg("operator %s already exists",
                     operatorName)));
+  }
 
   /*
    * At this point, if operatorObjectId is not InvalidOid then we are
@@ -432,10 +444,12 @@ OperatorCreate(const char *operatorName,
      * operator but it doesn't exist yet) or operatorObjectId (we are
      * replacing a shell that would need to be its own negator).
      */
-    if (!OidIsValid(negatorId) || negatorId == operatorObjectId)
+    if (!OidIsValid(negatorId) || negatorId == operatorObjectId) {
+      DBUG_INSTANT_PRINT("info", "operator cannot be its own negator");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("operator cannot be its own negator")));
+    }
   } else
     negatorId = InvalidOid;
 
@@ -552,55 +566,75 @@ OperatorValidateParams(Oid leftTypeId,
                        bool canMerge,
                        bool canHash)
 {
+  DBUG_TRACE;
+
   if (!(OidIsValid(leftTypeId) && OidIsValid(rightTypeId))) {
     /* If it's not a binary op, these things mustn't be set: */
-    if (hasCommutator)
+    if (hasCommutator) {
+      DBUG_INSTANT_PRINT("info", "only binary operators can have commutators");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only binary operators can have commutators")));
+    }
 
-    if (hasJoinSelectivity)
+    if (hasJoinSelectivity) {
+      DBUG_INSTANT_PRINT("info", "only binary operators can have join selectivity");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only binary operators can have join selectivity")));
+    }
 
-    if (canMerge)
+    if (canMerge) {
+      DBUG_INSTANT_PRINT("info", "only binary operators can merge join");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only binary operators can merge join")));
+    }
 
-    if (canHash)
+    if (canHash) {
+      DBUG_INSTANT_PRINT("info", "only binary operators can hash");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only binary operators can hash")));
+    }
   }
 
   if (operResultType != BOOLOID) {
     /* If it's not a boolean op, these things mustn't be set: */
-    if (hasNegator)
+    if (hasNegator) {
+      DBUG_INSTANT_PRINT("info", "only boolean operators can have negators");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only boolean operators can have negators")));
+    }
 
-    if (hasRestrictionSelectivity)
+    if (hasRestrictionSelectivity) {
+      DBUG_INSTANT_PRINT("info", "only boolean operators can have restriction selectivity");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only boolean operators can have restriction selectivity")));
+    }
 
-    if (hasJoinSelectivity)
+    if (hasJoinSelectivity) {
+      DBUG_INSTANT_PRINT("info", "only boolean operators can have join selectivity");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only boolean operators can have join selectivity")));
+    }
 
-    if (canMerge)
+    if (canMerge) {
+      DBUG_INSTANT_PRINT("info", "only boolean operators can merge join");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only boolean operators can merge join")));
+    }
 
-    if (canHash)
+    if (canHash) {
+      DBUG_INSTANT_PRINT("info", "only boolean operators can hash");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("only boolean operators can hash")));
+    }
   }
 }
 
@@ -617,6 +651,7 @@ get_other_operator(List *otherOp, Oid otherLeftTypeId, Oid otherRightTypeId,
                    const char *operatorName, Oid operatorNamespace,
                    Oid leftTypeId, Oid rightTypeId)
 {
+  DBUG_TRACE;
   Oid     other_oid;
   bool    otherDefined;
   char     *otherName;
@@ -676,6 +711,7 @@ get_other_operator(List *otherOp, Oid otherLeftTypeId, Oid otherRightTypeId,
 void
 OperatorUpd(Oid baseId, Oid commId, Oid negId, bool isDelete)
 {
+  DBUG_TRACE;
   Relation  pg_operator_desc;
   HeapTuple tup;
 
@@ -721,16 +757,19 @@ OperatorUpd(Oid baseId, Oid commId, Oid negId, bool isDelete)
       if (OidIsValid(t->oprcom)) {
         char     *thirdop = get_opname(t->oprcom);
 
-        if (thirdop != NULL)
+        if (thirdop != NULL) {
+          DBUG_INSTANT_PRINT("info", "commutator operator %s is already the commutator of operator %s", NameStr(t->oprname), thirdop);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("commutator operator %s is already the commutator of operator %s",
                           NameStr(t->oprname), thirdop)));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "commutator operator %s is already the commutator of operator %u", NameStr(t->oprname), t->oprcom);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("commutator operator %s is already the commutator of operator %u",
                           NameStr(t->oprname), t->oprcom)));
+        }
       }
 
       t->oprcom = baseId;
@@ -783,16 +822,19 @@ OperatorUpd(Oid baseId, Oid commId, Oid negId, bool isDelete)
       if (OidIsValid(t->oprnegate)) {
         char     *thirdop = get_opname(t->oprnegate);
 
-        if (thirdop != NULL)
+        if (thirdop != NULL) {
+          DBUG_INSTANT_PRINT("info", "negator operator %s is already the negator of operator %s", NameStr(t->oprname), thirdop);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("negator operator %s is already the negator of operator %s",
                           NameStr(t->oprname), thirdop)));
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "negator operator %s is already the negator of operator %u", NameStr(t->oprname), t->oprnegate);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("negator operator %s is already the negator of operator %u",
                           NameStr(t->oprname), t->oprnegate)));
+        }
       }
 
       t->oprnegate = baseId;
@@ -835,6 +877,7 @@ makeOperatorDependencies(HeapTuple tuple,
                          bool makeExtensionDep,
                          bool isUpdate)
 {
+  DBUG_TRACE;
   Form_pg_operator oper = (Form_pg_operator) GETSTRUCT(tuple);
   ObjectAddress myself,
                 referenced;

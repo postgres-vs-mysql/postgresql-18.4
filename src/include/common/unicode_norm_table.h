@@ -36,8 +36,7 @@ typedef struct
 #define DECOMPOSITION_IS_COMPAT(x) (((x)->dec_size_flags & DECOMP_COMPAT) != 0)
 
 /* Table of Unicode codepoints and their decompositions */
-static const pg_unicode_decomposition UnicodeDecompMain[6843] =
-{
+static const pg_unicode_decomposition UnicodeDecompMain[6843] = {
   {0x00A0, 0, 1 | DECOMP_COMPAT | DECOMP_INLINE, 0x0020},
   {0x00A8, 0, 2 | DECOMP_COMPAT, 0},
   {0x00AA, 0, 1 | DECOMP_COMPAT | DECOMP_INLINE, 0x0061},
@@ -6885,8 +6884,7 @@ static const pg_unicode_decomposition UnicodeDecompMain[6843] =
 };
 
 /* codepoints array  */
-static const uint32 UnicodeDecomp_codepoints[5138] =
-{
+static const uint32 UnicodeDecomp_codepoints[5138] = {
   /* 0 */ 0x0020, 0x0308,
   /* 2 */ 0x0020, 0x0304,
   /* 4 */ 0x0020, 0x0301,

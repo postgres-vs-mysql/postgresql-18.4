@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/htup_details.h"
@@ -76,6 +77,8 @@ static bool IndexSupportsBackwardScan(Oid indexid);
 void
 ExecReScan(PlanState *node)
 {
+  DBUG_TRACE;
+
   /* If collecting timing stats, update them */
   if (node->instrument)
     InstrEndLoop(node->instrument);
@@ -325,6 +328,8 @@ ExecReScan(PlanState *node)
 void
 ExecMarkPos(PlanState *node)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(node)) {
     case T_IndexScanState:
       ExecIndexMarkPos((IndexScanState *) node);
@@ -373,6 +378,8 @@ ExecMarkPos(PlanState *node)
 void
 ExecRestrPos(PlanState *node)
 {
+  DBUG_TRACE;
+
   switch (nodeTag(node)) {
     case T_IndexScanState:
       ExecIndexRestrPos((IndexScanState *) node);
@@ -414,6 +421,8 @@ ExecRestrPos(PlanState *node)
 bool
 ExecSupportsMarkRestore(Path *pathnode)
 {
+  DBUG_TRACE;
+
   /*
    * For consistency with the routines above, we do not examine the nodeTag
    * but rather the pathtype, which is the Plan node type the Path would
@@ -506,6 +515,8 @@ ExecSupportsMarkRestore(Path *pathnode)
 bool
 ExecSupportsBackwardScan(Plan *node)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -597,6 +608,7 @@ ExecSupportsBackwardScan(Plan *node)
 static bool
 IndexSupportsBackwardScan(Oid indexid)
 {
+  DBUG_TRACE;
   bool    result;
   HeapTuple ht_idxrel;
   Form_pg_class idxrelrec;

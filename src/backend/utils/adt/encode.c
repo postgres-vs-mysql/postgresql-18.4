@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -46,6 +47,7 @@ static const struct pg_encoding *pg_find_encoding(const char *name);
 Datum
 binary_encode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *data = PG_GETARG_BYTEA_PP(0);
   Datum   name = PG_GETARG_DATUM(1);
   text     *result;
@@ -95,6 +97,7 @@ binary_encode(PG_FUNCTION_ARGS)
 Datum
 binary_decode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data = PG_GETARG_TEXT_PP(0);
   Datum   name = PG_GETARG_DATUM(1);
   bytea    *result;

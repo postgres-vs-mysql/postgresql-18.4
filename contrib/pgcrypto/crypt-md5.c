@@ -10,6 +10,7 @@
 
 #include "px-crypt.h"
 #include "px.h"
+#include "debug_trace.h"
 
 #define MD5_SIZE 16
 
@@ -19,6 +20,8 @@ static const char _crypt_a64[] =
 static void
 _crypt_to64(char *s, unsigned long v, int n)
 {
+  DBUG_TRACE;
+
   while (--n >= 0) {
     *s++ = _crypt_a64[v & 0x3f];
     v >>= 6;
@@ -32,6 +35,7 @@ _crypt_to64(char *s, unsigned long v, int n)
 char *
 px_crypt_md5(const char *pw, const char *salt, char *passwd, unsigned dstlen)
 {
+  DBUG_TRACE;
   static const char *magic = "$1$"; /* This string is magic for this
                      * algorithm. Having it this way, we
                      * can get better later on */

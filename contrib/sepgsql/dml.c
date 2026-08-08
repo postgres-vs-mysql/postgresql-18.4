@@ -8,6 +8,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -38,6 +39,7 @@
 static Bitmapset *
 fixup_whole_row_references(Oid relOid, Bitmapset *columns)
 {
+  DBUG_TRACE;
   Bitmapset  *result;
   HeapTuple tuple;
   AttrNumber  natts;
@@ -95,6 +97,7 @@ fixup_whole_row_references(Oid relOid, Bitmapset *columns)
 static Bitmapset *
 fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 {
+  DBUG_TRACE;
   Bitmapset  *result = NULL;
   int     index;
 
@@ -149,6 +152,7 @@ check_relation_privileges(Oid relOid,
                           uint32 required,
                           bool abort_on_violation)
 {
+  DBUG_TRACE;
   ObjectAddress object;
   char     *audit_name;
   Bitmapset  *columns;
@@ -288,6 +292,7 @@ bool
 sepgsql_dml_privileges(List *rangeTbls, List *rteperminfos,
                        bool abort_on_violation)
 {
+  DBUG_TRACE;
   ListCell   *lr;
 
   foreach(lr, rteperminfos) {

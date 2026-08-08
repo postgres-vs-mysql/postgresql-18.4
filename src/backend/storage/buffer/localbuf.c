@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "executor/instrument.h"
@@ -218,6 +219,7 @@ FlushLocalBuffer(BufferDesc *bufHdr, SMgrRelation reln)
 static Buffer
 GetLocalVictimBuffer(void)
 {
+  DBUG_TRACE;
   int     victim_bufid;
   int     trycounter;
   BufferDesc *bufHdr;
@@ -308,6 +310,7 @@ GetAdditionalLocalPinLimit(void)
 void
 LimitAdditionalLocalPins(uint32 *additional_pins)
 {
+  DBUG_TRACE;
   uint32    max_pins;
 
   if (*additional_pins <= 1)
@@ -337,6 +340,7 @@ ExtendBufferedRelLocal(BufferManagerRelation bmr,
                        Buffer *buffers,
                        uint32 *extended_by)
 {
+  DBUG_TRACE;
   BlockNumber first_block;
   instr_time  io_start;
 
@@ -469,6 +473,7 @@ ExtendBufferedRelLocal(BufferManagerRelation bmr,
 void
 MarkLocalBufferDirty(Buffer buffer)
 {
+  DBUG_TRACE;
   int     bufid;
   BufferDesc *bufHdr;
   uint32    buf_state;
@@ -643,6 +648,7 @@ void
 DropRelationLocalBuffers(RelFileLocator rlocator, ForkNumber forkNum,
                          BlockNumber firstDelBlock)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < NLocBuffer; i++) {
@@ -670,6 +676,7 @@ DropRelationLocalBuffers(RelFileLocator rlocator, ForkNumber forkNum,
 void
 DropRelationAllLocalBuffers(RelFileLocator rlocator)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < NLocBuffer; i++) {
@@ -771,6 +778,7 @@ InitLocalBuffers(void)
 bool
 PinLocalBuffer(BufferDesc *buf_hdr, bool adjust_usagecount)
 {
+  DBUG_TRACE;
   uint32    buf_state;
   Buffer    buffer = BufferDescriptorGetBuffer(buf_hdr);
   int     bufid = -buffer - 1;
@@ -808,6 +816,7 @@ PinLocalBuffer(BufferDesc *buf_hdr, bool adjust_usagecount)
 void
 UnpinLocalBuffer(Buffer buffer)
 {
+  DBUG_TRACE;
   UnpinLocalBufferNoOwner(buffer);
   ResourceOwnerForgetBuffer(CurrentResourceOwner, buffer);
 }
@@ -815,6 +824,7 @@ UnpinLocalBuffer(Buffer buffer)
 void
 UnpinLocalBufferNoOwner(Buffer buffer)
 {
+  DBUG_TRACE;
   int     buffid = -buffer - 1;
 
   Assert(BufferIsLocal(buffer));

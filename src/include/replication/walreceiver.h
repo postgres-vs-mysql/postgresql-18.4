@@ -171,14 +171,13 @@ typedef struct
   char     *slotname;   /* Name of the replication slot or NULL. */
   XLogRecPtr  startpoint;   /* LSN of starting point. */
 
-  union
-  {
-    struct
-    {
+  union {
+struct
+{
       TimeLineID  startpointTLI;  /* Starting timeline */
     }     physical;
-    struct
-    {
+struct
+{
       uint32    proto_version;  /* Logical protocol version */
       List     *publication_names;  /* String list of publications */
       bool    binary; /* Ask publisher to use binary */

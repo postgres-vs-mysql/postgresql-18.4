@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/commit_ts.h"
 #include "access/htup_details.h"
@@ -140,6 +141,7 @@ TransactionTreeSetCommitTsData(TransactionId xid, int nsubxids,
                                TransactionId *subxids, TimestampTz timestamp,
                                RepOriginId nodeid)
 {
+  DBUG_TRACE;
   int     i;
   TransactionId headxid;
   TransactionId newestXact;
@@ -222,6 +224,7 @@ SetXidCommitTsInPage(TransactionId xid, int nsubxids,
                      TransactionId *subxids, TimestampTz ts,
                      RepOriginId nodeid, int64 pageno)
 {
+  DBUG_TRACE;
   LWLock     *lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
   int     slotno;
   int     i;
@@ -249,6 +252,7 @@ static void
 TransactionIdSetCommitTs(TransactionId xid, TimestampTz ts,
                          RepOriginId nodeid, int slotno)
 {
+  DBUG_TRACE;
   int     entryno = TransactionIdToCTsEntry(xid);
   CommitTimestampEntry entry;
 
@@ -274,6 +278,7 @@ bool
 TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
                              RepOriginId *nodeid)
 {
+  DBUG_TRACE;
   int64   pageno = TransactionIdToCTsPage(xid);
   int     entryno = TransactionIdToCTsEntry(xid);
   int     slotno;
@@ -281,11 +286,12 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
   TransactionId oldestCommitTsXid;
   TransactionId newestCommitTsXid;
 
-  if (!TransactionIdIsValid(xid))
+  if (!TransactionIdIsValid(xid)) {
+    DBUG_INSTANT_PRINT("info", "cannot retrieve commit timestamp for transaction %u", xid);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("cannot retrieve commit timestamp for transaction %u", xid)));
-  else if (!TransactionIdIsNormal(xid)) {
+  } else if (!TransactionIdIsNormal(xid)) {
     /* frozen and bootstrap xids are always committed far in the past */
     *ts = 0;
 
@@ -362,6 +368,7 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 TransactionId
 GetLatestCommitTsData(TimestampTz *ts, RepOriginId *nodeid)
 {
+  DBUG_TRACE;
   TransactionId xid;
 
   LWLockAcquire(CommitTsLock, LW_SHARED);
@@ -386,6 +393,7 @@ GetLatestCommitTsData(TimestampTz *ts, RepOriginId *nodeid)
 static void
 error_commit_ts_disabled(void)
 {
+  DBUG_INSTANT_PRINT("info", "could not get commit timestamp data");
   ereport(ERROR,
           (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
            errmsg("could not get commit timestamp data"),
@@ -402,6 +410,7 @@ error_commit_ts_disabled(void)
 Datum
 pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid = PG_GETARG_TRANSACTIONID(0);
   TimestampTz ts;
   bool    found;
@@ -425,6 +434,7 @@ pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 Datum
 pg_last_committed_xact(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid;
   RepOriginId nodeid;
   TimestampTz ts;
@@ -436,8 +446,10 @@ pg_last_committed_xact(PG_FUNCTION_ARGS)
   /* and construct a tuple with our data */
   xid = GetLatestCommitTsData(&ts, &nodeid);
 
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("info", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   if (!TransactionIdIsNormal(xid)) {
     memset(nulls, true, sizeof(nulls));
@@ -466,6 +478,7 @@ pg_last_committed_xact(PG_FUNCTION_ARGS)
 Datum
 pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid = PG_GETARG_TRANSACTIONID(0);
   RepOriginId nodeid;
   TimestampTz ts;
@@ -477,8 +490,10 @@ pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 
   found = TransactionIdGetCommitTsData(xid, &ts, &nodeid);
 
-  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE) {
+    DBUG_INSTANT_PRINT("info", "return type must be a row type");
     elog(ERROR, "return type must be a row type");
+  }
 
   if (!found) {
     memset(nulls, true, sizeof(nulls));
@@ -529,6 +544,7 @@ CommitTsShmemSize(void)
 void
 CommitTsShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   /* If auto-tuning is requested, now is the time to do it */
@@ -661,6 +677,8 @@ CompleteCommitTsInitialization(void)
 void
 CommitTsParameterChange(bool newvalue, bool oldvalue)
 {
+  DBUG_TRACE;
+
   /*
    * If the commit_ts module is disabled in this server and we get word from
    * the primary server that it is enabled there, activate it so that we can
@@ -700,6 +718,7 @@ CommitTsParameterChange(bool newvalue, bool oldvalue)
 static void
 ActivateCommitTs(void)
 {
+  DBUG_TRACE;
   TransactionId xid;
   int64   pageno;
 
@@ -781,6 +800,7 @@ ActivateCommitTs(void)
 static void
 DeactivateCommitTs(void)
 {
+  DBUG_TRACE;
   /*
    * Cleanup the status in the shared memory.
    *
@@ -845,6 +865,7 @@ CheckPointCommitTs(void)
 void
 ExtendCommitTs(TransactionId newestXact)
 {
+  DBUG_TRACE;
   int64   pageno;
   LWLock     *lock;
 
@@ -870,6 +891,7 @@ ExtendCommitTs(TransactionId newestXact)
 
   lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
 
+  DBUG_PRINT("info", "zero the page(%ld) and make an XLOG entry about it", pageno);
   LWLockAcquire(lock, LW_EXCLUSIVE);
 
   /* Zero the page and make an XLOG entry about it */
@@ -887,6 +909,7 @@ ExtendCommitTs(TransactionId newestXact)
 void
 TruncateCommitTs(TransactionId oldestXact)
 {
+  DBUG_TRACE;
   int64   cutoffPage;
 
   /*
@@ -901,9 +924,11 @@ TruncateCommitTs(TransactionId oldestXact)
     return;         /* nothing to remove */
 
   /* Write XLOG record */
+  DBUG_PRINT("info", "write XLOG record");
   WriteTruncateXlogRec(cutoffPage, oldestXact);
 
   /* Now we can remove the old CommitTs segment(s) */
+  DBUG_PRINT("info", "now we can remove the old CommitTs segment(s)");
   SimpleLruTruncate(CommitTsCtl, cutoffPage);
 }
 
@@ -913,6 +938,7 @@ TruncateCommitTs(TransactionId oldestXact)
 void
 SetCommitTsLimit(TransactionId oldestXact, TransactionId newestXact)
 {
+  DBUG_TRACE;
   /*
    * Be careful not to overwrite values that are either further into the
    * "future" or signal a disabled committs.
@@ -940,6 +966,7 @@ SetCommitTsLimit(TransactionId oldestXact, TransactionId newestXact)
 void
 AdvanceOldestCommitTsXid(TransactionId oldestXact)
 {
+  DBUG_TRACE;
   LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
 
   if (TransamVariables->oldestCommitTsXid != InvalidTransactionId &&
@@ -976,6 +1003,7 @@ AdvanceOldestCommitTsXid(TransactionId oldestXact)
 static bool
 CommitTsPagePrecedes(int64 page1, int64 page2)
 {
+  DBUG_TRACE;
   TransactionId xid1;
   TransactionId xid2;
 
@@ -995,6 +1023,7 @@ CommitTsPagePrecedes(int64 page1, int64 page2)
 static void
 WriteZeroPageXlogRec(int64 pageno)
 {
+  DBUG_TRACE;
   XLogBeginInsert();
   XLogRegisterData(&pageno, sizeof(pageno));
   (void) XLogInsert(RM_COMMIT_TS_ID, COMMIT_TS_ZEROPAGE);
@@ -1006,6 +1035,7 @@ WriteZeroPageXlogRec(int64 pageno)
 static void
 WriteTruncateXlogRec(int64 pageno, TransactionId oldestXid)
 {
+  DBUG_TRACE;
   xl_commit_ts_truncate xlrec;
 
   xlrec.pageno = pageno;
@@ -1022,6 +1052,7 @@ WriteTruncateXlogRec(int64 pageno, TransactionId oldestXid)
 void
 commit_ts_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   /* Backup blocks are not used in commit_ts records */
@@ -1032,6 +1063,7 @@ commit_ts_redo(XLogReaderState *record)
     int     slotno;
     LWLock     *lock;
 
+    DBUG_PRINT("info", "COMMIT_TS_ZEROPAGE");
     memcpy(&pageno, XLogRecGetData(record), sizeof(pageno));
 
     lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
@@ -1045,6 +1077,7 @@ commit_ts_redo(XLogReaderState *record)
   } else if (info == COMMIT_TS_TRUNCATE) {
     xl_commit_ts_truncate *trunc = (xl_commit_ts_truncate *) XLogRecGetData(record);
 
+    DBUG_PRINT("info", "COMMIT_TS_TRUNCATE");
     AdvanceOldestCommitTsXid(trunc->oldestXid);
 
     /*
@@ -1055,8 +1088,10 @@ commit_ts_redo(XLogReaderState *record)
                         trunc->pageno);
 
     SimpleLruTruncate(CommitTsCtl, trunc->pageno);
-  } else
+  } else {
+    DBUG_INSTANT_PRINT("info", "commit_ts_redo: unknown op code %u", info);
     elog(PANIC, "commit_ts_redo: unknown op code %u", info);
+  }
 }
 
 /*

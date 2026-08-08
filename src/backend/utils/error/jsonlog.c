@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -107,6 +108,7 @@ appendJSONKeyValueFmt(StringInfo buf, const char *key,
 void
 write_jsonlog(ErrorData *edata)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   char     *start_time;
   char     *log_time;

@@ -37,6 +37,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/execPartition.h"
@@ -64,6 +65,7 @@ static int  heap_compare_slots(Datum a, Datum b, void *arg);
 MergeAppendState *
 ExecInitMergeAppend(MergeAppend *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   MergeAppendState *mergestate = makeNode(MergeAppendState);
   PlanState **mergeplanstates;
   const TupleTableSlotOps *mergeops;
@@ -208,6 +210,7 @@ ExecInitMergeAppend(MergeAppend *node, EState *estate, int eflags)
 static TupleTableSlot *
 ExecMergeAppend(PlanState *pstate)
 {
+  DBUG_TRACE;
   MergeAppendState *node = castNode(MergeAppendState, pstate);
   TupleTableSlot *result;
   SlotNumber  i;
@@ -278,6 +281,7 @@ ExecMergeAppend(PlanState *pstate)
 static int32
 heap_compare_slots(Datum a, Datum b, void *arg)
 {
+  DBUG_TRACE;
   MergeAppendState *node = (MergeAppendState *) arg;
   SlotNumber  slot1 = DatumGetInt32(a);
   SlotNumber  slot2 = DatumGetInt32(b);
@@ -325,6 +329,7 @@ heap_compare_slots(Datum a, Datum b, void *arg)
 void
 ExecEndMergeAppend(MergeAppendState *node)
 {
+  DBUG_TRACE;
   PlanState **mergeplans;
   int     nplans;
   int     i;
@@ -345,6 +350,7 @@ ExecEndMergeAppend(MergeAppendState *node)
 void
 ExecReScanMergeAppend(MergeAppendState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   /*

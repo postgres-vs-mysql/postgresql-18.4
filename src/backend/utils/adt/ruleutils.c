@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <unistd.h>
@@ -555,6 +556,7 @@ static void get_json_table_nested_columns(TableFunc *tf, JsonTablePlan *plan,
 Datum
 pg_get_ruledef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     ruleoid = PG_GETARG_OID(0);
   int     prettyFlags;
   char     *res;
@@ -573,6 +575,7 @@ pg_get_ruledef(PG_FUNCTION_ARGS)
 Datum
 pg_get_ruledef_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     ruleoid = PG_GETARG_OID(0);
   bool    pretty = PG_GETARG_BOOL(1);
   int     prettyFlags;
@@ -673,6 +676,7 @@ pg_get_ruledef_worker(Oid ruleoid, int prettyFlags)
 Datum
 pg_get_viewdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By OID */
   Oid     viewoid = PG_GETARG_OID(0);
   int     prettyFlags;
@@ -692,6 +696,7 @@ pg_get_viewdef(PG_FUNCTION_ARGS)
 Datum
 pg_get_viewdef_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By OID */
   Oid     viewoid = PG_GETARG_OID(0);
   bool    pretty = PG_GETARG_BOOL(1);
@@ -711,6 +716,7 @@ pg_get_viewdef_ext(PG_FUNCTION_ARGS)
 Datum
 pg_get_viewdef_wrap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By OID */
   Oid     viewoid = PG_GETARG_OID(0);
   int     wrap = PG_GETARG_INT32(1);
@@ -731,6 +737,7 @@ pg_get_viewdef_wrap(PG_FUNCTION_ARGS)
 Datum
 pg_get_viewdef_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By qualified name */
   text     *viewname = PG_GETARG_TEXT_PP(0);
   int     prettyFlags;
@@ -756,6 +763,7 @@ pg_get_viewdef_name(PG_FUNCTION_ARGS)
 Datum
 pg_get_viewdef_name_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* By qualified name */
   text     *viewname = PG_GETARG_TEXT_PP(0);
   bool    pretty = PG_GETARG_BOOL(1);
@@ -784,6 +792,7 @@ pg_get_viewdef_name_ext(PG_FUNCTION_ARGS)
 static char *
 pg_get_viewdef_worker(Oid viewoid, int prettyFlags, int wrapColumn)
 {
+  DBUG_TRACE;
   Datum   args[2];
   char    nulls[2];
   int     spirc;
@@ -866,6 +875,7 @@ pg_get_viewdef_worker(Oid viewoid, int prettyFlags, int wrapColumn)
 Datum
 pg_get_triggerdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     trigid = PG_GETARG_OID(0);
   char     *res;
 
@@ -880,6 +890,7 @@ pg_get_triggerdef(PG_FUNCTION_ARGS)
 Datum
 pg_get_triggerdef_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     trigid = PG_GETARG_OID(0);
   bool    pretty = PG_GETARG_BOOL(1);
   char     *res;
@@ -1186,6 +1197,7 @@ pg_get_triggerdef_worker(Oid trigid, bool pretty)
 Datum
 pg_get_indexdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexrelid = PG_GETARG_OID(0);
   int     prettyFlags;
   char     *res;
@@ -1206,6 +1218,7 @@ pg_get_indexdef(PG_FUNCTION_ARGS)
 Datum
 pg_get_indexdef_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexrelid = PG_GETARG_OID(0);
   int32   colno = PG_GETARG_INT32(1);
   bool    pretty = PG_GETARG_BOOL(2);
@@ -1614,6 +1627,7 @@ pg_get_querydef(Query *query, bool pretty)
 Datum
 pg_get_statisticsobjdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     statextid = PG_GETARG_OID(0);
   char     *res;
 
@@ -1643,6 +1657,7 @@ pg_get_statisticsobjdef_string(Oid statextid)
 Datum
 pg_get_statisticsobjdef_columns(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     statextid = PG_GETARG_OID(0);
   char     *res;
 
@@ -1837,6 +1852,7 @@ pg_get_statisticsobj_worker(Oid statextid, bool columns_only, bool missing_ok)
 Datum
 pg_get_statisticsobjdef_expressions(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     statextid = PG_GETARG_OID(0);
   Form_pg_statistic_ext statextrec;
   HeapTuple statexttup;
@@ -1906,6 +1922,7 @@ pg_get_statisticsobjdef_expressions(PG_FUNCTION_ARGS)
 Datum
 pg_get_partkeydef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   char     *res;
 
@@ -2099,6 +2116,7 @@ pg_get_partkeydef_worker(Oid relid, int prettyFlags,
 Datum
 pg_get_partition_constraintdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relationId = PG_GETARG_OID(0);
   Expr     *constr_expr;
   int     prettyFlags;
@@ -2149,6 +2167,7 @@ pg_get_partconstrdef_string(Oid partitionId, char *aliasname)
 Datum
 pg_get_constraintdef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     constraintId = PG_GETARG_OID(0);
   int     prettyFlags;
   char     *res;
@@ -2166,6 +2185,7 @@ pg_get_constraintdef(PG_FUNCTION_ARGS)
 Datum
 pg_get_constraintdef_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     constraintId = PG_GETARG_OID(0);
   bool    pretty = PG_GETARG_BOOL(1);
   int     prettyFlags;
@@ -2686,6 +2706,7 @@ decompile_column_index_array(Datum column_index_array, Oid relId,
 Datum
 pg_get_expr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *expr = PG_GETARG_TEXT_PP(0);
   Oid     relid = PG_GETARG_OID(1);
   text     *result;
@@ -2704,6 +2725,7 @@ pg_get_expr(PG_FUNCTION_ARGS)
 Datum
 pg_get_expr_ext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *expr = PG_GETARG_TEXT_PP(0);
   Oid     relid = PG_GETARG_OID(1);
   bool    pretty = PG_GETARG_BOOL(2);
@@ -2808,6 +2830,7 @@ pg_get_expr_worker(text *expr, Oid relid, int prettyFlags)
 Datum
 pg_get_userbyid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     roleid = PG_GETARG_OID(0);
   Name    result;
   HeapTuple roletup;
@@ -2845,6 +2868,7 @@ pg_get_userbyid(PG_FUNCTION_ARGS)
 Datum
 pg_get_serial_sequence(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *tablename = PG_GETARG_TEXT_PP(0);
   text     *columnname = PG_GETARG_TEXT_PP(1);
   RangeVar   *tablerv;
@@ -2937,6 +2961,7 @@ pg_get_serial_sequence(PG_FUNCTION_ARGS)
 Datum
 pg_get_functiondef(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   StringInfoData buf;
   StringInfoData dq;
@@ -3195,6 +3220,7 @@ pg_get_functiondef(PG_FUNCTION_ARGS)
 Datum
 pg_get_function_arguments(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   StringInfoData buf;
   HeapTuple proctup;
@@ -3222,6 +3248,7 @@ pg_get_function_arguments(PG_FUNCTION_ARGS)
 Datum
 pg_get_function_identity_arguments(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   StringInfoData buf;
   HeapTuple proctup;
@@ -3248,6 +3275,7 @@ pg_get_function_identity_arguments(PG_FUNCTION_ARGS)
 Datum
 pg_get_function_result(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   StringInfoData buf;
   HeapTuple proctup;
@@ -3516,6 +3544,7 @@ print_function_trftypes(StringInfo buf, HeapTuple proctup)
 Datum
 pg_get_function_arg_default(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   int32   nth_arg = PG_GETARG_INT32(1);
   HeapTuple proctup;
@@ -3638,6 +3667,7 @@ print_function_sqlbody(StringInfo buf, HeapTuple proctup)
 Datum
 pg_get_function_sqlbody(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcid = PG_GETARG_OID(0);
   StringInfoData buf;
   HeapTuple proctup;
@@ -9149,6 +9179,339 @@ get_json_expr_options(JsonExpr *jsexpr, deparse_context *context,
     get_json_behavior(jsexpr->on_error, context, "ERROR");
 }
 
+static void trace_node_type(int type)
+{
+  switch (type) {
+    case T_Var:
+      DBUG_PRINT("info", "node type(var)");
+      break;
+
+    case T_Const:
+      DBUG_PRINT("info", "node type(const)");
+      break;
+
+    case T_Param:
+      DBUG_PRINT("info", "node type(param)");
+      break;
+
+    case T_CaseTestExpr:
+      DBUG_PRINT("info", "node type(case test expr)");
+      break;
+
+    case T_SQLValueFunction:
+      DBUG_PRINT("info", "node type(SQL value function)");
+      break;
+
+    case T_CoerceToDomainValue:
+      DBUG_PRINT("info", "node type(coerce to domain value)");
+      break;
+
+    case T_SetToDefault:
+      DBUG_PRINT("info", "node type(set to default)");
+      break;
+
+    case T_CurrentOfExpr:
+      DBUG_PRINT("info", "node type(current of expr)");
+      break;
+
+    case T_NextValueExpr:
+      DBUG_PRINT("info", "node type(next value expr)");
+      break;
+
+    case T_RangeTblRef:
+      DBUG_PRINT("info", "node type(range table ref)");
+      break;
+
+    case T_SortGroupClause:
+      DBUG_PRINT("info", "node type(sort group clause)");
+      break;
+
+    case T_CTESearchClause:
+      DBUG_PRINT("info", "node type(cte search clause)");
+      break;
+
+    case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node type(merge support func)");
+      break;
+
+    case T_WithCheckOption:
+      DBUG_PRINT("info", "node type(with check option)");
+      break;
+
+    case T_Aggref:
+      DBUG_PRINT("info", "node type(aggref)");
+      break;
+
+    case T_GroupingFunc:
+      DBUG_PRINT("info", "node type(grouping func)");
+      break;
+
+    case T_WindowFunc:
+      DBUG_PRINT("info", "node type(window func)");
+      break;
+
+    case T_WindowFuncRunCondition:
+      DBUG_PRINT("info", "node type(window func run condition)");
+      break;
+
+    case T_SubscriptingRef:
+      DBUG_PRINT("info", "node type(subscripting ref)");
+      break;
+
+    case T_FuncExpr:
+      DBUG_PRINT("info", "node type(func expr)");
+      break;
+
+    case T_NamedArgExpr:
+      DBUG_PRINT("info", "node type(named arg expr)");
+      break;
+
+    case T_OpExpr:
+      DBUG_PRINT("info", "node type(op expr)");
+      break;
+
+    case T_DistinctExpr:  /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(distinct expr)");
+      break;
+
+    case T_NullIfExpr:    /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(null if expr)");
+      break;
+
+    case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node type(scalar array op expr)");
+      break;
+
+    case T_BoolExpr:
+      DBUG_PRINT("info", "node type(bool expr)");
+      break;
+
+    case T_SubLink:
+      DBUG_PRINT("info", "node type(sub link)");
+      break;
+
+    case T_SubPlan:
+      DBUG_PRINT("info", "node type(sub plan)");
+      break;
+
+    case T_AlternativeSubPlan:
+      DBUG_PRINT("info", "node type(alternative sub plan)");
+      break;
+
+    case T_FieldSelect:
+      DBUG_PRINT("info", "node type(field select)");
+      break;
+
+    case T_FieldStore:
+      DBUG_PRINT("info", "node type(field store)");
+      break;
+
+    case T_RelabelType:
+      DBUG_PRINT("info", "node type(relabel type)");
+      break;
+
+    case T_CoerceViaIO:
+      DBUG_PRINT("info", "node type(coerce via io)");
+      break;
+
+    case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node type(array coerce expr)");
+      break;
+
+    case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node type(convert row type expr)");
+      break;
+
+    case T_CollateExpr:
+      DBUG_PRINT("info", "node type(collate expr)");
+      break;
+
+    case T_CaseExpr:
+      DBUG_PRINT("info", "node type(case expr)");
+      break;
+
+    case T_ArrayExpr:
+      DBUG_PRINT("info", "node type(array expr)");
+      break;
+
+    case T_RowExpr:
+      DBUG_PRINT("info", "node type(row expr)");
+      break;
+
+    case T_RowCompareExpr:
+      DBUG_PRINT("info", "node type(row compare expr)");
+      break;
+
+    case T_CoalesceExpr:
+      DBUG_PRINT("info", "node type(coalesce expr)");
+      break;
+
+    case T_MinMaxExpr:
+      DBUG_PRINT("info", "node type(min max expr)");
+      break;
+
+    case T_XmlExpr:
+      DBUG_PRINT("info", "node type(xml expr)");
+      break;
+
+    case T_JsonValueExpr:
+      DBUG_PRINT("info", "node type(json value expr)");
+      break;
+
+    case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node type(json constructor expr)");
+      break;
+
+    case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node type(json is predicate)");
+      break;
+
+    case T_JsonExpr:
+      DBUG_PRINT("info", "node type(json expr)");
+      break;
+
+    case T_JsonBehavior:
+      DBUG_PRINT("info", "node type(json behavior)");
+      break;
+
+    case T_NullTest:
+      DBUG_PRINT("info", "node type(null test)");
+      break;
+
+    case T_BooleanTest:
+      DBUG_PRINT("info", "node type(boolean test)");
+      break;
+
+    case T_CoerceToDomain:
+      DBUG_PRINT("info", "node type(coerce to domain)");
+      break;
+
+    case T_TargetEntry:
+      DBUG_PRINT("info", "node type(target entry)");
+      break;
+
+    case T_Query:
+      DBUG_PRINT("info", "node type(query)");
+      break;
+
+    case T_WindowClause:
+      DBUG_PRINT("info", "node type(window clause)");
+      break;
+
+    case T_CTECycleClause:
+      DBUG_PRINT("info", "node type(cte cycle clause)");
+      break;
+
+    case T_CommonTableExpr:
+      DBUG_PRINT("info", "node type(common table expr)");
+      break;
+
+    case T_JsonKeyValue:
+      DBUG_PRINT("info", "node type(json key value)");
+      break;
+
+    case T_JsonObjectConstructor:
+      DBUG_PRINT("info", "node type(json Object constructor)");
+      break;
+
+    case T_JsonArrayConstructor:
+      DBUG_PRINT("info", "node type(json array constructor)");
+      break;
+
+    case T_JsonArrayQueryConstructor:
+      DBUG_PRINT("info", "node type(json array query constructor)");
+      break;
+
+    case T_JsonAggConstructor:
+      DBUG_PRINT("info", "node type(json agg constructor)");
+      break;
+
+    case T_JsonObjectAgg:
+      DBUG_PRINT("info", "node type(json object agg)");
+      break;
+
+    case T_JsonArrayAgg:
+      DBUG_PRINT("info", "node type(json array agg)");
+      break;
+
+    case T_PartitionBoundSpec:
+      DBUG_PRINT("info", "node type(partition bound spec)");
+      break;
+
+    case T_PartitionRangeDatum:
+      DBUG_PRINT("info", "node type(partition range datum)");
+      break;
+
+    case T_List:
+      DBUG_PRINT("info", "node type(list)");
+      break;
+
+    case T_FromExpr:
+      DBUG_PRINT("info", "node type(from expr)");
+      break;
+
+    case T_OnConflictExpr:
+      DBUG_PRINT("info", "node type(on conflict expr)");
+      break;
+
+    case T_MergeAction:
+      DBUG_PRINT("info", "node type(merge action)");
+      break;
+
+    case T_PartitionPruneStepOp:
+      DBUG_PRINT("info", "node type(partition prune step op)");
+      break;
+
+    case T_PartitionPruneStepCombine:
+      DBUG_PRINT("info", "node type(partition prune step combine)");
+      break;
+
+    case T_JoinExpr:
+      DBUG_PRINT("info", "node type(join expr)");
+      break;
+
+    case T_SetOperationStmt:
+      DBUG_PRINT("info", "node type(set operation stmt)");
+      break;
+
+    case T_IndexClause:
+      DBUG_PRINT("info", "node type(index clause)");
+      break;
+
+    case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node type(place holder var)");
+      break;
+
+    case T_InferenceElem:
+      DBUG_PRINT("info", "node type(inference elem)");
+      break;
+
+    case T_AppendRelInfo:
+      DBUG_PRINT("info", "node type(append rel info)");
+      break;
+
+    case T_PlaceHolderInfo:
+      DBUG_PRINT("info", "node type(place holder info)");
+      break;
+
+    case T_RangeTblFunction:
+      DBUG_PRINT("info", "node type(range table function)");
+      break;
+
+    case T_TableSampleClause:
+      DBUG_PRINT("info", "node type(table sample clause)");
+      break;
+
+    case T_TableFunc:
+      DBUG_PRINT("info", "node type(table func)");
+      break;
+
+    default:
+      DBUG_PRINT("info", "node tag:%d", type);
+      break;
+  }
+}
+
 /* ----------
  * get_rule_expr      - Parse back an expression
  *
@@ -9182,6 +9545,8 @@ get_rule_expr(Node *node, deparse_context *context,
    * we emit the component items comma-separated with no surrounding
    * decoration; this is convenient for most callers.
    */
+  trace_node_type(nodeTag(node));
+
   switch (nodeTag(node)) {
     case T_Var:
       (void) get_variable((Var *) node, 0, false, context);
@@ -11391,6 +11756,7 @@ get_coercion_expr(Node *arg, deparse_context *context,
 static void
 get_const_expr(Const *constval, deparse_context *context, int showtype)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   Oid     typoutput;
   bool    typIsVarlena;

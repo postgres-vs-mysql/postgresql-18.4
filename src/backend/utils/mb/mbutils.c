@@ -32,6 +32,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -117,6 +118,7 @@ static void report_invalid_encoding_db(const char *mbstr, int mblen, int len);
 int
 PrepareClientEncoding(int encoding)
 {
+  DBUG_TRACE;
   int     current_server_encoding;
   ListCell   *lc;
 
@@ -214,6 +216,7 @@ PrepareClientEncoding(int encoding)
 int
 SetClientEncoding(int encoding)
 {
+  DBUG_TRACE;
   int     current_server_encoding;
   bool    found;
   ListCell   *lc;
@@ -281,6 +284,7 @@ SetClientEncoding(int encoding)
 void
 InitializeClientEncoding(void)
 {
+  DBUG_TRACE;
   int     current_server_encoding;
 
   Assert(!backend_startup_complete);
@@ -356,6 +360,7 @@ unsigned char *
 pg_do_encoding_conversion(unsigned char *src, int len,
                           int src_encoding, int dest_encoding)
 {
+  DBUG_TRACE;
   unsigned char *result;
   Oid     proc;
 
@@ -472,6 +477,7 @@ pg_do_encoding_conversion_buf(Oid proc,
                               unsigned char *dest, int destlen,
                               bool noError)
 {
+  DBUG_TRACE;
   Datum   result;
 
   /*
@@ -499,6 +505,7 @@ pg_do_encoding_conversion_buf(Oid proc,
 Datum
 pg_convert_to(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   string = PG_GETARG_DATUM(0);
   Datum   dest_encoding_name = PG_GETARG_DATUM(1);
   Datum   src_encoding_name = DirectFunctionCall1(namein,
@@ -524,6 +531,7 @@ pg_convert_to(PG_FUNCTION_ARGS)
 Datum
 pg_convert_from(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   string = PG_GETARG_DATUM(0);
   Datum   src_encoding_name = PG_GETARG_DATUM(1);
   Datum   dest_encoding_name = DirectFunctionCall1(namein,
@@ -551,6 +559,7 @@ pg_convert_from(PG_FUNCTION_ARGS)
 Datum
 pg_convert(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *string = PG_GETARG_BYTEA_PP(0);
   char     *src_encoding_name = NameStr(*PG_GETARG_NAME(1));
   int     src_encoding = pg_char_to_encoding(src_encoding_name);
@@ -614,6 +623,7 @@ pg_convert(PG_FUNCTION_ARGS)
 Datum
 length_in_encoding(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *string = PG_GETARG_BYTEA_PP(0);
   char     *src_encoding_name = NameStr(*PG_GETARG_NAME(1));
   int     src_encoding = pg_char_to_encoding(src_encoding_name);
@@ -643,6 +653,7 @@ length_in_encoding(PG_FUNCTION_ARGS)
 Datum
 pg_encoding_max_length_sql(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     encoding = PG_GETARG_INT32(0);
 
   if (PG_VALID_ENCODING(encoding))
@@ -675,6 +686,9 @@ pg_client_to_server(const char *s, int len)
 char *
 pg_any_to_server(const char *s, int len, int encoding)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "convert any encoding to server encoding");
+
   if (len <= 0)
     return unconstify(char *, s); /* empty string is always valid */
 
@@ -734,6 +748,7 @@ pg_any_to_server(const char *s, int len, int encoding)
 char *
 pg_server_to_client(const char *s, int len)
 {
+  DBUG_TRACE;
   return pg_server_to_any(s, len, ClientEncoding->encoding);
 }
 
@@ -745,6 +760,10 @@ pg_server_to_client(const char *s, int len)
 char *
 pg_server_to_any(const char *s, int len, int encoding)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "convert server encoding to any encoding(%d)", encoding);
+  DBUG_PRINT("info", "orig string:'%s'", s);
+
   if (len <= 0)
     return unconstify(char *, s); /* empty string is always valid */
 
@@ -779,6 +798,7 @@ static char *
 perform_default_encoding_conversion(const char *src, int len,
                                     bool is_client_to_server)
 {
+  DBUG_TRACE;
   char     *result;
   int     src_encoding,
           dest_encoding;
@@ -855,6 +875,7 @@ perform_default_encoding_conversion(const char *src, int len,
 void
 pg_unicode_to_server(pg_wchar c, unsigned char *s)
 {
+  DBUG_TRACE;
   unsigned char c_as_utf8[MAX_MULTIBYTE_CHAR_LEN + 1];
   int     c_as_utf8_len;
   int     server_encoding;
@@ -916,6 +937,7 @@ pg_unicode_to_server(pg_wchar c, unsigned char *s)
 bool
 pg_unicode_to_server_noerror(pg_wchar c, unsigned char *s)
 {
+  DBUG_TRACE;
   unsigned char c_as_utf8[MAX_MULTIBYTE_CHAR_LEN + 1];
   int     c_as_utf8_len;
   int     converted_len;
@@ -1300,6 +1322,7 @@ SetMessageEncoding(int encoding)
 static bool
 raw_pg_bind_textdomain_codeset(const char *domainname, int encoding)
 {
+  DBUG_TRACE;
   bool    elog_ok = (CurrentMemoryContext != NULL);
 
   if (!PG_VALID_ENCODING(encoding) || pg_enc2gettext_tbl[encoding] == NULL)
@@ -1339,6 +1362,7 @@ raw_pg_bind_textdomain_codeset(const char *domainname, int encoding)
 int
 pg_bind_textdomain_codeset(const char *domainname)
 {
+  DBUG_TRACE;
   bool    elog_ok = (CurrentMemoryContext != NULL);
   int     encoding = GetDatabaseEncoding();
   int     new_msgenc;
@@ -1389,18 +1413,21 @@ GetDatabaseEncodingName(void)
 Datum
 getdatabaseencoding(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return DirectFunctionCall1(namein, CStringGetDatum(DatabaseEncoding->name));
 }
 
 Datum
 pg_client_encoding(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return DirectFunctionCall1(namein, CStringGetDatum(ClientEncoding->name));
 }
 
 Datum
 PG_char_to_encoding(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    s = PG_GETARG_NAME(0);
 
   PG_RETURN_INT32(pg_char_to_encoding(NameStr(*s)));
@@ -1409,9 +1436,11 @@ PG_char_to_encoding(PG_FUNCTION_ARGS)
 Datum
 PG_encoding_to_char(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   encoding = PG_GETARG_INT32(0);
   const char *encoding_name = pg_encoding_to_char(encoding);
 
+  DBUG_PRINT("info", "encoding_name:'%s'", encoding_name);
   return DirectFunctionCall1(namein, CStringGetDatum(encoding_name));
 }
 
@@ -1441,6 +1470,7 @@ GetMessageEncoding(void)
 static bool
 pg_generic_charinc(unsigned char *charptr, int len)
 {
+  DBUG_TRACE;
   unsigned char *lastbyte = charptr + len - 1;
   mbchar_verifier mbverify;
 
@@ -1475,6 +1505,7 @@ pg_generic_charinc(unsigned char *charptr, int len)
 static bool
 pg_utf8_increment(unsigned char *charptr, int length)
 {
+  DBUG_TRACE;
   unsigned char a;
   unsigned char limit;
 
@@ -1560,6 +1591,7 @@ pg_utf8_increment(unsigned char *charptr, int length)
 static bool
 pg_eucjp_increment(unsigned char *charptr, int length)
 {
+  DBUG_TRACE;
   unsigned char c1,
            c2;
   int     i;
@@ -1640,6 +1672,8 @@ pg_eucjp_increment(unsigned char *charptr, int length)
 mbcharacter_incrementer
 pg_database_encoding_character_incrementer(void)
 {
+  DBUG_TRACE;
+
   /*
    * Eventually it might be best to add a field to pg_wchar_table[], but for
    * now we just use a switch.
@@ -1672,6 +1706,7 @@ pg_database_encoding_max_length(void)
 bool
 pg_verifymbstr(const char *mbstr, int len, bool noError)
 {
+  DBUG_TRACE;
   return pg_verify_mbstr(GetDatabaseEncoding(), mbstr, len, noError);
 }
 
@@ -1682,6 +1717,7 @@ pg_verifymbstr(const char *mbstr, int len, bool noError)
 bool
 pg_verify_mbstr(int encoding, const char *mbstr, int len, bool noError)
 {
+  DBUG_TRACE;
   int     oklen;
 
   Assert(PG_VALID_ENCODING(encoding));
@@ -1792,6 +1828,8 @@ check_encoding_conversion_args(int src_encoding,
                                int expected_src_encoding,
                                int expected_dest_encoding)
 {
+  DBUG_TRACE;
+
   if (!PG_VALID_ENCODING(src_encoding))
     elog(ERROR, "invalid source encoding ID: %d", src_encoding);
 
@@ -1821,6 +1859,7 @@ check_encoding_conversion_args(int src_encoding,
 void
 report_invalid_encoding(int encoding, const char *mbstr, int len)
 {
+  DBUG_TRACE;
   int     l = pg_encoding_mblen_or_incomplete(encoding, mbstr, len);
 
   report_invalid_encoding_int(encoding, mbstr, l, len);
@@ -1854,6 +1893,7 @@ report_invalid_encoding_int(int encoding, const char *mbstr, int mblen, int len)
 static void
 report_invalid_encoding_db(const char *mbstr, int mblen, int len)
 {
+  DBUG_TRACE;
   report_invalid_encoding_int(GetDatabaseEncoding(), mbstr, mblen, len);
 }
 
@@ -1867,6 +1907,7 @@ void
 report_untranslatable_char(int src_encoding, int dest_encoding,
                            const char *mbstr, int len)
 {
+  DBUG_TRACE;
   int     l;
   char    buf[8 * 5 + 1];
   char     *p = buf;
@@ -1910,6 +1951,7 @@ report_untranslatable_char(int src_encoding, int dest_encoding,
 WCHAR *
 pgwin32_message_to_UTF16(const char *str, int len, int *utf16len)
 {
+  DBUG_TRACE;
   int     msgenc = GetMessageEncoding();
   WCHAR    *utf16;
   int     dstlen;

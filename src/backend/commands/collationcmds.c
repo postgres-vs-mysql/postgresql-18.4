@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -51,6 +52,7 @@ typedef struct {
 ObjectAddress
 DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_exists)
 {
+  DBUG_TRACE;
   char     *collName;
   Oid     collNamespace;
   AclResult aclresult;
@@ -103,6 +105,7 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
     else if (strcmp(defel->defname, "version") == 0)
       defelp = &versionEl;
     else {
+      DBUG_INSTANT_PRINT("info", "collation attribute \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("collation attribute \"%s\" not recognized",
@@ -117,17 +120,21 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
     *defelp = defel;
   }
 
-  if (localeEl && (lccollateEl || lcctypeEl))
+  if (localeEl && (lccollateEl || lcctypeEl)) {
+    DBUG_INSTANT_PRINT("info", "conflicting or redundant options");
     ereport(ERROR,
             errcode(ERRCODE_SYNTAX_ERROR),
             errmsg("conflicting or redundant options"),
             errdetail("LOCALE cannot be specified together with LC_COLLATE or LC_CTYPE."));
+  }
 
-  if (fromEl && list_length(parameters) != 1)
+  if (fromEl && list_length(parameters) != 1) {
+    DBUG_INSTANT_PRINT("info", "conflicting or redundant options");
     ereport(ERROR,
             errcode(ERRCODE_SYNTAX_ERROR),
             errmsg("conflicting or redundant options"),
             errdetail("FROM cannot be specified together with any other options."));
+  }
 
   if (fromEl) {
     Oid     collid;
@@ -187,10 +194,12 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
      * not work and potentially confuse or crash some code.  This could be
      * fixed with some legwork.
      */
-    if (collprovider == COLLPROVIDER_DEFAULT)
+    if (collprovider == COLLPROVIDER_DEFAULT) {
+      DBUG_INSTANT_PRINT("info", "collation \"default\" cannot be copied");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("collation \"default\" cannot be copied")));
+    }
   } else {
     char     *collproviderstr = NULL;
 
@@ -220,11 +229,13 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
         collprovider = COLLPROVIDER_ICU;
       else if (pg_strcasecmp(collproviderstr, "libc") == 0)
         collprovider = COLLPROVIDER_LIBC;
-      else
+      else {
+        DBUG_INSTANT_PRINT("info", "unrecognized collation provider: %s", collproviderstr);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("unrecognized collation provider: %s",
                         collproviderstr)));
+      }
     } else
       collprovider = COLLPROVIDER_LIBC;
 
@@ -243,32 +254,40 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
       collctype = defGetString(lcctypeEl);
 
     if (collprovider == COLLPROVIDER_BUILTIN) {
-      if (!colllocale)
+      if (!colllocale) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be specified", "locale");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("parameter \"%s\" must be specified",
                         "locale")));
+      }
 
       colllocale = builtin_validate_locale(GetDatabaseEncoding(),
                                            colllocale);
     } else if (collprovider == COLLPROVIDER_LIBC) {
-      if (!collcollate)
+      if (!collcollate) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be specified", "lc_collate");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("parameter \"%s\" must be specified",
                         "lc_collate")));
+      }
 
-      if (!collctype)
+      if (!collctype) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be specified", "lc_ctype");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("parameter \"%s\" must be specified",
                         "lc_ctype")));
+      }
     } else if (collprovider == COLLPROVIDER_ICU) {
-      if (!colllocale)
+      if (!colllocale) {
+        DBUG_INSTANT_PRINT("info", "parameter \"%s\" must be specified", "locale");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                  errmsg("parameter \"%s\" must be specified",
                         "locale")));
+      }
 
       /*
        * During binary upgrade, preserve the locale string. Otherwise,
@@ -296,15 +315,19 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
      * difference. So we can save writing the code for the other
      * providers.
      */
-    if (!collisdeterministic && collprovider != COLLPROVIDER_ICU)
+    if (!collisdeterministic && collprovider != COLLPROVIDER_ICU) {
+      DBUG_INSTANT_PRINT("info", "nondeterministic collations not supported with this provider");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("nondeterministic collations not supported with this provider")));
+    }
 
-    if (collicurules && collprovider != COLLPROVIDER_ICU)
+    if (collicurules && collprovider != COLLPROVIDER_ICU) {
+      DBUG_INSTANT_PRINT("info", "ICU rules cannot be specified unless locale provider is ICU");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
                errmsg("ICU rules cannot be specified unless locale provider is ICU")));
+    }
 
     if (collprovider == COLLPROVIDER_BUILTIN) {
       collencoding = builtin_locale_encoding(colllocale);
@@ -381,26 +404,30 @@ DefineCollation(ParseState *pstate, List *names, List *parameters, bool if_not_e
 void
 IsThereCollationInNamespace(const char *collname, Oid nspOid)
 {
+  DBUG_TRACE;
+
   /* make sure the name doesn't already exist in new schema */
   if (SearchSysCacheExists3(COLLNAMEENCNSP,
                             CStringGetDatum(collname),
                             Int32GetDatum(GetDatabaseEncoding()),
-                            ObjectIdGetDatum(nspOid)))
+                            ObjectIdGetDatum(nspOid))) {
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("collation \"%s\" for encoding \"%s\" already exists in schema \"%s\"",
                     collname, GetDatabaseEncodingName(),
                     get_namespace_name(nspOid))));
+  }
 
   /* mustn't match an any-encoding entry, either */
   if (SearchSysCacheExists3(COLLNAMEENCNSP,
                             CStringGetDatum(collname),
                             Int32GetDatum(-1),
-                            ObjectIdGetDatum(nspOid)))
+                            ObjectIdGetDatum(nspOid))) {
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("collation \"%s\" already exists in schema \"%s\"",
                     collname, get_namespace_name(nspOid))));
+  }
 }
 
 /*
@@ -409,6 +436,7 @@ IsThereCollationInNamespace(const char *collname, Oid nspOid)
 ObjectAddress
 AlterCollation(AlterCollationStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  rel;
   Oid     collOid;
   HeapTuple tup;
@@ -422,12 +450,13 @@ AlterCollation(AlterCollationStmt *stmt)
   rel = table_open(CollationRelationId, RowExclusiveLock);
   collOid = get_collation_oid(stmt->collname, false);
 
-  if (collOid == DEFAULT_COLLATION_OID)
+  if (collOid == DEFAULT_COLLATION_OID) {
     ereport(ERROR,
             (errmsg("cannot refresh version of default collation"),
              /* translator: %s is an SQL command */
              errhint("Use %s instead.",
                      "ALTER DATABASE ... REFRESH COLLATION VERSION")));
+  }
 
   if (!object_ownercheck(CollationRelationId, collOid, GetUserId()))
     aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_COLLATION,
@@ -491,6 +520,7 @@ AlterCollation(AlterCollationStmt *stmt)
 Datum
 pg_collation_actual_version(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     collid = PG_GETARG_OID(0);
   char    provider;
   char     *locale;
@@ -502,10 +532,12 @@ pg_collation_actual_version(PG_FUNCTION_ARGS)
 
     HeapTuple dbtup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
 
-    if (!HeapTupleIsValid(dbtup))
+    if (!HeapTupleIsValid(dbtup)) {
+      DBUG_INSTANT_PRINT("info", "database with OID %u does not exist", MyDatabaseId);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("database with OID %u does not exist", MyDatabaseId)));
+    }
 
     provider = ((Form_pg_database) GETSTRUCT(dbtup))->datlocprovider;
 
@@ -523,10 +555,11 @@ pg_collation_actual_version(PG_FUNCTION_ARGS)
 
     HeapTuple colltp = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
 
-    if (!HeapTupleIsValid(colltp))
+    if (!HeapTupleIsValid(colltp)) {
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("collation with OID %u does not exist", collid)));
+    }
 
     provider = ((Form_pg_collation) GETSTRUCT(colltp))->collprovider;
     Assert(provider != COLLPROVIDER_DEFAULT);
@@ -572,6 +605,7 @@ pg_collation_actual_version(PG_FUNCTION_ARGS)
 static bool
 normalize_libc_locale_name(char *new, const char *old)
 {
+  DBUG_TRACE;
   char     *n = new;
   const char *o = old;
   bool    changed = false;
@@ -622,6 +656,7 @@ cmpaliases(const void *a, const void *b)
 static char *
 get_icu_locale_comment(const char *localename)
 {
+  DBUG_TRACE;
   UErrorCode  status;
   UChar   displayname[128];
   int32   len_uchar;
@@ -675,6 +710,7 @@ static int
 create_collation_from_locale(const char *locale, int nspid,
                              int *nvalidp, int *ncreatedp)
 {
+  DBUG_TRACE;
   int     enc;
   Oid     collid;
 
@@ -751,6 +787,7 @@ typedef struct {
 static BOOL CALLBACK
 win32_read_locale(LPWSTR pStr, DWORD dwFlags, LPARAM lparam)
 {
+  DBUG_TRACE;
   CollParam  *param = (CollParam *) lparam;
   char    localebuf[NAMEDATALEN];
   int     result;
@@ -815,18 +852,21 @@ win32_read_locale(LPWSTR pStr, DWORD dwFlags, LPARAM lparam)
 Datum
 pg_import_system_collations(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     nspid = PG_GETARG_OID(0);
   int     ncreated = 0;
 
-  if (!superuser())
+  if (!superuser()) {
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to import system collations")));
+  }
 
-  if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(nspid)))
+  if (!SearchSysCacheExists1(NAMESPACEOID, ObjectIdGetDatum(nspid))) {
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_SCHEMA),
              errmsg("schema with OID %u does not exist", nspid)));
+  }
 
   /* Load collations known to libc, using "locale -a" to enumerate them */
 #ifdef READ_LOCALE_A_OUTPUT
@@ -847,11 +887,12 @@ pg_import_system_collations(PG_FUNCTION_ARGS)
 
     locale_a_handle = OpenPipeStream("locale -a", "r");
 
-    if (locale_a_handle == NULL)
+    if (locale_a_handle == NULL) {
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not execute command \"%s\": %m",
                       "locale -a")));
+    }
 
     while (fgets(localebuf, sizeof(localebuf), locale_a_handle)) {
       size_t    len;
@@ -938,9 +979,10 @@ pg_import_system_collations(PG_FUNCTION_ARGS)
     }
 
     /* Give a warning if "locale -a" seems to be malfunctioning */
-    if (nvalid == 0)
+    if (nvalid == 0) {
       ereport(WARNING,
               (errmsg("no usable system locales were found")));
+    }
   }
 #endif              /* READ_LOCALE_A_OUTPUT */
 
@@ -1023,9 +1065,10 @@ pg_import_system_collations(PG_FUNCTION_ARGS)
       _dosmaperr(GetLastError());
 
     /* Give a warning if EnumSystemLocalesEx seems to be malfunctioning */
-    if (nvalid == 0)
+    if (nvalid == 0) {
       ereport(WARNING,
               (errmsg("no usable system locales were found")));
+    }
   }
 #endif              /* ENUM_SYSTEM_LOCALE */
 

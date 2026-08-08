@@ -33,6 +33,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_aggregate.h"
@@ -115,6 +116,7 @@ preprocess_aggrefs(PlannerInfo *root, Node *clause)
 static void
 preprocess_aggref(Aggref *aggref, PlannerInfo *root)
 {
+  DBUG_TRACE;
   HeapTuple aggTuple;
   Form_pg_aggregate aggform;
   Oid     aggtransfn;
@@ -138,6 +140,7 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
   int16   transtypeLen;
   Oid     inputTypes[FUNC_MAX_ARGS];
   int     numArguments;
+  char     *func_name;
 
   Assert(aggref->agglevelsup == 0);
 
@@ -146,6 +149,7 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
    * ignore the moving-aggregate variant, since what we're concerned with
    * here is aggregates not window functions.
    */
+  DBUG_PRINT("info", "fetch info about the aggregate from pg_aggregate");
   aggTuple = SearchSysCache1(AGGFNOID,
                              ObjectIdGetDatum(aggref->aggfnoid));
 
@@ -155,6 +159,9 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
 
   aggform = (Form_pg_aggregate) GETSTRUCT(aggTuple);
   aggtransfn = aggform->aggtransfn;
+  func_name = get_func_name(aggtransfn);
+
+  DBUG_PRINT("info", "agg trans function:%s, funoid:%u, aggref's aggfnoid:%u", func_name, aggtransfn, aggref->aggfnoid);
   aggfinalfn = aggform->aggfinalfn;
   aggcombinefn = aggform->aggcombinefn;
   aggserialfn = aggform->aggserialfn;
@@ -168,6 +175,7 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
 
   /* extract argument types (ignoring any ORDER BY expressions) */
   numArguments = get_aggregate_argtypes(aggref, inputTypes);
+  DBUG_PRINT("info", "extract argument types:%d", numArguments);
 
   /* resolve actual type of transition state, if polymorphic */
   aggtranstype = resolve_aggregate_transtype(aggref->aggfnoid,
@@ -222,10 +230,12 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
    * 1. See if this is identical to another aggregate function call that
    * we've seen already.
    */
+  DBUG_PRINT("info", "see if this is identical to another aggregate function call");
   aggno = find_compatible_agg(root, aggref, &same_input_transnos);
 
   if (aggno != -1) {
     AggInfo    *agginfo = list_nth_node(AggInfo, root->agginfos, aggno);
+    DBUG_PRINT("info", "aggno:%d", aggno);
 
     agginfo->aggrefs = lappend(agginfo->aggrefs, aggref);
     transno = agginfo->transno;
@@ -294,8 +304,10 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
          * If there is no combine function, then partial aggregation
          * is not possible.
          */
-        if (!OidIsValid(transinfo->combinefn_oid))
+        if (!OidIsValid(transinfo->combinefn_oid)) {
+          DBUG_PRINT("info", "there is no combine function and partial aggregation is not possible");
           root->hasNonPartialAggs = true;
+        }
 
         /*
          * If we have any aggs with transtype INTERNAL then we must
@@ -342,6 +354,8 @@ preprocess_aggref(Aggref *aggref, PlannerInfo *root)
 static bool
 preprocess_aggrefs_walker(Node *node, PlannerInfo *root)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -379,14 +393,17 @@ static int
 find_compatible_agg(PlannerInfo *root, Aggref *newagg,
                     List **same_input_transnos)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   int     aggno;
 
   *same_input_transnos = NIL;
 
   /* we mustn't reuse the aggref if it contains volatile function calls */
-  if (contain_volatile_functions((Node *) newagg))
+  if (contain_volatile_functions((Node *) newagg)) {
+    DBUG_PRINT("info", "we mustn't reuse the aggref because it contains volatile function calls");
     return -1;
+  }
 
   /*
    * Search through the list of already seen aggregates.  If we find an
@@ -416,8 +433,10 @@ find_compatible_agg(PlannerInfo *root, Aggref *newagg,
         !equal(newagg->args, existingRef->args) ||
         !equal(newagg->aggorder, existingRef->aggorder) ||
         !equal(newagg->aggdistinct, existingRef->aggdistinct) ||
-        !equal(newagg->aggfilter, existingRef->aggfilter))
+        !equal(newagg->aggfilter, existingRef->aggfilter)) {
+      DBUG_PRINT("info", "continue here");
       continue;
+    }
 
     /* if it's the same aggregate function then report exact match */
     if (newagg->aggfnoid == existingRef->aggfnoid &&
@@ -426,6 +445,7 @@ find_compatible_agg(PlannerInfo *root, Aggref *newagg,
         equal(newagg->aggdirectargs, existingRef->aggdirectargs)) {
       list_free(*same_input_transnos);
       *same_input_transnos = NIL;
+      DBUG_PRINT("info", "it's the same aggregate function and report exact match");
       return aggno;
     }
 
@@ -436,11 +456,14 @@ find_compatible_agg(PlannerInfo *root, Aggref *newagg,
      * we might report a transno more than once.  find_compatible_trans is
      * cheap enough that it's not worth spending cycles to avoid that.)
      */
-    if (agginfo->shareable)
+    if (agginfo->shareable) {
+      DBUG_PRINT("info", "return its transno to the caller");
       *same_input_transnos = lappend_int(*same_input_transnos,
                                          agginfo->transno);
+    }
   }
 
+  DBUG_PRINT("info", "we mustn't reuse the aggref");
   return -1;
 }
 
@@ -461,6 +484,7 @@ find_compatible_trans(PlannerInfo *root, Aggref *newagg, bool shareable,
                       Datum initValue, bool initValueIsNull,
                       List *transnos)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* If this aggregate can't share transition states, give up */
@@ -519,6 +543,7 @@ find_compatible_trans(PlannerInfo *root, Aggref *newagg, bool shareable,
 static Datum
 GetAggInitVal(Datum textInitVal, Oid transtype)
 {
+  DBUG_TRACE;
   Oid     typinput,
           typioparam;
   char     *strInitVal;
@@ -557,7 +582,11 @@ GetAggInitVal(Datum textInitVal, Oid transtype)
 void
 get_agg_clause_costs(PlannerInfo *root, AggSplit aggsplit, AggClauseCosts *costs)
 {
+  DBUG_TRACE;
   ListCell   *lc;
+
+
+  DBUG_PRINT("info", "process the PlannerInfo's 'aggtransinfos' and 'agginfos' lists accumulating the cost information about them");
 
   foreach(lc, root->aggtransinfos) {
     AggTransInfo *transinfo = lfirst_node(AggTransInfo, lc);

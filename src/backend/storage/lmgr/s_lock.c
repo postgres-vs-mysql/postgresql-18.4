@@ -45,6 +45,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <time.h>
@@ -78,6 +79,8 @@ static int  spins_per_delay = DEFAULT_SPINS_PER_DELAY;
 static void
 s_lock_stuck(const char *file, int line, const char *func)
 {
+  DBUG_TRACE;
+
   if (!func)
     func = "(unknown)";
 
@@ -98,6 +101,7 @@ s_lock_stuck(const char *file, int line, const char *func)
 int
 s_lock(volatile slock_t *lock, const char *file, int line, const char *func)
 {
+  DBUG_TRACE;
   SpinDelayStatus delayStatus;
 
   init_spin_delay(&delayStatus, file, line, func);
@@ -115,6 +119,7 @@ s_lock(volatile slock_t *lock, const char *file, int line, const char *func)
 void
 s_unlock(volatile slock_t *lock)
 {
+  DBUG_TRACE;
   *lock = 0;
 }
 #endif
@@ -125,6 +130,7 @@ s_unlock(volatile slock_t *lock)
 void
 perform_spin_delay(SpinDelayStatus *status)
 {
+  DBUG_TRACE;
   /* CPU-specific delay each time through the loop */
   SPIN_DELAY();
 

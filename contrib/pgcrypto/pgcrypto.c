@@ -29,6 +29,7 @@
  * contrib/pgcrypto/pgcrypto.c
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -88,6 +89,7 @@ PG_FUNCTION_INFO_V1(pg_digest);
 Datum
 pg_digest(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg;
   text     *name;
   unsigned  len,
@@ -115,6 +117,7 @@ pg_digest(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(arg, 0);
   PG_FREE_IF_COPY(name, 1);
 
+  DBUG_PRINT("pgcrypto", "hash(bytea, text) returns bytea");
   PG_RETURN_BYTEA_P(res);
 }
 
@@ -124,6 +127,7 @@ PG_FUNCTION_INFO_V1(pg_hmac);
 Datum
 pg_hmac(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *arg;
   bytea    *key;
   text     *name;
@@ -167,6 +171,7 @@ PG_FUNCTION_INFO_V1(pg_gen_salt);
 Datum
 pg_gen_salt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg0 = PG_GETARG_TEXT_PP(0);
   int     len;
   char    buf[PX_MAX_SALT_LEN + 1];
@@ -190,6 +195,7 @@ PG_FUNCTION_INFO_V1(pg_gen_salt_rounds);
 Datum
 pg_gen_salt_rounds(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg0 = PG_GETARG_TEXT_PP(0);
   int     rounds = PG_GETARG_INT32(1);
   int     len;
@@ -214,6 +220,7 @@ PG_FUNCTION_INFO_V1(pg_crypt);
 Datum
 pg_crypt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg0 = PG_GETARG_TEXT_PP(0);
   text     *arg1 = PG_GETARG_TEXT_PP(1);
   char     *buf0,
@@ -253,6 +260,7 @@ PG_FUNCTION_INFO_V1(pg_encrypt);
 Datum
 pg_encrypt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     err;
   bytea    *data,
            *key,
@@ -303,6 +311,7 @@ PG_FUNCTION_INFO_V1(pg_decrypt);
 Datum
 pg_decrypt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     err;
   bytea    *data,
            *key,
@@ -352,6 +361,7 @@ PG_FUNCTION_INFO_V1(pg_encrypt_iv);
 Datum
 pg_encrypt_iv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     err;
   bytea    *data,
            *key,
@@ -407,6 +417,7 @@ PG_FUNCTION_INFO_V1(pg_decrypt_iv);
 Datum
 pg_decrypt_iv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     err;
   bytea    *data,
            *key,
@@ -462,6 +473,7 @@ PG_FUNCTION_INFO_V1(pg_random_bytes);
 Datum
 pg_random_bytes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     len = PG_GETARG_INT32(0);
   bytea    *res;
 
@@ -486,6 +498,7 @@ PG_FUNCTION_INFO_V1(pg_random_uuid);
 Datum
 pg_random_uuid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* redirect to built-in function */
   return gen_random_uuid(fcinfo);
 }
@@ -503,6 +516,7 @@ find_provider(text *name,
               PFN provider_lookup,
               const char *desc, int silent)
 {
+  DBUG_TRACE;
   void     *res;
   char     *buf;
   int     err;

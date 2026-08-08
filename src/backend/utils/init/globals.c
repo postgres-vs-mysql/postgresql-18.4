@@ -145,6 +145,11 @@ int     max_worker_processes = 8;
 int     max_parallel_workers = 8;
 int     MaxBackends = 0;
 
+int enable_global_trace = 1;
+int enable_session_trace = 1;
+int max_trace_iterations = 100;
+int min_trace_iterations = 5;
+int enable_autovacuum_trace = 0;
 /* GUC parameters for vacuum */
 int     VacuumBufferUsageLimit = 2048;
 

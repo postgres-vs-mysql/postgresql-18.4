@@ -41,6 +41,7 @@ typedef enum LWLockWaitState
 typedef struct LWLock
 {
   uint16    tranche;    /* tranche ID */
+  uint16    index;
   pg_atomic_uint32 state;   /* state of exclusive/nonexclusive lockers */
   proclist_head waiters;    /* list of waiting PGPROCs */
 #ifdef LOCK_DEBUG
@@ -65,8 +66,7 @@ StaticAssertDecl(sizeof(LWLock) <= LWLOCK_PADDED_SIZE,
                  "Miscalculated LWLock padding");
 
 /* LWLock, padded to a full cache line size */
-typedef union LWLockPadded
-{
+typedef union LWLockPadded {
   LWLock    lock;
   char    pad[LWLOCK_PADDED_SIZE];
 } LWLockPadded;
@@ -170,7 +170,7 @@ extern LWLockPadded *GetNamedLWLockTranche(const char *tranche_name);
  */
 extern int  LWLockNewTrancheId(void);
 extern void LWLockRegisterTranche(int tranche_id, const char *tranche_name);
-extern void LWLockInitialize(LWLock *lock, int tranche_id);
+extern void LWLockInitialize(LWLock *lock, int tranche_id, uint16 index);
 
 /*
  * Every tranche ID less than NUM_INDIVIDUAL_LWLOCKS is reserved; also,

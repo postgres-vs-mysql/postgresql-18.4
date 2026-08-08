@@ -97,8 +97,7 @@ typedef struct
  */
 typedef union pgresult_data PGresult_data;
 
-union pgresult_data
-{
+union pgresult_data {
   PGresult_data *next;    /* link to next block, or NULL */
   char    space[1];   /* dummy for accessing block as bytes */
 };

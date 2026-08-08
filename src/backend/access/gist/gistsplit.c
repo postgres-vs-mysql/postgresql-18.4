@@ -24,6 +24,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gist_private.h"
 #include "utils/rel.h"
@@ -46,6 +47,7 @@ static void
 gistunionsubkeyvec(GISTSTATE *giststate, IndexTuple *itvec,
                    GistSplitUnion *gsvp)
 {
+  DBUG_TRACE;
   IndexTuple *cleanedItVec;
   int     i,
           cleanedLen = 0;
@@ -77,6 +79,7 @@ gistunionsubkeyvec(GISTSTATE *giststate, IndexTuple *itvec,
 static void
 gistunionsubkey(GISTSTATE *giststate, IndexTuple *itvec, GistSplitVector *spl)
 {
+  DBUG_TRACE;
   GistSplitUnion gsvp;
 
   gsvp.dontcare = spl->spl_dontcare;
@@ -111,10 +114,13 @@ static int
 findDontCares(Relation r, GISTSTATE *giststate, GISTENTRY *valvec,
               GistSplitVector *spl, int attno)
 {
+  DBUG_TRACE;
   int     i;
   GISTENTRY entry;
   int     NumDontCare = 0;
 
+  DBUG_PRINT("info", "find tuples that are 'don't cares', that is could be moved to the other");
+  DBUG_PRINT("info", "side of the split with zero penalty, so far as the attno column is concerned");
   /*
    * First, search the left-side tuples to see if any have zero penalty to
    * be added to the right-side union key.
@@ -124,6 +130,7 @@ findDontCares(Relation r, GISTSTATE *giststate, GISTENTRY *valvec,
    */
   gistentryinit(entry, spl->splitVector.spl_rdatum, r, NULL,
                 (OffsetNumber) 0, false);
+  DBUG_PRINT("info", "first, search the left-side tuples to see if any have zero penalty to be added to the right-side union key");
 
   for (i = 0; i < spl->splitVector.spl_nleft; i++) {
     int     j = spl->splitVector.spl_left[i];
@@ -137,6 +144,7 @@ findDontCares(Relation r, GISTSTATE *giststate, GISTENTRY *valvec,
   }
 
   /* And conversely for the right-side tuples */
+  DBUG_PRINT("info", "and conversely for the right-side tuples");
   gistentryinit(entry, spl->splitVector.spl_ldatum, r, NULL,
                 (OffsetNumber) 0, false);
 
@@ -151,6 +159,7 @@ findDontCares(Relation r, GISTSTATE *giststate, GISTENTRY *valvec,
     }
   }
 
+  DBUG_PRINT("info", "NumDontCare:%d", NumDontCare);
   return NumDontCare;
 }
 
@@ -162,11 +171,13 @@ findDontCares(Relation r, GISTSTATE *giststate, GISTENTRY *valvec,
 static void
 removeDontCares(OffsetNumber *a, int *len, const bool *dontcare)
 {
+  DBUG_TRACE;
   int     origlen,
           newlen,
           i;
   OffsetNumber *curwpos;
 
+  DBUG_PRINT("info", "remove tuples that are marked don't-cares from the tuple index array");
   origlen = newlen = *len;
   curwpos = a;
 
@@ -182,6 +193,7 @@ removeDontCares(OffsetNumber *a, int *len, const bool *dontcare)
   }
 
   *len = newlen;
+  DBUG_PRINT("info", "newlen:%d", newlen);
 }
 
 /*
@@ -194,12 +206,15 @@ static void
 placeOne(Relation r, GISTSTATE *giststate, GistSplitVector *v,
          IndexTuple itup, OffsetNumber off, int attno)
 {
+  DBUG_TRACE;
   GISTENTRY identry[INDEX_MAX_KEYS];
   bool    isnull[INDEX_MAX_KEYS];
   bool    toLeft = true;
 
   gistDeCompressAtt(giststate, r, itup, NULL, (OffsetNumber) 0,
                     identry, isnull);
+
+  DBUG_PRINT("info", "place a single don't-care tuple into either the left or right side of the split");
 
   for (; attno < giststate->nonLeafTupdesc->natts; attno++) {
     float   lpenalty,
@@ -251,6 +266,7 @@ static void
 supportSecondarySplit(Relation r, GISTSTATE *giststate, int attno,
                       GIST_SPLITVEC *sv, Datum oldL, Datum oldR)
 {
+  DBUG_TRACE;
   bool    leaveOnLeft = true,
           tmpBool;
   GISTENTRY entryL,
@@ -258,6 +274,7 @@ supportSecondarySplit(Relation r, GISTSTATE *giststate, int attno,
             entrySL,
             entrySR;
 
+  DBUG_PRINT("info", "clean up when we did a secondary split but the user-defined PickSplit method didn't support it");
   gistentryinit(entryL, oldL, r, NULL, 0, false);
   gistentryinit(entryR, oldR, r, NULL, 0, false);
   gistentryinit(entrySL, sv->spl_ldatum, r, NULL, 0, false);
@@ -332,11 +349,13 @@ supportSecondarySplit(Relation r, GISTSTATE *giststate, int attno,
 static void
 genericPickSplit(GISTSTATE *giststate, GistEntryVector *entryvec, GIST_SPLITVEC *v, int attno)
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff;
   int     nbytes;
   GistEntryVector *evec;
 
+  DBUG_PRINT("info", "trivial picksplit implementation");
   maxoff = entryvec->n - 1;
 
   nbytes = (maxoff + 2) * sizeof(OffsetNumber);
@@ -400,8 +419,10 @@ static bool
 gistUserPicksplit(Relation r, GistEntryVector *entryvec, int attno, GistSplitVector *v,
                   IndexTuple *itup, int len, GISTSTATE *giststate)
 {
+  DBUG_TRACE;
   GIST_SPLITVEC *sv = &v->splitVector;
 
+  DBUG_PRINT("info", "call user picksplit method for column(attno:%d) to split tuples into two vectors", attno);
   /*
    * Prepare spl_ldatum/spl_rdatum/spl_ldatum_exists/spl_rdatum_exists in
    * case we are doing a secondary split (see comments in gist.h).
@@ -562,8 +583,10 @@ gistUserPicksplit(Relation r, GistEntryVector *entryvec, int attno, GistSplitVec
 static void
 gistSplitHalf(GIST_SPLITVEC *v, int len)
 {
+  DBUG_TRACE;
   int     i;
 
+  DBUG_PRINT("info", "simply split page in half(len:%d)", len);
   v->spl_nright = v->spl_nleft = 0;
   v->spl_left = (OffsetNumber *) palloc(len * sizeof(OffsetNumber));
   v->spl_right = (OffsetNumber *) palloc(len * sizeof(OffsetNumber));
@@ -602,11 +625,14 @@ void
 gistSplitByKey(Relation r, Page page, IndexTuple *itup, int len,
                GISTSTATE *giststate, GistSplitVector *v, int attno)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec;
   OffsetNumber *offNullTuples;
   int     nOffNullTuples = 0;
   int     i;
 
+  DBUG_PRINT("info", "main entry point for page-splitting algorithm");
+  DBUG_PRINT("info", "number of IndexTuples to be processed:%d and attno:%d", len, attno);
   /* generate the item array, and identify tuples with null keys */
   /* note that entryvec->vector[0] goes unused in this code */
   entryvec = palloc(GEVHDRSZ + (len + 1) * sizeof(GISTENTRY));
@@ -637,8 +663,9 @@ gistSplitByKey(Relation r, Page page, IndexTuple *itup, int len,
 
     if (attno + 1 < giststate->nonLeafTupdesc->natts)
       gistSplitByKey(r, page, itup, len, giststate, v, attno + 1);
-    else
+    else {
       gistSplitHalf(&v->splitVector, len);
+    }
   } else if (nOffNullTuples > 0) {
     int     j = 0;
 
@@ -662,6 +689,7 @@ gistSplitByKey(Relation r, Page page, IndexTuple *itup, int len,
     /* Compute union keys, unless outer recursion level will handle it */
     if (attno == 0 && giststate->nonLeafTupdesc->natts == 1) {
       v->spl_dontcare = NULL;
+      DBUG_PRINT("info", "compute union keys");
       gistunionsubkey(giststate, itup, v);
     }
   } else {
@@ -712,9 +740,12 @@ gistSplitByKey(Relation r, Page page, IndexTuple *itup, int len,
         memcpy(backupSplit.spl_right, v->splitVector.spl_right, sizeof(OffsetNumber) * v->splitVector.spl_nright);
 
         /* Recursively decide how to split the don't-care tuples */
+        DBUG_PRINT("info", "recursively decide how to split the don't-care tuples");
         gistSplitByKey(r, page, newitup, newlen, giststate, v, attno + 1);
 
         /* Merge result of subsplit with non-don't-care tuples */
+        DBUG_PRINT("info", "merge result of subsplit with non-don't-care tuples");
+
         for (i = 0; i < v->splitVector.spl_nleft; i++)
           backupSplit.spl_left[backupSplit.spl_nleft++] = map[v->splitVector.spl_left[i] - 1];
 

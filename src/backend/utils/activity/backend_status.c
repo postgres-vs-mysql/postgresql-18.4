@@ -9,6 +9,7 @@
  *    src/backend/utils/activity/backend_status.c
  * ----------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/xact.h"
@@ -113,6 +114,7 @@ BackendStatusShmemSize(void)
 void
 BackendStatusShmemInit(void)
 {
+  DBUG_TRACE;
   Size    size;
   bool    found;
   int     i;
@@ -240,6 +242,7 @@ BackendStatusShmemInit(void)
 void
 pgstat_beinit(void)
 {
+  DBUG_TRACE;
   /* Initialize MyBEEntry */
   Assert(MyProcNumber != INVALID_PROC_NUMBER);
   Assert(MyProcNumber >= 0 && MyProcNumber < NumBackendStatSlots);
@@ -265,6 +268,7 @@ pgstat_beinit(void)
 void
 pgstat_bestart_initial(void)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *vbeentry = MyBEEntry;
   PgBackendStatus lbeentry;
 
@@ -507,6 +511,7 @@ pgstat_bestart_final(void)
 static void
 pgstat_beshutdown_hook(int code, Datum arg)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry = MyBEEntry;
 
   /*
@@ -534,6 +539,8 @@ pgstat_beshutdown_hook(int code, Datum arg)
 void
 pgstat_clear_backend_activity_snapshot(void)
 {
+  DBUG_TRACE;
+
   /* Release memory, if any was allocated */
   if (backendStatusSnapContext) {
     MemoryContextDelete(backendStatusSnapContext);
@@ -548,6 +555,8 @@ pgstat_clear_backend_activity_snapshot(void)
 static void
 pgstat_setup_backend_status_context(void)
 {
+  DBUG_TRACE;
+
   if (!backendStatusSnapContext)
     backendStatusSnapContext = AllocSetContextCreate(TopMemoryContext,
                                "Backend Status Snapshot",
@@ -569,6 +578,7 @@ pgstat_setup_backend_status_context(void)
 void
 pgstat_report_activity(BackendState state, const char *cmd_str)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry = MyBEEntry;
   TimestampTz start_timestamp;
   TimestampTz current_timestamp;
@@ -680,6 +690,7 @@ pgstat_report_activity(BackendState state, const char *cmd_str)
 void
 pgstat_report_query_id(int64 query_id, bool force)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry = MyBEEntry;
 
   /*
@@ -707,6 +718,7 @@ pgstat_report_query_id(int64 query_id, bool force)
    */
   PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
   beentry->st_query_id = query_id;
+  DBUG_PRINT("info", "update top-level query identifier:%ld", query_id);
   PGSTAT_END_WRITE_ACTIVITY(beentry);
 }
 
@@ -758,6 +770,7 @@ pgstat_report_plan_id(int64 plan_id, bool force)
 void
 pgstat_report_appname(const char *appname)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry = MyBEEntry;
   int     len;
 
@@ -787,6 +800,7 @@ pgstat_report_appname(const char *appname)
 void
 pgstat_report_xact_timestamp(TimestampTz tstamp)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry = MyBEEntry;
 
   if (!pgstat_track_activities || !beentry)
@@ -814,6 +828,7 @@ pgstat_report_xact_timestamp(TimestampTz tstamp)
 static void
 pgstat_read_current_status(void)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry;
   LocalPgBackendStatus *localtable;
   LocalPgBackendStatus *localentry;
@@ -990,6 +1005,7 @@ pgstat_read_current_status(void)
 const char *
 pgstat_get_backend_current_activity(int pid, bool checkUser)
 {
+  DBUG_TRACE;
   PgBackendStatus *beentry;
   int     i;
 
@@ -1065,6 +1081,7 @@ pgstat_get_backend_current_activity(int pid, bool checkUser)
 const char *
 pgstat_get_crashed_backend_activity(int pid, char *buffer, int buflen)
 {
+  DBUG_TRACE;
   volatile PgBackendStatus *beentry;
   int     i;
 
@@ -1212,6 +1229,7 @@ cmp_lbestatus(const void *a, const void *b)
 PgBackendStatus *
 pgstat_get_beentry_by_proc_number(ProcNumber procNumber)
 {
+  DBUG_TRACE;
   LocalPgBackendStatus *ret = pgstat_get_local_beentry_by_proc_number(procNumber);
 
   if (ret)
@@ -1237,6 +1255,7 @@ pgstat_get_beentry_by_proc_number(ProcNumber procNumber)
 LocalPgBackendStatus *
 pgstat_get_local_beentry_by_proc_number(ProcNumber procNumber)
 {
+  DBUG_TRACE;
   LocalPgBackendStatus key;
 
   pgstat_read_current_status();
@@ -1268,6 +1287,7 @@ pgstat_get_local_beentry_by_proc_number(ProcNumber procNumber)
 LocalPgBackendStatus *
 pgstat_get_local_beentry_by_index(int idx)
 {
+  DBUG_TRACE;
   pgstat_read_current_status();
 
   if (idx < 1 || idx > localNumBackends)
@@ -1288,6 +1308,7 @@ pgstat_get_local_beentry_by_index(int idx)
 int
 pgstat_fetch_stat_numbackends(void)
 {
+  DBUG_TRACE;
   pgstat_read_current_status();
 
   return localNumBackends;
@@ -1304,6 +1325,7 @@ pgstat_fetch_stat_numbackends(void)
 char *
 pgstat_clip_activity(const char *raw_activity)
 {
+  DBUG_TRACE;
   char     *activity;
   int     rawlen;
   int     cliplen;

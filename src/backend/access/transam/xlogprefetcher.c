@@ -26,6 +26,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xlogprefetcher.h"
 #include "access/xlogreader.h"
@@ -238,6 +239,8 @@ lrq_completed(LsnReadQueue *lrq)
 static inline void
 lrq_prefetch(LsnReadQueue *lrq)
 {
+  DBUG_TRACE;
+
   /* Try to start as many IOs as we can within our limits. */
   while (lrq->inflight < lrq->max_inflight &&
          lrq->inflight + lrq->completed < lrq->size - 1) {
@@ -268,6 +271,8 @@ lrq_prefetch(LsnReadQueue *lrq)
 static inline void
 lrq_complete_lsn(LsnReadQueue *lrq, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
+
   /*
    * We know that LSNs before 'lsn' have been replayed, so we can now assume
    * that any IOs that were started before then have finished.
@@ -313,6 +318,7 @@ XLogPrefetchResetStats(void)
 void
 XLogPrefetchShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   SharedStats = (XLogPrefetchStats *)
@@ -453,6 +459,7 @@ XLogPrefetcherComputeStats(XLogPrefetcher *prefetcher)
 static LsnReadQueueNextStatus
 XLogPrefetcherNextBlock(uintptr_t pgsr_private, XLogRecPtr *lsn)
 {
+  DBUG_TRACE;
   XLogPrefetcher *prefetcher = (XLogPrefetcher *) pgsr_private;
   XLogReaderState *reader = prefetcher->reader;
   XLogRecPtr  replaying_lsn = reader->ReadRecPtr;
@@ -790,6 +797,7 @@ XLogPrefetcherNextBlock(uintptr_t pgsr_private, XLogRecPtr *lsn)
 Datum
 pg_stat_get_recovery_prefetch(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_STAT_GET_RECOVERY_PREFETCH_COLS 10
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   Datum   values[PG_STAT_GET_RECOVERY_PREFETCH_COLS];
@@ -823,6 +831,7 @@ static inline void
 XLogPrefetcherAddFilter(XLogPrefetcher *prefetcher, RelFileLocator rlocator,
                         BlockNumber blockno, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   XLogPrefetcherFilter *filter;
   bool    found;
 
@@ -858,6 +867,8 @@ XLogPrefetcherAddFilter(XLogPrefetcher *prefetcher, RelFileLocator rlocator,
 static inline void
 XLogPrefetcherCompleteFilters(XLogPrefetcher *prefetcher, XLogRecPtr replaying_lsn)
 {
+  DBUG_TRACE;
+
   while (unlikely(!dlist_is_empty(&prefetcher->filter_queue))) {
     XLogPrefetcherFilter *filter = dlist_tail_element(XLogPrefetcherFilter,
                                    link,
@@ -878,6 +889,8 @@ static inline bool
 XLogPrefetcherIsFiltered(XLogPrefetcher *prefetcher, RelFileLocator rlocator,
                          BlockNumber blockno)
 {
+  DBUG_TRACE;
+
   /*
    * Test for empty queue first, because we expect it to be empty most of
    * the time and we can avoid the hash table lookup in that case.
@@ -924,6 +937,7 @@ XLogPrefetcherIsFiltered(XLogPrefetcher *prefetcher, RelFileLocator rlocator,
 void
 XLogPrefetcherBeginRead(XLogPrefetcher *prefetcher, XLogRecPtr recPtr)
 {
+  DBUG_TRACE;
   /* This will forget about any in-flight IO. */
   prefetcher->reconfigure_count--;
 
@@ -943,6 +957,7 @@ XLogPrefetcherBeginRead(XLogPrefetcher *prefetcher, XLogRecPtr recPtr)
 XLogRecord *
 XLogPrefetcherReadRecord(XLogPrefetcher *prefetcher, char **errmsg)
 {
+  DBUG_TRACE;
   DecodedXLogRecord *record;
   XLogRecPtr  replayed_up_to;
 

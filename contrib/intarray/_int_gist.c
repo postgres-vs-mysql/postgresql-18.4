@@ -2,6 +2,7 @@
  * contrib/intarray/_int_gist.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 #include <math.h>
@@ -46,6 +47,7 @@ PG_FUNCTION_INFO_V1(g_int_options);
 Datum
 g_int_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   ArrayType  *query = PG_GETARG_ARRAYTYPE_P_COPY(1);
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -120,12 +122,20 @@ g_int_consistent(PG_FUNCTION_ARGS)
   }
 
   pfree(query);
+
+  if (retval) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   PG_RETURN_BOOL(retval);
 }
 
 Datum
 g_int_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *size = (int *) PG_GETARG_POINTER(1);
   int32   i,
@@ -164,6 +174,7 @@ g_int_union(PG_FUNCTION_ARGS)
 Datum
 g_int_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
   ArrayType  *r;
@@ -292,6 +303,7 @@ g_int_compress(PG_FUNCTION_ARGS)
 Datum
 g_int_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval;
   ArrayType  *r;
@@ -367,6 +379,7 @@ g_int_decompress(PG_FUNCTION_ARGS)
 Datum
 g_int_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float    *result = (float *) PG_GETARG_POINTER(2);
@@ -389,6 +402,7 @@ g_int_penalty(PG_FUNCTION_ARGS)
 Datum
 g_int_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -443,6 +457,7 @@ comparecost(const void *a, const void *b)
 Datum
 g_int_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   OffsetNumber i,
@@ -621,6 +636,7 @@ g_int_picksplit(PG_FUNCTION_ARGS)
 Datum
 g_int_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(GISTIntArrayOptions));

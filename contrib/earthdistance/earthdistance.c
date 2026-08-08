@@ -1,6 +1,7 @@
 /* contrib/earthdistance/earthdistance.c */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -52,12 +53,14 @@ degtorad(double degrees)
 static double
 geo_distance_internal(Point *pt1, Point *pt2)
 {
+  DBUG_TRACE;
   double    long1,
             lat1,
             long2,
             lat2;
   double    longdiff;
   double    sino;
+  double result;
 
   /* convert degrees to radians */
 
@@ -79,7 +82,9 @@ geo_distance_internal(Point *pt1, Point *pt2)
   if (sino > 1.)
     sino = 1.;
 
-  return 2. * EARTH_RADIUS * asin(sino);
+  result = 2. * EARTH_RADIUS * asin(sino);
+  DBUG_PRINT("earthdistance", "result:%g", result);
+  return result;
 }
 
 
@@ -101,10 +106,12 @@ PG_FUNCTION_INFO_V1(geo_distance);
 Datum
 geo_distance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Point    *pt1 = PG_GETARG_POINT_P(0);
   Point    *pt2 = PG_GETARG_POINT_P(1);
   float8    result;
 
   result = geo_distance_internal(pt1, pt2);
+  DBUG_PRINT("earthdistance", "result:%g", result);
   PG_RETURN_FLOAT8(result);
 }

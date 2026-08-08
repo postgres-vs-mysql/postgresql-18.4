@@ -2,6 +2,7 @@
  * contrib/hstore/hstore_op.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
@@ -35,11 +36,19 @@ HSTORE_POLLUTE(hstore_each, each);
 int
 hstoreFindKey(HStore *hs, int *lowbound, char *key, int keylen)
 {
+  DBUG_TRACE;
   HEntry     *entries = ARRPTR(hs);
   int     stopLow = lowbound ? *lowbound : 0;
   int     stopHigh = HS_COUNT(hs);
   int     stopMiddle;
   char     *base = STRPTR(hs);
+  char       buffer[1024];
+
+  if (keylen < 512) {
+    strncpy(buffer, key, keylen);
+    buffer[keylen] = '\0';
+    DBUG_PRINT("hstore", "find key:%s, keylen:%d, stopLow:%d", buffer, keylen, stopLow);
+  }
 
   while (stopLow < stopHigh) {
     int     difference;
@@ -55,6 +64,7 @@ hstoreFindKey(HStore *hs, int *lowbound, char *key, int keylen)
       if (lowbound)
         *lowbound = stopMiddle + 1;
 
+      DBUG_PRINT("hstore", "return %d", stopMiddle);
       return stopMiddle;
     } else if (difference < 0)
       stopLow = stopMiddle + 1;
@@ -65,12 +75,15 @@ hstoreFindKey(HStore *hs, int *lowbound, char *key, int keylen)
   if (lowbound)
     *lowbound = stopLow;
 
+
+  DBUG_PRINT("hstore", "return -1");
   return -1;
 }
 
 Pairs *
 hstoreArrayToPairs(ArrayType *a, int *npairs)
 {
+  DBUG_TRACE;
   Datum    *key_datums;
   bool     *key_nulls;
   int     key_count;
@@ -123,6 +136,7 @@ PG_FUNCTION_INFO_V1(hstore_fetchval);
 Datum
 hstore_fetchval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   HEntry     *entries = ARRPTR(hs);
@@ -144,10 +158,17 @@ PG_FUNCTION_INFO_V1(hstore_exists);
 Datum
 hstore_exists(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   int     idx = hstoreFindKey(hs, NULL,
                               VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
+
+  if (idx >= 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(idx >= 0);
 }
@@ -157,6 +178,7 @@ PG_FUNCTION_INFO_V1(hstore_exists_any);
 Datum
 hstore_exists_any(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   ArrayType  *keys = PG_GETARG_ARRAYTYPE_P(1);
   int     nkeys;
@@ -181,6 +203,12 @@ hstore_exists_any(PG_FUNCTION_ARGS)
     }
   }
 
+  if (res) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
@@ -189,6 +217,7 @@ PG_FUNCTION_INFO_V1(hstore_exists_all);
 Datum
 hstore_exists_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   ArrayType  *keys = PG_GETARG_ARRAYTYPE_P(1);
   int     nkeys;
@@ -213,6 +242,12 @@ hstore_exists_all(PG_FUNCTION_ARGS)
     }
   }
 
+  if (res) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
@@ -221,12 +256,19 @@ PG_FUNCTION_INFO_V1(hstore_defined);
 Datum
 hstore_defined(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   HEntry     *entries = ARRPTR(hs);
   int     idx = hstoreFindKey(hs, NULL,
                               VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
   bool    res = (idx >= 0 && !HSTORE_VALISNULL(entries, idx));
+
+  if (res) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res);
 }
@@ -236,6 +278,7 @@ PG_FUNCTION_INFO_V1(hstore_delete);
 Datum
 hstore_delete(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   char     *keyptr = VARDATA_ANY(key);
@@ -271,6 +314,7 @@ hstore_delete(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("hstore", "finalize a newly-constructed hstore(outcount:%d)", outcount);
   HS_FINALIZE(out, outcount, bufd, ptrd);
 
   PG_RETURN_POINTER(out);
@@ -281,6 +325,7 @@ PG_FUNCTION_INFO_V1(hstore_delete_array);
 Datum
 hstore_delete_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   HStore     *out = palloc(VARSIZE(hs));
   int     hs_count = HS_COUNT(hs);
@@ -346,6 +391,7 @@ hstore_delete_array(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("hstore", "finalize a newly-constructed hstore(outcount:%d)", outcount);
   HS_FINALIZE(out, outcount, bufd, pd);
 
   PG_RETURN_POINTER(out);
@@ -356,6 +402,7 @@ PG_FUNCTION_INFO_V1(hstore_delete_hstore);
 Datum
 hstore_delete_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   HStore     *hs2 = PG_GETARG_HSTORE_P(1);
   HStore     *out = palloc(VARSIZE(hs));
@@ -440,6 +487,7 @@ hstore_delete_hstore(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("hstore", "finalize a newly-constructed hstore(outcount:%d)", outcount);
   HS_FINALIZE(out, outcount, bufd, pd);
 
   PG_RETURN_POINTER(out);
@@ -450,6 +498,7 @@ PG_FUNCTION_INFO_V1(hstore_concat);
 Datum
 hstore_concat(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *s1 = PG_GETARG_HSTORE_P(0);
   HStore     *s2 = PG_GETARG_HSTORE_P(1);
   HStore     *out = palloc(VARSIZE(s1) + VARSIZE(s2));
@@ -532,6 +581,7 @@ hstore_concat(PG_FUNCTION_ARGS)
     }
   }
 
+  DBUG_PRINT("hstore", "finalize a newly-constructed hstore(outcount:%d)", outcount);
   HS_FINALIZE(out, outcount, bufd, pd);
 
   PG_RETURN_POINTER(out);
@@ -542,6 +592,7 @@ PG_FUNCTION_INFO_V1(hstore_slice_to_array);
 Datum
 hstore_slice_to_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   HEntry     *entries = ARRPTR(hs);
   char     *ptr = STRPTR(hs);
@@ -598,6 +649,7 @@ PG_FUNCTION_INFO_V1(hstore_slice_to_hstore);
 Datum
 hstore_slice_to_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   HEntry     *entries = ARRPTR(hs);
   char     *ptr = STRPTR(hs);
@@ -657,6 +709,7 @@ PG_FUNCTION_INFO_V1(hstore_akeys);
 Datum
 hstore_akeys(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   Datum    *d;
   ArrayType  *a;
@@ -689,6 +742,7 @@ PG_FUNCTION_INFO_V1(hstore_avals);
 Datum
 hstore_avals(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   Datum    *d;
   bool     *nulls;
@@ -730,6 +784,7 @@ hstore_avals(PG_FUNCTION_ARGS)
 static ArrayType *
 hstore_to_array_internal(HStore *hs, int ndims)
 {
+  DBUG_TRACE;
   HEntry     *entries = ARRPTR(hs);
   char     *base = STRPTR(hs);
   int     count = HS_COUNT(hs);
@@ -776,6 +831,7 @@ PG_FUNCTION_INFO_V1(hstore_to_array);
 Datum
 hstore_to_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   ArrayType  *out = hstore_to_array_internal(hs, 1);
 
@@ -786,6 +842,7 @@ PG_FUNCTION_INFO_V1(hstore_to_matrix);
 Datum
 hstore_to_matrix(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   ArrayType  *out = hstore_to_array_internal(hs, 2);
 
@@ -805,6 +862,7 @@ static void
 setup_firstcall(FuncCallContext *funcctx, HStore *hs,
                 FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   MemoryContext oldcontext;
   HStore     *st;
 
@@ -819,6 +877,8 @@ setup_firstcall(FuncCallContext *funcctx, HStore *hs,
     TupleDesc tupdesc;
 
     /* Build a tuple descriptor for our result type */
+    DBUG_PRINT("hstore", "build a tuple descriptor for our result type");
+
     if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
       elog(ERROR, "return type must be a row type");
 
@@ -833,6 +893,7 @@ PG_FUNCTION_INFO_V1(hstore_skeys);
 Datum
 hstore_skeys(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   HStore     *hs;
   int     i;
@@ -865,6 +926,7 @@ PG_FUNCTION_INFO_V1(hstore_svals);
 Datum
 hstore_svals(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   HStore     *hs;
   int     i;
@@ -908,6 +970,7 @@ PG_FUNCTION_INFO_V1(hstore_contains);
 Datum
 hstore_contains(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *val = PG_GETARG_HSTORE_P(0);
   HStore     *tmpl = PG_GETARG_HSTORE_P(1);
   bool    res = true;
@@ -939,10 +1002,17 @@ hstore_contains(PG_FUNCTION_ARGS)
           (!nullval && (vallen != HSTORE_VALLEN(ve, idx) ||
                         memcmp(HSTORE_VAL(te, tstr, i),
                                HSTORE_VAL(ve, vstr, idx),
-                               vallen) != 0)))
+                               vallen) != 0))) {
         res = false;
+      }
     } else
       res = false;
+  }
+
+  if (res) {
+    DBUG_PRINT("hstore", "tcount:%d and result is true", tcount);
+  } else {
+    DBUG_PRINT("hstore", "tcount:%d and result is false", tcount);
   }
 
   PG_RETURN_BOOL(res);
@@ -953,6 +1023,7 @@ PG_FUNCTION_INFO_V1(hstore_contained);
 Datum
 hstore_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_DATUM(DirectFunctionCall2(hstore_contains,
                                       PG_GETARG_DATUM(1),
                                       PG_GETARG_DATUM(0)
@@ -964,6 +1035,7 @@ PG_FUNCTION_INFO_V1(hstore_each);
 Datum
 hstore_each(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   HStore     *hs;
   int     i;
@@ -1020,6 +1092,7 @@ PG_FUNCTION_INFO_V1(hstore_cmp);
 Datum
 hstore_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs1 = PG_GETARG_HSTORE_P(0);
   HStore     *hs2 = PG_GETARG_HSTORE_P(1);
   int     hcount1 = HS_COUNT(hs1);
@@ -1086,6 +1159,7 @@ hstore_cmp(PG_FUNCTION_ARGS)
    */
   PG_FREE_IF_COPY(hs1, 0);
   PG_FREE_IF_COPY(hs2, 1);
+  DBUG_PRINT("hstore", "result:%d", res);
   PG_RETURN_INT32(res);
 }
 
@@ -1094,9 +1168,16 @@ PG_FUNCTION_INFO_V1(hstore_eq);
 Datum
 hstore_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res == 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res == 0);
 }
@@ -1105,9 +1186,16 @@ PG_FUNCTION_INFO_V1(hstore_ne);
 Datum
 hstore_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res != 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res != 0);
 }
@@ -1116,9 +1204,16 @@ PG_FUNCTION_INFO_V1(hstore_gt);
 Datum
 hstore_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res > 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res > 0);
 }
@@ -1127,9 +1222,16 @@ PG_FUNCTION_INFO_V1(hstore_ge);
 Datum
 hstore_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res >= 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res >= 0);
 }
@@ -1138,9 +1240,16 @@ PG_FUNCTION_INFO_V1(hstore_lt);
 Datum
 hstore_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res < 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res < 0);
 }
@@ -1149,9 +1258,16 @@ PG_FUNCTION_INFO_V1(hstore_le);
 Datum
 hstore_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     res = DatumGetInt32(DirectFunctionCall2(hstore_cmp,
                               PG_GETARG_DATUM(0),
                               PG_GETARG_DATUM(1)));
+
+  if (res <= 0) {
+    DBUG_PRINT("hstore", "return true");
+  } else {
+    DBUG_PRINT("hstore", "return false");
+  }
 
   PG_RETURN_BOOL(res <= 0);
 }
@@ -1161,6 +1277,7 @@ PG_FUNCTION_INFO_V1(hstore_hash);
 Datum
 hstore_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   Datum   hval = hash_any((unsigned char *) VARDATA(hs),
                           VARSIZE(hs) - VARHDRSZ);
@@ -1185,6 +1302,7 @@ PG_FUNCTION_INFO_V1(hstore_hash_extended);
 Datum
 hstore_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *hs = PG_GETARG_HSTORE_P(0);
   uint64    seed = PG_GETARG_INT64(1);
   Datum   hval;

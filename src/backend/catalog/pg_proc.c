@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -123,6 +124,7 @@ ProcedureCreate(const char *procedureName,
                 float4 procost,
                 float4 prorows)
 {
+  DBUG_TRACE;
   Oid     retval;
   int     parameterCount;
   int     allParamCount;
@@ -152,13 +154,15 @@ ProcedureCreate(const char *procedureName,
 
   parameterCount = parameterTypes->dim1;
 
-  if (parameterCount < 0 || parameterCount > FUNC_MAX_ARGS)
+  if (parameterCount < 0 || parameterCount > FUNC_MAX_ARGS) {
+    DBUG_INSTANT_PRINT("info", "functions cannot have more than %d argument", FUNC_MAX_ARGS);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
              errmsg_plural("functions cannot have more than %d argument",
                            "functions cannot have more than %d arguments",
                            FUNC_MAX_ARGS,
                            FUNC_MAX_ARGS)));
+  }
 
   /* note: the above is correct, we do NOT count output arguments */
 
@@ -212,11 +216,13 @@ ProcedureCreate(const char *procedureName,
               parameterTypes->values,
               parameterCount);
 
-  if (detailmsg)
+  if (detailmsg) {
+    DBUG_INSTANT_PRINT("info", "cannot determine result data type");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("cannot determine result data type"),
              errdetail_internal("%s", detailmsg)));
+  }
 
   /*
    * Also, do not allow return type INTERNAL unless at least one input
@@ -226,11 +232,13 @@ ProcedureCreate(const char *procedureName,
               parameterTypes->values,
               parameterCount);
 
-  if (detailmsg)
+  if (detailmsg) {
+    DBUG_INSTANT_PRINT("info", "unsafe use of pseudo-type \"internal\"");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("unsafe use of pseudo-type \"internal\""),
              errdetail_internal("%s", detailmsg)));
+  }
 
   /*
    * Apply the same tests to any OUT arguments.
@@ -246,21 +254,25 @@ ProcedureCreate(const char *procedureName,
                   parameterTypes->values,
                   parameterCount);
 
-      if (detailmsg)
+      if (detailmsg) {
+        DBUG_INSTANT_PRINT("info", "cannot determine result data type");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("cannot determine result data type"),
                  errdetail_internal("%s", detailmsg)));
+      }
 
       detailmsg = check_valid_internal_signature(allParams[i],
                   parameterTypes->values,
                   parameterCount);
 
-      if (detailmsg)
+      if (detailmsg) {
+        DBUG_INSTANT_PRINT("info", "unsafe use of pseudo-type \"internal\"");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("unsafe use of pseudo-type \"internal\""),
                  errdetail_internal("%s", detailmsg)));
+      }
     }
   }
 
@@ -416,18 +428,21 @@ ProcedureCreate(const char *procedureName,
     bool    isnull;
     const char *dropcmd;
 
-    if (!replace)
+    if (!replace) {
+      DBUG_INSTANT_PRINT("info", "");
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_FUNCTION),
                errmsg("function \"%s\" already exists with same argument types",
                       procedureName)));
+    }
 
     if (!object_ownercheck(ProcedureRelationId, oldproc->oid, proowner))
       aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_FUNCTION,
                      procedureName);
 
     /* Not okay to change routine kind */
-    if (oldproc->prokind != prokind)
+    if (oldproc->prokind != prokind) {
+      DBUG_INSTANT_PRINT("info", "cannot change routine kind");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot change routine kind"),
@@ -440,6 +455,7 @@ ProcedureCreate(const char *procedureName,
                 oldproc->prokind == PROKIND_WINDOW ?
                 errdetail("\"%s\" is a window function.", procedureName) :
                 0)));
+    }
 
     dropcmd = (prokind == PROKIND_PROCEDURE ? "DROP PROCEDURE" :
                prokind == PROKIND_AGGREGATE ? "DROP AGGREGATE" :
@@ -454,13 +470,13 @@ ProcedureCreate(const char *procedureName,
      * user visible return type, we produce a more specific error message.
      */
     if (returnType != oldproc->prorettype ||
-        returnsSet != oldproc->proretset)
+        returnsSet != oldproc->proretset) {
+      DBUG_INSTANT_PRINT("info", "cannot change whether a procedure has output parameters");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                prokind == PROKIND_PROCEDURE
                ? errmsg("cannot change whether a procedure has output parameters")
                : errmsg("cannot change return type of existing function"),
-
                /*
                 * translator: first %s is DROP FUNCTION, DROP PROCEDURE, or DROP
                 * AGGREGATE
@@ -468,6 +484,7 @@ ProcedureCreate(const char *procedureName,
                errhint("Use %s %s first.",
                        dropcmd,
                        format_procedure(oldproc->oid))));
+    }
 
     /*
      * If it returns RECORD, check for possible change of record type
@@ -486,7 +503,8 @@ ProcedureCreate(const char *procedureName,
       if (olddesc == NULL && newdesc == NULL)
         /* ok, both are runtime-defined RECORDs */ ;
       else if (olddesc == NULL || newdesc == NULL ||
-               !equalRowTypes(olddesc, newdesc))
+               !equalRowTypes(olddesc, newdesc)) {
+        DBUG_INSTANT_PRINT("info", "cannot change return type of existing function");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("cannot change return type of existing function"),
@@ -495,6 +513,7 @@ ProcedureCreate(const char *procedureName,
                  errhint("Use %s %s first.",
                          dropcmd,
                          format_procedure(oldproc->oid))));
+      }
     }
 
     /*
@@ -533,7 +552,8 @@ ProcedureCreate(const char *procedureName,
           continue;
 
         if (j >= n_new_arg_names || new_arg_names[j] == NULL ||
-            strcmp(old_arg_names[j], new_arg_names[j]) != 0)
+            strcmp(old_arg_names[j], new_arg_names[j]) != 0) {
+          DBUG_INSTANT_PRINT("info", "cannot change name of input parameter \"%s\"", old_arg_names[j]);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("cannot change name of input parameter \"%s\"",
@@ -542,6 +562,7 @@ ProcedureCreate(const char *procedureName,
                    errhint("Use %s %s first.",
                            dropcmd,
                            format_procedure(oldproc->oid))));
+        }
       }
     }
 
@@ -559,7 +580,8 @@ ProcedureCreate(const char *procedureName,
       ListCell   *oldlc;
       ListCell   *newlc;
 
-      if (list_length(parameterDefaults) < oldproc->pronargdefaults)
+      if (list_length(parameterDefaults) < oldproc->pronargdefaults) {
+        DBUG_INSTANT_PRINT("info", "cannot remove parameter defaults from existing function");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("cannot remove parameter defaults from existing function"),
@@ -567,6 +589,7 @@ ProcedureCreate(const char *procedureName,
                  errhint("Use %s %s first.",
                          dropcmd,
                          format_procedure(oldproc->oid))));
+      }
 
       proargdefaults = SysCacheGetAttrNotNull(PROCNAMEARGSNSP, oldtup,
                                               Anum_pg_proc_proargdefaults);
@@ -582,7 +605,8 @@ ProcedureCreate(const char *procedureName,
         Node     *oldDef = (Node *) lfirst(oldlc);
         Node     *newDef = (Node *) lfirst(newlc);
 
-        if (exprType(oldDef) != exprType(newDef))
+        if (exprType(oldDef) != exprType(newDef)) {
+          DBUG_INSTANT_PRINT("info", "cannot change data type of existing parameter default value");
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                    errmsg("cannot change data type of existing parameter default value"),
@@ -590,6 +614,7 @@ ProcedureCreate(const char *procedureName,
                    errhint("Use %s %s first.",
                            dropcmd,
                            format_procedure(oldproc->oid))));
+        }
 
         newlc = lnext(parameterDefaults, newlc);
       }
@@ -761,6 +786,7 @@ ProcedureCreate(const char *procedureName,
 Datum
 fmgr_internal_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcoid = PG_GETARG_OID(0);
   HeapTuple tuple;
   Datum   tmp;
@@ -782,11 +808,13 @@ fmgr_internal_validator(PG_FUNCTION_ARGS)
   tmp = SysCacheGetAttrNotNull(PROCOID, tuple, Anum_pg_proc_prosrc);
   prosrc = TextDatumGetCString(tmp);
 
-  if (fmgr_internal_function(prosrc) == InvalidOid)
+  if (fmgr_internal_function(prosrc) == InvalidOid) {
+    DBUG_INSTANT_PRINT("info", "there is no built-in function named \"%s\"", prosrc);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("there is no built-in function named \"%s\"",
                     prosrc)));
+  }
 
   ReleaseSysCache(tuple);
 
@@ -805,6 +833,7 @@ fmgr_internal_validator(PG_FUNCTION_ARGS)
 Datum
 fmgr_c_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcoid = PG_GETARG_OID(0);
   void     *libraryhandle;
   HeapTuple tuple;
@@ -849,6 +878,7 @@ fmgr_c_validator(PG_FUNCTION_ARGS)
 Datum
 fmgr_sql_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     funcoid = PG_GETARG_OID(0);
   HeapTuple tuple;
   Form_pg_proc proc;
@@ -878,11 +908,14 @@ fmgr_sql_validator(PG_FUNCTION_ARGS)
   if (get_typtype(proc->prorettype) == TYPTYPE_PSEUDO &&
       proc->prorettype != RECORDOID &&
       proc->prorettype != VOIDOID &&
-      !IsPolymorphicType(proc->prorettype))
+      !IsPolymorphicType(proc->prorettype)) {
+    char *format1 = format_type_be(proc->prorettype);
+    DBUG_INSTANT_PRINT("info", "SQL functions cannot return type %s", format1);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("SQL functions cannot return type %s",
-                    format_type_be(proc->prorettype))));
+                    format1)));
+  }
 
   /* Disallow pseudotypes in arguments */
   /* except for polymorphic */
@@ -892,11 +925,14 @@ fmgr_sql_validator(PG_FUNCTION_ARGS)
     if (get_typtype(proc->proargtypes.values[i]) == TYPTYPE_PSEUDO) {
       if (IsPolymorphicType(proc->proargtypes.values[i]))
         haspolyarg = true;
-      else
+      else {
+        char *format1 = format_type_be(proc->proargtypes.values[i]);
+        DBUG_INSTANT_PRINT("info", "SQL functions cannot have arguments of type %s", format1);
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("SQL functions cannot have arguments of type %s",
-                        format_type_be(proc->proargtypes.values[i]))));
+                        format1)));
+      }
     }
   }
 
@@ -1012,6 +1048,7 @@ fmgr_sql_validator(PG_FUNCTION_ARGS)
 static void
 sql_function_parse_error_callback(void *arg)
 {
+  DBUG_TRACE;
   parse_error_callback_arg *callback_arg = (parse_error_callback_arg *) arg;
 
   /* See if it's a syntax error; if so, transpose to CREATE FUNCTION */
@@ -1035,6 +1072,7 @@ sql_function_parse_error_callback(void *arg)
 bool
 function_parse_error_transpose(const char *prosrc)
 {
+  DBUG_TRACE;
   int     origerrposition;
   int     newerrposition;
 
@@ -1098,6 +1136,7 @@ static int
 match_prosrc_to_query(const char *prosrc, const char *queryText,
                       int cursorpos)
 {
+  DBUG_TRACE;
   /*
    * Rather than fully parsing the original command, we just scan the
    * command looking for $prosrc$ or 'prosrc'.  This could be fooled (though
@@ -1154,6 +1193,7 @@ static bool
 match_prosrc_to_literal(const char *prosrc, const char *literal,
                         int cursorpos, int *newcursorpos)
 {
+  DBUG_TRACE;
   int     newcp = cursorpos;
   int     chlen;
 
@@ -1211,6 +1251,7 @@ fail:
 List *
 oid_array_to_list(Datum datum)
 {
+  DBUG_TRACE;
   ArrayType  *array = DatumGetArrayTypeP(datum);
   Datum    *values;
   int     nelems;

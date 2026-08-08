@@ -20,6 +20,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup.h"
 #include "access/htup_details.h"
@@ -151,7 +152,7 @@ sts_initialize(SharedTuplestore *sts, int participants,
 
   for (i = 0; i < participants; ++i) {
     LWLockInitialize(&sts->participants[i].lock,
-                     LWTRANCHE_SHARED_TUPLESTORE);
+                     LWTRANCHE_SHARED_TUPLESTORE, i);
     sts->participants[i].read_page = 0;
     sts->participants[i].npages = 0;
     sts->participants[i].writing = false;
@@ -228,6 +229,7 @@ sts_end_write(SharedTuplestoreAccessor *accessor)
 void
 sts_reinitialize(SharedTuplestoreAccessor *accessor)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -246,6 +248,7 @@ sts_reinitialize(SharedTuplestoreAccessor *accessor)
 void
 sts_begin_parallel_scan(SharedTuplestoreAccessor *accessor)
 {
+  DBUG_TRACE;
   int     i PG_USED_FOR_ASSERTS_ONLY;
 
   /* End any existing scan that was in progress. */
@@ -274,6 +277,8 @@ sts_begin_parallel_scan(SharedTuplestoreAccessor *accessor)
 void
 sts_end_parallel_scan(SharedTuplestoreAccessor *accessor)
 {
+  DBUG_TRACE;
+
   /*
    * Here we could delete all files if SHARED_TUPLESTORE_SINGLE_PASS, but
    * we'd probably need a reference count of current parallel scanners so we
@@ -293,6 +298,7 @@ void
 sts_puttuple(SharedTuplestoreAccessor *accessor, void *meta_data,
              MinimalTuple tuple)
 {
+  DBUG_TRACE;
   size_t    size;
 
   /* Do we have our own file yet? */
@@ -405,6 +411,7 @@ sts_puttuple(SharedTuplestoreAccessor *accessor, void *meta_data,
 static MinimalTuple
 sts_read_tuple(SharedTuplestoreAccessor *accessor, void *meta_data)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
   uint32    size;
   size_t    remaining_size;
@@ -488,6 +495,7 @@ sts_read_tuple(SharedTuplestoreAccessor *accessor, void *meta_data)
 MinimalTuple
 sts_parallel_scan_next(SharedTuplestoreAccessor *accessor, void *meta_data)
 {
+  DBUG_TRACE;
   SharedTuplestoreParticipant *p;
   BlockNumber read_page;
   bool    eof;

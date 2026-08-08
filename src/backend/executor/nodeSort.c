@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "executor/execdebug.h"
@@ -49,11 +50,14 @@
 static TupleTableSlot *
 ExecSort(PlanState *pstate)
 {
+  DBUG_TRACE;
   SortState  *node = castNode(SortState, pstate);
   EState     *estate;
   ScanDirection dir;
   Tuplesortstate *tuplesortstate;
   TupleTableSlot *slot;
+  size_t count = 0;
+  bool    tmp_trace_disabled = false;
 
   CHECK_FOR_INTERRUPTS();
 
@@ -80,6 +84,7 @@ ExecSort(PlanState *pstate)
 
     SO1_printf("ExecSort: %s\n",
                "sorting subplan");
+    DBUG_PRINT("info", "want to scan subplan in the forward direction while creating the sorted data");
 
     /*
      * Want to scan subplan in the forward direction while creating the
@@ -130,13 +135,26 @@ ExecSort(PlanState *pstate)
      * Scan the subplan and feed all the tuples to tuplesort using the
      * appropriate method based on the type of sort we're doing.
      */
+    DBUG_PRINT("info", "scan the subplan and feed all the tuples to tuplesort");
+    DBUG_PRINT("info", "using the appropriate method based on the type of sort we're doing");
+
     if (node->datumSort) {
       for (;;) {
+        if (count >= max_trace_iterations) {
+          if (!trace_disabled) {
+            if (!tmp_trace_disabled) {
+              tmp_trace_disabled = true;
+              set_trace_disabled();
+            }
+          }
+        }
+
         slot = ExecProcNode(outerNode);
 
         if (TupIsNull(slot))
           break;
 
+        count++;
         slot_getsomeattrs(slot, 1);
         tuplesort_putdatum(tuplesortstate,
                            slot->tts_values[0],
@@ -144,18 +162,37 @@ ExecSort(PlanState *pstate)
       }
     } else {
       for (;;) {
+        if (count >= max_trace_iterations) {
+          if (!trace_disabled) {
+            if (!tmp_trace_disabled) {
+              tmp_trace_disabled = true;
+              set_trace_disabled();
+            }
+          }
+        }
+
         slot = ExecProcNode(outerNode);
 
         if (TupIsNull(slot))
           break;
 
+        count++;
         tuplesort_puttupleslot(tuplesortstate, slot);
       }
+    }
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
     }
 
     /*
      * Complete the sort.
      */
+    DBUG_PRINT("info", "now perform the sort");
     tuplesort_performsort(tuplesortstate);
 
     /*
@@ -180,10 +217,12 @@ ExecSort(PlanState *pstate)
     }
 
     SO1_printf("ExecSort: %s\n", "sorting done");
+    DBUG_PRINT("info", "sorting done");
   }
 
   SO1_printf("ExecSort: %s\n",
              "retrieving tuple from tuplesort");
+  DBUG_PRINT("info", "retrieving tuple from tuplesort");
 
   slot = node->ss.ps.ps_ResultTupleSlot;
 
@@ -195,16 +234,19 @@ ExecSort(PlanState *pstate)
    * empties the slot when it runs out of tuples.
    */
   if (node->datumSort) {
+    DBUG_PRINT("info", "we must manage the slot ourselves and leave it clear when tuplesort_getdatum returns false");
     ExecClearTuple(slot);
 
     if (tuplesort_getdatum(tuplesortstate, ScanDirectionIsForward(dir),
                            false, &(slot->tts_values[0]),
                            &(slot->tts_isnull[0]), NULL))
       ExecStoreVirtualTuple(slot);
-  } else
+  } else {
+    DBUG_PRINT("info", "tuplesort_gettupleslot manages the slot for us and empties the slot when it runs out of tuples");
     (void) tuplesort_gettupleslot(tuplesortstate,
                                   ScanDirectionIsForward(dir),
                                   false, slot, NULL);
+  }
 
   return slot;
 }
@@ -219,6 +261,7 @@ ExecSort(PlanState *pstate)
 SortState *
 ExecInitSort(Sort *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   SortState  *sortstate;
   TupleDesc outerTupDesc;
 
@@ -299,6 +342,7 @@ ExecInitSort(Sort *node, EState *estate, int eflags)
 void
 ExecEndSort(SortState *node)
 {
+  DBUG_TRACE;
   SO1_printf("ExecEndSort: %s\n",
              "shutting down sort node");
 
@@ -361,6 +405,7 @@ ExecSortRestrPos(SortState *node)
 void
 ExecReScanSort(SortState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*
@@ -413,6 +458,7 @@ ExecReScanSort(SortState *node)
 void
 ExecSortEstimate(SortState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */

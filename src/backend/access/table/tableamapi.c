@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/tableam.h"
 #include "access/xact.h"
@@ -27,6 +28,7 @@
 const TableAmRoutine *
 GetTableAmRoutine(Oid amhandler)
 {
+  DBUG_TRACE;
   Datum   datum;
   const TableAmRoutine *routine;
 
@@ -101,6 +103,8 @@ GetTableAmRoutine(Oid amhandler)
 bool
 check_default_table_access_method(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   if (**newval == '\0') {
     GUC_check_errdetail("\"%s\" cannot be empty.",
                         "default_table_access_method");

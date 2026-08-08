@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <signal.h>
@@ -115,10 +116,12 @@ static void ResetProcSignalBarrierBits(uint32 flags);
 Size
 ProcSignalShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size;
 
   size = mul_size(NumProcSignalSlots, sizeof(ProcSignalSlot));
   size = add_size(size, offsetof(ProcSignalHeader, psh_slot));
+  DBUG_PRINT("inf", "compute space needed for ProcSignal's shared memory:%lu", size);
   return size;
 }
 
@@ -129,8 +132,11 @@ ProcSignalShmemSize(void)
 void
 ProcSignalShmemInit(void)
 {
+  DBUG_TRACE;
   Size    size = ProcSignalShmemSize();
   bool    found;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
 
   ProcSignal = (ProcSignalHeader *)
                ShmemInitStruct("ProcSignal", size, &found);
@@ -144,6 +150,16 @@ ProcSignalShmemInit(void)
     for (i = 0; i < NumProcSignalSlots; ++i) {
       ProcSignalSlot *slot = &ProcSignal->psh_slot[i];
 
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
+
+      count++;
       SpinLockInit(&slot->pss_mutex);
       pg_atomic_init_u32(&slot->pss_pid, 0);
       slot->pss_cancel_key_len = 0;
@@ -151,6 +167,15 @@ ProcSignalShmemInit(void)
       pg_atomic_init_u64(&slot->pss_barrierGeneration, PG_UINT64_MAX);
       pg_atomic_init_u32(&slot->pss_barrierCheckMask, 0);
       ConditionVariableInit(&slot->pss_barrierCV);
+    }
+
+
+    if (tmp_trace_disabled) {
+      set_trace_enabled();
+      tmp_trace_disabled = false;
+      DBUG_PRINT("info", "...");
+      DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+      DBUG_PRINT("info", "total processed:%lu", count);
     }
   }
 }
@@ -162,6 +187,7 @@ ProcSignalShmemInit(void)
 void
 ProcSignalInit(const uint8 *cancel_key, int cancel_key_len)
 {
+  DBUG_TRACE;
   ProcSignalSlot *slot;
   uint64    barrier_generation;
   uint32    old_pss_pid;
@@ -229,6 +255,7 @@ ProcSignalInit(const uint8 *cancel_key, int cancel_key_len)
 static void
 CleanupProcSignalState(int status, Datum arg)
 {
+  DBUG_TRACE;
   pid_t   old_pid;
   ProcSignalSlot *slot = MyProcSignalSlot;
 
@@ -284,6 +311,7 @@ CleanupProcSignalState(int status, Datum arg)
 int
 SendProcSignal(pid_t pid, ProcSignalReason reason, ProcNumber procNumber)
 {
+  DBUG_TRACE;
   volatile ProcSignalSlot *slot;
 
   if (procNumber != INVALID_PROC_NUMBER) {
@@ -353,6 +381,7 @@ SendProcSignal(pid_t pid, ProcSignalReason reason, ProcNumber procNumber)
 uint64
 EmitProcSignalBarrier(ProcSignalBarrierType type)
 {
+  DBUG_TRACE;
   uint32    flagbit = 1 << (uint32) type;
   uint64    generation;
 
@@ -407,6 +436,7 @@ EmitProcSignalBarrier(ProcSignalBarrierType type)
     }
   }
 
+  DBUG_PRINT("info", "generation:%lu", generation);
   return generation;
 }
 
@@ -417,6 +447,7 @@ EmitProcSignalBarrier(ProcSignalBarrierType type)
 void
 WaitForProcSignalBarrier(uint64 generation)
 {
+  DBUG_TRACE;
   Assert(generation <= pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration));
 
   elog(DEBUG1,
@@ -477,6 +508,7 @@ WaitForProcSignalBarrier(uint64 generation)
 static void
 HandleProcSignalBarrierInterrupt(void)
 {
+  DBUG_TRACE;
   InterruptPending = true;
   ProcSignalBarrierPending = true;
   /* latch will be set by procsignal_sigusr1_handler */
@@ -493,6 +525,7 @@ HandleProcSignalBarrierInterrupt(void)
 void
 ProcessProcSignalBarrier(void)
 {
+  DBUG_TRACE;
   uint64    local_gen;
   uint64    shared_gen;
   volatile uint32 flags;
@@ -628,6 +661,7 @@ ProcessProcSignalBarrier(void)
 static void
 ResetProcSignalBarrierBits(uint32 flags)
 {
+  DBUG_TRACE;
   pg_atomic_fetch_or_u32(&MyProcSignalSlot->pss_barrierCheckMask, flags);
   ProcSignalBarrierPending = true;
   InterruptPending = true;

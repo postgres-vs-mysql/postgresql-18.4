@@ -100,8 +100,8 @@ typedef HashPageOpaqueData *HashPageOpaque;
  */
 #define HASHO_PAGE_ID   0xFF80
 
-typedef struct HashScanPosItem  /* what we remember about each match */
-{
+typedef struct HashScanPosItem
+{ /* what we remember about each match */
   ItemPointerData heapTid;  /* TID of referenced heap item */
   OffsetNumber indexOffset; /* index item's location within page */
 } HashScanPosItem;

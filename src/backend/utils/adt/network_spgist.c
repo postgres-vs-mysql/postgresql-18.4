@@ -30,6 +30,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/socket.h>
 
@@ -50,9 +51,11 @@ static int  inet_spg_consistent_bitmap(const inet *prefix, int nkeys,
 Datum
 inet_spg_config(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
   spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
+  DBUG_PRINT("info", "the SP-GiST configuration function");
   cfg->prefixType = CIDROID;
   cfg->labelType = VOIDOID;
   cfg->canReturnData = true;
@@ -67,11 +70,14 @@ inet_spg_config(PG_FUNCTION_ARGS)
 Datum
 inet_spg_choose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
   spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
   inet     *val = DatumGetInetPP(in->datum),
             *prefix;
   int     commonbits;
+
+  DBUG_PRINT("info", "the SP-GiST choose function");
 
   /*
    * If we're looking at a tuple that splits by address family, choose the
@@ -161,6 +167,7 @@ inet_spg_choose(PG_FUNCTION_ARGS)
 Datum
 inet_spg_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
   spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
   inet     *prefix,
@@ -169,6 +176,7 @@ inet_spg_picksplit(PG_FUNCTION_ARGS)
           commonbits;
   bool    differentFamilies = false;
 
+  DBUG_PRINT("info", "the GiST PickSplit method");
   /* Initialize the prefix with the first item */
   prefix = DatumGetInetPP(in->datums[0]);
   commonbits = ip_bits(prefix);
@@ -230,10 +238,13 @@ inet_spg_picksplit(PG_FUNCTION_ARGS)
 Datum
 inet_spg_inner_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
   spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
   int     i;
   int     which;
+
+  DBUG_PRINT("info", "the SP-GiST query consistency check for inner tuples");
 
   if (!in->hasPrefix) {
     Assert(!in->allTheSame);
@@ -289,6 +300,7 @@ inet_spg_inner_consistent(PG_FUNCTION_ARGS)
   out->nNodes = 0;
 
   if (which) {
+    DBUG_PRINT("info", "identify which child nodes need to be visited:%d", which);
     out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
 
     for (i = 0; i < in->nNodes; i++) {
@@ -308,10 +320,13 @@ inet_spg_inner_consistent(PG_FUNCTION_ARGS)
 Datum
 inet_spg_leaf_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
   spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
   inet     *leaf = DatumGetInetPP(in->leafDatum);
+  bool result;
 
+  DBUG_PRINT("info", "the SP-GiST query consistency check for leaf tuples");
   /* All tests are exact. */
   out->recheck = false;
 
@@ -319,8 +334,15 @@ inet_spg_leaf_consistent(PG_FUNCTION_ARGS)
   out->leafValue = InetPGetDatum(leaf);
 
   /* Use common code to apply the tests. */
-  PG_RETURN_BOOL(inet_spg_consistent_bitmap(leaf, in->nkeys, in->scankeys,
-                 true));
+  result = inet_spg_consistent_bitmap(leaf, in->nkeys, in->scankeys, true);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -335,6 +357,7 @@ inet_spg_leaf_consistent(PG_FUNCTION_ARGS)
 static int
 inet_spg_node_number(const inet *val, int commonbits)
 {
+  DBUG_TRACE;
   int     nodeN = 0;
 
   if (commonbits < ip_maxbits(val) &&
@@ -344,6 +367,7 @@ inet_spg_node_number(const inet *val, int commonbits)
   if (commonbits < ip_bits(val))
     nodeN |= 2;
 
+  DBUG_PRINT("info", "calculate node number:%d", nodeN);
   return nodeN;
 }
 
@@ -361,6 +385,7 @@ static int
 inet_spg_consistent_bitmap(const inet *prefix, int nkeys, ScanKey scankeys,
                            bool leaf)
 {
+  DBUG_TRACE;
   int     bitmap;
   int     commonbits,
           i;
@@ -705,5 +730,6 @@ inet_spg_consistent_bitmap(const inet *prefix, int nkeys, ScanKey scankeys,
     }
   }
 
+  DBUG_PRINT("info", "calculate bitmap of node numbers that are consistent with the query:%d", bitmap);
   return bitmap;
 }

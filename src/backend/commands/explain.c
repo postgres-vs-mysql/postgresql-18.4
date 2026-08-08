@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/xact.h"
 #include "catalog/pg_type.h"
@@ -176,6 +177,7 @@ void
 ExplainQuery(ParseState *pstate, ExplainStmt *stmt,
              ParamListInfo params, DestReceiver *dest)
 {
+  DBUG_TRACE;
   ExplainState *es = NewExplainState();
   TupOutputState *tstate;
   JumbleState *jstate = NULL;
@@ -252,6 +254,7 @@ ExplainQuery(ParseState *pstate, ExplainStmt *stmt,
 TupleDesc
 ExplainResultDesc(ExplainStmt *stmt)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   ListCell   *lc;
   Oid     result_type = TEXTOID;
@@ -292,6 +295,8 @@ ExplainOneQuery(Query *query, int cursorOptions,
                 IntoClause *into, ExplainState *es,
                 ParseState *pstate, ParamListInfo params)
 {
+  DBUG_TRACE;
+
   /* planner will not cope with utility statements */
   if (query->commandType == CMD_UTILITY) {
     ExplainOneUtility(query->utilityStmt, into, es, pstate, params);
@@ -299,12 +304,14 @@ ExplainOneQuery(Query *query, int cursorOptions,
   }
 
   /* if an advisor plugin is present, let it manage things */
-  if (ExplainOneQuery_hook)
+  if (ExplainOneQuery_hook) {
+    DBUG_PRINT("info", "when an advisor plugin is present, let it manage things");
     (*ExplainOneQuery_hook) (query, cursorOptions, into, es,
                              pstate->p_sourcetext, params, pstate->p_queryEnv);
-  else
+  } else {
     standard_ExplainOneQuery(query, cursorOptions, into, es,
                              pstate->p_sourcetext, params, pstate->p_queryEnv);
+  }
 }
 
 /*
@@ -317,6 +324,7 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
                          const char *queryString, ParamListInfo params,
                          QueryEnvironment *queryEnv)
 {
+  DBUG_TRACE;
   PlannedStmt *plan;
   instr_time  planstart,
               planduration;
@@ -385,6 +393,8 @@ void
 ExplainOneUtility(Node *utilityStmt, IntoClause *into, ExplainState *es,
                   ParseState *pstate, ParamListInfo params)
 {
+  DBUG_TRACE;
+
   if (utilityStmt == NULL)
     return;
 
@@ -490,6 +500,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
                const BufferUsage *bufusage,
                const MemoryContextCounters *mem_counters)
 {
+  DBUG_TRACE;
   DestReceiver *dest;
   QueryDesc  *queryDesc;
   instr_time  starttime;
@@ -680,6 +691,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 static void
 ExplainPrintSettings(ExplainState *es)
 {
+  DBUG_TRACE;
   int     num;
   struct config_generic **gucs;
 
@@ -745,6 +757,7 @@ ExplainPrintSettings(ExplainState *es)
 void
 ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   Bitmapset  *rels_used = NULL;
   PlanState  *ps;
   ListCell   *lc;
@@ -803,6 +816,8 @@ ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc)
     ExplainPropertyInteger("Query Identifier", NULL,
                            queryDesc->plannedstmt->queryId, es);
   }
+
+  DBUG_PRINT("plan", "%s", es->str->data);
 }
 
 /*
@@ -817,6 +832,7 @@ ExplainPrintPlan(ExplainState *es, QueryDesc *queryDesc)
 void
 ExplainPrintTriggers(ExplainState *es, QueryDesc *queryDesc)
 {
+  DBUG_TRACE;
   ResultRelInfo *rInfo;
   bool    show_relname;
   List     *resultrels;
@@ -884,6 +900,7 @@ ExplainPrintJITSummary(ExplainState *es, QueryDesc *queryDesc)
 static void
 ExplainPrintJIT(ExplainState *es, int jit_flags, JitInstrumentation *ji)
 {
+  DBUG_TRACE;
   instr_time  total_time;
 
   /* don't print information if no JITing happened */
@@ -977,6 +994,7 @@ ExplainPrintJIT(ExplainState *es, int jit_flags, JitInstrumentation *ji)
 static void
 ExplainPrintSerialize(ExplainState *es, SerializeMetrics *metrics)
 {
+  DBUG_TRACE;
   const char *format;
 
   /* We shouldn't get called for EXPLAIN_SERIALIZE_NONE */
@@ -1050,6 +1068,7 @@ ExplainQueryText(ExplainState *es, QueryDesc *queryDesc)
 void
 ExplainQueryParameters(ExplainState *es, ParamListInfo params, int maxlen)
 {
+  DBUG_TRACE;
   char     *str;
 
   /* This check is consistent with errdetail_params() */
@@ -1069,6 +1088,7 @@ ExplainQueryParameters(ExplainState *es, ParamListInfo params, int maxlen)
 static void
 report_triggers(ResultRelInfo *rInfo, bool show_relname, ExplainState *es)
 {
+  DBUG_TRACE;
   int     nt;
 
   if (!rInfo->ri_TrigDesc || !rInfo->ri_TrigInstrument)
@@ -1164,6 +1184,7 @@ elapsed_time(instr_time *starttime)
 static bool
 ExplainPreScanNode(PlanState *planstate, Bitmapset **rels_used)
 {
+  DBUG_TRACE;
   Plan     *plan = planstate->plan;
 
   switch (nodeTag(plan)) {
@@ -1334,6 +1355,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
             const char *relationship, const char *plan_name,
             ExplainState *es)
 {
+  DBUG_TRACE;
   Plan     *plan = planstate->plan;
   const char *pname;      /* node type name for text output */
   const char *sname;      /* node type name for non-text output */
@@ -1646,6 +1668,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
       break;
   }
 
+  DBUG_PRINT("info", "node type name:%s", pname);
   ExplainOpenGroup("Plan",
                    relationship ? NULL : "Plan",
                    true, es);
@@ -2559,6 +2582,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 static void
 show_plan_tlist(PlanState *planstate, List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   Plan     *plan = planstate->plan;
   List     *context;
   List     *result = NIL;
@@ -2691,6 +2715,7 @@ show_upper_qual(List *qual, const char *qlabel,
 static void
 show_sort_keys(SortState *sortstate, List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   Sort     *plan = (Sort *) sortstate->ss.ps.plan;
 
   show_sort_group_keys((PlanState *) sortstate, "Sort Key",
@@ -3139,6 +3164,7 @@ static void
 show_tablesample(TableSampleClause *tsc, PlanState *planstate,
                  List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   List     *context;
   bool    useprefix;
   char     *method_name;
@@ -3206,6 +3232,8 @@ show_tablesample(TableSampleClause *tsc, PlanState *planstate,
 static void
 show_sort_info(SortState *sortstate, ExplainState *es)
 {
+  DBUG_TRACE;
+
   if (!es->analyze)
     return;
 
@@ -3291,6 +3319,7 @@ static void
 show_incremental_sort_group_info(IncrementalSortGroupInfo *groupInfo,
                                  const char *groupLabel, bool indent, ExplainState *es)
 {
+  DBUG_TRACE;
   ListCell   *methodCell;
   List     *methodNames = NIL;
 
@@ -3400,6 +3429,7 @@ static void
 show_incremental_sort_info(IncrementalSortState *incrsortstate,
                            ExplainState *es)
 {
+  DBUG_TRACE;
   IncrementalSortGroupInfo *fullsortGroupInfo;
   IncrementalSortGroupInfo *prefixsortGroupInfo;
 
@@ -3486,6 +3516,7 @@ show_incremental_sort_info(IncrementalSortState *incrsortstate,
 static void
 show_hash_info(HashState *hashstate, ExplainState *es)
 {
+  DBUG_TRACE;
   HashInstrumentation hinstrument = {0};
 
   /*
@@ -3685,6 +3716,7 @@ show_recursive_union_info(RecursiveUnionState *rstate, ExplainState *es)
 static void
 show_memoize_info(MemoizeState *mstate, List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   Plan     *plan = ((PlanState *) mstate)->plan;
   ListCell   *lc;
   List     *context;
@@ -3810,6 +3842,7 @@ show_memoize_info(MemoizeState *mstate, List *ancestors, ExplainState *es)
 static void
 show_hashagg_info(AggState *aggstate, ExplainState *es)
 {
+  DBUG_TRACE;
   Agg      *agg = (Agg *) aggstate->ss.ps.plan;
   int64   memPeakKb = BYTES_TO_KILOBYTES(aggstate->hash_mem_peak);
 
@@ -3923,6 +3956,7 @@ show_hashagg_info(AggState *aggstate, ExplainState *es)
 static void
 show_indexsearches_info(PlanState *planstate, ExplainState *es)
 {
+  DBUG_TRACE;
   Plan     *plan = planstate->plan;
   SharedIndexScanInstrumentation *SharedInfo = NULL;
   uint64    nsearches = 0;
@@ -4045,6 +4079,7 @@ static void
 show_instrumentation_count(const char *qlabel, int which,
                            PlanState *planstate, ExplainState *es)
 {
+  DBUG_TRACE;
   double    nfiltered;
   double    nloops;
 
@@ -4073,6 +4108,7 @@ show_instrumentation_count(const char *qlabel, int which,
 static void
 show_foreignscan_info(ForeignScanState *fsstate, ExplainState *es)
 {
+  DBUG_TRACE;
   FdwRoutine *fdwroutine = fsstate->fdwroutine;
 
   /* Let the FDW emit whatever fields it wants */
@@ -4098,6 +4134,7 @@ show_foreignscan_info(ForeignScanState *fsstate, ExplainState *es)
 static const char *
 explain_get_index_name(Oid indexId)
 {
+  DBUG_TRACE;
   const char *result;
 
   if (explain_get_index_name_hook)
@@ -4124,6 +4161,7 @@ explain_get_index_name(Oid indexId)
 static bool
 peek_buffer_usage(ExplainState *es, const BufferUsage *usage)
 {
+  DBUG_TRACE;
   bool    has_shared;
   bool    has_local;
   bool    has_temp;
@@ -4164,6 +4202,8 @@ peek_buffer_usage(ExplainState *es, const BufferUsage *usage)
 static void
 show_buffer_usage(ExplainState *es, const BufferUsage *usage)
 {
+  DBUG_TRACE;
+
   if (es->format == EXPLAIN_FORMAT_TEXT) {
     bool    has_shared = (usage->shared_blks_hit > 0 ||
                           usage->shared_blks_read > 0 ||
@@ -4348,6 +4388,8 @@ show_buffer_usage(ExplainState *es, const BufferUsage *usage)
 static void
 show_wal_usage(ExplainState *es, const WalUsage *usage)
 {
+  DBUG_TRACE;
+
   if (es->format == EXPLAIN_FORMAT_TEXT) {
     /* Show only positive counter values. */
     if ((usage->wal_records > 0) || (usage->wal_fpi > 0) ||
@@ -4391,6 +4433,7 @@ show_wal_usage(ExplainState *es, const WalUsage *usage)
 static void
 show_memory_counters(ExplainState *es, const MemoryContextCounters *mem_counters)
 {
+  DBUG_TRACE;
   int64   memUsedkB = BYTES_TO_KILOBYTES(mem_counters->totalspace -
                                          mem_counters->freespace);
   int64   memAllocatedkB = BYTES_TO_KILOBYTES(mem_counters->totalspace);
@@ -4415,6 +4458,7 @@ static void
 ExplainIndexScanDetails(Oid indexid, ScanDirection indexorderdir,
                         ExplainState *es)
 {
+  DBUG_TRACE;
   const char *indexname = explain_get_index_name(indexid);
 
   if (es->format == EXPLAIN_FORMAT_TEXT) {
@@ -4472,6 +4516,7 @@ ExplainModifyTarget(ModifyTable *plan, ExplainState *es)
 static void
 ExplainTargetRel(Plan *plan, Index rti, ExplainState *es)
 {
+  DBUG_TRACE;
   char     *objectname = NULL;
   char     *namespace = NULL;
   const char *objecttag = NULL;
@@ -4622,6 +4667,7 @@ static void
 show_modifytable_info(ModifyTableState *mtstate, List *ancestors,
                       ExplainState *es)
 {
+  DBUG_TRACE;
   ModifyTable *node = (ModifyTable *) mtstate->ps.plan;
   const char *operation;
   const char *foperation;
@@ -4835,6 +4881,7 @@ static void
 ExplainMemberNodes(PlanState **planstates, int nplans,
                    List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   int     j;
 
   for (j = 0; j < nplans; j++)
@@ -4852,6 +4899,8 @@ ExplainMemberNodes(PlanState **planstates, int nplans,
 static void
 ExplainMissingMembers(int nplans, int nchildren, ExplainState *es)
 {
+  DBUG_TRACE;
+
   if (nplans < nchildren || es->format != EXPLAIN_FORMAT_TEXT)
     ExplainPropertyInteger("Subplans Removed", NULL,
                            nchildren - nplans, es);
@@ -4867,6 +4916,7 @@ static void
 ExplainSubPlans(List *plans, List *ancestors,
                 const char *relationship, ExplainState *es)
 {
+  DBUG_TRACE;
   ListCell   *lst;
 
   foreach(lst, plans) {
@@ -4909,6 +4959,7 @@ ExplainSubPlans(List *plans, List *ancestors,
 static void
 ExplainCustomChildren(CustomScanState *css, List *ancestors, ExplainState *es)
 {
+  DBUG_TRACE;
   ListCell   *cell;
   const char *label =
     (list_length(css->custom_ps) != 1 ? "children" : "child");
@@ -4931,6 +4982,7 @@ ExplainCustomChildren(CustomScanState *css, List *ancestors, ExplainState *es)
 static ExplainWorkersState *
 ExplainCreateWorkersState(int num_workers)
 {
+  DBUG_TRACE;
   ExplainWorkersState *wstate;
 
   wstate = (ExplainWorkersState *) palloc(sizeof(ExplainWorkersState));
@@ -4948,6 +5000,7 @@ ExplainCreateWorkersState(int num_workers)
 static void
 ExplainOpenWorker(int n, ExplainState *es)
 {
+  DBUG_TRACE;
   ExplainWorkersState *wstate = es->workers_state;
 
   Assert(wstate);
@@ -5005,6 +5058,7 @@ ExplainOpenWorker(int n, ExplainState *es)
 static void
 ExplainCloseWorker(int n, ExplainState *es)
 {
+  DBUG_TRACE;
   ExplainWorkersState *wstate = es->workers_state;
 
   Assert(wstate);
@@ -5040,6 +5094,7 @@ ExplainCloseWorker(int n, ExplainState *es)
 static void
 ExplainFlushWorkersState(ExplainState *es)
 {
+  DBUG_TRACE;
   ExplainWorkersState *wstate = es->workers_state;
 
   ExplainOpenGroup("Workers", "Workers", false, es);

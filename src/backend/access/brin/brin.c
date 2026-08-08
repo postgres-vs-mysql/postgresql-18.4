@@ -14,6 +14,7 @@
  *    * ScalarArrayOpExpr (amsearcharray -> SK_SEARCHARRAY)
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin.h"
 #include "access/brin_page.h"
@@ -244,6 +245,7 @@ static void _brin_parallel_scan_and_build(BrinBuildState *state,
 Datum
 brinhandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
   amroutine->amstrategies = 0;
@@ -309,6 +311,7 @@ brinhandler(PG_FUNCTION_ARGS)
 static BrinInsertState *
 initialize_brin_insertstate(Relation idxRel, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   BrinInsertState *bistate;
   MemoryContext oldcxt;
 
@@ -342,6 +345,7 @@ brininsert(Relation idxRel, Datum *values, bool *nulls,
            bool indexUnchanged,
            IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   BlockNumber pagesPerRange;
   BlockNumber origHeapBlk;
   BlockNumber heapBlk;
@@ -501,6 +505,7 @@ brininsert(Relation idxRel, Datum *values, bool *nulls,
 void
 brininsertcleanup(Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   BrinInsertState *bistate = (BrinInsertState *) indexInfo->ii_AmCache;
 
   /* bail out if cache not initialized */
@@ -528,6 +533,7 @@ brininsertcleanup(Relation index, IndexInfo *indexInfo)
 IndexScanDesc
 brinbeginscan(Relation r, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   BrinOpaque *opaque;
 
@@ -556,6 +562,7 @@ brinbeginscan(Relation r, int nkeys, int norderbys)
 int64
 bringetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   Relation  idxRel = scan->indexRelation;
   Buffer    buf = InvalidBuffer;
   BrinDesc   *bdesc;
@@ -578,6 +585,7 @@ bringetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
   Size    len;
   char     *tmp PG_USED_FOR_ASSERTS_ONLY;
 
+  DBUG_PRINT("info", "execute the index scan");
   opaque = (BrinOpaque *) scan->opaque;
   bdesc = opaque->bo_bdesc;
   pgstat_count_index_scan(idxRel);
@@ -853,6 +861,7 @@ bringetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
            */
           if (consistentFn[attno - 1].fn_nargs >= 4) {
             /* Check all keys at once */
+            DBUG_PRINT("info", "check all keys at once");
             add = FunctionCall4Coll(&consistentFn[attno - 1],
                                     collation,
                                     PointerGetDatum(bdesc),
@@ -870,6 +879,8 @@ bringetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
              * loop as soon as a false return value is obtained.
              */
             int     keyno;
+
+            DBUG_PRINT("info", "check keys one by one");
 
             for (keyno = 0; keyno < nkeys[attno - 1]; keyno++) {
               add = FunctionCall3Coll(&consistentFn[attno - 1],
@@ -930,6 +941,7 @@ void
 brinrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
            ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   /*
    * Other index AMs preprocess the scan keys at this point, or sometime
    * early during the scan; this lets them optimize by removing redundant
@@ -948,6 +960,7 @@ brinrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 brinendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BrinOpaque *opaque = (BrinOpaque *) scan->opaque;
 
   brinRevmapTerminate(opaque->bo_rmAccess);
@@ -970,6 +983,7 @@ brinbuildCallback(Relation index,
                   bool tupleIsAlive,
                   void *brstate)
 {
+  DBUG_TRACE;
   BrinBuildState *state = (BrinBuildState *) brstate;
   BlockNumber thisblock;
 
@@ -1020,6 +1034,7 @@ brinbuildCallbackParallel(Relation index,
                           bool tupleIsAlive,
                           void *brstate)
 {
+  DBUG_TRACE;
   BrinBuildState *state = (BrinBuildState *) brstate;
   BlockNumber thisblock;
 
@@ -1073,6 +1088,7 @@ brinbuildCallbackParallel(Relation index,
 IndexBuildResult *
 brinbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   double    reltuples;
   double    idxtuples;
@@ -1238,6 +1254,7 @@ brinbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 void
 brinbuildempty(Relation index)
 {
+  DBUG_TRACE;
   Buffer    metabuf;
 
   /* An empty BRIN index has a metapage only. */
@@ -1268,6 +1285,8 @@ IndexBulkDeleteResult *
 brinbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
+
   /* allocate stats if first time through, else re-use existing struct */
   if (stats == NULL)
     stats = palloc0_object(IndexBulkDeleteResult);
@@ -1282,6 +1301,7 @@ brinbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 IndexBulkDeleteResult *
 brinvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   Relation  heapRel;
 
   /* No-op in ANALYZE ONLY mode */
@@ -1331,6 +1351,7 @@ brinoptions(Datum reloptions, bool validate)
 Datum
 brin_summarize_new_values(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   relation = PG_GETARG_DATUM(0);
 
   return DirectFunctionCall2(brin_summarize_range,
@@ -1346,6 +1367,7 @@ brin_summarize_new_values(PG_FUNCTION_ARGS)
 Datum
 brin_summarize_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexoid = PG_GETARG_OID(0);
   int64   heapBlk64 = PG_GETARG_INT64(1);
   BlockNumber heapBlk;
@@ -1446,6 +1468,7 @@ brin_summarize_range(PG_FUNCTION_ARGS)
   relation_close(indexRel, ShareUpdateExclusiveLock);
   relation_close(heapRel, ShareUpdateExclusiveLock);
 
+  DBUG_PRINT("info", "return numSummarized:%d", (int32) numSummarized);
   PG_RETURN_INT32((int32) numSummarized);
 }
 
@@ -1455,6 +1478,7 @@ brin_summarize_range(PG_FUNCTION_ARGS)
 Datum
 brin_desummarize_range(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     indexoid = PG_GETARG_OID(0);
   int64   heapBlk64 = PG_GETARG_INT64(1);
   BlockNumber heapBlk;
@@ -1543,6 +1567,7 @@ brin_desummarize_range(PG_FUNCTION_ARGS)
 BrinDesc *
 brin_build_desc(Relation rel)
 {
+  DBUG_TRACE;
   BrinOpcInfo **opcinfo;
   BrinDesc   *bdesc;
   TupleDesc tupdesc;
@@ -1599,6 +1624,7 @@ brin_build_desc(Relation rel)
 void
 brin_free_desc(BrinDesc *bdesc)
 {
+  DBUG_TRACE;
   /* make sure the tupdesc is still valid */
   Assert(bdesc->bd_tupdesc->tdrefcount >= 1);
   /* no need for retail pfree */
@@ -1611,6 +1637,7 @@ brin_free_desc(BrinDesc *bdesc)
 void
 brinGetStats(Relation index, BrinStatsData *stats)
 {
+  DBUG_TRACE;
   Buffer    metabuffer;
   Page    metapage;
   BrinMetaPageData *metadata;
@@ -1633,6 +1660,7 @@ static BrinBuildState *
 initialize_brin_buildstate(Relation idxRel, BrinRevmap *revmap,
                            BlockNumber pagesPerRange, BlockNumber tablePages)
 {
+  DBUG_TRACE;
   BrinBuildState *state;
   BlockNumber lastRange = 0;
 
@@ -1679,6 +1707,8 @@ initialize_brin_buildstate(Relation idxRel, BrinRevmap *revmap,
 static void
 terminate_brin_buildstate(BrinBuildState *state)
 {
+  DBUG_TRACE;
+
   /*
    * Release the last index buffer used.  We might as well ensure that
    * whatever free space remains in that page is available in FSM, too.
@@ -1724,6 +1754,7 @@ static void
 summarize_range(IndexInfo *indexInfo, BrinBuildState *state, Relation heapRel,
                 BlockNumber heapBlk, BlockNumber heapNumBlks)
 {
+  DBUG_TRACE;
   Buffer    phbuf;
   BrinTuple  *phtup;
   Size    phsz;
@@ -1849,6 +1880,7 @@ static void
 brinsummarize(Relation index, Relation heapRel, BlockNumber pageRange,
               bool include_partial, double *numSummarized, double *numExisting)
 {
+  DBUG_TRACE;
   BrinRevmap *revmap;
   BrinBuildState *state = NULL;
   IndexInfo  *indexInfo = NULL;
@@ -1945,6 +1977,7 @@ brinsummarize(Relation index, Relation heapRel, BlockNumber pageRange,
 static void
 form_and_insert_tuple(BrinBuildState *state)
 {
+  DBUG_TRACE;
   BrinTuple  *tup;
   Size    size;
 
@@ -1966,6 +1999,7 @@ form_and_insert_tuple(BrinBuildState *state)
 static void
 form_and_spill_tuple(BrinBuildState *state)
 {
+  DBUG_TRACE;
   BrinTuple  *tup;
   Size    size;
 
@@ -1991,6 +2025,7 @@ form_and_spill_tuple(BrinBuildState *state)
 static void
 union_tuples(BrinDesc *bdesc, BrinMemTuple *a, BrinTuple *b)
 {
+  DBUG_TRACE;
   int     keyno;
   BrinMemTuple *db;
   MemoryContext cxt;
@@ -2126,6 +2161,7 @@ union_tuples(BrinDesc *bdesc, BrinMemTuple *a, BrinTuple *b)
 static void
 brin_vacuum_scan(Relation idxrel, BufferAccessStrategy strategy)
 {
+  DBUG_TRACE;
   BlockNumber nblocks;
   BlockNumber blkno;
 
@@ -2160,6 +2196,7 @@ static bool
 add_values_to_range(Relation idxRel, BrinDesc *bdesc, BrinMemTuple *dtup,
                     const Datum *values, const bool *nulls)
 {
+  DBUG_TRACE;
   int     keyno;
 
   /* If the range starts empty, we're certainly going to modify it. */
@@ -2249,6 +2286,7 @@ add_values_to_range(Relation idxRel, BrinDesc *bdesc, BrinMemTuple *dtup,
 static bool
 check_null_keys(BrinValues *bval, ScanKey *nullkeys, int nnullkeys)
 {
+  DBUG_TRACE;
   int     keyno;
 
   /*
@@ -2308,6 +2346,7 @@ static void
 _brin_begin_parallel(BrinBuildState *buildstate, Relation heap, Relation index,
                      bool isconcurrent, int request)
 {
+  DBUG_TRACE;
   ParallelContext *pcxt;
   int     scantuplesortstates;
   Snapshot  snapshot;
@@ -2490,6 +2529,7 @@ _brin_begin_parallel(BrinBuildState *buildstate, Relation heap, Relation index,
 static void
 _brin_end_parallel(BrinLeader *brinleader, BrinBuildState *state)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Shutdown worker processes */
@@ -2522,6 +2562,7 @@ _brin_end_parallel(BrinLeader *brinleader, BrinBuildState *state)
 static double
 _brin_parallel_heapscan(BrinBuildState *state)
 {
+  DBUG_TRACE;
   BrinShared *brinshared = state->bs_leader->brinshared;
   int     nparticipanttuplesorts;
 
@@ -2564,6 +2605,7 @@ _brin_parallel_heapscan(BrinBuildState *state)
 static double
 _brin_parallel_merge(BrinBuildState *state)
 {
+  DBUG_TRACE;
   BrinTuple  *btup;
   BrinMemTuple *memtuple = NULL;
   Size    tuplen;
@@ -2704,6 +2746,7 @@ _brin_parallel_merge(BrinBuildState *state)
 static Size
 _brin_parallel_estimate_shared(Relation heap, Snapshot snapshot)
 {
+  DBUG_TRACE;
   /* c.f. shm_toc_allocate as to why BUFFERALIGN is used */
   return add_size(BUFFERALIGN(sizeof(BrinShared)),
                   table_parallelscan_estimate(heap, snapshot));
@@ -2715,6 +2758,7 @@ _brin_parallel_estimate_shared(Relation heap, Snapshot snapshot)
 static void
 _brin_leader_participate_as_worker(BrinBuildState *buildstate, Relation heap, Relation index)
 {
+  DBUG_TRACE;
   BrinLeader *brinleader = buildstate->bs_leader;
   int     sortmem;
 
@@ -2746,6 +2790,7 @@ _brin_parallel_scan_and_build(BrinBuildState *state,
                               Relation heap, Relation index,
                               int sortmem, bool progress)
 {
+  DBUG_TRACE;
   SortCoordinate coordinate;
   TableScanDesc scan;
   double    reltuples;
@@ -2800,6 +2845,7 @@ _brin_parallel_scan_and_build(BrinBuildState *state,
 void
 _brin_parallel_build_main(dsm_segment *seg, shm_toc *toc)
 {
+  DBUG_TRACE;
   char     *sharedquery;
   BrinShared *brinshared;
   Sharedsort *sharedsort;
@@ -2890,6 +2936,8 @@ _brin_parallel_build_main(dsm_segment *seg, shm_toc *toc)
 static void
 brin_build_empty_tuple(BrinBuildState *state, BlockNumber blkno)
 {
+  DBUG_TRACE;
+
   /* First time an empty tuple is requested? If yes, initialize it. */
   if (state->bs_emptyTuple == NULL) {
     MemoryContext oldcxt;
@@ -2925,6 +2973,7 @@ static void
 brin_fill_empty_ranges(BrinBuildState *state,
                        BlockNumber prevRange, BlockNumber nextRange)
 {
+  DBUG_TRACE;
   BlockNumber blkno;
 
   /*

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/hash.h"
 #include "access/relscan.h"
@@ -47,6 +48,7 @@ static void _hash_readnext(IndexScanDesc scan, Buffer *bufp,
 bool
 _hash_next(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   HashScanPosItem *currItem;
@@ -124,6 +126,7 @@ static void
 _hash_readnext(IndexScanDesc scan,
                Buffer *bufp, Page *pagep, HashPageOpaque *opaquep)
 {
+  DBUG_TRACE;
   BlockNumber blkno;
   Relation  rel = scan->indexRelation;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
@@ -187,6 +190,7 @@ static void
 _hash_readprev(IndexScanDesc scan,
                Buffer *bufp, Page *pagep, HashPageOpaque *opaquep)
 {
+  DBUG_TRACE;
   BlockNumber blkno;
   Relation  rel = scan->indexRelation;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
@@ -271,6 +275,7 @@ _hash_readprev(IndexScanDesc scan,
 bool
 _hash_first(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   ScanKey   cur;
@@ -429,6 +434,7 @@ _hash_first(IndexScanDesc scan, ScanDirection dir)
 static bool
 _hash_readpage(IndexScanDesc scan, Buffer *bufP, ScanDirection dir)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   Buffer    buf;
@@ -574,6 +580,7 @@ static int
 _hash_load_qualified_items(IndexScanDesc scan, Page page,
                            OffsetNumber offnum, ScanDirection dir)
 {
+  DBUG_TRACE;
   HashScanOpaque so = (HashScanOpaque) scan->opaque;
   IndexTuple  itup;
   int     itemIndex;
@@ -667,6 +674,7 @@ static inline void
 _hash_saveitem(HashScanOpaque so, int itemIndex,
                OffsetNumber offnum, IndexTuple itup)
 {
+  DBUG_TRACE;
   HashScanPosItem *currItem = &so->currPos.items[itemIndex];
 
   currItem->heapTid = itup->t_tid;

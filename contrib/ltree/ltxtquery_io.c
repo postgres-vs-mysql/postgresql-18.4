@@ -4,6 +4,7 @@
  * contrib/ltree/ltxtquery_io.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -58,6 +59,7 @@ typedef struct {
 static int32
 gettoken_query(QPRS_STATE *state, int32 *val, int32 *lenval, char **strval, uint16 *flag)
 {
+  DBUG_TRACE;
   int     charlen;
 
   for (;;) {
@@ -141,6 +143,7 @@ gettoken_query(QPRS_STATE *state, int32 *val, int32 *lenval, char **strval, uint
 static bool
 pushquery(QPRS_STATE *state, int32 type, int32 val, int32 distance, int32 lenval, uint16 flag)
 {
+  DBUG_TRACE;
   NODE     *tmp = (NODE *) palloc(sizeof(NODE));
 
   tmp->type = type;
@@ -171,6 +174,8 @@ pushquery(QPRS_STATE *state, int32 type, int32 val, int32 distance, int32 lenval
 static bool
 pushval_asis(QPRS_STATE *state, int type, char *strval, int lenval, uint16 flag)
 {
+  DBUG_TRACE;
+
   if (lenval > 0xffff)
     ereturn(state->escontext, false,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -203,6 +208,7 @@ pushval_asis(QPRS_STATE *state, int type, char *strval, int lenval, uint16 flag)
 static int32
 makepol(QPRS_STATE *state)
 {
+  DBUG_TRACE;
   int32   val = 0,
           type;
   int32   lenval = 0;
@@ -368,6 +374,7 @@ findoprnd(QPRS_STATE *state, ITEM *ptr, int32 *pos)
 static ltxtquery *
 queryin(char *buf, struct Node *escontext)
 {
+  DBUG_TRACE;
   QPRS_STATE  state;
   int32   i;
   ltxtquery  *query;
@@ -452,6 +459,7 @@ PG_FUNCTION_INFO_V1(ltxtq_in);
 Datum
 ltxtq_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltxtquery  *res;
 
   if ((res = queryin(PG_GETARG_POINTER(0), fcinfo->context)) == NULL)
@@ -472,6 +480,7 @@ PG_FUNCTION_INFO_V1(ltxtq_recv);
 Datum
 ltxtq_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   int     version = pq_getmsgint(buf, 1);
   char     *str;
@@ -515,6 +524,7 @@ while( ( (inf)->cur - (inf)->buf ) + (addsize) + 1 >= (inf)->buflen ) \
 static void
 infix(INFIX *in, bool first)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -611,6 +621,7 @@ PG_FUNCTION_INFO_V1(ltxtq_out);
 Datum
 ltxtq_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltxtquery  *query = PG_GETARG_LTXTQUERY_P(0);
   INFIX   nrm;
 
@@ -642,6 +653,7 @@ PG_FUNCTION_INFO_V1(ltxtq_send);
 Datum
 ltxtq_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltxtquery  *query = PG_GETARG_LTXTQUERY_P(0);
   StringInfoData buf;
   int     version = 1;

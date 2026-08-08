@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -33,6 +34,8 @@ static bool prng_seed_set = false;
 static void
 initialize_prng(void)
 {
+  DBUG_TRACE;
+
   if (unlikely(!prng_seed_set)) {
     /*
      * If possible, seed the PRNG using high-quality random bits. Should
@@ -45,6 +48,7 @@ initialize_prng(void)
 
       /* Mix the PID with the most predictable bits of the timestamp */
       iseed = (uint64) now ^ ((uint64) MyProcPid << 32);
+      DBUG_PRINT("info", "seed:%lu", iseed);
       pg_prng_seed(&prng_state, iseed);
     }
 
@@ -60,6 +64,7 @@ initialize_prng(void)
 Datum
 setseed(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    seed = PG_GETARG_FLOAT8(0);
 
   if (seed < -1 || seed > 1 || isnan(seed))
@@ -71,6 +76,7 @@ setseed(PG_FUNCTION_ARGS)
   pg_prng_fseed(&prng_state, seed);
   prng_seed_set = true;
 
+  DBUG_PRINT("info", "seed the PRNG from a specified value:%g", seed);
   PG_RETURN_VOID();
 }
 
@@ -82,6 +88,7 @@ setseed(PG_FUNCTION_ARGS)
 Datum
 drandom(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    result;
 
   initialize_prng();
@@ -89,6 +96,8 @@ drandom(PG_FUNCTION_ARGS)
   /* pg_prng_double produces desired result range [0.0, 1.0) */
   result = pg_prng_double(&prng_state);
 
+
+  DBUG_PRINT("info", "return a random number(%g) chosen uniformly in the range [0.0, 1.0)", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -100,6 +109,7 @@ drandom(PG_FUNCTION_ARGS)
 Datum
 drandom_normal(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    mean = PG_GETARG_FLOAT8(0);
   float8    stddev = PG_GETARG_FLOAT8(1);
   float8    result,
@@ -113,6 +123,7 @@ drandom_normal(PG_FUNCTION_ARGS)
   /* using the target normal distribution parameters */
   result = (stddev * z) + mean;
 
+  DBUG_PRINT("info", "return a random number(%g) from a normal distribution", result);
   PG_RETURN_FLOAT8(result);
 }
 
@@ -124,6 +135,7 @@ drandom_normal(PG_FUNCTION_ARGS)
 Datum
 int4random(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   rmin = PG_GETARG_INT32(0);
   int32   rmax = PG_GETARG_INT32(1);
   int32   result;
@@ -137,6 +149,7 @@ int4random(PG_FUNCTION_ARGS)
 
   result = (int32) pg_prng_int64_range(&prng_state, rmin, rmax);
 
+  DBUG_PRINT("info", "return a random 32-bit integer(%d) chosen uniformly in the specified range", result);
   PG_RETURN_INT32(result);
 }
 
@@ -148,6 +161,7 @@ int4random(PG_FUNCTION_ARGS)
 Datum
 int8random(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   rmin = PG_GETARG_INT64(0);
   int64   rmax = PG_GETARG_INT64(1);
   int64   result;
@@ -161,6 +175,7 @@ int8random(PG_FUNCTION_ARGS)
 
   result = pg_prng_int64_range(&prng_state, rmin, rmax);
 
+  DBUG_PRINT("info", "return a random 64-bit integer(%ld) chosen uniformly in the specified range", result);
   PG_RETURN_INT64(result);
 }
 
@@ -172,6 +187,7 @@ int8random(PG_FUNCTION_ARGS)
 Datum
 numeric_random(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   rmin = PG_GETARG_NUMERIC(0);
   Numeric   rmax = PG_GETARG_NUMERIC(1);
   Numeric   result;

@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -117,6 +118,7 @@ void
 get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
                   RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Index   varno = rel->relid;
   Relation  relation;
   bool    hasindex;
@@ -128,6 +130,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
    * rangetable.
    */
   relation = table_open(relationObjectId, NoLock);
+  DBUG_PRINT("info", "retrieve catalog information for a given relation:%s", RelationGetRelationName(relation));
 
   /*
    * Relations without a table AM can be used in a query only if they are of
@@ -138,19 +141,23 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
    */
   if (!relation->rd_tableam) {
     if (!(relation->rd_rel->relkind == RELKIND_FOREIGN_TABLE ||
-          relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE))
+          relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)) {
+      DBUG_INSTANT_PRINT("info", "annot open relation \"%s\"", RelationGetRelationName(relation));
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("cannot open relation \"%s\"",
                       RelationGetRelationName(relation)),
                errdetail_relkind_not_supported(relation->rd_rel->relkind)));
+    }
   }
 
   /* Temporary and unlogged relations are inaccessible during recovery. */
-  if (!RelationIsPermanent(relation) && RecoveryInProgress())
+  if (!RelationIsPermanent(relation) && RecoveryInProgress()) {
+    DBUG_INSTANT_PRINT("info", "cannot access temporary or unlogged relations during recovery");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot access temporary or unlogged relations during recovery")));
+  }
 
   rel->min_attr = FirstLowInvalidHeapAttributeNumber + 1;
   rel->max_attr = RelationGetNumberOfAttributes(relation);
@@ -202,6 +209,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 
   /* Retrieve the parallel_workers reloption, or -1 if not set. */
   rel->rel_parallel_workers = RelationGetParallelWorkers(relation, -1);
+  DBUG_PRINT("info", "retrieve the parallel_workers reloption:%d", rel->rel_parallel_workers);
 
   /*
    * Make list of indexes.  Ignore indexes on system catalogs if told to.
@@ -222,6 +230,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
     LOCKMODE  lmode;
     ListCell   *l;
 
+    DBUG_PRINT("info", "the relation is indexed");
     indexoidlist = RelationGetIndexList(relation);
 
     /*
@@ -504,6 +513,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
       /* there must not be built-in foreign tables */
       Assert(RelationGetRelid(relation) >= FirstNormalObjectId);
 
+      DBUG_INSTANT_PRINT("info", "access to non-system foreign table is restricted");
       ereport(ERROR,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("access to non-system foreign table is restricted")));
@@ -557,6 +567,7 @@ static void
 get_relation_foreign_keys(PlannerInfo *root, RelOptInfo *rel,
                           Relation relation, bool inhparent)
 {
+  DBUG_TRACE;
   List     *rtable = root->parse->rtable;
   List     *cachedfkeys;
   ListCell   *lc;
@@ -682,6 +693,7 @@ get_relation_foreign_keys(PlannerInfo *root, RelOptInfo *rel,
 List *
 infer_arbiter_indexes(PlannerInfo *root)
 {
+  DBUG_TRACE;
   OnConflictExpr *onconflict = root->parse->onConflict;
 
   /* Iteration state */
@@ -738,10 +750,12 @@ infer_arbiter_indexes(PlannerInfo *root)
     var = (Var *) elem->expr;
     attno = var->varattno;
 
-    if (attno == 0)
+    if (attno == 0) {
+      DBUG_INSTANT_PRINT("info", "whole row unique index inference specifications are not supported");
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("whole row unique index inference specifications are not supported")));
+    }
 
     inferAttrs = bms_add_member(inferAttrs,
                                 attno - FirstLowInvalidHeapAttributeNumber);
@@ -754,10 +768,12 @@ infer_arbiter_indexes(PlannerInfo *root)
   if (onconflict->constraint != InvalidOid) {
     indexOidFromConstraint = get_constraint_index(onconflict->constraint);
 
-    if (indexOidFromConstraint == InvalidOid)
+    if (indexOidFromConstraint == InvalidOid) {
+      DBUG_INSTANT_PRINT("info", "constraint in ON CONFLICT clause has no associated index");
       ereport(ERROR,
               (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                errmsg("constraint in ON CONFLICT clause has no associated index")));
+    }
   }
 
   /*
@@ -802,10 +818,12 @@ infer_arbiter_indexes(PlannerInfo *root)
      * unique constraint.  This can only be a constraint name.
      */
     if (indexOidFromConstraint == idxForm->indexrelid) {
-      if (idxForm->indisexclusion && onconflict->action == ONCONFLICT_UPDATE)
+      if (idxForm->indisexclusion && onconflict->action == ONCONFLICT_UPDATE) {
+        DBUG_INSTANT_PRINT("info", "ON CONFLICT DO UPDATE not supported with exclusion constraints");
         ereport(ERROR,
                 (errcode(ERRCODE_WRONG_OBJECT_TYPE),
                  errmsg("ON CONFLICT DO UPDATE not supported with exclusion constraints")));
+      }
 
       results = lappend_oid(results, idxForm->indexrelid);
       list_free(indexList);
@@ -918,10 +936,12 @@ next:
   list_free(indexList);
   table_close(relation, NoLock);
 
-  if (results == NIL)
+  if (results == NIL) {
+    DBUG_INSTANT_PRINT("info", "there is no unique or exclusion constraint matching the ON CONFLICT specification");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("there is no unique or exclusion constraint matching the ON CONFLICT specification")));
+  }
 
   return results;
 }
@@ -957,6 +977,7 @@ static bool
 infer_collation_opclass_match(InferenceElem *elem, Relation idxRel,
                               List *idxExprs)
 {
+  DBUG_TRACE;
   AttrNumber  natt;
   Oid     inferopfamily = InvalidOid; /* OID of opclass opfamily */
   Oid     inferopcinputtype = InvalidOid; /* OID of opclass input type */
@@ -1032,6 +1053,7 @@ void
 estimate_rel_size(Relation rel, int32 *attr_widths,
                   BlockNumber *pages, double *tuples, double *allvisfrac)
 {
+  DBUG_TRACE;
   BlockNumber curpages;
   BlockNumber relpages;
   double    reltuples;
@@ -1131,6 +1153,9 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
     *tuples = rel->rd_rel->reltuples;
     *allvisfrac = 0;
   }
+
+  DBUG_PRINT("info", "pages:%u, tuples:%g", *pages, *tuples);
+
 }
 
 
@@ -1150,6 +1175,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 int32
 get_rel_data_width(Relation rel, int32 *attr_widths)
 {
+  DBUG_TRACE;
   int64   tuple_width = 0;
   int     i;
 
@@ -1192,6 +1218,7 @@ get_rel_data_width(Relation rel, int32 *attr_widths)
 int32
 get_relation_data_width(Oid relid, int32 *attr_widths)
 {
+  DBUG_TRACE;
   int32   result;
   Relation  relation;
 
@@ -1200,6 +1227,7 @@ get_relation_data_width(Oid relid, int32 *attr_widths)
 
   result = get_rel_data_width(relation, attr_widths);
 
+  DBUG_PRINT("info", "estimate the average width of the relation's tuples:%d", result);
   table_close(relation, NoLock);
 
   return result;
@@ -1237,6 +1265,7 @@ get_relation_constraints(PlannerInfo *root,
                          bool include_notnull,
                          bool include_partition)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Index   varno = rel->relid;
   Relation  relation;
@@ -1368,6 +1397,7 @@ get_relation_statistics_worker(List **stainfos, RelOptInfo *rel,
                                Oid statOid, bool inh,
                                Bitmapset *keys, List *exprs)
 {
+  DBUG_TRACE;
   Form_pg_statistic_ext_data dataForm;
   HeapTuple dtup;
 
@@ -1446,6 +1476,7 @@ get_relation_statistics_worker(List **stainfos, RelOptInfo *rel,
 static List *
 get_relation_statistics(RelOptInfo *rel, Relation relation)
 {
+  DBUG_TRACE;
   Index   varno = rel->relid;
   List     *statoidlist;
   List     *stainfos = NIL;
@@ -1553,6 +1584,7 @@ bool
 relation_excluded_by_constraints(PlannerInfo *root,
                                  RelOptInfo *rel, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   bool    include_noinherit;
   bool    include_notnull;
   bool    include_partition = false;
@@ -1561,6 +1593,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
   List     *safe_constraints;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "detect whether the relation need not be scanned");
   /* As of now, constraint exclusion works only with simple relations. */
   Assert(IS_SIMPLE_REL(rel));
 
@@ -1568,8 +1601,10 @@ relation_excluded_by_constraints(PlannerInfo *root,
    * If there are no base restriction clauses, we have no hope of proving
    * anything below, so fall out quickly.
    */
-  if (rel->baserestrictinfo == NIL)
+  if (rel->baserestrictinfo == NIL) {
+    DBUG_PRINT("info", "if there are no base restriction clauses, we have no hope of proving nything below, so fall out quickly");
     return false;
+  }
 
   /*
    * Regardless of the setting of constraint_exclusion, detect
@@ -1587,8 +1622,10 @@ relation_excluded_by_constraints(PlannerInfo *root,
 
     if (clause && IsA(clause, Const) &&
         (((Const *) clause)->constisnull ||
-         !DatumGetBool(((Const *) clause)->constvalue)))
+         !DatumGetBool(((Const *) clause)->constvalue))) {
+      DBUG_PRINT("info", "result: true");
       return true;
+    }
   }
 
   /*
@@ -1597,6 +1634,8 @@ relation_excluded_by_constraints(PlannerInfo *root,
   switch (constraint_exclusion) {
     case CONSTRAINT_EXCLUSION_OFF:
       /* In 'off' mode, never make any further tests */
+      DBUG_PRINT("info", "in 'off' mode, never make any further tests");
+      DBUG_PRINT("info", "result: false");
       return false;
 
     case CONSTRAINT_EXCLUSION_PARTITION:
@@ -1610,6 +1649,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
       if (rel->reloptkind == RELOPT_OTHER_MEMBER_REL)
         break;      /* appendrel member, so process it */
 
+      DBUG_PRINT("info", "result: false");
       return false;
 
     case CONSTRAINT_EXCLUSION_ON:
@@ -1648,14 +1688,19 @@ relation_excluded_by_constraints(PlannerInfo *root,
    * We can use weak refutation here, since we're comparing restriction
    * clauses with restriction clauses.
    */
-  if (predicate_refuted_by(safe_restrictions, safe_restrictions, true))
+  if (predicate_refuted_by(safe_restrictions, safe_restrictions, true)) {
+    DBUG_PRINT("info", "result: true");
     return true;
+  }
 
   /*
    * Only plain relations have constraints, so stop here for other rtekinds.
    */
-  if (rte->rtekind != RTE_RELATION)
+  if (rte->rtekind != RTE_RELATION) {
+    DBUG_PRINT("info", "only plain relations have constraints, so stop here for other rtekinds");
+    DBUG_PRINT("info", "result: false");
     return false;
+  }
 
   /*
    * If we are scanning just this table, we can use NO INHERIT constraints,
@@ -1711,9 +1756,12 @@ relation_excluded_by_constraints(PlannerInfo *root,
    * We need strong refutation because we have to prove that the constraints
    * would yield false, not just NULL.
    */
-  if (predicate_refuted_by(safe_constraints, rel->baserestrictinfo, false))
+  if (predicate_refuted_by(safe_constraints, rel->baserestrictinfo, false)) {
+    DBUG_PRINT("info", "result: true");
     return true;
+  }
 
+  DBUG_PRINT("info", "result: false");
   return false;
 }
 
@@ -1742,6 +1790,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 List *
 build_physical_tlist(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   Index   varno = rel->relid;
   RangeTblEntry *rte = planner_rt_fetch(varno, root);
@@ -1927,6 +1976,7 @@ restriction_selectivity(PlannerInfo *root,
                         Oid inputcollid,
                         int varRelid)
 {
+  DBUG_TRACE;
   RegProcedure oprrest = get_oprrest(operatorid);
   float8    result;
 
@@ -1934,8 +1984,10 @@ restriction_selectivity(PlannerInfo *root,
    * if the oprrest procedure is missing for whatever reason, use a
    * selectivity of 0.5
    */
-  if (!oprrest)
+  if (!oprrest) {
+    DBUG_PRINT("info", "if the oprrest procedure is missing for whatever reason, use a selectivity of 0.5");
     return (Selectivity) 0.5;
+  }
 
   result = DatumGetFloat8(OidFunctionCall4Coll(oprrest,
                           inputcollid,
@@ -1947,6 +1999,7 @@ restriction_selectivity(PlannerInfo *root,
   if (result < 0.0 || result > 1.0)
     elog(ERROR, "invalid restriction selectivity: %f", result);
 
+  DBUG_PRINT("info", "return the selectivity of a specified restriction operator clause:%g", result);
   return (Selectivity) result;
 }
 
@@ -1967,6 +2020,7 @@ join_selectivity(PlannerInfo *root,
                  JoinType jointype,
                  SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   RegProcedure oprjoin = get_oprjoin(operatorid);
   float8    result;
 
@@ -1974,8 +2028,10 @@ join_selectivity(PlannerInfo *root,
    * if the oprjoin procedure is missing for whatever reason, use a
    * selectivity of 0.5
    */
-  if (!oprjoin)
+  if (!oprjoin) {
+    DBUG_PRINT("info", "if the oprjoin procedure is missing for whatever reason, use a selectivity of 0.5");
     return (Selectivity) 0.5;
+  }
 
   result = DatumGetFloat8(OidFunctionCall5Coll(oprjoin,
                           inputcollid,
@@ -1988,6 +2044,7 @@ join_selectivity(PlannerInfo *root,
   if (result < 0.0 || result > 1.0)
     elog(ERROR, "invalid join selectivity: %f", result);
 
+  DBUG_PRINT("info", "return selectivity:%g", result);
   return (Selectivity) result;
 }
 
@@ -2010,9 +2067,13 @@ function_selectivity(PlannerInfo *root,
                      JoinType jointype,
                      SpecialJoinInfo *sjinfo)
 {
+  DBUG_TRACE;
   RegProcedure prosupport = get_func_support(funcid);
   SupportRequestSelectivity req;
   SupportRequestSelectivity *sresult;
+  char *func_name = get_func_name(funcid);
+
+  DBUG_PRINT("info", "returns the selectivity of a specified boolean function clause:%s", func_name);
 
   /*
    * If no support function is provided, use our historical default
@@ -2021,8 +2082,10 @@ function_selectivity(PlannerInfo *root,
    * The hoariness of this behavior suggests that we should not be in too
    * much hurry to use another value.
    */
-  if (!prosupport)
+  if (!prosupport) {
+    DBUG_PRINT("info", "no support function is provided and use our historical default estimate");
     return (Selectivity) 0.3333333;
+  }
 
   req.type = T_SupportRequestSelectivity;
   req.root = root;
@@ -2040,12 +2103,15 @@ function_selectivity(PlannerInfo *root,
                             PointerGetDatum(&req)));
 
   /* If support function fails, use default */
-  if (sresult != &req)
+  if (sresult != &req) {
+    DBUG_PRINT("info", "support function fails and use default");
     return (Selectivity) 0.3333333;
+  }
 
   if (req.selectivity < 0.0 || req.selectivity > 1.0)
     elog(ERROR, "invalid function selectivity: %f", req.selectivity);
 
+  DBUG_PRINT("info", "return selectivity:%0.3f", req.selectivity);
   return (Selectivity) req.selectivity;
 }
 
@@ -2066,6 +2132,7 @@ void
 add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
                   QualCost *cost)
 {
+  DBUG_TRACE;
   HeapTuple proctup;
   Form_pg_proc procform;
 
@@ -2094,6 +2161,8 @@ add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
                               PointerGetDatum(&req)));
 
     if (sresult == &req) {
+      DBUG_PRINT("info", "success, so accumulate support function's estimate into cost");
+      DBUG_PRINT("info", "req per_tuple:%g, startup:%g", req.per_tuple, req.startup);
       /* Success, so accumulate support function's estimate into *cost */
       cost->startup += req.startup;
       cost->per_tuple += req.per_tuple;
@@ -2102,8 +2171,11 @@ add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
     }
   }
 
+  DBUG_PRINT("info", "no support function, or it failed, so rely on procost");
   /* No support function, or it failed, so rely on procost */
   cost->per_tuple += procform->procost * cpu_operator_cost;
+  DBUG_PRINT("info", "cost per_tuple:%g, procost:%g, cpu_operator_cost:%g",
+             cost->per_tuple, procform->procost, cpu_operator_cost);
 
   ReleaseSysCache(proctup);
 }
@@ -2126,6 +2198,7 @@ add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
 double
 get_function_rows(PlannerInfo *root, Oid funcid, Node *node)
 {
+  DBUG_TRACE;
   HeapTuple proctup;
   Form_pg_proc procform;
   double    result;
@@ -2184,6 +2257,7 @@ get_function_rows(PlannerInfo *root, Oid funcid, Node *node)
 bool
 has_unique_index(RelOptInfo *rel, AttrNumber attno)
 {
+  DBUG_TRACE;
   ListCell   *ilist;
 
   foreach(ilist, rel->indexlist) {
@@ -2200,10 +2274,13 @@ has_unique_index(RelOptInfo *rel, AttrNumber attno)
     if (index->unique &&
         index->nkeycolumns == 1 &&
         index->indexkeys[0] == attno &&
-        (index->indpred == NIL || index->predOK))
+        (index->indpred == NIL || index->predOK)) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -2216,6 +2293,7 @@ has_unique_index(RelOptInfo *rel, AttrNumber attno)
 bool
 has_row_triggers(PlannerInfo *root, Index rti, CmdType event)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = planner_rt_fetch(rti, root);
   Relation  relation;
   TriggerDesc *trigDesc;
@@ -2334,6 +2412,7 @@ has_transition_tables(PlannerInfo *root, Index rti, CmdType event)
 bool
 has_stored_generated_columns(PlannerInfo *root, Index rti)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = planner_rt_fetch(rti, root);
   Relation  relation;
   TupleDesc tupdesc;
@@ -2362,6 +2441,7 @@ Bitmapset *
 get_dependent_generated_columns(PlannerInfo *root, Index rti,
                                 Bitmapset *target_cols)
 {
+  DBUG_TRACE;
   Bitmapset  *dependentCols = NULL;
   RangeTblEntry *rte = planner_rt_fetch(rti, root);
   Relation  relation;
@@ -2408,6 +2488,7 @@ static void
 set_relation_partition_info(PlannerInfo *root, RelOptInfo *rel,
                             Relation relation)
 {
+  DBUG_TRACE;
   PartitionDesc partdesc;
 
   /*
@@ -2436,6 +2517,7 @@ set_relation_partition_info(PlannerInfo *root, RelOptInfo *rel,
 static PartitionScheme
 find_partition_scheme(PlannerInfo *root, Relation relation)
 {
+  DBUG_TRACE;
   PartitionKey partkey = RelationGetPartitionKey(relation);
   ListCell   *lc;
   int     partnatts,
@@ -2546,6 +2628,7 @@ static void
 set_baserel_partition_key_exprs(Relation relation,
                                 RelOptInfo *rel)
 {
+  DBUG_TRACE;
   PartitionKey partkey = RelationGetPartitionKey(relation);
   int     partnatts;
   int     cnt;
@@ -2609,6 +2692,7 @@ set_baserel_partition_key_exprs(Relation relation,
 static void
 set_baserel_partition_constraint(Relation relation, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *partconstr;
 
   if (rel->partition_qual)  /* already done */

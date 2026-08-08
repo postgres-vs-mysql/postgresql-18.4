@@ -11,6 +11,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "mb/pg_wchar.h"
 
@@ -42,6 +43,7 @@ static int  shift_jis_20042euc_jis_2004(const unsigned char *sjis, unsigned char
 Datum
 euc_jis_2004_to_shift_jis_2004(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);
@@ -58,6 +60,7 @@ euc_jis_2004_to_shift_jis_2004(PG_FUNCTION_ARGS)
 Datum
 shift_jis_2004_to_euc_jis_2004(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
   unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
   int     len = PG_GETARG_INT32(4);

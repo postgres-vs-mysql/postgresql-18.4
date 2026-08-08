@@ -15,6 +15,7 @@
 #define EXECUTOR_H
 
 #include "executor/execdesc.h"
+#include "debug_trace.h"
 #include "fmgr.h"
 #include "nodes/lockoptions.h"
 #include "nodes/parsenodes.h"
@@ -433,6 +434,7 @@ ExecEvalExprSwitchContext(ExprState *state,
                           ExprContext *econtext,
                           bool *isNull)
 {
+  DBUG_TRACE;
   Datum   retDatum;
   MemoryContext oldContext;
 
@@ -478,10 +480,12 @@ ExecEvalExprNoReturnSwitchContext(ExprState *state,
 static inline TupleTableSlot *
 ExecProject(ProjectionInfo *projInfo)
 {
+  DBUG_TRACE;
   ExprContext *econtext = projInfo->pi_exprContext;
   ExprState  *state = &projInfo->pi_state;
   TupleTableSlot *slot = state->resultslot;
 
+  DBUG_PRINT("info", "projects a tuple based on projection info and stores it in the slot");
   /*
    * Clear any former contents of the result slot.  This makes it safe for
    * us to use the slot's Datum/isnull arrays as workspace.
@@ -495,6 +499,7 @@ ExecProject(ProjectionInfo *projInfo)
    * Successfully formed a result row.  Mark the result slot as containing a
    * valid virtual tuple (inlined version of ExecStoreVirtualTuple()).
    */
+  DBUG_PRINT("info", "successfully formed a result row");
   slot->tts_flags &= ~TTS_FLAG_EMPTY;
   slot->tts_nvalid = slot->tts_tupleDescriptor->natts;
 
@@ -514,12 +519,16 @@ ExecProject(ProjectionInfo *projInfo)
 static inline bool
 ExecQual(ExprState *state, ExprContext *econtext)
 {
+  DBUG_TRACE;
   Datum   ret;
   bool    isnull;
+  bool    result;
 
   /* short-circuit (here and in ExecInitQual) for empty restriction list */
-  if (state == NULL)
+  if (state == NULL) {
+    DBUG_PRINT("info", "short-circuit for empty restriction list");
     return true;
+  }
 
   /* verify that expression was compiled using ExecInitQual */
   Assert(state->flags & EEO_FLAG_IS_QUAL);
@@ -529,7 +538,15 @@ ExecQual(ExprState *state, ExprContext *econtext)
   /* EEOP_QUAL should never return NULL */
   Assert(!isnull);
 
-  return DatumGetBool(ret);
+  result = DatumGetBool(ret);
+
+  if (result) {
+    DBUG_PRINT("info", "return true when qual is satisfied");
+  } else {
+    DBUG_PRINT("info", "return false when qual is not satisfied");
+  }
+
+  return result;
 }
 #endif
 
@@ -661,7 +678,7 @@ extern ExprContext *MakePerTupleExprContext(EState *estate);
 #define ResetPerTupleExprContext(estate) \
   do { \
     if ((estate)->es_per_tuple_exprcontext) \
-      ResetExprContext((estate)->es_per_tuple_exprcontext); \
+    ResetExprContext((estate)->es_per_tuple_exprcontext); \
   } while (0)
 
 extern void ExecAssignExprContext(EState *estate, PlanState *planstate);

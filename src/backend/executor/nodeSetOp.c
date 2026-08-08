@@ -44,6 +44,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "executor/executor.h"
@@ -82,6 +83,7 @@ static TupleTableSlot *setop_retrieve_hash_table(SetOpState *setopstate);
 static void
 build_hash_table(SetOpState *setopstate)
 {
+  DBUG_TRACE;
   SetOp    *node = (SetOp *) setopstate->ps.plan;
   ExprContext *econtext = setopstate->ps.ps_ExprContext;
   TupleDesc desc = ExecGetResultType(outerPlanState(setopstate));
@@ -118,6 +120,7 @@ build_hash_table(SetOpState *setopstate)
 static void
 set_output_count(SetOpState *setopstate, SetOpStatePerGroup pergroup)
 {
+  DBUG_TRACE;
   SetOp    *plannode = (SetOp *) setopstate->ps.plan;
 
   switch (plannode->cmd) {
@@ -163,6 +166,7 @@ set_output_count(SetOpState *setopstate, SetOpStatePerGroup pergroup)
 static TupleTableSlot *     /* return: a tuple or NULL */
 ExecSetOp(PlanState *pstate)
 {
+  DBUG_TRACE;
   SetOpState *node = castNode(SetOpState, pstate);
   SetOp    *plannode = (SetOp *) node->ps.plan;
   TupleTableSlot *resultTupleSlot = node->ps.ps_ResultTupleSlot;
@@ -198,6 +202,7 @@ ExecSetOp(PlanState *pstate)
 static TupleTableSlot *
 setop_retrieve_sorted(SetOpState *setopstate)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
   PlanState  *innerPlan;
   TupleTableSlot *resultTupleSlot;
@@ -400,6 +405,7 @@ setop_compare_slots(TupleTableSlot *s1, TupleTableSlot *s2,
 static void
 setop_fill_hash_table(SetOpState *setopstate)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
   PlanState  *innerPlan;
   ExprContext *econtext = setopstate->ps.ps_ExprContext;
@@ -496,6 +502,7 @@ setop_fill_hash_table(SetOpState *setopstate)
 static TupleTableSlot *
 setop_retrieve_hash_table(SetOpState *setopstate)
 {
+  DBUG_TRACE;
   TupleHashEntry entry;
   TupleTableSlot *resultTupleSlot;
 
@@ -554,6 +561,7 @@ setop_retrieve_hash_table(SetOpState *setopstate)
 SetOpState *
 ExecInitSetOp(SetOp *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   SetOpState *setopstate;
 
   /* check for unsupported flags */
@@ -670,6 +678,8 @@ ExecInitSetOp(SetOp *node, EState *estate, int eflags)
 void
 ExecEndSetOp(SetOpState *node)
 {
+  DBUG_TRACE;
+
   /* free subsidiary stuff including hashtable */
   if (node->tableContext)
     MemoryContextDelete(node->tableContext);
@@ -682,6 +692,7 @@ ExecEndSetOp(SetOpState *node)
 void
 ExecReScanSetOp(SetOpState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
   PlanState  *innerPlan = innerPlanState(node);
 

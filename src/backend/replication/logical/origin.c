@@ -66,6 +66,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -252,6 +253,7 @@ replorigin_by_name(const char *roname, bool missing_ok)
 RepOriginId
 replorigin_create(const char *roname)
 {
+  DBUG_TRACE;
   Oid     roident;
   HeapTuple tuple = NULL;
   Relation  rel;
@@ -362,6 +364,7 @@ replorigin_create(const char *roname)
 static void
 replorigin_state_clear(RepOriginId roident, bool nowait)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -430,6 +433,7 @@ restart:
 void
 replorigin_drop_by_name(const char *name, bool missing_ok, bool nowait)
 {
+  DBUG_TRACE;
   RepOriginId roident;
   Relation  rel;
   HeapTuple tuple;
@@ -484,6 +488,7 @@ replorigin_drop_by_name(const char *name, bool missing_ok, bool nowait)
 bool
 replorigin_by_oid(RepOriginId roident, bool missing_ok, char **roname)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_replication_origin ric;
 
@@ -537,6 +542,7 @@ ReplicationOriginShmemSize(void)
 void
 ReplicationOriginShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   if (max_active_replication_origins == 0)
@@ -557,7 +563,7 @@ ReplicationOriginShmemInit(void)
 
     for (i = 0; i < max_active_replication_origins; i++) {
       LWLockInitialize(&replication_states[i].lock,
-                       replication_states_ctl->tranche_id);
+                       replication_states_ctl->tranche_id, i);
       ConditionVariableInit(&replication_states[i].origin_cv);
     }
   }
@@ -582,6 +588,7 @@ ReplicationOriginShmemInit(void)
 void
 CheckPointReplicationOrigin(void)
 {
+  DBUG_TRACE;
   const char *tmppath = PG_REPLORIGIN_CHECKPOINT_TMPFILE;
   const char *path = PG_REPLORIGIN_CHECKPOINT_FILENAME;
   int     tmpfd;
@@ -712,6 +719,7 @@ CheckPointReplicationOrigin(void)
 void
 StartupReplicationOrigin(void)
 {
+  DBUG_TRACE;
   const char *path = PG_REPLORIGIN_CHECKPOINT_FILENAME;
   int     fd;
   int     readBytes;
@@ -838,6 +846,7 @@ StartupReplicationOrigin(void)
 void
 replorigin_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   switch (info) {
@@ -899,6 +908,7 @@ replorigin_advance(RepOriginId node,
                    XLogRecPtr remote_commit, XLogRecPtr local_commit,
                    bool go_backward, bool wal_log)
 {
+  DBUG_TRACE;
   int     i;
   ReplicationState *replication_state = NULL;
   ReplicationState *free_state = NULL;
@@ -1019,6 +1029,7 @@ replorigin_advance(RepOriginId node,
 XLogRecPtr
 replorigin_get_progress(RepOriginId node, bool flush)
 {
+  DBUG_TRACE;
   int     i;
   XLogRecPtr  local_lsn = InvalidXLogRecPtr;
   XLogRecPtr  remote_lsn = InvalidXLogRecPtr;
@@ -1058,6 +1069,7 @@ replorigin_get_progress(RepOriginId node, bool flush)
 static void
 ReplicationOriginExitCleanup(int code, Datum arg)
 {
+  DBUG_TRACE;
   ConditionVariable *cv = NULL;
 
   if (session_replication_state == NULL)
@@ -1099,6 +1111,7 @@ ReplicationOriginExitCleanup(int code, Datum arg)
 void
 replorigin_session_setup(RepOriginId node, int acquired_by)
 {
+  DBUG_TRACE;
   static bool registered_cleanup;
   int     i;
   int     free_slot = -1;
@@ -1187,6 +1200,7 @@ replorigin_session_setup(RepOriginId node, int acquired_by)
 void
 replorigin_session_reset(void)
 {
+  DBUG_TRACE;
   ConditionVariable *cv;
 
   Assert(max_active_replication_origins != 0);
@@ -1216,6 +1230,7 @@ replorigin_session_reset(void)
 void
 replorigin_session_advance(XLogRecPtr remote_commit, XLogRecPtr local_commit)
 {
+  DBUG_TRACE;
   Assert(session_replication_state != NULL);
   Assert(session_replication_state->roident != InvalidRepOriginId);
 
@@ -1237,6 +1252,7 @@ replorigin_session_advance(XLogRecPtr remote_commit, XLogRecPtr local_commit)
 XLogRecPtr
 replorigin_session_get_progress(bool flush)
 {
+  DBUG_TRACE;
   XLogRecPtr  remote_lsn;
   XLogRecPtr  local_lsn;
 
@@ -1269,6 +1285,7 @@ replorigin_session_get_progress(bool flush)
 Datum
 pg_replication_origin_create(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
   RepOriginId roident;
 
@@ -1312,6 +1329,7 @@ pg_replication_origin_create(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_drop(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
 
   replorigin_check_prerequisites(false, false);
@@ -1331,6 +1349,7 @@ pg_replication_origin_drop(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
   RepOriginId roident;
 
@@ -1353,6 +1372,7 @@ pg_replication_origin_oid(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_session_setup(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
   RepOriginId origin;
 
@@ -1375,6 +1395,7 @@ pg_replication_origin_session_setup(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_session_reset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   replorigin_check_prerequisites(true, false);
 
   replorigin_session_reset();
@@ -1392,6 +1413,7 @@ pg_replication_origin_session_reset(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_session_is_setup(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   replorigin_check_prerequisites(false, false);
 
   PG_RETURN_BOOL(replorigin_session_origin != InvalidRepOriginId);
@@ -1408,6 +1430,7 @@ pg_replication_origin_session_is_setup(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_session_progress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  remote_lsn = InvalidXLogRecPtr;
   bool    flush = PG_GETARG_BOOL(0);
 
@@ -1429,6 +1452,7 @@ pg_replication_origin_session_progress(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_xact_setup(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  location = PG_GETARG_LSN(0);
 
   replorigin_check_prerequisites(true, false);
@@ -1447,6 +1471,7 @@ pg_replication_origin_xact_setup(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_xact_reset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   replorigin_check_prerequisites(true, false);
 
   replorigin_session_origin_lsn = InvalidXLogRecPtr;
@@ -1459,6 +1484,7 @@ pg_replication_origin_xact_reset(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_advance(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *name = PG_GETARG_TEXT_PP(0);
   XLogRecPtr  remote_commit = PG_GETARG_LSN(1);
   RepOriginId node;
@@ -1494,6 +1520,7 @@ pg_replication_origin_advance(PG_FUNCTION_ARGS)
 Datum
 pg_replication_origin_progress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name;
   bool    flush;
   RepOriginId roident;
@@ -1519,6 +1546,7 @@ pg_replication_origin_progress(PG_FUNCTION_ARGS)
 Datum
 pg_show_replication_origin_status(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   int     i;
 #define REPLICATION_ORIGIN_PROGRESS_COLS 4

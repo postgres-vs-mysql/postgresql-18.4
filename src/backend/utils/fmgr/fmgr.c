@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "catalog/pg_language.h"
@@ -74,11 +75,16 @@ extern Datum fmgr_security_definer(PG_FUNCTION_ARGS);
 static const FmgrBuiltin *
 fmgr_isbuiltin(Oid id)
 {
+  DBUG_TRACE;
   uint16    index;
 
+  DBUG_PRINT("info", "lookup routines for builtin-function table by Oid:%d", id);
+
   /* fast lookup only possible if original oid still assigned */
-  if (id > fmgr_last_builtin_oid)
+  if (id > fmgr_last_builtin_oid) {
+    DBUG_PRINT("info", "not found");
     return NULL;
+  }
 
   /*
    * Lookup function data. If there's a miss in that range it's likely a
@@ -86,9 +92,12 @@ fmgr_isbuiltin(Oid id)
    */
   index = fmgr_builtin_oid_index[id];
 
-  if (index == InvalidOidBuiltinMapping)
+  if (index == InvalidOidBuiltinMapping) {
+    DBUG_PRINT("info", "not found");
     return NULL;
+  }
 
+  DBUG_PRINT("info", "found and fun name:%s", fmgr_builtins[index].funcName);
   return &fmgr_builtins[index];
 }
 
@@ -100,13 +109,19 @@ fmgr_isbuiltin(Oid id)
 static const FmgrBuiltin *
 fmgr_lookupByName(const char *name)
 {
+  DBUG_TRACE;
   int     i;
 
+  DBUG_PRINT("info", "lookup a builtin by name:%s", name);
+
   for (i = 0; i < fmgr_nbuiltins; i++) {
-    if (strcmp(name, fmgr_builtins[i].funcName) == 0)
+    if (strcmp(name, fmgr_builtins[i].funcName) == 0) {
+      DBUG_PRINT("info", "found");
       return fmgr_builtins + i;
+    }
   }
 
+  DBUG_PRINT("info", "not found");
   return NULL;
 }
 
@@ -126,6 +141,7 @@ fmgr_lookupByName(const char *name)
 void
 fmgr_info(Oid functionId, FmgrInfo *finfo)
 {
+  DBUG_TRACE;
   fmgr_info_cxt_security(functionId, finfo, CurrentMemoryContext, false);
 }
 
@@ -136,6 +152,7 @@ fmgr_info(Oid functionId, FmgrInfo *finfo)
 void
 fmgr_info_cxt(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt)
 {
+  DBUG_TRACE;
   fmgr_info_cxt_security(functionId, finfo, mcxt, false);
 }
 
@@ -147,6 +164,7 @@ static void
 fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
                        bool ignore_security)
 {
+  DBUG_TRACE;
   const FmgrBuiltin *fbp;
   HeapTuple procedureTuple;
   Form_pg_proc procedureStruct;
@@ -281,6 +299,7 @@ fmgr_info_cxt_security(Oid functionId, FmgrInfo *finfo, MemoryContext mcxt,
 void
 fmgr_symbol(Oid functionId, char **mod, char **fn)
 {
+  DBUG_TRACE;
   HeapTuple procedureTuple;
   Form_pg_proc procedureStruct;
   Datum   prosrcattr;
@@ -288,8 +307,10 @@ fmgr_symbol(Oid functionId, char **mod, char **fn)
 
   procedureTuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(functionId));
 
-  if (!HeapTupleIsValid(procedureTuple))
+  if (!HeapTupleIsValid(procedureTuple)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for function %u", functionId);
     elog(ERROR, "cache lookup failed for function %u", functionId);
+  }
 
   procedureStruct = (Form_pg_proc) GETSTRUCT(procedureTuple);
 
@@ -349,6 +370,7 @@ fmgr_symbol(Oid functionId, char **mod, char **fn)
 static void
 fmgr_info_C_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedureTuple)
 {
+  DBUG_TRACE;
   CFuncHashTabEntry *hashentry;
   PGFunction  user_fn;
   const Pg_finfo_record *inforec;
@@ -416,6 +438,7 @@ fmgr_info_C_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedureTuple)
 static void
 fmgr_info_other_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedureTuple)
 {
+  DBUG_TRACE;
   Form_pg_proc procedureStruct = (Form_pg_proc) GETSTRUCT(procedureTuple);
   Oid     language = procedureStruct->prolang;
   HeapTuple languageTuple;
@@ -455,6 +478,7 @@ fmgr_info_other_lang(Oid functionId, FmgrInfo *finfo, HeapTuple procedureTuple)
 const Pg_finfo_record *
 fetch_finfo_record(void *filehandle, const char *funcname)
 {
+  DBUG_TRACE;
   char     *infofuncname;
   PGFInfoFunction infofunc;
   const Pg_finfo_record *inforec;
@@ -516,24 +540,33 @@ fetch_finfo_record(void *filehandle, const char *funcname)
 static CFuncHashTabEntry *
 lookup_C_func(HeapTuple procedureTuple)
 {
+  DBUG_TRACE;
   Oid     fn_oid = ((Form_pg_proc) GETSTRUCT(procedureTuple))->oid;
   CFuncHashTabEntry *entry;
 
-  if (CFuncHash == NULL)
+  if (CFuncHash == NULL) {
+    DBUG_PRINT("info", "no table yet");
     return NULL;      /* no table yet */
+  }
 
+  DBUG_PRINT("info", "try to find a C function in the hash table");
   entry = (CFuncHashTabEntry *)
           hash_search(CFuncHash,
                       &fn_oid,
                       HASH_FIND,
                       NULL);
 
-  if (entry == NULL)
+  if (entry == NULL) {
+    DBUG_PRINT("info", "no such entry");
     return NULL;      /* no such entry */
+  }
 
   if (entry->fn_xmin == HeapTupleHeaderGetRawXmin(procedureTuple->t_data) &&
-      ItemPointerEquals(&entry->fn_tid, &procedureTuple->t_self))
+      ItemPointerEquals(&entry->fn_tid, &procedureTuple->t_self)) {
+    char *func_name = get_func_name(entry->fn_oid);
+    DBUG_PRINT("info", "ok and function name:%s", func_name);
     return entry;     /* OK */
+  }
 
   return NULL;        /* entry is out of date */
 }
@@ -545,6 +578,7 @@ static void
 record_C_func(HeapTuple procedureTuple,
               PGFunction user_fn, const Pg_finfo_record *inforec)
 {
+  DBUG_TRACE;
   Oid     fn_oid = ((Form_pg_proc) GETSTRUCT(procedureTuple))->oid;
   CFuncHashTabEntry *entry;
   bool    found;
@@ -555,12 +589,14 @@ record_C_func(HeapTuple procedureTuple,
 
     hash_ctl.keysize = sizeof(Oid);
     hash_ctl.entrysize = sizeof(CFuncHashTabEntry);
+    DBUG_PRINT("info", "create the hash table if it doesn't exist yet");
     CFuncHash = hash_create("CFuncHash",
                             100,
                             &hash_ctl,
                             HASH_ELEM | HASH_BLOBS);
   }
 
+  DBUG_PRINT("info", "update info about a C function in the hash table");
   entry = (CFuncHashTabEntry *)
           hash_search(CFuncHash,
                       &fn_oid,
@@ -636,6 +672,7 @@ struct fmgr_security_definer_cache {
 extern Datum
 fmgr_security_definer(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   result;
   struct fmgr_security_definer_cache *volatile fcache;
   FmgrInfo   *save_flinfo;
@@ -800,6 +837,7 @@ fmgr_security_definer(PG_FUNCTION_ARGS)
 Datum
 DirectFunctionCall1Coll(PGFunction func, Oid collation, Datum arg1)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 1);
   Datum   result;
 
@@ -820,6 +858,7 @@ DirectFunctionCall1Coll(PGFunction func, Oid collation, Datum arg1)
 Datum
 DirectFunctionCall2Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 2);
   Datum   result;
 
@@ -843,6 +882,7 @@ Datum
 DirectFunctionCall3Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
   Datum   result;
 
@@ -868,6 +908,7 @@ Datum
 DirectFunctionCall4Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3, Datum arg4)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 4);
   Datum   result;
 
@@ -895,6 +936,7 @@ Datum
 DirectFunctionCall5Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3, Datum arg4, Datum arg5)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 5);
   Datum   result;
 
@@ -925,6 +967,7 @@ DirectFunctionCall6Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3, Datum arg4, Datum arg5,
                         Datum arg6)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 6);
   Datum   result;
 
@@ -957,6 +1000,7 @@ DirectFunctionCall7Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3, Datum arg4, Datum arg5,
                         Datum arg6, Datum arg7)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 7);
   Datum   result;
 
@@ -991,6 +1035,7 @@ DirectFunctionCall8Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg3, Datum arg4, Datum arg5,
                         Datum arg6, Datum arg7, Datum arg8)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 8);
   Datum   result;
 
@@ -1028,6 +1073,7 @@ DirectFunctionCall9Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
                         Datum arg6, Datum arg7, Datum arg8,
                         Datum arg9)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 9);
   Datum   result;
 
@@ -1073,6 +1119,7 @@ DirectFunctionCall9Coll(PGFunction func, Oid collation, Datum arg1, Datum arg2,
 Datum
 CallerFInfoFunctionCall1(PGFunction func, FmgrInfo *flinfo, Oid collation, Datum arg1)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 1);
   Datum   result;
 
@@ -1093,6 +1140,7 @@ CallerFInfoFunctionCall1(PGFunction func, FmgrInfo *flinfo, Oid collation, Datum
 Datum
 CallerFInfoFunctionCall2(PGFunction func, FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 2);
   Datum   result;
 
@@ -1120,6 +1168,7 @@ CallerFInfoFunctionCall2(PGFunction func, FmgrInfo *flinfo, Oid collation, Datum
 Datum
 FunctionCall0Coll(FmgrInfo *flinfo, Oid collation)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 0);
   Datum   result;
 
@@ -1137,6 +1186,7 @@ FunctionCall0Coll(FmgrInfo *flinfo, Oid collation)
 Datum
 FunctionCall1Coll(FmgrInfo *flinfo, Oid collation, Datum arg1)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 1);
   Datum   result;
 
@@ -1155,8 +1205,32 @@ FunctionCall1Coll(FmgrInfo *flinfo, Oid collation, Datum arg1)
 }
 
 Datum
+FunctionCall2Coll_not_traced(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2)
+{
+  LOCAL_FCINFO(fcinfo, 2);
+  Datum   result;
+
+  InitFunctionCallInfoData(*fcinfo, flinfo, 2, collation, NULL, NULL);
+
+  fcinfo->args[0].value = arg1;
+  fcinfo->args[0].isnull = false;
+  fcinfo->args[1].value = arg2;
+  fcinfo->args[1].isnull = false;
+  flinfo->trace_disabled = 1;
+
+  result = FunctionCallInvoke(fcinfo);
+
+  /* Check for null result, since caller is clearly not expecting one */
+  if (fcinfo->isnull)
+    elog(ERROR, "function %u returned NULL", flinfo->fn_oid);
+
+  return result;
+}
+
+Datum
 FunctionCall2Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 2);
   Datum   result;
 
@@ -1180,6 +1254,7 @@ Datum
 FunctionCall3Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
   Datum   result;
 
@@ -1205,6 +1280,7 @@ Datum
 FunctionCall4Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3, Datum arg4)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 4);
   Datum   result;
 
@@ -1232,6 +1308,7 @@ Datum
 FunctionCall5Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3, Datum arg4, Datum arg5)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 5);
   Datum   result;
 
@@ -1262,6 +1339,7 @@ FunctionCall6Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3, Datum arg4, Datum arg5,
                   Datum arg6)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 6);
   Datum   result;
 
@@ -1294,6 +1372,7 @@ FunctionCall7Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3, Datum arg4, Datum arg5,
                   Datum arg6, Datum arg7)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 7);
   Datum   result;
 
@@ -1328,6 +1407,7 @@ FunctionCall8Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg3, Datum arg4, Datum arg5,
                   Datum arg6, Datum arg7, Datum arg8)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 8);
   Datum   result;
 
@@ -1365,6 +1445,7 @@ FunctionCall9Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
                   Datum arg6, Datum arg7, Datum arg8,
                   Datum arg9)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 9);
   Datum   result;
 
@@ -1409,6 +1490,7 @@ FunctionCall9Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
 Datum
 OidFunctionCall0Coll(Oid functionId, Oid collation)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1419,6 +1501,7 @@ OidFunctionCall0Coll(Oid functionId, Oid collation)
 Datum
 OidFunctionCall1Coll(Oid functionId, Oid collation, Datum arg1)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1429,6 +1512,7 @@ OidFunctionCall1Coll(Oid functionId, Oid collation, Datum arg1)
 Datum
 OidFunctionCall2Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1440,6 +1524,7 @@ Datum
 OidFunctionCall3Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1451,6 +1536,7 @@ Datum
 OidFunctionCall4Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3, Datum arg4)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1462,6 +1548,7 @@ Datum
 OidFunctionCall5Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3, Datum arg4, Datum arg5)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1474,6 +1561,7 @@ OidFunctionCall6Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3, Datum arg4, Datum arg5,
                      Datum arg6)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1487,6 +1575,7 @@ OidFunctionCall7Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3, Datum arg4, Datum arg5,
                      Datum arg6, Datum arg7)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1500,6 +1589,7 @@ OidFunctionCall8Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg3, Datum arg4, Datum arg5,
                      Datum arg6, Datum arg7, Datum arg8)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1514,6 +1604,7 @@ OidFunctionCall9Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
                      Datum arg6, Datum arg7, Datum arg8,
                      Datum arg9)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1538,6 +1629,7 @@ OidFunctionCall9Coll(Oid functionId, Oid collation, Datum arg1, Datum arg2,
 Datum
 InputFunctionCall(FmgrInfo *flinfo, char *str, Oid typioparam, int32 typmod)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
   Datum   result;
 
@@ -1593,6 +1685,7 @@ InputFunctionCallSafe(FmgrInfo *flinfo, char *str,
                       fmNodePtr escontext,
                       Datum *result)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
 
   if (str == NULL && flinfo->fn_strict) {
@@ -1644,6 +1737,7 @@ DirectInputFunctionCallSafe(PGFunction func, char *str,
                             fmNodePtr escontext,
                             Datum *result)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
 
   if (str == NULL) {
@@ -1683,7 +1777,11 @@ DirectInputFunctionCallSafe(PGFunction func, char *str,
 char *
 OutputFunctionCall(FmgrInfo *flinfo, Datum val)
 {
-  return DatumGetCString(FunctionCall1(flinfo, val));
+  DBUG_TRACE;
+  char *result;
+  result = DatumGetCString(FunctionCall1(flinfo, val));
+  DBUG_PRINT("info", "return '%s'", result);
+  return result;
 }
 
 /*
@@ -1698,6 +1796,7 @@ Datum
 ReceiveFunctionCall(FmgrInfo *flinfo, StringInfo buf,
                     Oid typioparam, int32 typmod)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 3);
   Datum   result;
 
@@ -1741,6 +1840,7 @@ ReceiveFunctionCall(FmgrInfo *flinfo, StringInfo buf,
 bytea *
 SendFunctionCall(FmgrInfo *flinfo, Datum val)
 {
+  DBUG_TRACE;
   return DatumGetByteaP(FunctionCall1(flinfo, val));
 }
 
@@ -1751,6 +1851,7 @@ SendFunctionCall(FmgrInfo *flinfo, Datum val)
 Datum
 OidInputFunctionCall(Oid functionId, char *str, Oid typioparam, int32 typmod)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1760,6 +1861,7 @@ OidInputFunctionCall(Oid functionId, char *str, Oid typioparam, int32 typmod)
 char *
 OidOutputFunctionCall(Oid functionId, Datum val)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1770,6 +1872,7 @@ Datum
 OidReceiveFunctionCall(Oid functionId, StringInfo buf,
                        Oid typioparam, int32 typmod)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1779,6 +1882,7 @@ OidReceiveFunctionCall(Oid functionId, StringInfo buf,
 bytea *
 OidSendFunctionCall(Oid functionId, Datum val)
 {
+  DBUG_TRACE;
   FmgrInfo  flinfo;
 
   fmgr_info(functionId, &flinfo);
@@ -1829,15 +1933,19 @@ Float8GetDatum(float8 X)
 struct varlena *
 pg_detoast_datum(struct varlena *datum)
 {
-  if (VARATT_IS_EXTENDED(datum))
+  if (VARATT_IS_EXTENDED(datum)) {
+    DBUG_TRACE;
     return detoast_attr(datum);
-  else
+  } else {
     return datum;
+  }
 }
 
 struct varlena *
 pg_detoast_datum_copy(struct varlena *datum)
 {
+  DBUG_TRACE;
+
   if (VARATT_IS_EXTENDED(datum))
     return detoast_attr(datum);
   else {
@@ -1853,6 +1961,7 @@ pg_detoast_datum_copy(struct varlena *datum)
 struct varlena *
 pg_detoast_datum_slice(struct varlena *datum, int32 first, int32 count)
 {
+  DBUG_TRACE;
   /* Only get the specified portion from the toast rel */
   return detoast_attr_slice(datum, first, count);
 }
@@ -1860,10 +1969,12 @@ pg_detoast_datum_slice(struct varlena *datum, int32 first, int32 count)
 struct varlena *
 pg_detoast_datum_packed(struct varlena *datum)
 {
-  if (VARATT_IS_COMPRESSED(datum) || VARATT_IS_EXTERNAL(datum))
+  if (VARATT_IS_COMPRESSED(datum) || VARATT_IS_EXTERNAL(datum)) {
+    DBUG_TRACE;
     return detoast_attr(datum);
-  else
+  } else {
     return datum;
+  }
 }
 
 /*-------------------------------------------------------------------------
@@ -1884,7 +1995,10 @@ pg_detoast_datum_packed(struct varlena *datum)
 Oid
 get_fn_expr_rettype(FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   Node     *expr;
+
+  Oid     result;
 
   /*
    * can't return anything useful if we have no FmgrInfo or if its fn_expr
@@ -1895,7 +2009,9 @@ get_fn_expr_rettype(FmgrInfo *flinfo)
 
   expr = flinfo->fn_expr;
 
-  return exprType(expr);
+  result = exprType(expr);
+  DBUG_PRINT("info", "get the actual type OID of the function return type:%u", result);
+  return result;
 }
 
 /*
@@ -1925,6 +2041,7 @@ get_fn_expr_argtype(FmgrInfo *flinfo, int argnum)
 Oid
 get_call_expr_argtype(Node *expr, int argnum)
 {
+  DBUG_TRACE;
   List     *args;
   Oid     argtype;
 
@@ -1959,6 +2076,8 @@ get_call_expr_argtype(Node *expr, int argnum)
       argnum == 1)
     argtype = get_base_element_type(argtype);
 
+
+  DBUG_PRINT("info", "get the actual type OID of a specific function argument:%u", argtype);
   return argtype;
 }
 
@@ -1971,12 +2090,16 @@ get_call_expr_argtype(Node *expr, int argnum)
 bool
 get_fn_expr_arg_stable(FmgrInfo *flinfo, int argnum)
 {
+  DBUG_TRACE;
+
   /*
    * can't return anything useful if we have no FmgrInfo or if its fn_expr
    * node has not been initialized
    */
-  if (!flinfo || !flinfo->fn_expr)
+  if (!flinfo || !flinfo->fn_expr) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   return get_call_expr_arg_stable(flinfo->fn_expr, argnum);
 }
@@ -1990,11 +2113,17 @@ get_fn_expr_arg_stable(FmgrInfo *flinfo, int argnum)
 bool
 get_call_expr_arg_stable(Node *expr, int argnum)
 {
+  DBUG_TRACE;
   List     *args;
   Node     *arg;
 
-  if (expr == NULL)
+  DBUG_PRINT("info", "find out whether a specific function argument is constant for the duration of a query,");
+  DBUG_PRINT("info", "but working from the calling expression tree");
+
+  if (expr == NULL) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   if (IsA(expr, FuncExpr))
     args = ((FuncExpr *) expr)->args;
@@ -2008,11 +2137,15 @@ get_call_expr_arg_stable(Node *expr, int argnum)
     args = ((NullIfExpr *) expr)->args;
   else if (IsA(expr, WindowFunc))
     args = ((WindowFunc *) expr)->args;
-  else
+  else {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
-  if (argnum < 0 || argnum >= list_length(args))
+  if (argnum < 0 || argnum >= list_length(args)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   arg = (Node *) list_nth(args, argnum);
 
@@ -2021,13 +2154,18 @@ get_call_expr_arg_stable(Node *expr, int argnum)
    * change during the execution of the query.  In future we might want to
    * consider other cases too, e.g. now().
    */
-  if (IsA(arg, Const))
+  if (IsA(arg, Const)) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   if (IsA(arg, Param) &&
-      ((Param *) arg)->paramkind == PARAM_EXTERN)
+      ((Param *) arg)->paramkind == PARAM_EXTERN) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -2041,21 +2179,40 @@ get_call_expr_arg_stable(Node *expr, int argnum)
 bool
 get_fn_expr_variadic(FmgrInfo *flinfo)
 {
+  DBUG_TRACE;
   Node     *expr;
+  bool result;
 
   /*
    * can't return anything useful if we have no FmgrInfo or if its fn_expr
    * node has not been initialized
    */
-  if (!flinfo || !flinfo->fn_expr)
+  if (!flinfo || !flinfo->fn_expr) {
+    if (!flinfo) {
+      DBUG_PRINT("info", "can't return anything useful if we have no FmgrInfo");
+    } else {
+      DBUG_PRINT("info", "can't return anything useful if its fn_expr node has not been initialized");
+    }
+
     return false;
+  }
 
   expr = flinfo->fn_expr;
 
-  if (IsA(expr, FuncExpr))
-    return ((FuncExpr *) expr)->funcvariadic;
-  else
+  if (IsA(expr, FuncExpr)) {
+    result = ((FuncExpr *) expr)->funcvariadic;
+
+    if (result) {
+      DBUG_PRINT("info", "return true");
+    } else {
+      DBUG_PRINT("info", "return false");
+    }
+
+    return result;
+  } else {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 }
 
 /*
@@ -2101,6 +2258,7 @@ get_fn_opclass_options(FmgrInfo *flinfo)
       return expr->constisnull ? NULL : DatumGetByteaP(expr->constvalue);
   }
 
+  DBUG_INSTANT_PRINT("info", "operator class options info is absent in function call context");
   ereport(ERROR,
           (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
            errmsg("operator class options info is absent in function call context")));
@@ -2141,6 +2299,7 @@ get_fn_opclass_options(FmgrInfo *flinfo)
 bool
 CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid)
 {
+  DBUG_TRACE;
   HeapTuple procTup;
   HeapTuple langTup;
   Form_pg_proc procStruct;
@@ -2153,10 +2312,12 @@ CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid)
    */
   procTup = SearchSysCache1(PROCOID, ObjectIdGetDatum(functionOid));
 
-  if (!HeapTupleIsValid(procTup))
+  if (!HeapTupleIsValid(procTup)) {
+    DBUG_INSTANT_PRINT("info", "function with OID %u does not exist", functionOid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("function with OID %u does not exist", functionOid)));
+  }
 
   procStruct = (Form_pg_proc) GETSTRUCT(procTup);
 
@@ -2166,25 +2327,32 @@ CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid)
    */
   langTup = SearchSysCache1(LANGOID, ObjectIdGetDatum(procStruct->prolang));
 
-  if (!HeapTupleIsValid(langTup))
+  if (!HeapTupleIsValid(langTup)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for language %u", procStruct->prolang);
     elog(ERROR, "cache lookup failed for language %u", procStruct->prolang);
+  }
 
   langStruct = (Form_pg_language) GETSTRUCT(langTup);
 
-  if (langStruct->lanvalidator != validatorOid)
+  if (langStruct->lanvalidator != validatorOid) {
+    DBUG_INSTANT_PRINT("info", "language validation function %u called for language %u instead of %u",
+                       validatorOid, procStruct->prolang, langStruct->lanvalidator);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("language validation function %u called for language %u instead of %u",
                     validatorOid, procStruct->prolang,
                     langStruct->lanvalidator)));
+  }
 
   /* first validate that we have permissions to use the language */
   aclresult = object_aclcheck(LanguageRelationId, procStruct->prolang, GetUserId(),
                               ACL_USAGE);
 
-  if (aclresult != ACLCHECK_OK)
+  if (aclresult != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "validate that we have permissions to use the language? No");
     aclcheck_error(aclresult, OBJECT_LANGUAGE,
                    NameStr(langStruct->lanname));
+  }
 
   /*
    * Check whether we are allowed to execute the function itself. If we can
@@ -2193,8 +2361,10 @@ CheckFunctionValidatorAccess(Oid validatorOid, Oid functionOid)
    */
   aclresult = object_aclcheck(ProcedureRelationId, functionOid, GetUserId(), ACL_EXECUTE);
 
-  if (aclresult != ACLCHECK_OK)
+  if (aclresult != ACLCHECK_OK) {
+    DBUG_INSTANT_PRINT("info", "check whether we are allowed to execute the function itself? No");
     aclcheck_error(aclresult, OBJECT_FUNCTION, NameStr(procStruct->proname));
+  }
 
   ReleaseSysCache(procTup);
   ReleaseSysCache(langTup);

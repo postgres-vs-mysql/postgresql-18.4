@@ -26,6 +26,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/relation.h"
@@ -104,6 +105,7 @@ typedef struct ua_page_items {
 static void
 GetBTPageStatistics(BlockNumber blkno, Buffer buffer, BTPageStat *stat)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buffer);
   PageHeader  phdr = (PageHeader) page;
   OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
@@ -195,6 +197,8 @@ GetBTPageStatistics(BlockNumber blkno, Buffer buffer, BTPageStat *stat)
 static void
 check_relation_block_range(Relation rel, int64 blkno)
 {
+  DBUG_TRACE;
+
   /* Ensure we can cast to BlockNumber */
   if (blkno < 0 || blkno > MaxBlockNumber)
     ereport(ERROR,
@@ -217,6 +221,8 @@ check_relation_block_range(Relation rel, int64 blkno)
 static void
 bt_index_block_validate(Relation rel, int64 blkno)
 {
+  DBUG_TRACE;
+
   if (!IS_INDEX(rel) || !IS_BTREE(rel))
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -251,6 +257,7 @@ bt_index_block_validate(Relation rel, int64 blkno)
 static Datum
 bt_page_stats_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   int64   blkno = (ext_version == PAGEINSPECT_V1_8 ? PG_GETARG_UINT32(1) : PG_GETARG_INT64(1));
   Buffer    buffer;
@@ -263,10 +270,12 @@ bt_page_stats_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
   char     *values[11];
   BTPageStat  stat;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use pageinspect functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pageinspect functions")));
+  }
 
   relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
   rel = relation_openrv(relrv, AccessShareLock);
@@ -313,6 +322,7 @@ bt_page_stats_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 Datum
 bt_page_stats_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return bt_page_stats_internal(fcinfo, PAGEINSPECT_V1_9);
 }
 
@@ -320,6 +330,7 @@ bt_page_stats_1_9(PG_FUNCTION_ARGS)
 Datum
 bt_page_stats(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return bt_page_stats_internal(fcinfo, PAGEINSPECT_V1_8);
 }
 
@@ -335,15 +346,18 @@ bt_page_stats(PG_FUNCTION_ARGS)
 Datum
 bt_multi_page_stats(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Relation  rel;
   ua_page_stats *uargs;
   FuncCallContext *fctx;
   MemoryContext mctx;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use pageinspect functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pageinspect functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     text     *relname = PG_GETARG_TEXT_PP(0);
@@ -470,6 +484,7 @@ bt_multi_page_stats(PG_FUNCTION_ARGS)
 static Datum
 bt_page_print_tuples(ua_page_items *uargs)
 {
+  DBUG_TRACE;
   Page    page = uargs->page;
   OffsetNumber offset = uargs->offset;
   bool    leafpage = uargs->leafpage;
@@ -615,6 +630,7 @@ bt_page_print_tuples(ua_page_items *uargs)
 static Datum
 bt_page_items_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   int64   blkno = (ext_version == PAGEINSPECT_V1_8 ? PG_GETARG_UINT32(1) : PG_GETARG_INT64(1));
   Datum   result;
@@ -622,10 +638,12 @@ bt_page_items_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
   MemoryContext mctx;
   ua_page_items *uargs;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use pageinspect functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pageinspect functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     RangeVar   *relrv;
@@ -702,6 +720,7 @@ bt_page_items_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 Datum
 bt_page_items_1_9(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return bt_page_items_internal(fcinfo, PAGEINSPECT_V1_9);
 }
 
@@ -709,6 +728,7 @@ bt_page_items_1_9(PG_FUNCTION_ARGS)
 Datum
 bt_page_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return bt_page_items_internal(fcinfo, PAGEINSPECT_V1_8);
 }
 
@@ -724,15 +744,18 @@ bt_page_items(PG_FUNCTION_ARGS)
 Datum
 bt_page_items_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Datum   result;
   FuncCallContext *fctx;
   ua_page_items *uargs;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     BTPageOpaque opaque;
@@ -827,6 +850,7 @@ bt_page_items_bytea(PG_FUNCTION_ARGS)
 Datum
 bt_metap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Datum   result;
   Relation  rel;
@@ -839,10 +863,12 @@ bt_metap(PG_FUNCTION_ARGS)
   Page    page;
   HeapTuple tuple;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use pageinspect functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pageinspect functions")));
+  }
 
   relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
   rel = relation_openrv(relrv, AccessShareLock);

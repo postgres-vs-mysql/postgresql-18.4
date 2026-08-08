@@ -195,7 +195,7 @@ pgstat_slru_init_shmem_cb(void *stats)
 {
   PgStatShared_SLRU *stats_shmem = (PgStatShared_SLRU *) stats;
 
-  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA, 0);
 }
 
 void

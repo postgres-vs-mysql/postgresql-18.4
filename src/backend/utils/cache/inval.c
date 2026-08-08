@@ -111,6 +111,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -189,8 +190,8 @@ typedef struct InvalidationMsgsGroup {
 #define SetSubGroupToFollow(targetgroup, priorgroup, subgroup) \
   do { \
     (targetgroup)->firstmsg[subgroup] = \
-      (targetgroup)->nextmsg[subgroup] = \
-      (priorgroup)->nextmsg[subgroup]; \
+    (targetgroup)->nextmsg[subgroup] = \
+    (priorgroup)->nextmsg[subgroup]; \
   } while (0)
 
 #define SetGroupToFollow(targetgroup, priorgroup) \
@@ -378,7 +379,7 @@ AppendInvalidationMessageSubGroup(InvalidationMsgsGroup *dest,
     for (; _msgindex < _endmsg; _msgindex++) \
     { \
       SharedInvalidationMessage *msg = \
-        &InvalMessageArrays[subgroup].msgs[_msgindex]; \
+      &InvalMessageArrays[subgroup].msgs[_msgindex]; \
       codeFragment; \
     } \
   } while (0)
@@ -394,7 +395,7 @@ AppendInvalidationMessageSubGroup(InvalidationMsgsGroup *dest,
     int   n = NumMessagesInSubGroup(group, subgroup); \
     if (n > 0) { \
       SharedInvalidationMessage *msgs = \
-        &InvalMessageArrays[subgroup].msgs[(group)->firstmsg[subgroup]]; \
+      &InvalMessageArrays[subgroup].msgs[(group)->firstmsg[subgroup]]; \
       codeFragment; \
     } \
   } while (0)
@@ -1397,6 +1398,7 @@ CacheInvalidateHeapTupleCommon(Relation relation,
                                HeapTuple newtuple,
                                InvalidationInfo * (*prepare_callback) (void))
 {
+  DBUG_TRACE;
   InvalidationInfo *info;
   Oid     tupleRelId;
   Oid     databaseId;

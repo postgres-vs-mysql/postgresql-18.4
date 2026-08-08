@@ -8,6 +8,7 @@
  *    contrib/pageinspect/brinfuncs.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_internal.h"
 #include "access/brin_page.h"
@@ -42,14 +43,17 @@ static Page verify_brin_page(bytea *raw_page, uint16 type,
 Datum
 brin_page_type(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   char     *type;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = get_page_from_raw(raw_page);
 
@@ -57,13 +61,15 @@ brin_page_type(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
 
   /* verify the special space has the expected size */
-  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace)))
+  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace))) {
+    DBUG_PRINT("pageinspect", "input page is not a valid BRIN page");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("input page is not a valid %s page", "BRIN"),
              errdetail("Expected special size %d, got %d.",
                        (int) MAXALIGN(sizeof(BrinSpecialSpace)),
                        (int) PageGetSpecialSize(page))));
+  }
 
   switch (BrinPageType(page)) {
     case BRIN_PAGETYPE_META:
@@ -93,6 +99,7 @@ brin_page_type(PG_FUNCTION_ARGS)
 static Page
 verify_brin_page(bytea *raw_page, uint16 type, const char *strtype)
 {
+  DBUG_TRACE;
   Page    page = get_page_from_raw(raw_page);
 
   if (PageIsNew(page))
@@ -129,6 +136,7 @@ verify_brin_page(bytea *raw_page, uint16 type, const char *strtype)
 Datum
 brin_page_items(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Oid     indexRelid = PG_GETARG_OID(1);
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -141,10 +149,12 @@ brin_page_items(PG_FUNCTION_ARGS)
   AttrNumber  attno;
   bool    unusedItem;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   InitMaterializedSRF(fcinfo, 0);
 
@@ -157,19 +167,23 @@ brin_page_items(PG_FUNCTION_ARGS)
    * function definition at this point, so insist that the user update the
    * extension.
    */
-  if (rsinfo->setDesc->natts < BRIN_PAGE_ITEMS_V1_12)
+  if (rsinfo->setDesc->natts < BRIN_PAGE_ITEMS_V1_12) {
+    DBUG_INSTANT_PRINT("pageinspect", "function has wrong number of declared columns");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("function has wrong number of declared columns"),
              errhint("To resolve the problem, update the \"pageinspect\" extension to the latest version.")));
+  }
 
   indexRel = index_open(indexRelid, AccessShareLock);
 
-  if (!IS_BRIN(indexRel))
+  if (!IS_BRIN(indexRel)) {
+    DBUG_INSTANT_PRINT("pageinspect", "\"%s\" is not a %s index", RelationGetRelationName(indexRel), "BRIN");
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not a %s index",
                     RelationGetRelationName(indexRel), "BRIN")));
+  }
 
   bdesc = brin_build_desc(indexRel);
 
@@ -338,6 +352,7 @@ brin_page_items(PG_FUNCTION_ARGS)
 Datum
 brin_metapage_info(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *raw_page = PG_GETARG_BYTEA_P(0);
   Page    page;
   BrinMetaPageData *meta;
@@ -346,10 +361,12 @@ brin_metapage_info(PG_FUNCTION_ARGS)
   bool    nulls[4] = {0};
   HeapTuple htup;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   page = verify_brin_page(raw_page, BRIN_PAGETYPE_META, "metapage");
 
@@ -380,16 +397,19 @@ brin_metapage_info(PG_FUNCTION_ARGS)
 Datum
 brin_revmap_data(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   struct {
     ItemPointerData *tids;
     int     idx;
   }      *state;
   FuncCallContext *fctx;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pageinspect", "must be superuser to use raw page functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use raw page functions")));
+  }
 
   if (SRF_IS_FIRSTCALL()) {
     bytea    *raw_page = PG_GETARG_BYTEA_P(0);

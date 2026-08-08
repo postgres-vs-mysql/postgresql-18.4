@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/transam.h"
 #include "catalog/pg_type.h"
@@ -279,11 +280,15 @@ static List *set_windowagg_runcondition_references(PlannerInfo *root,
 Plan *
 set_plan_references(PlannerInfo *root, Plan *plan)
 {
+  DBUG_TRACE;
   Plan     *result;
   PlannerGlobal *glob = root->glob;
   int     rtoffset = list_length(glob->finalrtable);
   ListCell   *lc;
 
+  DBUG_PRINT("info", "this is the final processing pass of the planner/optimizer");
+  DBUG_PRINT("info", "the plan tree is complete");
+  DBUG_PRINT("info", "we just have to adjust some representational details for the convenience of the executor");
   /*
    * Add all the query's RTEs to the flattened rangetable.  The live ones
    * will have their rangetable indexes increased by rtoffset.  (Additional
@@ -469,6 +474,7 @@ add_rtes_to_flat_rtable(PlannerInfo *root, bool recursing)
 static void
 flatten_unplanned_rtes(PlannerGlobal *glob, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   flatten_rtes_walker_context cxt = {glob, rte->subquery};
 
   /* Use query_tree_walker to find all RTEs in the parse tree */
@@ -481,6 +487,8 @@ flatten_unplanned_rtes(PlannerGlobal *glob, RangeTblEntry *rte)
 static bool
 flatten_rtes_walker(Node *node, flatten_rtes_walker_context *cxt)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -603,20 +611,28 @@ add_rte_to_flat_rtable(PlannerGlobal *glob, List *rteperminfos,
 static Plan *
 set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 {
+  DBUG_TRACE;
   ListCell   *l;
+  int type;
 
-  if (plan == NULL)
+  if (plan == NULL) {
+    DBUG_PRINT("info", "plan null");
     return NULL;
+  }
 
+  DBUG_PRINT("info", "recurse through the Plan nodes of a single subquery level");
   /* Assign this node a unique ID. */
   plan->plan_node_id = root->glob->lastPlanNodeId++;
 
   /*
    * Plan-type-specific fixes
    */
-  switch (nodeTag(plan)) {
+  type = nodeTag(plan);
+
+  switch (type) {
     case T_SeqScan: {
       SeqScan    *splan = (SeqScan *) plan;
+      DBUG_PRINT("info", "seq scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -630,6 +646,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_SampleScan: {
       SampleScan *splan = (SampleScan *) plan;
+      DBUG_PRINT("info", "sample scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -646,6 +663,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_IndexScan: {
       IndexScan  *splan = (IndexScan *) plan;
+      DBUG_PRINT("info", "index scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -671,6 +689,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_IndexOnlyScan: {
       IndexOnlyScan *splan = (IndexOnlyScan *) plan;
+      DBUG_PRINT("info", "index only scan plan");
 
       return set_indexonlyscan_references(root, splan, rtoffset);
     }
@@ -678,6 +697,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_BitmapIndexScan: {
       BitmapIndexScan *splan = (BitmapIndexScan *) plan;
+      DBUG_PRINT("info", "bitmap index scan plan");
 
       splan->scan.scanrelid += rtoffset;
       /* no need to fix targetlist and qual */
@@ -693,6 +713,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_BitmapHeapScan: {
       BitmapHeapScan *splan = (BitmapHeapScan *) plan;
+      DBUG_PRINT("info", "bitmap heap scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -709,6 +730,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_TidScan: {
       TidScan    *splan = (TidScan *) plan;
+      DBUG_PRINT("info", "tid scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -725,6 +747,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_TidRangeScan: {
       TidRangeScan *splan = (TidRangeScan *) plan;
+      DBUG_PRINT("info", "tid range scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -739,14 +762,17 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     }
     break;
 
-    case T_SubqueryScan:
+    case T_SubqueryScan: {
       /* Needs special treatment, see comments below */
+      DBUG_PRINT("info", "subquery scan plan:needs special treatment");
       return set_subqueryscan_references(root,
                                          (SubqueryScan *) plan,
                                          rtoffset);
+    }
 
     case T_FunctionScan: {
       FunctionScan *splan = (FunctionScan *) plan;
+      DBUG_PRINT("info", "function scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -762,6 +788,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_TableFuncScan: {
       TableFuncScan *splan = (TableFuncScan *) plan;
+      DBUG_PRINT("info", "table func scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -778,6 +805,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_ValuesScan: {
       ValuesScan *splan = (ValuesScan *) plan;
+      DBUG_PRINT("info", "values scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -794,6 +822,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_CteScan: {
       CteScan    *splan = (CteScan *) plan;
+      DBUG_PRINT("info", "cte scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -807,6 +836,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_NamedTuplestoreScan: {
       NamedTuplestoreScan *splan = (NamedTuplestoreScan *) plan;
+      DBUG_PRINT("info", "named tuplestore scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -820,6 +850,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_WorkTableScan: {
       WorkTableScan *splan = (WorkTableScan *) plan;
+      DBUG_PRINT("info", "work table scan plan");
 
       splan->scan.scanrelid += rtoffset;
       splan->scan.plan.targetlist =
@@ -832,32 +863,38 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     break;
 
     case T_ForeignScan:
+      DBUG_PRINT("info", "foreign scan plan");
       set_foreignscan_references(root, (ForeignScan *) plan, rtoffset);
       break;
 
     case T_CustomScan:
+      DBUG_PRINT("info", "custom scan plan");
       set_customscan_references(root, (CustomScan *) plan, rtoffset);
       break;
 
     case T_NestLoop:
     case T_MergeJoin:
     case T_HashJoin:
+      DBUG_PRINT("info", "normal plan");
       set_join_references(root, (Join *) plan, rtoffset);
       break;
 
     case T_Gather:
     case T_GatherMerge: {
+      DBUG_PRINT("info", "gather plan");
       set_upper_references(root, plan, rtoffset);
       set_param_references(root, plan);
     }
     break;
 
     case T_Hash:
+      DBUG_PRINT("info", "hash plan");
       set_hash_references(root, plan, rtoffset);
       break;
 
     case T_Memoize: {
       Memoize    *mplan = (Memoize *) plan;
+      DBUG_PRINT("info", "memoize plan");
 
       /*
        * Memoize does not evaluate its targetlist.  It just uses the
@@ -877,6 +914,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     case T_Unique:
     case T_SetOp:
 
+      DBUG_PRINT("info", "these plan types don't actually bother to evaluate their targetlists");
       /*
        * These plan types don't actually bother to evaluate their
        * targetlists, because they just return their unmodified input
@@ -895,6 +933,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_LockRows: {
       LockRows   *splan = (LockRows *) plan;
+      DBUG_PRINT("info", "lock rows plan");
 
       /*
        * Like the plan types above, LockRows doesn't evaluate its
@@ -915,6 +954,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_Limit: {
       Limit    *splan = (Limit *) plan;
+      DBUG_PRINT("info", "limit plan");
 
       /*
        * Like the plan types above, Limit doesn't evaluate its tlist
@@ -934,6 +974,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_Agg: {
       Agg      *agg = (Agg *) plan;
+      DBUG_PRINT("info", "agg plan");
 
       /*
        * If this node is combining partial-aggregation results, we
@@ -960,6 +1001,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_WindowAgg: {
       WindowAgg  *wplan = (WindowAgg *) plan;
+      DBUG_PRINT("info", "window agg plan");
 
       /*
        * Adjust the WindowAgg's run conditions by swapping the
@@ -997,6 +1039,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 
     case T_Result: {
       Result     *splan = (Result *) plan;
+      DBUG_PRINT("info", "result plan");
 
       /*
        * Result may or may not have a subplan; if not, it's more
@@ -1042,6 +1085,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     break;
 
     case T_ProjectSet:
+      DBUG_PRINT("info", "project set plan");
       set_upper_references(root, plan, rtoffset);
       break;
 
@@ -1049,6 +1093,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
       ModifyTable *splan = (ModifyTable *) plan;
       Plan     *subplan = outerPlan(splan);
 
+      DBUG_PRINT("info", "modify table plan");
       Assert(splan->plan.targetlist == NIL);
       Assert(splan->plan.qual == NIL);
 
@@ -1235,18 +1280,21 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     break;
 
     case T_Append:
+      DBUG_PRINT("info", "append plan");
       /* Needs special treatment, see comments below */
       return set_append_references(root,
                                    (Append *) plan,
                                    rtoffset);
 
     case T_MergeAppend:
+      DBUG_PRINT("info", "merge append plan");
       /* Needs special treatment, see comments below */
       return set_mergeappend_references(root,
                                         (MergeAppend *) plan,
                                         rtoffset);
 
     case T_RecursiveUnion:
+      DBUG_PRINT("info", "recursive union plan");
       /* This doesn't evaluate targetlist or check quals either */
       set_dummy_tlist_references(plan, rtoffset);
       Assert(plan->qual == NIL);
@@ -1255,6 +1303,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     case T_BitmapAnd: {
       BitmapAnd  *splan = (BitmapAnd *) plan;
 
+      DBUG_PRINT("info", "bitmap and plan");
       /* BitmapAnd works like Append, but has no tlist */
       Assert(splan->plan.targetlist == NIL);
       Assert(splan->plan.qual == NIL);
@@ -1270,6 +1319,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
     case T_BitmapOr: {
       BitmapOr   *splan = (BitmapOr *) plan;
 
+      DBUG_PRINT("info", "bitmap or plan");
       /* BitmapOr works like Append, but has no tlist */
       Assert(splan->plan.targetlist == NIL);
       Assert(splan->plan.qual == NIL);
@@ -1296,6 +1346,7 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
    * reference-adjustments bottom-up, then we would fail to match this
    * plan's var nodes against the already-modified nodes of the children.
    */
+  DBUG_PRINT("info", "now recurse into child plans, if any");
   plan->lefttree = set_plan_refs(root, plan->lefttree, rtoffset);
   plan->righttree = set_plan_refs(root, plan->righttree, rtoffset);
 
@@ -1316,6 +1367,7 @@ set_indexonlyscan_references(PlannerInfo *root,
                              IndexOnlyScan *plan,
                              int rtoffset)
 {
+  DBUG_TRACE;
   indexed_tlist *index_itlist;
   List     *stripped_indextlist;
   ListCell   *lc;
@@ -1390,6 +1442,7 @@ set_subqueryscan_references(PlannerInfo *root,
                             SubqueryScan *plan,
                             int rtoffset)
 {
+  DBUG_TRACE;
   RelOptInfo *rel;
   Plan     *result;
 
@@ -1397,14 +1450,17 @@ set_subqueryscan_references(PlannerInfo *root,
   rel = find_base_rel(root, plan->scan.scanrelid);
 
   /* Recursively process the subplan */
+  DBUG_PRINT("info", "recursively process the subplan");
   plan->subplan = set_plan_references(rel->subroot, plan->subplan);
 
   if (trivial_subqueryscan(plan)) {
     /*
      * We can omit the SubqueryScan node and just pull up the subplan.
      */
+    DBUG_PRINT("info", "we can omit the SubqueryScan node and just pull up the subplan");
     result = clean_up_removed_plan_level((Plan *) plan, plan->subplan);
   } else {
+    DBUG_PRINT("info", "keep the SubqueryScan node");
     /*
      * Keep the SubqueryScan node.  We have to do the processing that
      * set_plan_references would otherwise have done on it.  Notice we do
@@ -1454,13 +1510,17 @@ set_subqueryscan_references(PlannerInfo *root,
 bool
 trivial_subqueryscan(SubqueryScan *plan)
 {
+  DBUG_TRACE;
   int     attrno;
   ListCell   *lp,
              *lc;
 
+  DBUG_PRINT("info", "detect whether a SubqueryScan can be deleted from the plan tree");
+
   /* We might have detected this already; in which case reuse the result */
-  if (plan->scanstatus == SUBQUERY_SCAN_TRIVIAL)
+  if (plan->scanstatus == SUBQUERY_SCAN_TRIVIAL) {
     return true;
+  }
 
   if (plan->scanstatus == SUBQUERY_SCAN_NONTRIVIAL)
     return false;
@@ -1522,6 +1582,9 @@ trivial_subqueryscan(SubqueryScan *plan)
 static Plan *
 clean_up_removed_plan_level(Plan *parent, Plan *child)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "do necessary cleanup when we strip out a SubqueryScan, Append, etc");
+
   /*
    * We have to be sure we don't lose any initplans, so move any that were
    * attached to the parent plan to the child.  If any are parallel-unsafe,
@@ -1568,6 +1631,8 @@ set_foreignscan_references(PlannerInfo *root,
                            ForeignScan *fscan,
                            int rtoffset)
 {
+  DBUG_TRACE;
+
   /* Adjust scanrelid if it's valid */
   if (fscan->scan.scanrelid > 0)
     fscan->scan.scanrelid += rtoffset;
@@ -1578,6 +1643,7 @@ set_foreignscan_references(PlannerInfo *root,
      * foreign scan tuple
      */
     indexed_tlist *itlist = build_tlist_index(fscan->fdw_scan_tlist);
+    DBUG_PRINT("info", "adjust tlist, qual, fdw_exprs, fdw_recheck_quals to reference foreign scan tuple");
 
     fscan->scan.plan.targetlist = (List *)
                                   fix_upper_expr(root,
@@ -1621,6 +1687,7 @@ set_foreignscan_references(PlannerInfo *root,
      * Adjust tlist, qual, fdw_exprs, fdw_recheck_quals in the standard
      * way
      */
+    DBUG_PRINT("info", "adjust tlist, qual, fdw_exprs, fdw_recheck_quals in the standard way");
     fscan->scan.plan.targetlist =
       fix_scan_list(root, fscan->scan.plan.targetlist,
                     rtoffset, NUM_EXEC_TLIST((Plan *) fscan));
@@ -1652,6 +1719,7 @@ set_customscan_references(PlannerInfo *root,
                           CustomScan *cscan,
                           int rtoffset)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /* Adjust scanrelid if it's valid */
@@ -1661,6 +1729,7 @@ set_customscan_references(PlannerInfo *root,
   if (cscan->custom_scan_tlist != NIL || cscan->scan.scanrelid == 0) {
     /* Adjust tlist, qual, custom_exprs to reference custom scan tuple */
     indexed_tlist *itlist = build_tlist_index(cscan->custom_scan_tlist);
+    DBUG_PRINT("info", "adjust tlist, qual, custom_exprs to reference custom scan tuple");
 
     cscan->scan.plan.targetlist = (List *)
                                   fix_upper_expr(root,
@@ -1692,6 +1761,7 @@ set_customscan_references(PlannerInfo *root,
       fix_scan_list(root, cscan->custom_scan_tlist,
                     rtoffset, NUM_EXEC_TLIST((Plan *) cscan));
   } else {
+    DBUG_PRINT("info", "adjust tlist, qual, custom_exprs in the standard way");
     /* Adjust tlist, qual, custom_exprs in the standard way */
     cscan->scan.plan.targetlist =
       fix_scan_list(root, cscan->scan.plan.targetlist,
@@ -1705,6 +1775,8 @@ set_customscan_references(PlannerInfo *root,
   }
 
   /* Adjust child plan-nodes recursively, if needed */
+  DBUG_PRINT("info", "adjust child plan-nodes recursively, if needed");
+
   foreach(lc, cscan->custom_plans) {
     lfirst(lc) = set_plan_refs(root, (Plan *) lfirst(lc), rtoffset);
   }
@@ -1790,8 +1862,10 @@ set_append_references(PlannerInfo *root,
                       Append *aplan,
                       int rtoffset)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
+  DBUG_PRINT("info", "we try to strip out the Append entirely");
   /*
    * Append, like Sort et al, doesn't actually evaluate its targetlist or
    * check quals.  If it's got exactly one child plan, then it's not doing
@@ -1800,6 +1874,8 @@ set_append_references(PlannerInfo *root,
   Assert(aplan->plan.qual == NIL);
 
   /* First, we gotta recurse on the children */
+  DBUG_PRINT("info", "first, we gotta recurse on the children");
+
   foreach(l, aplan->appendplans) {
     lfirst(l) = set_plan_refs(root, (Plan *) lfirst(l), rtoffset);
   }
@@ -1824,6 +1900,7 @@ set_append_references(PlannerInfo *root,
    * recursing to the children, because set_dummy_tlist_references doesn't
    * look at those.
    */
+  DBUG_PRINT("info", "clean up the Append as needed");
   set_dummy_tlist_references((Plan *) aplan, rtoffset);
 
   aplan->apprelids = offset_relid_set(aplan->apprelids, rtoffset);
@@ -1837,6 +1914,7 @@ set_append_references(PlannerInfo *root,
       register_partpruneinfo(root, aplan->part_prune_index, rtoffset);
 
   /* We don't need to recurse to lefttree or righttree ... */
+  DBUG_PRINT("info", "we don't need to recurse to lefttree or righttree");
   Assert(aplan->plan.lefttree == NULL);
   Assert(aplan->plan.righttree == NULL);
 
@@ -1855,6 +1933,7 @@ set_mergeappend_references(PlannerInfo *root,
                            MergeAppend *mplan,
                            int rtoffset)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /*
@@ -1864,7 +1943,10 @@ set_mergeappend_references(PlannerInfo *root,
    */
   Assert(mplan->plan.qual == NIL);
 
+  DBUG_PRINT("info", "we try to strip out the MergeAppend entirely");
   /* First, we gotta recurse on the children */
+  DBUG_PRINT("info", "first, we gotta recurse on the children");
+
   foreach(l, mplan->mergeplans) {
     lfirst(l) = set_plan_refs(root, (Plan *) lfirst(l), rtoffset);
   }
@@ -1890,6 +1972,7 @@ set_mergeappend_references(PlannerInfo *root,
    * after recursing to the children, because set_dummy_tlist_references
    * doesn't look at those.
    */
+  DBUG_PRINT("info", "clean up the MergeAppend as needed");
   set_dummy_tlist_references((Plan *) mplan, rtoffset);
 
   mplan->apprelids = offset_relid_set(mplan->apprelids, rtoffset);
@@ -1902,6 +1985,7 @@ set_mergeappend_references(PlannerInfo *root,
     mplan->part_prune_index =
       register_partpruneinfo(root, mplan->part_prune_index, rtoffset);
 
+  DBUG_PRINT("info", "we don't need to recurse to lefttree or righttree");
   /* We don't need to recurse to lefttree or righttree ... */
   Assert(mplan->plan.lefttree == NULL);
   Assert(mplan->plan.righttree == NULL);
@@ -1916,6 +2000,7 @@ set_mergeappend_references(PlannerInfo *root,
 static void
 set_hash_references(PlannerInfo *root, Plan *plan, int rtoffset)
 {
+  DBUG_TRACE;
   Hash     *hplan = (Hash *) plan;
   Plan     *outer_plan = plan->lefttree;
   indexed_tlist *outer_itlist;
@@ -1998,28 +2083,35 @@ fix_expr_common(PlannerInfo *root, Node *node)
 {
   /* We assume callers won't call us on a NULL pointer */
   if (IsA(node, Aggref)) {
+    DBUG_PRINT("info", "aggref");
     record_plan_function_dependency(root,
                                     ((Aggref *) node)->aggfnoid);
   } else if (IsA(node, WindowFunc)) {
+    DBUG_PRINT("info", "window func");
     record_plan_function_dependency(root,
                                     ((WindowFunc *) node)->winfnoid);
   } else if (IsA(node, FuncExpr)) {
+    DBUG_PRINT("info", "func expr");
     record_plan_function_dependency(root,
                                     ((FuncExpr *) node)->funcid);
   } else if (IsA(node, OpExpr)) {
+    DBUG_PRINT("info", "op expr");
     set_opfuncid((OpExpr *) node);
     record_plan_function_dependency(root,
                                     ((OpExpr *) node)->opfuncid);
   } else if (IsA(node, DistinctExpr)) {
+    DBUG_PRINT("info", "distinct expr");
     set_opfuncid((OpExpr *) node);  /* rely on struct equivalence */
     record_plan_function_dependency(root,
                                     ((DistinctExpr *) node)->opfuncid);
   } else if (IsA(node, NullIfExpr)) {
+    DBUG_PRINT("info", "null if expr");
     set_opfuncid((OpExpr *) node);  /* rely on struct equivalence */
     record_plan_function_dependency(root,
                                     ((NullIfExpr *) node)->opfuncid);
   } else if (IsA(node, ScalarArrayOpExpr)) {
     ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) node;
+    DBUG_PRINT("info", "scalar array op expr");
 
     set_sa_opfuncid(saop);
     record_plan_function_dependency(root, saop->opfuncid);
@@ -2032,6 +2124,8 @@ fix_expr_common(PlannerInfo *root, Node *node)
   } else if (IsA(node, Const)) {
     Const    *con = (Const *) node;
 
+    DBUG_PRINT("info", "const");
+
     /* Check for regclass reference */
     if (ISREGCLASSCONST(con))
       root->glob->relationOids =
@@ -2040,6 +2134,7 @@ fix_expr_common(PlannerInfo *root, Node *node)
   } else if (IsA(node, GroupingFunc)) {
     GroupingFunc *g = (GroupingFunc *) node;
     AttrNumber *grouping_map = root->grouping_map;
+    DBUG_PRINT("info", "grouping func");
 
     /* If there are no grouping sets, we don't need this. */
 
@@ -2286,6 +2381,7 @@ fix_scan_expr_walker(Node *node, fix_scan_expr_context *context)
 static void
 set_join_references(PlannerInfo *root, Join *join, int rtoffset)
 {
+  DBUG_TRACE;
   Plan     *outer_plan = join->plan.lefttree;
   Plan     *inner_plan = join->plan.righttree;
   indexed_tlist *outer_itlist;
@@ -2430,6 +2526,7 @@ set_join_references(PlannerInfo *root, Join *join, int rtoffset)
 static void
 set_upper_references(PlannerInfo *root, Plan *plan, int rtoffset)
 {
+  DBUG_TRACE;
   Plan     *subplan = plan->lefttree;
   indexed_tlist *subplan_itlist;
   List     *output_targetlist;
@@ -2518,6 +2615,7 @@ set_upper_references(PlannerInfo *root, Plan *plan, int rtoffset)
 static void
 set_param_references(PlannerInfo *root, Plan *plan)
 {
+  DBUG_TRACE;
   Assert(IsA(plan, Gather) || IsA(plan, GatherMerge));
 
   if (plan->lefttree->extParam) {
@@ -2569,6 +2667,8 @@ set_param_references(PlannerInfo *root, Plan *plan)
 static Node *
 convert_combining_aggrefs(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -2638,6 +2738,7 @@ convert_combining_aggrefs(Node *node, void *context)
 static void
 set_dummy_tlist_references(Plan *plan, int rtoffset)
 {
+  DBUG_TRACE;
   List     *output_targetlist;
   ListCell   *l;
 
@@ -3359,6 +3460,7 @@ set_returning_clause_references(PlannerInfo *root,
                                 Index resultRelation,
                                 int rtoffset)
 {
+  DBUG_TRACE;
   indexed_tlist *itlist;
 
   /*
@@ -3400,6 +3502,8 @@ static Node *
 fix_windowagg_condition_expr_mutator(Node *node,
                                      fix_windowagg_cond_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -3432,6 +3536,7 @@ fix_windowagg_condition_expr(PlannerInfo *root,
                              List *runcondition,
                              indexed_tlist *subplan_itlist)
 {
+  DBUG_TRACE;
   fix_windowagg_cond_context context;
 
   context.root = root;
@@ -3453,6 +3558,7 @@ set_windowagg_runcondition_references(PlannerInfo *root,
                                       List *runcondition,
                                       Plan *plan)
 {
+  DBUG_TRACE;
   List     *newlist;
   indexed_tlist *itlist;
 
@@ -3478,6 +3584,8 @@ set_windowagg_runcondition_references(PlannerInfo *root,
 Param *
 find_minmax_agg_replacement_param(PlannerInfo *root, Aggref *aggref)
 {
+  DBUG_TRACE;
+
   if (root->minmax_aggs != NIL &&
       list_length(aggref->args) == 1) {
     TargetEntry *curTarget = (TargetEntry *) linitial(aggref->args);
@@ -3510,6 +3618,8 @@ find_minmax_agg_replacement_param(PlannerInfo *root, Aggref *aggref)
 void
 record_plan_function_dependency(PlannerInfo *root, Oid funcid)
 {
+  DBUG_TRACE;
+
   /*
    * For performance reasons, we don't bother to track built-in functions;
    * we just assume they'll never change (or at least not in ways that'd
@@ -3549,6 +3659,8 @@ record_plan_function_dependency(PlannerInfo *root, Oid funcid)
 void
 record_plan_type_dependency(PlannerInfo *root, Oid typid)
 {
+  DBUG_TRACE;
+
   /*
    * As in record_plan_function_dependency, ignore the possibility that
    * someone would change a built-in domain.
@@ -3592,6 +3704,7 @@ extract_query_dependencies(Node *query,
                            List **invalItems,
                            bool *hasRowSecurity)
 {
+  DBUG_TRACE;
   PlannerGlobal glob;
   PlannerInfo root;
 
@@ -3625,8 +3738,12 @@ extract_query_dependencies(Node *query,
 bool
 extract_query_dependencies_walker(Node *node, PlannerInfo *context)
 {
-  if (node == NULL)
+  DBUG_TRACE;
+
+  if (node == NULL) {
+    DBUG_PRINT("info", "node is null, returning false");
     return false;
+  }
 
   Assert(!IsA(node, PlaceHolderVar));
 
@@ -3641,9 +3758,12 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
        *
        * Notably, CALL requires its own processing.
        */
+      DBUG_PRINT("info", "this logic must handle any utility command for which parse analysis was nontrivial");
+
       if (IsA(query->utilityStmt, CallStmt)) {
         CallStmt   *callstmt = (CallStmt *) query->utilityStmt;
 
+        DBUG_PRINT("info", "CALL requires its own processing");
         /* We need not examine funccall, just the transformed exprs */
         (void) extract_query_dependencies_walker((Node *) callstmt->funcexpr,
             context);
@@ -3659,8 +3779,10 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
        */
       query = UtilityContainsQuery(query->utilityStmt);
 
-      if (query == NULL)
+      if (query == NULL) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
     }
 
     /* Remember if any Query has RLS quals applied by rewriter */
@@ -3678,11 +3800,13 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
           lappend_oid(context->glob->relationOids, rte->relid);
     }
 
+    DBUG_PRINT("info", "and recurse into the query's subexpressions");
     /* And recurse into the query's subexpressions */
     return query_tree_walker(query, extract_query_dependencies_walker,
                              context, 0);
   }
 
+  DBUG_PRINT("info", "extract function dependencies and check for regclass Consts");
   /* Extract function dependencies and check for regclass Consts */
   fix_expr_common(context, node);
   return expression_tree_walker(node, extract_query_dependencies_walker,

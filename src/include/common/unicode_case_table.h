@@ -52,8 +52,7 @@ typedef struct
  * Special case mappings that aren't representable in the simple map.
  * Entries are referenced from simple_case_map.
  */
-static const pg_special_case special_case[106] =
-{
+static const pg_special_case special_case[106] = {
   {0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}},
   {0, {[CaseLower] = {0x0000df, 0x000000, 0x000000}, [CaseTitle] = {0x000053, 0x000073, 0x000000}, [CaseUpper] = {0x000053, 0x000053, 0x000000}, [CaseFold] = {0x000073, 0x000073, 0x000000}}},
   {0, {[CaseLower] = {0x000069, 0x000307, 0x000000}, [CaseTitle] = {0x000130, 0x000000, 0x000000}, [CaseUpper] = {0x000130, 0x000000, 0x000000}, [CaseFold] = {0x000069, 0x000307, 0x000000}}},
@@ -166,8 +165,7 @@ static const pg_special_case special_case[106] =
  * The entry case_map_lower[case_index(codepoint)] is the mapping for the
  * given codepoint.
  */
-static const pg_wchar case_map_lower[1704] =
-{
+static const pg_wchar case_map_lower[1704] = {
   0x000000,         /* reserved */
   0x000000,         /* U+000000 */
   0x000001,         /* U+000001 */
@@ -1879,8 +1877,7 @@ static const pg_wchar case_map_lower[1704] =
  * The entry case_map_title[case_index(codepoint)] is the mapping for the
  * given codepoint.
  */
-static const pg_wchar case_map_title[1704] =
-{
+static const pg_wchar case_map_title[1704] = {
   0x000000,         /* reserved */
   0x000000,         /* U+000000 */
   0x000001,         /* U+000001 */
@@ -3592,8 +3589,7 @@ static const pg_wchar case_map_title[1704] =
  * The entry case_map_upper[case_index(codepoint)] is the mapping for the
  * given codepoint.
  */
-static const pg_wchar case_map_upper[1704] =
-{
+static const pg_wchar case_map_upper[1704] = {
   0x000000,         /* reserved */
   0x000000,         /* U+000000 */
   0x000001,         /* U+000001 */
@@ -5305,8 +5301,7 @@ static const pg_wchar case_map_upper[1704] =
  * The entry case_map_fold[case_index(codepoint)] is the mapping for the
  * given codepoint.
  */
-static const pg_wchar case_map_fold[1704] =
-{
+static const pg_wchar case_map_fold[1704] = {
   0x000000,         /* reserved */
   0x000000,         /* U+000000 */
   0x000001,         /* U+000001 */
@@ -7018,8 +7013,7 @@ static const pg_wchar case_map_fold[1704] =
  * The entry case_map_special[case_index(codepoint)] is the index in
  * special_case for that codepoint, or 0 if no special case mapping exists.
  */
-static const uint8 case_map_special[1704] =
-{
+static const uint8 case_map_special[1704] = {
   0,              /* reserved */
   0,              /* U+000000 */
   0,              /* U+000001 */
@@ -8732,8 +8726,7 @@ static const uint8 case_map_special[1704] =
  * of the following arrays: case_map_lower, case_map_title, case_map_upper,
  * case_map_fold.
  */
-static const uint16 case_map[4778] =
-{
+static const uint16 case_map[4778] = {
   1,              /* U+000000 */
   2,              /* U+000001 */
   3,              /* U+000002 */
@@ -13525,101 +13518,60 @@ static inline uint16
 case_index(pg_wchar cp)
 {
   /* Fast path for codepoints < 0x0588 */
-  if (cp < 0x0588)
-  {
+  if (cp < 0x0588) {
     return case_map[cp];
   }
 
-  if (cp < 0xABC0)
-  {
-    if (cp < 0x2185)
-    {
-      if (cp >= 0x10A0 && cp < 0x1100)
-      {
+  if (cp < 0xABC0) {
+    if (cp < 0x2185) {
+      if (cp >= 0x10A0 && cp < 0x1100) {
         return case_map[cp - 0x10A0 + 1416];
-      }
-      else if (cp >= 0x13A0)
-      {
-        if (cp < 0x13FE)
-        {
+      } else if (cp >= 0x13A0) {
+        if (cp < 0x13FE) {
           return case_map[cp - 0x13A0 + 1512];
-        }
-        else if (cp >= 0x1C80)
-        {
+        } else if (cp >= 0x1C80) {
           return case_map[cp - 0x1C80 + 1606];
         }
       }
-    }
-    else if (cp >= 0x24B6)
-    {
-      if (cp < 0x2D2E)
-      {
-        if (cp < 0x24EA)
-        {
+    } else if (cp >= 0x24B6) {
+      if (cp < 0x2D2E) {
+        if (cp < 0x24EA) {
           return case_map[cp - 0x24B6 + 2891];
-        }
-        else if (cp >= 0x2C00)
-        {
+        } else if (cp >= 0x2C00) {
           return case_map[cp - 0x2C00 + 2943];
         }
-      }
-      else if (cp >= 0xA640)
-      {
-        if (cp < 0xA7F7)
-        {
+      } else if (cp >= 0xA640) {
+        if (cp < 0xA7F7) {
           return case_map[cp - 0xA640 + 3245];
-        }
-        else if (cp >= 0xAB53)
-        {
+        } else if (cp >= 0xAB53) {
           return case_map[cp - 0xAB53 + 3684];
         }
       }
     }
-  }
-  else if (cp >= 0xFB00)
-  {
-    if (cp < 0x10D86)
-    {
-      if (cp < 0xFF5B)
-      {
-        if (cp < 0xFB18)
-        {
+  } else if (cp >= 0xFB00) {
+    if (cp < 0x10D86) {
+      if (cp < 0xFF5B) {
+        if (cp < 0xFB18) {
           return case_map[cp - 0xFB00 + 3793];
-        }
-        else if (cp >= 0xFF21)
-        {
+        } else if (cp >= 0xFF21) {
           return case_map[cp - 0xFF21 + 3817];
         }
-      }
-      else if (cp >= 0x10400)
-      {
-        if (cp < 0x105BD)
-        {
+      } else if (cp >= 0x10400) {
+        if (cp < 0x105BD) {
           return case_map[cp - 0x10400 + 3875];
-        }
-        else if (cp >= 0x10C80)
-        {
+        } else if (cp >= 0x10C80) {
           return case_map[cp - 0x10C80 + 4320];
         }
       }
-    }
-    else if (cp >= 0x118A0)
-    {
-      if (cp < 0x16E80)
-      {
-        if (cp < 0x118E0)
-        {
+    } else if (cp >= 0x118A0) {
+      if (cp < 0x16E80) {
+        if (cp < 0x118E0) {
           return case_map[cp - 0x118A0 + 4582];
-        }
-        else if (cp >= 0x16E40)
-        {
+        } else if (cp >= 0x16E40) {
           return case_map[cp - 0x16E40 + 4646];
         }
-      }
-      else if (cp >= 0x1E900)
-      {
-        if (cp < 0x1E944)
-        {
+      } else if (cp >= 0x1E900) {
+        if (cp < 0x1E944) {
           return case_map[cp - 0x1E900 + 4710];
         }
       }

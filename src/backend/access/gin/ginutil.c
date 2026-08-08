@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/ginxlog.h"
@@ -37,6 +38,7 @@
 Datum
 ginhandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
   amroutine->amstrategies = 0;
@@ -101,6 +103,7 @@ ginhandler(PG_FUNCTION_ARGS)
 void
 initGinState(GinState *state, Relation index)
 {
+  DBUG_TRACE;
   TupleDesc origTupdesc = RelationGetDescr(index);
   int     i;
 
@@ -221,6 +224,7 @@ initGinState(GinState *state, Relation index)
 OffsetNumber
 gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple)
 {
+  DBUG_TRACE;
   OffsetNumber colN;
 
   if (ginstate->oneCol) {
@@ -242,6 +246,7 @@ gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple)
     Assert(colN >= FirstOffsetNumber && colN <= ginstate->origTupdesc->natts);
   }
 
+  DBUG_PRINT("info", "column number of stored entry from GIN tuple:%u", colN);
   return colN;
 }
 
@@ -278,6 +283,10 @@ gintuple_get_key(GinState *ginstate, IndexTuple tuple,
   else
     *category = GIN_CAT_NORM_KEY;
 
+
+  DBUG_PRINT("info", "extract stored datum from GIN tuple");
+
+
   return res;
 }
 
@@ -289,6 +298,7 @@ gintuple_get_key(GinState *ginstate, IndexTuple tuple,
 Buffer
 GinNewBuffer(Relation index)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* First, try to get a page from FSM */
@@ -325,6 +335,7 @@ GinNewBuffer(Relation index)
 void
 GinInitPage(Page page, uint32 f, Size pageSize)
 {
+  DBUG_TRACE;
   GinPageOpaque opaque;
 
   PageInit(page, pageSize, sizeof(GinPageOpaqueData));
@@ -337,12 +348,14 @@ GinInitPage(Page page, uint32 f, Size pageSize)
 void
 GinInitBuffer(Buffer b, uint32 f)
 {
+  DBUG_TRACE;
   GinInitPage(BufferGetPage(b), f, BufferGetPageSize(b));
 }
 
 void
 GinInitMetabuffer(Buffer b)
 {
+  DBUG_TRACE;
   GinMetaPageData *metadata;
   Page    page = BufferGetPage(b);
 
@@ -377,18 +390,29 @@ ginCompareEntries(GinState *ginstate, OffsetNumber attnum,
                   Datum a, GinNullCategory categorya,
                   Datum b, GinNullCategory categoryb)
 {
+  DBUG_TRACE;
+  int result;
+
   /* if not of same null category, sort by that first */
-  if (categorya != categoryb)
-    return (categorya < categoryb) ? -1 : 1;
+  if (categorya != categoryb) {
+    result = (categorya < categoryb) ? -1 : 1;
+    DBUG_PRINT("info", "result:%d", result);
+    return result;
+  }
 
   /* all null items in same category are equal */
-  if (categorya != GIN_CAT_NORM_KEY)
+  if (categorya != GIN_CAT_NORM_KEY) {
+    DBUG_PRINT("info", "all null items in same category are equal");
     return 0;
+  }
 
   /* both not null, so safe to call the compareFn */
-  return DatumGetInt32(FunctionCall2Coll(&ginstate->compareFn[attnum - 1],
-                                         ginstate->supportCollation[attnum - 1],
-                                         a, b));
+  result = DatumGetInt32(FunctionCall2Coll(&ginstate->compareFn[attnum - 1],
+                         ginstate->supportCollation[attnum - 1],
+                         a, b));
+  DBUG_PRINT("info", "result:%d", result);
+
+  return result;
 }
 
 /*
@@ -428,6 +452,7 @@ typedef struct {
 static int
 cmpEntries(const void *a, const void *b, void *arg)
 {
+  DBUG_TRACE;
   const keyEntryData *aa = (const keyEntryData *) a;
   const keyEntryData *bb = (const keyEntryData *) b;
   cmpEntriesArg *data = (cmpEntriesArg *) arg;
@@ -453,6 +478,7 @@ cmpEntries(const void *a, const void *b, void *arg)
   if (res == 0)
     data->haveDups = true;
 
+  DBUG_PRINT("info", "result:%d", res);
   return res;
 }
 
@@ -468,6 +494,7 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
                   Datum value, bool isNull,
                   int32 *nentries, GinNullCategory **categories)
 {
+  DBUG_TRACE;
   Datum    *entries;
   bool     *nullFlags;
   int32   i;
@@ -602,6 +629,7 @@ ginoptions(Datum reloptions, bool validate)
 void
 ginGetStats(Relation index, GinStatsData *stats)
 {
+  DBUG_TRACE;
   Buffer    metabuffer;
   Page    metapage;
   GinMetaPageData *metadata;
@@ -618,6 +646,8 @@ ginGetStats(Relation index, GinStatsData *stats)
   stats->nEntries = metadata->nEntries;
   stats->ginVersion = metadata->ginVersion;
 
+  DBUG_PRINT("info", "stats->nTotalPages:%u, stats->nDataPages:%u, stats->nEntries:%ld, stats->nEntryPages:%u",
+             stats->nTotalPages, stats->nDataPages, stats->nEntries, stats->nEntryPages);
   UnlockReleaseBuffer(metabuffer);
 }
 
@@ -629,6 +659,7 @@ ginGetStats(Relation index, GinStatsData *stats)
 void
 ginUpdateStats(Relation index, const GinStatsData *stats, bool is_build)
 {
+  DBUG_TRACE;
   Buffer    metabuffer;
   Page    metapage;
   GinMetaPageData *metadata;

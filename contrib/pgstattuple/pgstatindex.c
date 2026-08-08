@@ -26,6 +26,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/hash.h"
@@ -138,14 +139,17 @@ static void GetHashPageStats(Page page, HashIndexStat *stats);
 Datum
 pgstatindex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Relation  rel;
   RangeVar   *relrv;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+  }
 
   relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
   rel = relation_openrv(relrv, AccessShareLock);
@@ -163,6 +167,7 @@ pgstatindex(PG_FUNCTION_ARGS)
 Datum
 pgstatindex_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Relation  rel;
   RangeVar   *relrv;
@@ -181,13 +186,16 @@ pgstatindex_v1_5(PG_FUNCTION_ARGS)
 Datum
 pgstatindexbyid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+  }
 
   rel = relation_open(relid, AccessShareLock);
 
@@ -198,6 +206,7 @@ pgstatindexbyid(PG_FUNCTION_ARGS)
 Datum
 pgstatindexbyid_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
@@ -209,27 +218,34 @@ pgstatindexbyid_v1_5(PG_FUNCTION_ARGS)
 static Datum
 pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   Datum   result;
   BlockNumber nblocks;
   BlockNumber blkno;
   BTIndexStat indexStat;
   BufferAccessStrategy bstrategy = GetAccessStrategy(BAS_BULKREAD);
+  char *name_str;
 
-  if (!IS_INDEX(rel) || !IS_BTREE(rel))
+  if (!IS_INDEX(rel) || !IS_BTREE(rel)) {
+    name_str = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("pgstattuple", "relation \"%s\" is not a btree index", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" is not a btree index",
-                    RelationGetRelationName(rel))));
+                    name_str)));
+  }
 
   /*
    * Reject attempts to read non-local temporary relations; we would be
    * likely to get wrong data since we have no visibility into the owning
    * session's local buffers.
    */
-  if (RELATION_IS_OTHER_TEMP(rel))
+  if (RELATION_IS_OTHER_TEMP(rel)) {
+    DBUG_INSTANT_PRINT("pgstattuple", "cannot access temporary tables of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot access temporary tables of other sessions")));
+  }
 
   /*
    * A !indisready index could lead to ERRCODE_DATA_CORRUPTED later, so exit
@@ -273,6 +289,8 @@ pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
    * Scan all blocks except the metapage
    */
   nblocks = RelationGetNumberOfBlocks(rel);
+
+  DBUG_PRINT("pgstattuple", "scan all blocks except the metapage:%u", nblocks);
 
   for (blkno = 1; blkno < nblocks; blkno++) {
     Buffer    buffer;
@@ -327,6 +345,7 @@ pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
    * Build a result tuple
    *----------------------------
    */
+  DBUG_PRINT("pgstattuple", "build a result tuple");
   {
     TupleDesc tupleDesc;
     int     j;
@@ -387,15 +406,19 @@ pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
 Datum
 pg_relpages(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Relation  rel;
   RangeVar   *relrv;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+  }
 
+  DBUG_PRINT("pgstattuple", "get the number of pages of the table/index");
   relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
   rel = relation_openrv(relrv, AccessShareLock);
 
@@ -406,6 +429,7 @@ pg_relpages(PG_FUNCTION_ARGS)
 Datum
 pg_relpages_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *relname = PG_GETARG_TEXT_PP(0);
   Relation  rel;
   RangeVar   *relrv;
@@ -420,13 +444,16 @@ pg_relpages_v1_5(PG_FUNCTION_ARGS)
 Datum
 pg_relpagesbyid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+  }
 
   rel = relation_open(relid, AccessShareLock);
 
@@ -437,6 +464,7 @@ pg_relpagesbyid(PG_FUNCTION_ARGS)
 Datum
 pg_relpagesbyid_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   Relation  rel;
 
@@ -448,6 +476,7 @@ pg_relpagesbyid_v1_5(PG_FUNCTION_ARGS)
 static int64
 pg_relpages_impl(Relation rel)
 {
+  DBUG_TRACE;
   int64   relpages;
 
   if (!RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
@@ -477,12 +506,15 @@ pg_relpages_impl(Relation rel)
 Datum
 pgstatginindex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
 
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("pgstattuple", "must be superuser to use pgstattuple functions");
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to use pgstattuple functions")));
+  }
 
   PG_RETURN_DATUM(pgstatginindex_internal(relid, fcinfo));
 }
@@ -491,6 +523,7 @@ pgstatginindex(PG_FUNCTION_ARGS)
 Datum
 pgstatginindex_v1_5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
 
   PG_RETURN_DATUM(pgstatginindex_internal(relid, fcinfo));
@@ -499,6 +532,7 @@ pgstatginindex_v1_5(PG_FUNCTION_ARGS)
 Datum
 pgstatginindex_internal(Oid relid, FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   Relation  rel;
   Buffer    buffer;
   Page    page;
@@ -512,11 +546,14 @@ pgstatginindex_internal(Oid relid, FunctionCallInfo fcinfo)
 
   rel = relation_open(relid, AccessShareLock);
 
-  if (!IS_INDEX(rel) || !IS_GIN(rel))
+  if (!IS_INDEX(rel) || !IS_GIN(rel)) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_PRINT("pgstattuple", "relation \"%s\" is not a GIN index", rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" is not a GIN index",
-                    RelationGetRelationName(rel))));
+                    rel_name)));
+  }
 
   /*
    * Reject attempts to read non-local temporary relations; we would be
@@ -578,6 +615,7 @@ pgstatginindex_internal(Oid relid, FunctionCallInfo fcinfo)
 Datum
 pgstathashindex(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   BlockNumber nblocks;
   BlockNumber blkno;
@@ -592,31 +630,40 @@ pgstathashindex(PG_FUNCTION_ARGS)
   HashMetaPage metap;
   float8    free_percent;
   uint64    total_space;
+  char *name_str;
 
   rel = relation_open(relid, AccessShareLock);
 
-  if (!IS_INDEX(rel) || !IS_HASH(rel))
+  if (!IS_INDEX(rel) || !IS_HASH(rel)) {
+    name_str = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("pgstattuple", "relation \"%s\" is not a hash index", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("relation \"%s\" is not a hash index",
-                    RelationGetRelationName(rel))));
+                    name_str)));
+  }
 
   /*
    * Reject attempts to read non-local temporary relations; we would be
    * likely to get wrong data since we have no visibility into the owning
    * session's local buffers.
    */
-  if (RELATION_IS_OTHER_TEMP(rel))
+  if (RELATION_IS_OTHER_TEMP(rel)) {
+    DBUG_INSTANT_PRINT("pgstattuple", "cannot access temporary indexes of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot access temporary indexes of other sessions")));
+  }
 
   /* see pgstatindex_impl */
-  if (!rel->rd_index->indisvalid)
+  if (!rel->rd_index->indisvalid) {
+    name_str = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("pgstattuple", "index \"%s\" is not valid", name_str);
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("index \"%s\" is not valid",
-                    RelationGetRelationName(rel))));
+                    name_str)));
+  }
 
   /* Get the information we need from the metapage. */
   memset(&stats, 0, sizeof(stats));
@@ -628,6 +675,7 @@ pgstathashindex(PG_FUNCTION_ARGS)
 
   /* Get the current relation length */
   nblocks = RelationGetNumberOfBlocks(rel);
+  DBUG_PRINT("pgstattuple", "get the current relation length:%u", nblocks);
 
   /* prepare access strategy for this index */
   bstrategy = GetAccessStrategy(BAS_BULKREAD);
@@ -682,10 +730,12 @@ pgstathashindex(PG_FUNCTION_ARGS)
   }
 
   /* Done accessing the index */
+  DBUG_PRINT("pgstattuple", "done accessing the index");
   index_close(rel, AccessShareLock);
 
   /* Count unused pages as free space. */
   stats.free_space += (uint64) stats.unused_pages * stats.space_per_page;
+  DBUG_PRINT("pgstattuple", "count unused pages as free space:%ld", stats.free_space);
 
   /*
    * Total space available for tuples excludes the metapage and the bitmap
@@ -698,6 +748,8 @@ pgstathashindex(PG_FUNCTION_ARGS)
     free_percent = 0.0;
   else
     free_percent = 100.0 * stats.free_space / total_space;
+
+  DBUG_PRINT("pgstattuple", "total space available for tuples:%lu", total_space);
 
   /*
    * Build a tuple descriptor for our result type
@@ -732,6 +784,7 @@ pgstathashindex(PG_FUNCTION_ARGS)
 static void
 GetHashPageStats(Page page, HashIndexStat *stats)
 {
+  DBUG_TRACE;
   OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
   int     off;
 

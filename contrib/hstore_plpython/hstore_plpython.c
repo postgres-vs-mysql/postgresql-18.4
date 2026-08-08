@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "hstore/hstore.h"
@@ -82,6 +83,7 @@ PG_FUNCTION_INFO_V1(hstore_to_plpython);
 Datum
 hstore_to_plpython(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -125,6 +127,7 @@ PG_FUNCTION_INFO_V1(plpython_to_hstore);
 Datum
 plpython_to_hstore(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PyObject   *dict;
   PyObject   *volatile items;
   Py_ssize_t  pcount;

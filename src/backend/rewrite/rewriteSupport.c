@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -52,6 +53,7 @@ IsDefinedRewriteRule(Oid owningRel, const char *ruleName)
 void
 SetRelationRuleStatus(Oid relationId, bool relHasRules)
 {
+  DBUG_TRACE;
   Relation  relationRelation;
   HeapTuple tuple;
   Form_pg_class classForm;
@@ -90,6 +92,7 @@ SetRelationRuleStatus(Oid relationId, bool relHasRules)
 Oid
 get_rewrite_oid(Oid relid, const char *rulename, bool missing_ok)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Form_pg_rewrite ruleform;
   Oid     ruleoid;

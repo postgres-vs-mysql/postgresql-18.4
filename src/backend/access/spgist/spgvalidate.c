@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/htup_details.h"
@@ -37,6 +38,7 @@
 bool
 spgvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;
@@ -320,6 +322,7 @@ spgadjustmembers(Oid opfamilyoid,
                  List *operators,
                  List *functions)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*

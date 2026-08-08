@@ -71,6 +71,7 @@
  *    in turn call these routines themselves on their subplans.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeAgg.h"
@@ -141,6 +142,7 @@ static bool ExecShutdownNode_walker(PlanState *node, void *context);
 PlanState *
 ExecInitNode(Plan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   PlanState  *result;
   List     *subps;
   ListCell   *l;
@@ -429,6 +431,7 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
 void
 ExecSetExecProcNode(PlanState *node, ExecProcNodeMtd function)
 {
+  DBUG_TRACE;
   /*
    * Add a wrapper around the ExecProcNode callback that checks stack depth
    * during the first execution and maybe adds an instrumentation wrapper.
@@ -437,6 +440,7 @@ ExecSetExecProcNode(PlanState *node, ExecProcNodeMtd function)
    */
   node->ExecProcNodeReal = function;
   node->ExecProcNode = ExecProcNodeFirst;
+  DBUG_PRINT("info", "set ExecProcNode to ExecProcNodeFirst");
 }
 
 
@@ -447,6 +451,7 @@ ExecSetExecProcNode(PlanState *node, ExecProcNodeMtd function)
 static TupleTableSlot *
 ExecProcNodeFirst(PlanState *node)
 {
+  DBUG_TRACE;
   /*
    * Perform stack depth check during the first execution of the node.  We
    * only do so the first time round because it turns out to not be cheap on
@@ -478,6 +483,7 @@ ExecProcNodeFirst(PlanState *node)
 static TupleTableSlot *
 ExecProcNodeInstr(PlanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *result;
 
   InstrStartNode(node->instrument);
@@ -506,8 +512,11 @@ ExecProcNodeInstr(PlanState *node)
 Node *
 MultiExecProcNode(PlanState *node)
 {
+  DBUG_TRACE;
   Node     *result;
 
+  DBUG_PRINT("info", "execute a node that doesn't return individual tuples");
+  DBUG_PRINT("info", "it might return a hashtable, bitmap, etc");
   check_stack_depth();
 
   CHECK_FOR_INTERRUPTS();
@@ -560,6 +569,8 @@ MultiExecProcNode(PlanState *node)
 void
 ExecEndNode(PlanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * do nothing when we get to the end of a leaf on tree.
    */
@@ -768,12 +779,15 @@ ExecEndNode(PlanState *node)
 void
 ExecShutdownNode(PlanState *node)
 {
+  DBUG_TRACE;
   (void) ExecShutdownNode_walker(node, NULL);
 }
 
 static bool
 ExecShutdownNode_walker(PlanState *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -849,6 +863,7 @@ ExecShutdownNode_walker(PlanState *node, void *context)
 void
 ExecSetTupleBound(int64 tuples_needed, PlanState *child_node)
 {
+  DBUG_TRACE;
   /*
    * Since this function recurses, in principle we should check stack depth
    * here.  In practice, it's probably pointless since the earlier node

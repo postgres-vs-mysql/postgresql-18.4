@@ -52,10 +52,8 @@ att_isnull(int ATT, const bits8 *BITS)
 static inline Datum
 fetch_att(const void *T, bool attbyval, int attlen)
 {
-  if (attbyval)
-  {
-    switch (attlen)
-    {
+  if (attbyval) {
+    switch (attlen) {
       case sizeof(char):
         return CharGetDatum(*((const char *) T));
 
@@ -74,8 +72,7 @@ fetch_att(const void *T, bool attbyval, int attlen)
         elog(ERROR, "unsupported byval length: %d", attlen);
         return 0;
     }
-  }
-  else
+  } else
     return PointerGetDatum(T);
 }
 #endif              /* FRONTEND */
@@ -214,8 +211,7 @@ fetch_att(const void *T, bool attbyval, int attlen)
 static inline void
 store_att_byval(void *T, Datum newdatum, int attlen)
 {
-  switch (attlen)
-  {
+  switch (attlen) {
     case sizeof(char):
       *(char *) T = DatumGetChar(newdatum);
       break;

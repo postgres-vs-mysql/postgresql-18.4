@@ -400,6 +400,7 @@ pltcl_WaitForEvent(CONST86 Tcl_Time *timePtr)
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   Tcl_NotifierProcs notifier;
   HASHCTL   hash_ctl;
 
@@ -487,6 +488,7 @@ _PG_init(void)
 static void
 pltcl_init_interp(pltcl_interp_desc *interp_desc, Oid prolang, bool pltrusted)
 {
+  DBUG_TRACE;
   Tcl_Interp *interp;
   char    interpname[32];
 
@@ -592,6 +594,7 @@ pltcl_fetch_interp(Oid prolang, bool pltrusted)
 static void
 call_pltcl_start_proc(Oid prolang, bool pltrusted)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 0);
   char     *start_proc;
   const char *gucname;
@@ -682,6 +685,7 @@ call_pltcl_start_proc(Oid prolang, bool pltrusted)
 static void
 start_proc_error_callback(void *arg)
 {
+  DBUG_TRACE;
   const char *gucname = (const char *) arg;
 
   /* translator: %s is "pltcl.start_proc" or "pltclu.start_proc" */
@@ -702,6 +706,7 @@ PG_FUNCTION_INFO_V1(pltcl_call_handler);
 Datum
 pltcl_call_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pltcl_handler(fcinfo, true);
 }
 
@@ -725,6 +730,7 @@ pltclu_call_handler(PG_FUNCTION_ARGS)
 static Datum
 pltcl_handler(PG_FUNCTION_ARGS, bool pltrusted)
 {
+  DBUG_TRACE;
   Datum   retval = (Datum) 0;
   pltcl_call_state current_call_state;
   pltcl_call_state *save_call_state;
@@ -796,6 +802,7 @@ static Datum
 pltcl_func_handler(PG_FUNCTION_ARGS, pltcl_call_state *call_state,
                    bool pltrusted)
 {
+  DBUG_TRACE;
   bool    nonatomic;
   pltcl_proc_desc *prodesc;
   Tcl_Interp *volatile interp;
@@ -1044,6 +1051,7 @@ static HeapTuple
 pltcl_trigger_handler(PG_FUNCTION_ARGS, pltcl_call_state *call_state,
                       bool pltrusted)
 {
+  DBUG_TRACE;
   pltcl_proc_desc *prodesc;
   Tcl_Interp *volatile interp;
   TriggerData *trigdata = (TriggerData *) fcinfo->context;
@@ -1295,6 +1303,7 @@ static void
 pltcl_event_trigger_handler(PG_FUNCTION_ARGS, pltcl_call_state *call_state,
                             bool pltrusted)
 {
+  DBUG_TRACE;
   pltcl_proc_desc *prodesc;
   Tcl_Interp *volatile interp;
   EventTriggerData *tdata = (EventTriggerData *) fcinfo->context;
@@ -1395,6 +1404,7 @@ static pltcl_proc_desc *
 compile_pltcl_function(Oid fn_oid, Oid tgreloid,
                        bool is_event_trigger, bool pltrusted)
 {
+  DBUG_TRACE;
   HeapTuple procTup;
   Form_pg_proc procStruct;
   pltcl_proc_key proc_key;
@@ -1813,6 +1823,7 @@ static int
 pltcl_elog(ClientData cdata, Tcl_Interp *interp,
            int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   volatile int level;
   MemoryContext oldcontext;
   int     priIndex;
@@ -2113,6 +2124,7 @@ static int
 pltcl_argisnull(ClientData cdata, Tcl_Interp *interp,
                 int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   int     argno;
   FunctionCallInfo fcinfo = pltcl_current_call_state->fcinfo;
 
@@ -2165,6 +2177,7 @@ static int
 pltcl_returnnull(ClientData cdata, Tcl_Interp *interp,
                  int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = pltcl_current_call_state->fcinfo;
 
   /************************************************************
@@ -2201,6 +2214,7 @@ static int
 pltcl_returnnext(ClientData cdata, Tcl_Interp *interp,
                  int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   pltcl_call_state *call_state = pltcl_current_call_state;
   FunctionCallInfo fcinfo = call_state->fcinfo;
   pltcl_proc_desc *prodesc = call_state->prodesc;
@@ -2316,6 +2330,7 @@ pltcl_returnnext(ClientData cdata, Tcl_Interp *interp,
 static void
 pltcl_subtrans_begin(MemoryContext oldcontext, ResourceOwner oldowner)
 {
+  DBUG_TRACE;
   BeginInternalSubTransaction(NULL);
 
   /* Want to run inside function's memory context */
@@ -2325,6 +2340,7 @@ pltcl_subtrans_begin(MemoryContext oldcontext, ResourceOwner oldowner)
 static void
 pltcl_subtrans_commit(MemoryContext oldcontext, ResourceOwner oldowner)
 {
+  DBUG_TRACE;
   /* Commit the inner transaction, return to outer xact context */
   ReleaseCurrentSubTransaction();
   MemoryContextSwitchTo(oldcontext);
@@ -2335,6 +2351,7 @@ static void
 pltcl_subtrans_abort(Tcl_Interp *interp,
                      MemoryContext oldcontext, ResourceOwner oldowner)
 {
+  DBUG_TRACE;
   ErrorData  *edata;
 
   /* Save error info */
@@ -2364,6 +2381,7 @@ static int
 pltcl_SPI_execute(ClientData cdata, Tcl_Interp *interp,
                   int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   int     my_rc;
   int     spi_rc;
   int     query_idx;
@@ -2474,6 +2492,7 @@ pltcl_process_SPI_result(Tcl_Interp *interp,
                          SPITupleTable *tuptable,
                          uint64 ntuples)
 {
+  DBUG_TRACE;
   int     my_rc = TCL_OK;
   int     loop_rc;
   HeapTuple  *tuples;
@@ -2581,6 +2600,7 @@ static int
 pltcl_SPI_prepare(ClientData cdata, Tcl_Interp *interp,
                   int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   volatile MemoryContext plan_cxt = NULL;
   Tcl_Size  nargs;
   Tcl_Obj   **argsObj;
@@ -2707,6 +2727,7 @@ static int
 pltcl_SPI_execute_plan(ClientData cdata, Tcl_Interp *interp,
                        int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   int     my_rc;
   int     spi_rc;
   int     i;
@@ -2910,6 +2931,7 @@ static int
 pltcl_subtransaction(ClientData cdata, Tcl_Interp *interp,
                      int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
   ResourceOwner oldowner = CurrentResourceOwner;
   int     retcode;
@@ -2993,6 +3015,7 @@ static int
 pltcl_rollback(ClientData cdata, Tcl_Interp *interp,
                int objc, Tcl_Obj *const objv[])
 {
+  DBUG_TRACE;
   MemoryContext oldcontext = CurrentMemoryContext;
 
   PG_TRY();
@@ -3033,6 +3056,7 @@ static void
 pltcl_set_tuple_values(Tcl_Interp *interp, const char *arrayname,
                        uint64 tupno, HeapTuple tuple, TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   int     i;
   char     *outputstr;
   Datum   attr;
@@ -3112,6 +3136,7 @@ pltcl_set_tuple_values(Tcl_Interp *interp, const char *arrayname,
 static Tcl_Obj *
 pltcl_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc, bool include_generated)
 {
+  DBUG_TRACE;
   Tcl_Obj    *retobj = Tcl_NewObj();
   int     i;
   char     *outputstr;
@@ -3190,6 +3215,7 @@ static HeapTuple
 pltcl_build_tuple_result(Tcl_Interp *interp, Tcl_Obj **kvObjv, int kvObjc,
                          pltcl_call_state *call_state)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   TupleDesc tupdesc;
   AttInMetadata *attinmeta;
@@ -3267,6 +3293,7 @@ pltcl_build_tuple_result(Tcl_Interp *interp, Tcl_Obj **kvObjv, int kvObjc,
 static void
 pltcl_init_tuple_store(pltcl_call_state *call_state)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsi = call_state->rsi;
   MemoryContext oldcxt;
   ResourceOwner oldowner;

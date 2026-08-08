@@ -15,6 +15,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/genam.h"
@@ -110,6 +111,7 @@ BuildRelationExtStatistics(Relation onerel, bool inh, double totalrows,
                            int numrows, HeapTuple *rows,
                            int natts, VacAttrStats **vacattrstats)
 {
+  DBUG_TRACE;
   Relation  pg_stext;
   ListCell   *lc;
   List     *statslist;
@@ -258,6 +260,7 @@ int
 ComputeExtStatisticsRows(Relation onerel,
                          int natts, VacAttrStats **vacattrstats)
 {
+  DBUG_TRACE;
   Relation  pg_stext;
   ListCell   *lc;
   List     *lstats;
@@ -312,6 +315,7 @@ ComputeExtStatisticsRows(Relation onerel,
   MemoryContextDelete(cxt);
 
   /* compute sample size based on the statistics target */
+  DBUG_PRINT("info", "compute number of rows required by extended statistics on a table:%d", 300 * result);
   return (300 * result);
 }
 
@@ -338,6 +342,7 @@ ComputeExtStatisticsRows(Relation onerel,
 static int
 statext_compute_stattarget(int stattarget, int nattrs, VacAttrStats **stats)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -411,6 +416,7 @@ statext_is_kind_built(HeapTuple htup, char type)
 static List *
 fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 {
+  DBUG_TRACE;
   SysScanDesc scan;
   ScanKeyData skey;
   HeapTuple htup;
@@ -517,6 +523,7 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 static VacAttrStats *
 examine_attribute(Node *expr)
 {
+  DBUG_TRACE;
   HeapTuple typtuple;
   VacAttrStats *stats;
   int     i;
@@ -596,6 +603,7 @@ examine_attribute(Node *expr)
 static VacAttrStats *
 examine_expression(Node *expr, int stattarget)
 {
+  DBUG_TRACE;
   HeapTuple typtuple;
   VacAttrStats *stats;
   int     i;
@@ -682,6 +690,7 @@ static VacAttrStats **
 lookup_var_attr_stats(Bitmapset *attrs, List *exprs,
                       int nvacatts, VacAttrStats **vacatts)
 {
+  DBUG_TRACE;
   int     i = 0;
   int     x = -1;
   int     natts;
@@ -757,6 +766,7 @@ statext_store(Oid statOid, bool inh,
               MVNDistinct *ndistinct, MVDependencies *dependencies,
               MCVList *mcv, Datum exprs, VacAttrStats **stats)
 {
+  DBUG_TRACE;
   Relation  pg_stextdata;
   HeapTuple stup;
   Datum   values[Natts_pg_statistic_ext_data];
@@ -843,6 +853,7 @@ void
 multi_sort_add_dimension(MultiSortSupport mss, int sortdim,
                          Oid oper, Oid collation)
 {
+  DBUG_TRACE;
   SortSupport ssup = &mss->ssup[sortdim];
 
   ssup->ssup_cxt = CurrentMemoryContext;
@@ -930,6 +941,7 @@ compare_datums_simple(Datum a, Datum b, SortSupport ssup)
 AttrNumber *
 build_attnums_array(Bitmapset *attrs, int nexprs, int *numattrs)
 {
+  DBUG_TRACE;
   int     i,
           j;
   AttrNumber *attnums;
@@ -977,6 +989,7 @@ build_sorted_items(StatsBuildData *data, int *nitems,
                    MultiSortSupport mss,
                    int numattrs, AttrNumber *attnums)
 {
+  DBUG_TRACE;
   int     i,
           j,
           len,
@@ -1196,6 +1209,7 @@ choose_best_statistics(List *stats, char requiredkind, bool inh,
                        Bitmapset **clause_attnums, List **clause_exprs,
                        int nclauses)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   StatisticExtInfo *best_match = NULL;
   int     best_num_matched = 2; /* goal #1: maximize */
@@ -1315,6 +1329,8 @@ statext_is_compatible_clause_internal(PlannerInfo *root, Node *clause,
                                       Index relid, Bitmapset **attnums,
                                       List **exprs, bool *leakproof)
 {
+  DBUG_TRACE;
+
   /* Look inside any binary-compatible relabeling (as in examine_variable) */
   if (IsA(clause, RelabelType))
     clause = (Node *) ((RelabelType *) clause)->arg;
@@ -1533,6 +1549,7 @@ static bool
 statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
                              Bitmapset **attnums, List **exprs)
 {
+  DBUG_TRACE;
   RestrictInfo *rinfo;
   int     clause_relid;
   bool    leakproof;
@@ -1552,27 +1569,36 @@ statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
      */
     foreach(lc, expr->args) {
       if (!statext_is_compatible_clause(root, (Node *) lfirst(lc),
-                                        relid, attnums, exprs))
+                                        relid, attnums, exprs)) {
+        DBUG_PRINT("info", "return false");
         return false;
+      }
     }
 
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
   /* Otherwise it must be a RestrictInfo. */
-  if (!IsA(clause, RestrictInfo))
+  if (!IsA(clause, RestrictInfo)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   rinfo = (RestrictInfo *) clause;
 
   /* Pseudoconstants are not really interesting here. */
-  if (rinfo->pseudoconstant)
+  if (rinfo->pseudoconstant) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Clauses referencing other varnos are incompatible. */
   if (!bms_get_singleton_member(rinfo->clause_relids, &clause_relid) ||
-      clause_relid != relid)
+      clause_relid != relid) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * Check the clause, determine what attributes it references, and whether
@@ -1582,8 +1608,10 @@ statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
 
   if (!statext_is_compatible_clause_internal(root, (Node *) rinfo->clause,
       relid, attnums, exprs,
-      &leakproof))
+      &leakproof)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * If the clause includes any non-leakproof operators, check that the user
@@ -1623,10 +1651,13 @@ statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
       pull_varattnos((Node *) *exprs, relid, &clause_attnums);
 
     /* Must have permission to read all rows from these columns */
-    if (!all_rows_selectable(root, relid, clause_attnums))
+    if (!all_rows_selectable(root, relid, clause_attnums)) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
+  DBUG_PRINT("info", "return true");
   /* If we reach here, the clause is OK */
   return true;
 }
@@ -1671,6 +1702,7 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
                                    RelOptInfo *rel, Bitmapset **estimatedclauses,
                                    bool is_or)
 {
+  DBUG_TRACE;
   ListCell   *l;
   Bitmapset **list_attnums; /* attnums extracted from the clause */
   List    **list_exprs;   /* expressions matched to any statistic */
@@ -1678,9 +1710,14 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
   Selectivity sel = (is_or) ? 0.0 : 1.0;
   RangeTblEntry *rte = planner_rt_fetch(rel->relid, root);
 
+  DBUG_PRINT("info", "estimate clauses using the best multi-column statistics");
+
   /* check if there's any stats that might be useful for us. */
-  if (!has_stats_of_kind(rel->statlist, STATS_EXT_MCV))
+  if (!has_stats_of_kind(rel->statlist, STATS_EXT_MCV))  {
+    DBUG_PRINT("info", "check if there's any stats that might be useful for us");
+    DBUG_PRINT("info", "selectivity:%g", sel);
     return sel;
+  }
 
   list_attnums = (Bitmapset **) palloc(sizeof(Bitmapset *) *
                                        list_length(clauses));
@@ -1939,6 +1976,7 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
     }
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", sel);
   return sel;
 }
 
@@ -1958,12 +1996,17 @@ statext_clauselist_selectivity(PlannerInfo *root, List *clauses, int varRelid,
   sel = statext_mcv_clauselist_selectivity(root, clauses, varRelid, jointype,
         sjinfo, rel, estimatedclauses, is_or);
 
+  DBUG_PRINT("info", "first, try estimating clauses using a multivariate MCV list:%g", sel);
+
   /*
    * Functional dependencies only work for clauses connected by AND, so for
    * OR clauses we're done.
    */
-  if (is_or)
+  if (is_or) {
+    DBUG_PRINT("info", "functional dependencies only work for clauses connected by AND, so for OR clauses we're done");
+    DBUG_PRINT("info", "return selectivity:%g", sel);
     return sel;
+  }
 
   /*
    * Then, apply functional dependencies on the remaining clauses by calling
@@ -1978,10 +2021,12 @@ statext_clauselist_selectivity(PlannerInfo *root, List *clauses, int varRelid,
    * two columns, while functional dependencies can only provide information
    * about the overall strength of the dependency.
    */
+  DBUG_PRINT("info", "then, apply functional dependencies on the remaining clauses");
   sel *= dependencies_clauselist_selectivity(root, clauses, varRelid,
          jointype, sjinfo, rel,
          estimatedclauses);
 
+  DBUG_PRINT("info", "new selectivity:%g", sel);
   return sel;
 }
 
@@ -2001,6 +2046,7 @@ bool
 examine_opclause_args(List *args, Node **exprp, Const **cstp,
                       bool *expronleftp)
 {
+  DBUG_TRACE;
   Node     *expr;
   Const    *cst;
   bool    expronleft;
@@ -2052,6 +2098,7 @@ static void
 compute_expr_stats(Relation onerel, AnlExprData *exprdata, int nexprs,
                    HeapTuple *rows, int numrows)
 {
+  DBUG_TRACE;
   MemoryContext expr_context,
                 old_context;
   int     ind,
@@ -2206,6 +2253,7 @@ expr_fetch_func(VacAttrStatsP stats, int rownum, bool *isNull)
 static AnlExprData *
 build_expr_data(List *exprs, int stattarget)
 {
+  DBUG_TRACE;
   int     idx;
   int     nexprs = list_length(exprs);
   AnlExprData *exprdata;
@@ -2231,6 +2279,7 @@ build_expr_data(List *exprs, int stattarget)
 static Datum
 serialize_expr_stats(AnlExprData *exprdata, int nexprs)
 {
+  DBUG_TRACE;
   int     exprno;
   Oid     typOid;
   Relation  sd;
@@ -2361,6 +2410,7 @@ serialize_expr_stats(AnlExprData *exprdata, int nexprs)
 HeapTuple
 statext_expressions_load(Oid stxoid, bool inh, int idx)
 {
+  DBUG_TRACE;
   bool    isnull;
   Datum   value;
   HeapTuple htup;
@@ -2417,6 +2467,7 @@ static StatsBuildData *
 make_build_data(Relation rel, StatExtEntry *stat, int numrows, HeapTuple *rows,
                 VacAttrStats **stats, int stattarget)
 {
+  DBUG_TRACE;
   /* evaluated expressions */
   StatsBuildData *result;
   char     *ptr;

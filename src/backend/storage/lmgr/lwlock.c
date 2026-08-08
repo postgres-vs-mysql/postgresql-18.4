@@ -75,6 +75,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "miscadmin.h"
 #include "pg_trace.h"
@@ -314,6 +315,7 @@ static lwlock_stats * get_lwlock_stats_entry(LWLock *lock);
 static void
 init_lwlock_stats(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
   static MemoryContext lwlock_stats_cxt = NULL;
   static bool exit_registered = false;
@@ -410,12 +412,14 @@ get_lwlock_stats_entry(LWLock *lock)
 static int
 NumLWLocksForNamedTranches(void)
 {
+  DBUG_TRACE;
   int     numLocks = 0;
   int     i;
 
   for (i = 0; i < NamedLWLockTrancheRequests; i++)
     numLocks += NamedLWLockTrancheRequestArray[i].num_lwlocks;
 
+  DBUG_PRINT("info", "compute number of LWLocks required by named tranches:%d", numLocks);
   return numLocks;
 }
 
@@ -425,6 +429,7 @@ NumLWLocksForNamedTranches(void)
 Size
 LWLockShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size;
   int     i;
   int     numLocks = NUM_FIXED_LWLOCKS;
@@ -445,6 +450,7 @@ LWLockShmemSize(void)
   for (i = 0; i < NamedLWLockTrancheRequests; i++)
     size = add_size(size, strlen(NamedLWLockTrancheRequestArray[i].tranche_name) + 1);
 
+  DBUG_PRINT("info", "compute shmem space needed for LWLocks and named tranches:%lu", size);
   return size;
 }
 
@@ -455,6 +461,8 @@ LWLockShmemSize(void)
 void
 CreateLWLocks(void)
 {
+  DBUG_TRACE;
+
   if (!IsUnderPostmaster) {
     Size    spaceLocks = LWLockShmemSize();
     int      *LWLockCounter;
@@ -483,6 +491,8 @@ CreateLWLocks(void)
   }
 
   /* Register named extension LWLock tranches in the current process. */
+  DBUG_PRINT("info", "register named extension LWLock tranches(NamedLWLockTrancheRequests:%d) in the current process", NamedLWLockTrancheRequests);
+
   for (int i = 0; i < NamedLWLockTrancheRequests; i++)
     LWLockRegisterTranche(NamedLWLockTrancheArray[i].trancheId,
                           NamedLWLockTrancheArray[i].trancheName);
@@ -494,33 +504,43 @@ CreateLWLocks(void)
 static void
 InitializeLWLocks(void)
 {
+  DBUG_TRACE;
   int     numNamedLocks = NumLWLocksForNamedTranches();
   int     id;
   int     i;
   int     j;
   LWLockPadded *lock;
 
+  DBUG_PRINT("info", "initialize LWLocks that are fixed and those belonging to named tranches");
   /* Initialize all individual LWLocks in main array */
+  DBUG_PRINT("info", "initialize all individual LWLocks in main array:%d", NUM_INDIVIDUAL_LWLOCKS);
+
   for (id = 0, lock = MainLWLockArray; id < NUM_INDIVIDUAL_LWLOCKS; id++, lock++)
-    LWLockInitialize(&lock->lock, id);
+    LWLockInitialize(&lock->lock, id, 0);
 
   /* Initialize buffer mapping LWLocks in main array */
   lock = MainLWLockArray + BUFFER_MAPPING_LWLOCK_OFFSET;
 
+  DBUG_PRINT("info", "initialize buffer mapping LWLocks in main array:%d", NUM_BUFFER_PARTITIONS);
+
   for (id = 0; id < NUM_BUFFER_PARTITIONS; id++, lock++)
-    LWLockInitialize(&lock->lock, LWTRANCHE_BUFFER_MAPPING);
+    LWLockInitialize(&lock->lock, LWTRANCHE_BUFFER_MAPPING, id);
 
   /* Initialize lmgrs' LWLocks in main array */
   lock = MainLWLockArray + LOCK_MANAGER_LWLOCK_OFFSET;
 
+  DBUG_PRINT("info", "initialize lmgrs' LWLocks in main array:%d", NUM_LOCK_PARTITIONS);
+
   for (id = 0; id < NUM_LOCK_PARTITIONS; id++, lock++)
-    LWLockInitialize(&lock->lock, LWTRANCHE_LOCK_MANAGER);
+    LWLockInitialize(&lock->lock, LWTRANCHE_LOCK_MANAGER, id);
 
   /* Initialize predicate lmgrs' LWLocks in main array */
   lock = MainLWLockArray + PREDICATELOCK_MANAGER_LWLOCK_OFFSET;
 
+  DBUG_PRINT("info", "initialize predicate lmgrs' LWLocks in main array:%d", NUM_PREDICATELOCK_PARTITIONS);
+
   for (id = 0; id < NUM_PREDICATELOCK_PARTITIONS; id++, lock++)
-    LWLockInitialize(&lock->lock, LWTRANCHE_PREDICATE_LOCK_MANAGER);
+    LWLockInitialize(&lock->lock, LWTRANCHE_PREDICATE_LOCK_MANAGER, id);
 
   /*
    * Copy the info about any named tranches into shared memory (so that
@@ -536,6 +556,8 @@ InitializeLWLocks(void)
                    (NamedLWLockTrancheRequests * sizeof(NamedLWLockTranche));
     lock = &MainLWLockArray[NUM_FIXED_LWLOCKS];
 
+    DBUG_PRINT("info", "initialize the requested LWLocks:%d", NamedLWLockTrancheRequests);
+
     for (i = 0; i < NamedLWLockTrancheRequests; i++) {
       NamedLWLockTrancheRequest *request;
       NamedLWLockTranche *tranche;
@@ -550,8 +572,11 @@ InitializeLWLocks(void)
       tranche->trancheId = LWLockNewTrancheId();
       tranche->trancheName = name;
 
+      DBUG_PRINT("info", "tranche ID:%u, name:'%s', num_lwlocks:%d",
+                 tranche->trancheId, name, request->num_lwlocks);
+
       for (j = 0; j < request->num_lwlocks; j++, lock++)
-        LWLockInitialize(&lock->lock, tranche->trancheId);
+        LWLockInitialize(&lock->lock, tranche->trancheId, j);
     }
   }
 }
@@ -562,6 +587,7 @@ InitializeLWLocks(void)
 void
 InitLWLockAccess(void)
 {
+  DBUG_TRACE;
 #ifdef LWLOCK_STATS
   init_lwlock_stats();
 #endif
@@ -578,6 +604,7 @@ InitLWLockAccess(void)
 LWLockPadded *
 GetNamedLWLockTranche(const char *tranche_name)
 {
+  DBUG_TRACE;
   int     lock_pos;
   int     i;
 
@@ -590,12 +617,15 @@ GetNamedLWLockTranche(const char *tranche_name)
 
   for (i = 0; i < NamedLWLockTrancheRequests; i++) {
     if (strcmp(NamedLWLockTrancheRequestArray[i].tranche_name,
-               tranche_name) == 0)
+               tranche_name) == 0) {
+      DBUG_PRINT("info", "return the base address of LWLock from the specified tranche:'%s'", tranche_name);
       return &MainLWLockArray[lock_pos];
+    }
 
     lock_pos += NamedLWLockTrancheRequestArray[i].num_lwlocks;
   }
 
+  DBUG_INSTANT_PRINT("info", "requested tranche is not registered");
   elog(ERROR, "requested tranche is not registered");
 
   /* just to keep compiler quiet */
@@ -608,6 +638,7 @@ GetNamedLWLockTranche(const char *tranche_name)
 int
 LWLockNewTrancheId(void)
 {
+  DBUG_TRACE;
   int     result;
   int      *LWLockCounter;
 
@@ -617,6 +648,7 @@ LWLockNewTrancheId(void)
   result = (*LWLockCounter)++;
   SpinLockRelease(ShmemLock);
 
+  DBUG_PRINT("info", "allocate a new tranche ID:%d", result);
   return result;
 }
 
@@ -633,10 +665,16 @@ LWLockNewTrancheId(void)
 void
 LWLockRegisterTranche(int tranche_id, const char *tranche_name)
 {
-  /* This should only be called for user-defined tranches. */
-  if (tranche_id < LWTRANCHE_FIRST_USER_DEFINED)
-    return;
+  DBUG_TRACE;
 
+  /* This should only be called for user-defined tranches. */
+  if (tranche_id < LWTRANCHE_FIRST_USER_DEFINED) {
+    DBUG_PRINT("info", "this should only be called for user-defined tranches");
+    return;
+  }
+
+  DBUG_PRINT("info", "register a dynamic tranche name in the lookup table of the current process");
+  DBUG_PRINT("info", "tranche_id:%d, tranche_name:'%s', LWLockTrancheNamesAllocated:%d", tranche_id, tranche_name, LWLockTrancheNamesAllocated);
   /* Convert to array index. */
   tranche_id -= LWTRANCHE_FIRST_USER_DEFINED;
 
@@ -675,10 +713,16 @@ LWLockRegisterTranche(int tranche_id, const char *tranche_name)
 void
 RequestNamedLWLockTranche(const char *tranche_name, int num_lwlocks)
 {
+  DBUG_TRACE;
   NamedLWLockTrancheRequest *request;
 
-  if (!process_shmem_requests_in_progress)
+  DBUG_PRINT("info", "request that extra LWLocks be allocated during postmaster startup");
+  DBUG_PRINT("info", "tranche_name:'%s', num_lwlocks:%d", tranche_name, num_lwlocks);
+
+  if (!process_shmem_requests_in_progress) {
+    DBUG_INSTANT_PRINT("info", "cannot request additional LWLocks outside shmem_request_hook");
     elog(FATAL, "cannot request additional LWLocks outside shmem_request_hook");
+  }
 
   if (NamedLWLockTrancheRequestArray == NULL) {
     NamedLWLockTrancheRequestsAllocated = 16;
@@ -704,20 +748,19 @@ RequestNamedLWLockTranche(const char *tranche_name, int num_lwlocks)
   NamedLWLockTrancheRequests++;
 }
 
-/*
- * LWLockInitialize - initialize a new lwlock; it's initially unlocked
- */
 void
-LWLockInitialize(LWLock *lock, int tranche_id)
+LWLockInitialize(LWLock *lock, int tranche_id, uint16 index)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "initialize a new lwlock(tranche ID:%d, index:%u)", tranche_id, index);
   pg_atomic_init_u32(&lock->state, LW_FLAG_RELEASE_OK);
 #ifdef LOCK_DEBUG
   pg_atomic_init_u32(&lock->nwaiters, 0);
 #endif
   lock->tranche = tranche_id;
+  lock->index = index;
   proclist_init(&lock->waiters);
 }
-
 /*
  * Report start of wait event for light-weight locks.
  *
@@ -728,6 +771,8 @@ LWLockInitialize(LWLock *lock, int tranche_id)
 static inline void
 LWLockReportWaitStart(LWLock *lock)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "report start of wait event for the lock(tranche ID:%u, idx:%u)", lock->tranche, lock->index);
   pgstat_report_wait_start(PG_WAIT_LWLOCK | lock->tranche);
 }
 
@@ -737,6 +782,7 @@ LWLockReportWaitStart(LWLock *lock)
 static inline void
 LWLockReportWaitEnd(void)
 {
+  DBUG_TRACE;
   pgstat_report_wait_end();
 }
 
@@ -746,6 +792,9 @@ LWLockReportWaitEnd(void)
 static const char *
 GetLWTrancheName(uint16 trancheId)
 {
+  DBUG_TRACE;
+  const char *result;
+
   /* Built-in tranche or individual LWLock? */
   if (trancheId < LWTRANCHE_FIRST_USER_DEFINED)
     return BuiltinTrancheNames[trancheId];
@@ -758,10 +807,14 @@ GetLWTrancheName(uint16 trancheId)
   trancheId -= LWTRANCHE_FIRST_USER_DEFINED;
 
   if (trancheId >= LWLockTrancheNamesAllocated ||
-      LWLockTrancheNames[trancheId] == NULL)
+      LWLockTrancheNames[trancheId] == NULL) {
+    DBUG_PRINT("info", "return the name:'%s' of an LWLock tranche(%u)", "extension", trancheId);
     return "extension";
+  }
 
-  return LWLockTrancheNames[trancheId];
+  result = LWLockTrancheNames[trancheId];
+  DBUG_PRINT("info", "return the name:'%s' of an LWLock tranche(%u)", result, trancheId);
+  return result;
 }
 
 /*
@@ -770,9 +823,13 @@ GetLWTrancheName(uint16 trancheId)
 const char *
 GetLWLockIdentifier(uint32 classId, uint16 eventId)
 {
+  DBUG_TRACE;
+  const char *result;
   Assert(classId == PG_WAIT_LWLOCK);
   /* The event IDs are just tranche numbers. */
-  return GetLWTrancheName(eventId);
+  result = GetLWTrancheName(eventId);
+  DBUG_PRINT("info", "return an identifier for an LWLock based on the wait class and event:'%s'", result);
+  return result;
 }
 
 /*
@@ -787,9 +844,16 @@ GetLWLockIdentifier(uint32 classId, uint16 eventId)
 static bool
 LWLockAttemptLock(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
   uint32    old_state;
 
   Assert(mode == LW_EXCLUSIVE || mode == LW_SHARED);
+
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
 
   /*
    * Read once outside the loop, later iterations will get the newer value
@@ -835,9 +899,12 @@ LWLockAttemptLock(LWLock *lock, LWLockMode mode)
           lock->owner = MyProc;
 
 #endif
+        DBUG_PRINT("info", "got the lock");
         return false;
-      } else
+      } else {
+        DBUG_PRINT("info", "somebody else has the lock");
         return true;  /* somebody else has the lock */
+      }
     }
   }
 
@@ -855,6 +922,7 @@ LWLockAttemptLock(LWLock *lock, LWLockMode mode)
 static void
 LWLockWaitListLock(LWLock *lock)
 {
+  DBUG_TRACE;
   uint32    old_state;
 #ifdef LWLOCK_STATS
   lwlock_stats *lwstats;
@@ -863,12 +931,16 @@ LWLockWaitListLock(LWLock *lock)
   lwstats = get_lwlock_stats_entry(lock);
 #endif
 
+  DBUG_PRINT("info", "lock the LWLock(tranche ID:%u, idx:%u)'s wait list against concurrent activity", lock->tranche, lock->index);
+
   while (true) {
     /* always try once to acquire lock directly */
     old_state = pg_atomic_fetch_or_u32(&lock->state, LW_FLAG_LOCKED);
 
-    if (!(old_state & LW_FLAG_LOCKED))
+    if (!(old_state & LW_FLAG_LOCKED)) {
+      DBUG_PRINT("info", "got lock");
       break;        /* got lock */
+    }
 
     /* and then spin without atomic operations until lock is released */
     {
@@ -907,10 +979,12 @@ LWLockWaitListLock(LWLock *lock)
 static void
 LWLockWaitListUnlock(LWLock *lock)
 {
+  DBUG_TRACE;
   uint32    old_state PG_USED_FOR_ASSERTS_ONLY;
 
   old_state = pg_atomic_fetch_and_u32(&lock->state, ~LW_FLAG_LOCKED);
 
+  DBUG_PRINT("info", "unlock the LWLock(tranche ID:%u, idx:%u)'s wait list", lock->tranche, lock->index);
   Assert(old_state & LW_FLAG_LOCKED);
 }
 
@@ -920,6 +994,7 @@ LWLockWaitListUnlock(LWLock *lock)
 static void
 LWLockWakeup(LWLock *lock)
 {
+  DBUG_TRACE;
   bool    new_release_ok;
   bool    wokeup_somebody = false;
   proclist_head wakeup;
@@ -927,6 +1002,8 @@ LWLockWakeup(LWLock *lock)
 
   proclist_init(&wakeup);
 
+  DBUG_PRINT("info", "wakeup all the lockers that currently have a chance to acquire the lock(tranche ID:%u, idx:%u)",
+             lock->tranche, lock->index);
   new_release_ok = true;
 
   /* lock wait list while collecting backends to wake up */
@@ -1006,6 +1083,7 @@ LWLockWakeup(LWLock *lock)
   proclist_foreach_modify(iter, &wakeup, lwWaitLink) {
     PGPROC     *waiter = GetPGProcByNumber(iter.cur);
 
+    DBUG_PRINT("info", "release waiter");
     LOG_LWDEBUG("LWLockRelease", lock, "release waiter");
     proclist_delete(&wakeup, iter.cur, lwWaitLink);
 
@@ -1033,16 +1111,30 @@ LWLockWakeup(LWLock *lock)
 static void
 LWLockQueueSelf(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
+
+  DBUG_PRINT("info", "add ourselves to the end of the queue");
+
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else if (mode == LW_SHARED) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
+
   /*
    * If we don't have a PGPROC structure, there's no way to wait. This
    * should never occur, since MyProc should only be null during shared
    * memory initialization.
    */
-  if (MyProc == NULL)
+  if (MyProc == NULL) {
+    DBUG_INSTANT_PRINT("info", "cannot wait without a PGPROC structure");
     elog(PANIC, "cannot wait without a PGPROC structure");
+  }
 
-  if (MyProc->lwWaiting != LW_WS_NOT_WAITING)
+  if (MyProc->lwWaiting != LW_WS_NOT_WAITING) {
+    DBUG_INSTANT_PRINT("info", "queueing for lock while waiting on another one");
     elog(PANIC, "queueing for lock while waiting on another one");
+  }
 
   LWLockWaitListLock(lock);
 
@@ -1076,8 +1168,10 @@ LWLockQueueSelf(LWLock *lock, LWLockMode mode)
 static void
 LWLockDequeueSelf(LWLock *lock)
 {
+  DBUG_TRACE;
   bool    on_waitlist;
 
+  DBUG_PRINT("info", "remove ourselves from the waitlist(tranche ID:%u, idx:%u)", lock->tranche, lock->index);
 #ifdef LWLOCK_STATS
   lwlock_stats *lwstats;
 
@@ -1165,6 +1259,7 @@ LWLockDequeueSelf(LWLock *lock)
 bool
 LWLockAcquire(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
   PGPROC     *proc = MyProc;
   bool    result = true;
   int     extraWaits = 0;
@@ -1175,6 +1270,12 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
 #endif
 
   Assert(mode == LW_SHARED || mode == LW_EXCLUSIVE);
+
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
 
   PRINT_LWDEBUG("LWLockAcquire", lock, mode);
 
@@ -1196,8 +1297,10 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
   Assert(!(proc == NULL && IsUnderPostmaster));
 
   /* Ensure we will have room to remember the lock */
-  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS)
+  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS) {
+    DBUG_PRINT("LWLockAcquire", "too many LWLocks taken");
     elog(ERROR, "too many LWLocks taken");
+  }
 
   /*
    * Lock out cancel/die interrupts until we exit the code section protected
@@ -1232,6 +1335,7 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
     mustwait = LWLockAttemptLock(lock, mode);
 
     if (!mustwait) {
+      DBUG_PRINT("info", "immediately acquired lock");
       LOG_LWDEBUG("LWLockAcquire", lock, "immediately acquired lock");
       break;        /* got the lock */
     }
@@ -1255,6 +1359,7 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
 
     /* ok, grabbed the lock the second time round, need to undo queueing */
     if (!mustwait) {
+      DBUG_PRINT("info", "ok, grabbed the lock the second time round, need to undo queueing");
       LOG_LWDEBUG("LWLockAcquire", lock, "acquired, undoing queue");
 
       LWLockDequeueSelf(lock);
@@ -1270,6 +1375,7 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
      * additional signals received.
      */
     LOG_LWDEBUG("LWLockAcquire", lock, "waiting");
+    DBUG_PRINT("LWLockAcquire", "wait until awakened");
 
 #ifdef LWLOCK_STATS
     lwstats->block_count++;
@@ -1306,6 +1412,7 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
 
     LWLockReportWaitEnd();
 
+    DBUG_PRINT("LWLockAcquire", "awakened");
     LOG_LWDEBUG("LWLockAcquire", lock, "awakened");
 
     /* Now loop back and try to acquire lock again. */
@@ -1338,15 +1445,24 @@ LWLockAcquire(LWLock *lock, LWLockMode mode)
 bool
 LWLockConditionalAcquire(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
   bool    mustwait;
 
   Assert(mode == LW_SHARED || mode == LW_EXCLUSIVE);
 
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
+
   PRINT_LWDEBUG("LWLockConditionalAcquire", lock, mode);
 
   /* Ensure we will have room to remember the lock */
-  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS)
+  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS) {
+    DBUG_INSTANT_PRINT("info", "too many LWLocks taken");
     elog(ERROR, "too many LWLocks taken");
+  }
 
   /*
    * Lock out cancel/die interrupts until we exit the code section protected
@@ -1360,6 +1476,7 @@ LWLockConditionalAcquire(LWLock *lock, LWLockMode mode)
 
   if (mustwait) {
     /* Failed to get lock, so release interrupt holdoff */
+    DBUG_PRINT("info", "failed to get lock, so release interrupt holdoff");
     RESUME_INTERRUPTS();
 
     LOG_LWDEBUG("LWLockConditionalAcquire", lock, "failed");
@@ -1395,6 +1512,7 @@ LWLockConditionalAcquire(LWLock *lock, LWLockMode mode)
 bool
 LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
   PGPROC     *proc = MyProc;
   bool    mustwait;
   int     extraWaits = 0;
@@ -1406,11 +1524,19 @@ LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
 
   Assert(mode == LW_SHARED || mode == LW_EXCLUSIVE);
 
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
+
   PRINT_LWDEBUG("LWLockAcquireOrWait", lock, mode);
 
   /* Ensure we will have room to remember the lock */
-  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS)
+  if (num_held_lwlocks >= MAX_SIMUL_LWLOCKS) {
+    DBUG_INSTANT_PRINT("info", "too many LWLocks taken");
     elog(ERROR, "too many LWLocks taken");
+  }
 
   /*
    * Lock out cancel/die interrupts until we exit the code section protected
@@ -1435,6 +1561,7 @@ LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
        * Wait until awakened.  Like in LWLockAcquire, be prepared for
        * bogus wakeups.
        */
+      DBUG_PRINT("info", "wait until awakened");
       LOG_LWDEBUG("LWLockAcquireOrWait", lock, "waiting");
 
 #ifdef LWLOCK_STATS
@@ -1469,8 +1596,10 @@ LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
 
       LWLockReportWaitEnd();
 
+      DBUG_PRINT("info", "awakened");
       LOG_LWDEBUG("LWLockAcquireOrWait", lock, "awakened");
     } else {
+      DBUG_PRINT("info", "acquired, undoing queue");
       LOG_LWDEBUG("LWLockAcquireOrWait", lock, "acquired, undoing queue");
 
       /*
@@ -1491,6 +1620,7 @@ LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
 
   if (mustwait) {
     /* Failed to get lock, so release interrupt holdoff */
+    DBUG_PRINT("info", "failed to get lock, so release interrupt holdoff");
     RESUME_INTERRUPTS();
     LOG_LWDEBUG("LWLockAcquireOrWait", lock, "failed");
 
@@ -1498,6 +1628,7 @@ LWLockAcquireOrWait(LWLock *lock, LWLockMode mode)
       TRACE_POSTGRESQL_LWLOCK_ACQUIRE_OR_WAIT_FAIL(T_NAME(lock), mode);
   } else {
     LOG_LWDEBUG("LWLockAcquireOrWait", lock, "succeeded");
+    DBUG_PRINT("info", "add lock to list of locks held by this backend");
     /* Add lock to list of locks held by this backend */
     held_lwlocks[num_held_lwlocks].lock = lock;
     held_lwlocks[num_held_lwlocks++].mode = mode;
@@ -1522,6 +1653,7 @@ static bool
 LWLockConflictsWithVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
                        uint64 *newval, bool *result)
 {
+  DBUG_TRACE;
   bool    mustwait;
   uint64    value;
 
@@ -1537,6 +1669,7 @@ LWLockConflictsWithVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
 
   if (!mustwait) {
     *result = true;
+    DBUG_PRINT("info", "does the lwlock in its current state need to wait for the variable value to change? No");
     return false;
   }
 
@@ -1553,6 +1686,12 @@ LWLockConflictsWithVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
     *newval = value;
   } else {
     mustwait = true;
+  }
+
+  if (mustwait) {
+    DBUG_PRINT("info", "does the lwlock in its current state need to wait for the variable value to change? Yes");
+  } else {
+    DBUG_PRINT("info", "does the lwlock in its current state need to wait for the variable value to change? No");
   }
 
   return mustwait;
@@ -1579,6 +1718,7 @@ bool
 LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
                  uint64 *newval)
 {
+  DBUG_TRACE;
   PGPROC     *proc = MyProc;
   int     extraWaits = 0;
   bool    result = false;
@@ -1588,6 +1728,7 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
   lwstats = get_lwlock_stats_entry(lock);
 #endif
 
+  DBUG_PRINT("info", "wait until lock(tranche ID:%u, idx:%u) is free, or a variable is updated", lock->tranche, lock->index);
   PRINT_LWDEBUG("LWLockWaitForVar", lock, LW_WAIT_UNTIL_FREE);
 
   /*
@@ -1606,8 +1747,10 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
     mustwait = LWLockConflictsWithVar(lock, valptr, oldval, newval,
                                       &result);
 
-    if (!mustwait)
+    if (!mustwait) {
+      DBUG_PRINT("info", "the lock was free or value didn't match");
       break;        /* the lock was free or value didn't match */
+    }
 
     /*
      * Add myself to wait queue. Note that this is racy, somebody else
@@ -1634,6 +1777,7 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
 
     /* Ok, no conflict after we queued ourselves. Undo queueing. */
     if (!mustwait) {
+      DBUG_PRINT("info", "free, undoing queue");
       LOG_LWDEBUG("LWLockWaitForVar", lock, "free, undoing queue");
 
       LWLockDequeueSelf(lock);
@@ -1648,6 +1792,7 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
      * we've gotten the LWLock, re-increment the sema by the number of
      * additional signals received.
      */
+    DBUG_PRINT("info", "wait until awakened");
     LOG_LWDEBUG("LWLockWaitForVar", lock, "waiting");
 
 #ifdef LWLOCK_STATS
@@ -1682,6 +1827,7 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
 
     LWLockReportWaitEnd();
 
+    DBUG_PRINT("info", "awakened");
     LOG_LWDEBUG("LWLockWaitForVar", lock, "awakened");
 
     /* Now loop back and check the status of the lock again. */
@@ -1697,6 +1843,12 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
    * Now okay to allow cancel/die interrupts.
    */
   RESUME_INTERRUPTS();
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
 
   return result;
 }
@@ -1715,11 +1867,13 @@ LWLockWaitForVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 oldval,
 void
 LWLockUpdateVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 val)
 {
+  DBUG_TRACE;
   proclist_head wakeup;
   proclist_mutable_iter iter;
 
   PRINT_LWDEBUG("LWLockUpdateVar", lock, LW_EXCLUSIVE);
 
+  DBUG_PRINT("info", "update a variable and wake up waiters atomically(lock tranche ID:%u, value:%lu)", lock->tranche, val);
   /*
    * Note that pg_atomic_exchange_u64 is a full barrier, so we're guaranteed
    * that the variable is updated before waking up waiters.
@@ -1798,10 +1952,20 @@ LWLockDisownInternal(LWLock *lock)
     if (lock == held_lwlocks[i].lock)
       break;
 
-  if (i < 0)
-    elog(ERROR, "lock %s is not held", T_NAME(lock));
+  if (i < 0) {
+    const char *lock_name = T_NAME(lock);
+    DBUG_INSTANT_PRINT("info", "lock %s is not held", lock_name);
+    elog(ERROR, "lock %s is not held", lock_name);
+  }
 
   mode = held_lwlocks[i].mode;
+
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else if (mode == LW_SHARED) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
+  }
+
 
   num_held_lwlocks--;
 
@@ -1854,6 +2018,7 @@ LWLockReleaseInternal(LWLock *lock, LWLockMode mode)
   if (check_waiters) {
     /* XXX: remove before commit? */
     LOG_LWDEBUG("LWLockRelease", lock, "releasing waiters");
+    DBUG_PRINT("info", "releasing waiters");
     LWLockWakeup(lock);
   }
 }
@@ -1881,12 +2046,14 @@ LWLockDisown(LWLock *lock)
 void
 LWLockRelease(LWLock *lock)
 {
+  DBUG_TRACE;
   LWLockMode  mode;
 
   mode = LWLockDisownInternal(lock);
 
   PRINT_LWDEBUG("LWLockRelease", lock, mode);
 
+  DBUG_PRINT("info", "release a previously acquired lock(tranche ID:%u, idx:%u)", lock->tranche, lock->index);
   LWLockReleaseInternal(lock, mode);
 
   /*
@@ -1910,6 +2077,7 @@ LWLockReleaseDisowned(LWLock *lock, LWLockMode mode)
 void
 LWLockReleaseClearVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 val)
 {
+  DBUG_TRACE;
   /*
    * Note that pg_atomic_exchange_u64 is a full barrier, so we're guaranteed
    * that the variable is updated before releasing the lock.
@@ -1936,6 +2104,8 @@ LWLockReleaseClearVar(LWLock *lock, pg_atomic_uint64 *valptr, uint64 val)
 void
 LWLockReleaseAll(void)
 {
+  DBUG_TRACE;
+
   while (num_held_lwlocks > 0) {
     HOLD_INTERRUPTS();    /* match the upcoming RESUME_INTERRUPTS */
 
@@ -1969,13 +2139,18 @@ ForEachLWLockHeldByMe(void (*callback) (LWLock *, LWLockMode, void *),
 bool
 LWLockHeldByMe(LWLock *lock)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < num_held_lwlocks; i++) {
-    if (held_lwlocks[i].lock == lock)
+    if (held_lwlocks[i].lock == lock) {
+      DBUG_PRINT("info", "test whether my process holds a lock(tranche ID:%u, idx:%u) in any mode? Yes", lock->tranche, lock->index);
       return true;
+    }
   }
 
+
+  DBUG_PRINT("info", "test whether my process holds a lock(tranche ID:%u, idx:%u) in any mode? No", lock->tranche, lock->index);
   return false;
 }
 
@@ -1987,6 +2162,7 @@ LWLockHeldByMe(LWLock *lock)
 bool
 LWLockAnyHeldByMe(LWLock *lock, int nlocks, size_t stride)
 {
+  DBUG_TRACE;
   char     *held_lock_addr;
   char     *begin;
   char     *end;
@@ -2000,10 +2176,13 @@ LWLockAnyHeldByMe(LWLock *lock, int nlocks, size_t stride)
 
     if (held_lock_addr >= begin &&
         held_lock_addr < end &&
-        (held_lock_addr - begin) % stride == 0)
+        (held_lock_addr - begin) % stride == 0) {
+      DBUG_PRINT("info", "test whether my process holds any of an array of locks? Yes");
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "test whether my process holds any of an array of locks? No");
   return false;
 }
 
@@ -2015,12 +2194,22 @@ LWLockAnyHeldByMe(LWLock *lock, int nlocks, size_t stride)
 bool
 LWLockHeldByMeInMode(LWLock *lock, LWLockMode mode)
 {
+  DBUG_TRACE;
   int     i;
 
-  for (i = 0; i < num_held_lwlocks; i++) {
-    if (held_lwlocks[i].lock == lock && held_lwlocks[i].mode == mode)
-      return true;
+  if (mode == LW_EXCLUSIVE) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_EXCLUSIVE", lock->tranche, lock->index);
+  } else if (mode == LW_SHARED) {
+    DBUG_PRINT("info", "tranche ID:%u, idx:%u and mode: LW_SHARED", lock->tranche, lock->index);
   }
 
+  for (i = 0; i < num_held_lwlocks; i++) {
+    if (held_lwlocks[i].lock == lock && held_lwlocks[i].mode == mode) {
+      DBUG_PRINT("info", "test whether my process holds a lock in given mode? Yes");
+      return true;
+    }
+  }
+
+  DBUG_PRINT("info", "test whether my process holds a lock in given mode? No");
   return false;
 }

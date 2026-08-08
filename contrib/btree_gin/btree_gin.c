@@ -2,6 +2,7 @@
  * contrib/btree_gin/btree_gin.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -31,6 +32,7 @@ typedef struct QueryInfo {
 static Datum
 gin_btree_extract_value(FunctionCallInfo fcinfo, bool is_varlena)
 {
+  DBUG_TRACE;
   Datum   datum = PG_GETARG_DATUM(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   Datum    *entries = (Datum *) palloc(sizeof(Datum));
@@ -58,6 +60,7 @@ gin_btree_extract_query(FunctionCallInfo fcinfo,
                         Datum (*leftmostvalue) (void),
                         Datum (*typecmp) (FunctionCallInfo))
 {
+  DBUG_TRACE;
   Datum   datum = PG_GETARG_DATUM(0);
   int32    *nentries = (int32 *) PG_GETARG_POINTER(1);
   StrategyNumber strategy = PG_GETARG_UINT16(2);
@@ -112,6 +115,7 @@ gin_btree_extract_query(FunctionCallInfo fcinfo,
 static Datum
 gin_btree_compare_prefix(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
   Datum   a = PG_GETARG_DATUM(0);
   Datum   b = PG_GETARG_DATUM(1);
   QueryInfo  *data = (QueryInfo *) PG_GETARG_POINTER(3);
@@ -191,9 +195,11 @@ PG_FUNCTION_INFO_V1(gin_btree_consistent);
 Datum
 gin_btree_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *recheck = (bool *) PG_GETARG_POINTER(5);
 
   *recheck = false;
+  DBUG_PRINT("btree_gin", "return true");
   PG_RETURN_BOOL(true);
 }
 
@@ -417,6 +423,7 @@ PG_FUNCTION_INFO_V1(gin_numeric_cmp);
 Datum
 gin_numeric_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   a = (Numeric) PG_GETARG_POINTER(0);
   Numeric   b = (Numeric) PG_GETARG_POINTER(1);
   int     res = 0;
@@ -459,6 +466,7 @@ PG_FUNCTION_INFO_V1(gin_enum_cmp);
 Datum
 gin_enum_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     a = PG_GETARG_OID(0);
   Oid     b = PG_GETARG_OID(1);
   int     res = 0;

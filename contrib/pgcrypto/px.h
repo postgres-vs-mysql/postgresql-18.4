@@ -33,6 +33,7 @@
 #define __PX_H
 
 #include <sys/param.h>
+#include "debug_trace.h"
 
 /* keep debug messages? */
 #define PX_DEBUG
@@ -113,8 +114,7 @@ struct px_digest
   void    (*finish) (PX_MD *h, uint8 *dst);
   void    (*free) (PX_MD *h);
   /* private */
-  union
-  {
+  union {
     unsigned  code;
     void     *ptr;
   }     p;
@@ -138,8 +138,8 @@ struct px_hmac
 
   PX_MD    *md;
   /* private */
-  struct
-  {
+struct
+{
     uint8    *ipad;
     uint8    *opad;
   }     p;

@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
@@ -101,6 +102,7 @@ static text *catenate_stringinfo_string(StringInfo buffer, const char *addon);
 Datum
 json_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *json = PG_GETARG_CSTRING(0);
   text     *result = cstring_to_text(json);
   JsonLexContext lex;
@@ -121,6 +123,7 @@ json_in(PG_FUNCTION_ARGS)
 Datum
 json_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* we needn't detoast because text_to_cstring will handle that */
   Datum   txt = PG_GETARG_DATUM(0);
 
@@ -133,6 +136,7 @@ json_out(PG_FUNCTION_ARGS)
 Datum
 json_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *t = PG_GETARG_TEXT_PP(0);
   StringInfoData buf;
 
@@ -147,6 +151,7 @@ json_send(PG_FUNCTION_ARGS)
 Datum
 json_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   char     *str;
   int     nbytes;
@@ -176,6 +181,7 @@ datum_to_json_internal(Datum val, bool is_null, StringInfo result,
                        JsonTypeCategory tcategory, Oid outfuncoid,
                        bool key_scalar)
 {
+  DBUG_TRACE;
   char     *outputstr;
   text     *jsontext;
 
@@ -313,6 +319,8 @@ datum_to_json_internal(Datum val, bool is_null, StringInfo result,
 char *
 JsonEncodeDateTime(char *buf, Datum value, Oid typid, const int *tzp)
 {
+  DBUG_TRACE;
+
   if (!buf)
     buf = palloc(MAXDATELEN + 1);
 
@@ -432,6 +440,7 @@ array_dim_to_json(StringInfo result, int dim, int ndims, int *dims, Datum *vals,
                   bool *nulls, int *valcount, JsonTypeCategory tcategory,
                   Oid outfuncoid, bool use_line_feeds)
 {
+  DBUG_TRACE;
   int     i;
   const char *sep;
 
@@ -439,6 +448,7 @@ array_dim_to_json(StringInfo result, int dim, int ndims, int *dims, Datum *vals,
 
   sep = use_line_feeds ? ",\n " : ",";
 
+  DBUG_PRINT("info", "process a single dimension of an array(dim:%d, ndims:%d)", dim, ndims);
   appendStringInfoChar(result, '[');
 
   for (i = 1; i <= dims[dim]; i++) {
@@ -469,6 +479,7 @@ array_dim_to_json(StringInfo result, int dim, int ndims, int *dims, Datum *vals,
 static void
 array_to_json_internal(Datum array, StringInfo result, bool use_line_feeds)
 {
+  DBUG_TRACE;
   ArrayType  *v = DatumGetArrayTypeP(array);
   Oid     element_type = ARR_ELEMTYPE(v);
   int      *dim;
@@ -486,6 +497,8 @@ array_to_json_internal(Datum array, StringInfo result, bool use_line_feeds)
   ndim = ARR_NDIM(v);
   dim = ARR_DIMS(v);
   nitems = ArrayGetNItems(ndim, dim);
+
+  DBUG_PRINT("info", "turn an array(ndim:%d, dim:%d) into JSON", ndim, *dim);
 
   if (nitems <= 0) {
     appendStringInfoString(result, "[]");
@@ -515,6 +528,7 @@ array_to_json_internal(Datum array, StringInfo result, bool use_line_feeds)
 static void
 composite_to_json(Datum composite, StringInfo result, bool use_line_feeds)
 {
+  DBUG_TRACE;
   HeapTupleHeader td;
   Oid     tupType;
   int32   tupTypmod;
@@ -546,6 +560,8 @@ composite_to_json(Datum composite, StringInfo result, bool use_line_feeds)
   tuple = &tmptup;
 
   appendStringInfoChar(result, '{');
+
+  DBUG_PRINT("info", "turn a composite / record(tupdesc->natts:%d) into JSON", tupdesc->natts);
 
   for (i = 0; i < tupdesc->natts; i++) {
     Datum   val;
@@ -595,6 +611,7 @@ static void
 add_json(Datum val, bool is_null, StringInfo result,
          Oid val_type, bool key_scalar)
 {
+  DBUG_TRACE;
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
 
@@ -620,6 +637,7 @@ add_json(Datum val, bool is_null, StringInfo result,
 Datum
 array_to_json(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   array = PG_GETARG_DATUM(0);
   StringInfo  result;
 
@@ -636,6 +654,7 @@ array_to_json(PG_FUNCTION_ARGS)
 Datum
 array_to_json_pretty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   array = PG_GETARG_DATUM(0);
   bool    use_line_feeds = PG_GETARG_BOOL(1);
   StringInfo  result;
@@ -653,6 +672,7 @@ array_to_json_pretty(PG_FUNCTION_ARGS)
 Datum
 row_to_json(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   array = PG_GETARG_DATUM(0);
   StringInfo  result;
 
@@ -669,6 +689,7 @@ row_to_json(PG_FUNCTION_ARGS)
 Datum
 row_to_json_pretty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   array = PG_GETARG_DATUM(0);
   bool    use_line_feeds = PG_GETARG_BOOL(1);
   StringInfo  result;
@@ -690,8 +711,10 @@ row_to_json_pretty(PG_FUNCTION_ARGS)
 bool
 to_json_is_immutable(Oid typoid)
 {
+  DBUG_TRACE;
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
+  bool result;
 
   json_categorize_type(typoid, false, &tcategory, &outfuncoid);
 
@@ -700,25 +723,38 @@ to_json_is_immutable(Oid typoid)
     case JSONTYPE_JSON:
     case JSONTYPE_JSONB:
     case JSONTYPE_NULL:
+      DBUG_PRINT("info", "return true");
       return true;
 
     case JSONTYPE_DATE:
     case JSONTYPE_TIMESTAMP:
     case JSONTYPE_TIMESTAMPTZ:
+      DBUG_PRINT("info", "return false");
       return false;
 
     case JSONTYPE_ARRAY:
+      DBUG_PRINT("info", "return false");
       return false;   /* TODO recurse into elements */
 
     case JSONTYPE_COMPOSITE:
+      DBUG_PRINT("info", "return false");
       return false;   /* TODO recurse into fields */
 
     case JSONTYPE_NUMERIC:
     case JSONTYPE_CAST:
     case JSONTYPE_OTHER:
-      return func_volatile(outfuncoid) == PROVOLATILE_IMMUTABLE;
+      result = func_volatile(outfuncoid) == PROVOLATILE_IMMUTABLE;
+
+      if (result) {
+        DBUG_PRINT("info", "return true");
+      } else {
+        DBUG_PRINT("info", "return false");
+      }
+
+      return result;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;       /* not reached */
 }
 
@@ -728,10 +764,13 @@ to_json_is_immutable(Oid typoid)
 Datum
 to_json(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   val = PG_GETARG_DATUM(0);
   Oid     val_type = get_fn_expr_argtype(fcinfo->flinfo, 0);
   JsonTypeCategory tcategory;
   Oid     outfuncoid;
+
+  DBUG_PRINT("info", "SQL function to_json(anyvalue)");
 
   if (val_type == InvalidOid)
     ereport(ERROR,
@@ -752,6 +791,7 @@ to_json(PG_FUNCTION_ARGS)
 Datum
 datum_to_json(Datum val, JsonTypeCategory tcategory, Oid outfuncoid)
 {
+  DBUG_TRACE;
   StringInfo  result = makeStringInfo();
 
   datum_to_json_internal(val, false, result, tcategory, outfuncoid,
@@ -768,6 +808,7 @@ datum_to_json(Datum val, JsonTypeCategory tcategory, Oid outfuncoid)
 static Datum
 json_agg_transfn_worker(FunctionCallInfo fcinfo, bool absent_on_null)
 {
+  DBUG_TRACE;
   MemoryContext aggcontext,
                 oldcontext;
   JsonAggState *state;
@@ -844,6 +885,8 @@ json_agg_transfn_worker(FunctionCallInfo fcinfo, bool absent_on_null)
 Datum
 json_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "json_agg transition function");
   return json_agg_transfn_worker(fcinfo, false);
 }
 
@@ -853,6 +896,8 @@ json_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 json_agg_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "json_agg_strict transition function");
   return json_agg_transfn_worker(fcinfo, true);
 }
 
@@ -862,8 +907,10 @@ json_agg_strict_transfn(PG_FUNCTION_ARGS)
 Datum
 json_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonAggState *state;
 
+  DBUG_PRINT("info", "json_agg final function");
   /* cannot be called directly because of internal-type argument */
   Assert(AggCheckCallContext(fcinfo, NULL));
 
@@ -933,6 +980,7 @@ json_unique_check_init(JsonUniqueCheckState *cxt)
 static void
 json_unique_builder_init(JsonUniqueBuilderState *cxt)
 {
+  DBUG_TRACE;
   json_unique_check_init(&cxt->check);
   cxt->mcxt = CurrentMemoryContext;
   cxt->skipped_keys.data = NULL;
@@ -941,6 +989,7 @@ json_unique_builder_init(JsonUniqueBuilderState *cxt)
 static bool
 json_unique_check_key(JsonUniqueCheckState *cxt, const char *key, int object_id)
 {
+  DBUG_TRACE;
   JsonUniqueHashEntry entry;
   bool    found;
 
@@ -949,6 +998,12 @@ json_unique_check_key(JsonUniqueCheckState *cxt, const char *key, int object_id)
   entry.object_id = object_id;
 
   (void) hash_search(*cxt, &entry, HASH_ENTER, &found);
+
+  if (!found) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   return !found;
 }
@@ -984,6 +1039,7 @@ static Datum
 json_object_agg_transfn_worker(FunctionCallInfo fcinfo,
                                bool absent_on_null, bool unique_keys)
 {
+  DBUG_TRACE;
   MemoryContext aggcontext,
                 oldcontext;
   JsonAggState *state;
@@ -991,6 +1047,8 @@ json_object_agg_transfn_worker(FunctionCallInfo fcinfo,
   Datum   arg;
   bool    skip;
   int     key_offset;
+
+  DBUG_PRINT("info", "aggregate two input columns as a single json object value");
 
   if (!AggCheckCallContext(fcinfo, &aggcontext)) {
     /* cannot be called directly because of internal-type argument */
@@ -1125,6 +1183,7 @@ json_object_agg_transfn_worker(FunctionCallInfo fcinfo,
 Datum
 json_object_agg_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return json_object_agg_transfn_worker(fcinfo, false, false);
 }
 
@@ -1134,6 +1193,7 @@ json_object_agg_transfn(PG_FUNCTION_ARGS)
 Datum
 json_object_agg_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return json_object_agg_transfn_worker(fcinfo, true, false);
 }
 
@@ -1143,6 +1203,7 @@ json_object_agg_strict_transfn(PG_FUNCTION_ARGS)
 Datum
 json_object_agg_unique_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return json_object_agg_transfn_worker(fcinfo, false, true);
 }
 
@@ -1152,6 +1213,7 @@ json_object_agg_unique_transfn(PG_FUNCTION_ARGS)
 Datum
 json_object_agg_unique_strict_transfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return json_object_agg_transfn_worker(fcinfo, true, true);
 }
 
@@ -1161,8 +1223,10 @@ json_object_agg_unique_strict_transfn(PG_FUNCTION_ARGS)
 Datum
 json_object_agg_finalfn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   JsonAggState *state;
 
+  DBUG_PRINT("info", "json_object_agg final function");
   /* cannot be called directly because of internal-type argument */
   Assert(AggCheckCallContext(fcinfo, NULL));
 
@@ -1200,6 +1264,7 @@ Datum
 json_build_object_worker(int nargs, const Datum *args, const bool *nulls, const Oid *types,
                          bool absent_on_null, bool unique_keys)
 {
+  DBUG_TRACE;
   int     i;
   const char *sep = "";
   StringInfo  result;
@@ -1288,6 +1353,7 @@ json_build_object_worker(int nargs, const Datum *args, const bool *nulls, const 
 Datum
 json_build_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum    *args;
   bool     *nulls;
   Oid      *types;
@@ -1308,6 +1374,7 @@ json_build_object(PG_FUNCTION_ARGS)
 Datum
 json_build_object_noargs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(cstring_to_text_with_len("{}", 2));
 }
 
@@ -1315,6 +1382,7 @@ Datum
 json_build_array_worker(int nargs, const Datum *args, const bool *nulls, const Oid *types,
                         bool absent_on_null)
 {
+  DBUG_TRACE;
   int     i;
   const char *sep = "";
   StringInfo  result;
@@ -1343,6 +1411,7 @@ json_build_array_worker(int nargs, const Datum *args, const bool *nulls, const O
 Datum
 json_build_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum    *args;
   bool     *nulls;
   Oid      *types;
@@ -1363,6 +1432,7 @@ json_build_array(PG_FUNCTION_ARGS)
 Datum
 json_build_array_noargs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_TEXT_P(cstring_to_text_with_len("[]", 2));
 }
 
@@ -1375,6 +1445,7 @@ json_build_array_noargs(PG_FUNCTION_ARGS)
 Datum
 json_object(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *in_array = PG_GETARG_ARRAYTYPE_P(0);
   int     ndims = ARR_NDIM(in_array);
   StringInfoData result;
@@ -1460,6 +1531,7 @@ json_object(PG_FUNCTION_ARGS)
 Datum
 json_object_two_arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *key_array = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *val_array = PG_GETARG_ARRAYTYPE_P(1);
   int     nkdims = ARR_NDIM(key_array);
@@ -1786,11 +1858,13 @@ json_unique_object_field_start(void *_state, char *field, bool isnull)
 bool
 json_validate(text *json, bool check_unique_keys, bool throw_error)
 {
+  DBUG_TRACE;
   JsonLexContext lex;
   JsonSemAction uniqueSemAction = {0};
   JsonUniqueParsingState state;
   JsonParseErrorType result;
 
+  DBUG_PRINT("info", "validate JSON text and additionally check key uniqueness");
   makeJsonLexContext(&lex, json, check_unique_keys);
 
   if (check_unique_keys) {
@@ -1812,6 +1886,8 @@ json_validate(text *json, bool check_unique_keys, bool throw_error)
     if (throw_error)
       json_errsave_error(result, &lex, NULL);
 
+    DBUG_PRINT("info", "invalid json");
+    DBUG_PRINT("info", "return false");
     return false;     /* invalid json */
   }
 
@@ -1821,12 +1897,15 @@ json_validate(text *json, bool check_unique_keys, bool throw_error)
               (errcode(ERRCODE_DUPLICATE_JSON_OBJECT_KEY_VALUE),
                errmsg("duplicate JSON object key value")));
 
+    DBUG_PRINT("info", "not unique keys");
+    DBUG_PRINT("info", "return false");
     return false;     /* not unique keys */
   }
 
   if (check_unique_keys)
     freeJsonLexContext(&lex);
 
+  DBUG_PRINT("info", "return true");
   return true;        /* ok */
 }
 
@@ -1845,11 +1924,13 @@ json_validate(text *json, bool check_unique_keys, bool throw_error)
 Datum
 json_typeof(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *json = PG_GETARG_TEXT_PP(0);
   JsonLexContext lex;
   char     *type;
   JsonParseErrorType result;
 
+  DBUG_PRINT("info", "SQL function json_typeof(json) -> text");
   /* Lex exactly one token from the input and check its type. */
   makeJsonLexContext(&lex, json, false);
   result = json_lex(&lex);

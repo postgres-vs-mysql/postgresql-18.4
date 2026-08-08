@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "libpq/pqformat.h"
@@ -63,6 +64,7 @@ pg_lsn_in_internal(const char *str, bool *have_error)
 Datum
 pg_lsn_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   XLogRecPtr  result;
   bool    have_error = false;
@@ -81,6 +83,7 @@ pg_lsn_in(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = PG_GETARG_LSN(0);
   char    buf[MAXPG_LSNLEN + 1];
   char     *result;
@@ -93,6 +96,7 @@ pg_lsn_out(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   XLogRecPtr  result;
 
@@ -103,6 +107,7 @@ pg_lsn_recv(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = PG_GETARG_LSN(0);
   StringInfoData buf;
 
@@ -119,6 +124,7 @@ pg_lsn_send(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -128,6 +134,7 @@ pg_lsn_eq(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -137,6 +144,7 @@ pg_lsn_ne(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -146,6 +154,7 @@ pg_lsn_lt(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -155,6 +164,7 @@ pg_lsn_gt(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -164,6 +174,7 @@ pg_lsn_le(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -173,6 +184,7 @@ pg_lsn_ge(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -182,6 +194,7 @@ pg_lsn_larger(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
 
@@ -192,6 +205,7 @@ pg_lsn_smaller(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  a = PG_GETARG_LSN(0);
   XLogRecPtr  b = PG_GETARG_LSN(1);
 
@@ -208,12 +222,14 @@ Datum
 pg_lsn_hash(PG_FUNCTION_ARGS)
 {
   /* We can use hashint8 directly */
+  DBUG_TRACE;
   return hashint8(fcinfo);
 }
 
 Datum
 pg_lsn_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return hashint8extended(fcinfo);
 }
 
@@ -225,6 +241,7 @@ pg_lsn_hash_extended(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_mi(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn1 = PG_GETARG_LSN(0);
   XLogRecPtr  lsn2 = PG_GETARG_LSN(1);
   char    buf[256];
@@ -252,6 +269,7 @@ pg_lsn_mi(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_pli(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = PG_GETARG_LSN(0);
   Numeric   nbytes = PG_GETARG_NUMERIC(1);
   Datum   num;
@@ -286,6 +304,7 @@ pg_lsn_pli(PG_FUNCTION_ARGS)
 Datum
 pg_lsn_mii(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = PG_GETARG_LSN(0);
   Numeric   nbytes = PG_GETARG_NUMERIC(1);
   Datum   num;

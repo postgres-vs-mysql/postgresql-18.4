@@ -103,9 +103,17 @@ pgaio_io_get_target_description(PgAioHandle *ioh)
 bool
 pgaio_io_can_reopen(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
+  bool result;
   Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
 
-  return pgaio_target_info[ioh->target]->reopen != NULL;
+  result = pgaio_target_info[ioh->target]->reopen != NULL;
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+  return result;
 }
 
 /*
@@ -116,6 +124,7 @@ pgaio_io_can_reopen(PgAioHandle *ioh)
 void
 pgaio_io_reopen(PgAioHandle *ioh)
 {
+  DBUG_TRACE;
   Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
   Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
 

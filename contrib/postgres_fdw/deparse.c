@@ -32,6 +32,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/sysattr.h"
@@ -215,18 +216,24 @@ classifyConditions(PlannerInfo *root,
                    List **remote_conds,
                    List **local_conds)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   *remote_conds = NIL;
   *local_conds = NIL;
 
+  DBUG_PRINT("fdw", "examine each qual clause in input_conds, and classify them into two groups");
+
   foreach(lc, input_conds) {
     RestrictInfo *ri = lfirst_node(RestrictInfo, lc);
 
-    if (is_foreign_expr(root, baserel, ri->clause))
+    if (is_foreign_expr(root, baserel, ri->clause)) {
+      DBUG_PRINT("fdw", "remote conds");
       *remote_conds = lappend(*remote_conds, ri);
-    else
+    } else {
+      DBUG_PRINT("fdw", "local conds");
       *local_conds = lappend(*local_conds, ri);
+    }
   }
 }
 
@@ -238,6 +245,7 @@ is_foreign_expr(PlannerInfo *root,
                 RelOptInfo *baserel,
                 Expr *expr)
 {
+  DBUG_TRACE;
   foreign_glob_cxt glob_cxt;
   foreign_loc_cxt loc_cxt;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) (baserel->fdw_private);
@@ -262,15 +270,20 @@ is_foreign_expr(PlannerInfo *root,
   loc_cxt.collation = InvalidOid;
   loc_cxt.state = FDW_COLLATE_NONE;
 
-  if (!foreign_expr_walker((Node *) expr, &glob_cxt, &loc_cxt, NULL))
+  if (!foreign_expr_walker((Node *) expr, &glob_cxt, &loc_cxt, NULL)) {
+    DBUG_PRINT("fdw", "return false");
     return false;
+  }
 
   /*
    * If the expression has a valid collation that does not arise from a
    * foreign var, the expression can not be sent over.
    */
-  if (loc_cxt.state == FDW_COLLATE_UNSAFE)
+  if (loc_cxt.state == FDW_COLLATE_UNSAFE) {
+    DBUG_PRINT("fdw", "the expression has a valid collation that does not arise from a foreign var");
+    DBUG_PRINT("fdw", "return false");
     return false;
+  }
 
   /*
    * An expression which includes any mutable functions can't be sent over
@@ -279,9 +292,13 @@ is_foreign_expr(PlannerInfo *root,
    * be able to make this choice with more granularity.  (We check this last
    * because it requires a lot of expensive catalog lookups.)
    */
-  if (contain_mutable_functions((Node *) expr))
+  if (contain_mutable_functions((Node *) expr)) {
+    DBUG_PRINT("fdw", "an expression which includes any mutable functions can't be sent over");
+    DBUG_PRINT("fdw", "return false");
     return false;
+  }
 
+  DBUG_PRINT("fdw", "OK to evaluate on the remote server");
   /* OK to evaluate on the remote server */
   return true;
 }
@@ -309,15 +326,20 @@ foreign_expr_walker(Node *node,
                     foreign_loc_cxt *outer_cxt,
                     foreign_loc_cxt *case_arg_cxt)
 {
+  DBUG_TRACE;
   bool    check_type = true;
   PgFdwRelationInfo *fpinfo;
   foreign_loc_cxt inner_cxt;
   Oid     collation;
   FDWCollateState state;
 
+  DBUG_PRINT("fdw", "check if expression is safe to execute remotely, and return true if so");
+
   /* Need do nothing for empty subexpressions */
-  if (node == NULL)
+  if (node == NULL) {
+    DBUG_PRINT("fdw", "need do nothing for empty subexpressions and return true");
     return true;
+  }
 
   /* May need server info from baserel's fdw_private struct */
   fpinfo = (PgFdwRelationInfo *) (glob_cxt->foreignrel->fdw_private);
@@ -348,8 +370,10 @@ foreign_expr_walker(Node *node,
          * particular, almost certainly doesn't match).
          */
         if (var->varattno < 0 &&
-            var->varattno != SelfItemPointerAttributeNumber)
+            var->varattno != SelfItemPointerAttributeNumber) {
+          DBUG_PRINT("fdw", "system columns other than ctid should not be sent to the remote");
           return false;
+        }
 
         /* Else check the collation */
         collation = var->varcollid;
@@ -389,37 +413,47 @@ foreign_expr_walker(Node *node,
           case REGPROCOID:
           case REGPROCEDUREOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              ProcedureRelationId, fpinfo))
+                              ProcedureRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGOPEROID:
           case REGOPERATOROID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              OperatorRelationId, fpinfo))
+                              OperatorRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGCLASSOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              RelationRelationId, fpinfo))
+                              RelationRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGTYPEOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              TypeRelationId, fpinfo))
+                              TypeRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGCOLLATIONOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              CollationRelationId, fpinfo))
+                              CollationRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
@@ -434,30 +468,38 @@ foreign_expr_walker(Node *node,
              */
             if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId &&
                 !is_shippable(DatumGetObjectId(c->constvalue),
-                              TSConfigRelationId, fpinfo))
+                              TSConfigRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGDICTIONARYOID:
             if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId &&
                 !is_shippable(DatumGetObjectId(c->constvalue),
-                              TSDictionaryRelationId, fpinfo))
+                              TSDictionaryRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGNAMESPACEOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              NamespaceRelationId, fpinfo))
+                              NamespaceRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
 
           case REGROLEOID:
             if (!is_shippable(DatumGetObjectId(c->constvalue),
-                              AuthIdRelationId, fpinfo))
+                              AuthIdRelationId, fpinfo)) {
+              DBUG_PRINT("fdw", "constants of regproc and related types can't be shipped");
               return false;
+            }
 
             break;
         }
@@ -495,8 +537,10 @@ foreign_expr_walker(Node *node,
        * so we'd be on the hook to evaluate it somehow if we wanted
        * to handle such cases as direct foreign updates.)
        */
-      if (p->paramkind == PARAM_MULTIEXPR)
+      if (p->paramkind == PARAM_MULTIEXPR) {
+        DBUG_PRINT("fdw", "it's a MULTIEXPR Param and return false");
         return false;
+      }
 
       /*
        * Collation rule is same as for Consts and non-foreign Vars.
@@ -515,31 +559,41 @@ foreign_expr_walker(Node *node,
       SubscriptingRef *sr = (SubscriptingRef *) node;
 
       /* Assignment should not be in restrictions. */
-      if (sr->refassgnexpr != NULL)
+      if (sr->refassgnexpr != NULL) {
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /*
        * Recurse into the remaining subexpressions.  The container
        * subscripts will not affect collation of the SubscriptingRef
        * result, so do those first and reset inner_cxt afterwards.
        */
+      DBUG_PRINT("fdw", "recurse into the remaining subexpressions");
+
       if (!foreign_expr_walker((Node *) sr->refupperindexpr,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       inner_cxt.collation = InvalidOid;
       inner_cxt.state = FDW_COLLATE_NONE;
 
       if (!foreign_expr_walker((Node *) sr->reflowerindexpr,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       inner_cxt.collation = InvalidOid;
       inner_cxt.state = FDW_COLLATE_NONE;
 
       if (!foreign_expr_walker((Node *) sr->refexpr,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /*
        * Container subscripting typically yields same collation as
@@ -568,15 +622,20 @@ foreign_expr_walker(Node *node,
        * can't be sent to remote because it might have incompatible
        * semantics on remote side.
        */
-      if (!is_shippable(fe->funcid, ProcedureRelationId, fpinfo))
+      if (!is_shippable(fe->funcid, ProcedureRelationId, fpinfo)) {
+        DBUG_PRINT("fdw", "function used by the expression is not shippable and return false");
         return false;
+      }
 
       /*
        * Recurse to input subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) fe->args,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
         return false;
+      }
 
       /*
        * If function's input collation is not derived from a foreign
@@ -585,8 +644,11 @@ foreign_expr_walker(Node *node,
       if (fe->inputcollid == InvalidOid)
         /* OK, inputs are all noncollatable */ ;
       else if (inner_cxt.state != FDW_COLLATE_SAFE ||
-               fe->inputcollid != inner_cxt.collation)
+               fe->inputcollid != inner_cxt.collation) {
+        DBUG_PRINT("fdw", "function's input collation is not derived from a foreign var");
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /*
        * Detect whether node is introducing a collation not derived
@@ -617,15 +679,21 @@ foreign_expr_walker(Node *node,
        * (If the operator is shippable, we assume its underlying
        * function is too.)
        */
-      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
+      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo)) {
+        DBUG_PRINT("fdw", "only shippable operators can be sent to remote");
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /*
        * Recurse to input subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) oe->args,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
         return false;
+      }
 
       /*
        * If operator's input collation is not derived from a foreign
@@ -634,8 +702,11 @@ foreign_expr_walker(Node *node,
       if (oe->inputcollid == InvalidOid)
         /* OK, inputs are all noncollatable */ ;
       else if (inner_cxt.state != FDW_COLLATE_SAFE ||
-               oe->inputcollid != inner_cxt.collation)
+               oe->inputcollid != inner_cxt.collation) {
+        DBUG_PRINT("fdw", "operator's input collation is not derived from a foreign var");
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /* Result-collation handling is same as for functions */
       collation = oe->opcollid;
@@ -658,8 +729,13 @@ foreign_expr_walker(Node *node,
       /*
        * Again, only shippable operators can be sent to remote.
        */
-      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
+      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo)) {
+        DBUG_PRINT("fdw", "only shippable operators can be sent to remote");
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
+
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
 
       /*
        * Recurse to input subexpressions.
@@ -675,8 +751,11 @@ foreign_expr_walker(Node *node,
       if (oe->inputcollid == InvalidOid)
         /* OK, inputs are all noncollatable */ ;
       else if (inner_cxt.state != FDW_COLLATE_SAFE ||
-               oe->inputcollid != inner_cxt.collation)
+               oe->inputcollid != inner_cxt.collation) {
+        DBUG_PRINT("fdw", "operator's input collation is not derived from a foreign var");
+        DBUG_PRINT("fdw", "return false");
         return false;
+      }
 
       /* Output is always boolean and so noncollatable. */
       collation = InvalidOid;
@@ -690,6 +769,8 @@ foreign_expr_walker(Node *node,
       /*
        * Recurse to input subexpression.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) r->arg,
                                glob_cxt, &inner_cxt, case_arg_cxt))
         return false;
@@ -718,6 +799,8 @@ foreign_expr_walker(Node *node,
       /*
        * Recurse to input subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) b->args,
                                glob_cxt, &inner_cxt, case_arg_cxt))
         return false;
@@ -734,6 +817,8 @@ foreign_expr_walker(Node *node,
       /*
        * Recurse to input subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) nt->arg,
                                glob_cxt, &inner_cxt, case_arg_cxt))
         return false;
@@ -759,6 +844,8 @@ foreign_expr_walker(Node *node,
       arg_cxt.state = FDW_COLLATE_NONE;
 
       if (ce->arg) {
+        DBUG_PRINT("fdw", "recurse to CASE's arg expression");
+
         if (!foreign_expr_walker((Node *) ce->arg,
                                  glob_cxt, &arg_cxt, case_arg_cxt))
           return false;
@@ -783,15 +870,19 @@ foreign_expr_walker(Node *node,
           Node     *whenExpr = (Node *) cw->expr;
           List     *opArgs;
 
-          if (!IsA(whenExpr, OpExpr))
+          if (!IsA(whenExpr, OpExpr)) {
+            DBUG_PRINT("fdw", "forbid pushdown because deparseCaseExpr can't handle it");
             return false;
+          }
 
           opArgs = ((OpExpr *) whenExpr)->args;
 
           if (list_length(opArgs) != 2 ||
               !IsA(strip_implicit_coercions(linitial(opArgs)),
-                   CaseTestExpr))
+                   CaseTestExpr)) {
+            DBUG_PRINT("fdw", "return false");
             return false;
+          }
         }
 
         /*
@@ -801,18 +892,23 @@ foreign_expr_walker(Node *node,
          */
         tmp_cxt.collation = InvalidOid;
         tmp_cxt.state = FDW_COLLATE_NONE;
+        DBUG_PRINT("fdw", "recurse to WHEN expression");
 
         if (!foreign_expr_walker((Node *) cw->expr,
                                  glob_cxt, &tmp_cxt, &arg_cxt))
           return false;
 
         /* Recurse to THEN expression. */
+        DBUG_PRINT("fdw", "recurse to THEN expression");
+
         if (!foreign_expr_walker((Node *) cw->result,
                                  glob_cxt, &inner_cxt, case_arg_cxt))
           return false;
       }
 
       /* Recurse to ELSE expression. */
+      DBUG_PRINT("fdw", "recurse to ELSE expression");
+
       if (!foreign_expr_walker((Node *) ce->defresult,
                                glob_cxt, &inner_cxt, case_arg_cxt))
         return false;
@@ -843,8 +939,10 @@ foreign_expr_walker(Node *node,
       CaseTestExpr *c = (CaseTestExpr *) node;
 
       /* Punt if we seem not to be inside a CASE arg WHEN. */
-      if (!case_arg_cxt)
+      if (!case_arg_cxt) {
+        DBUG_PRINT("fdw", "we seem not to be inside a CASE arg WHEN and punt");
         return false;
+      }
 
       /*
        * Otherwise, any nondefault collation attached to the
@@ -871,6 +969,8 @@ foreign_expr_walker(Node *node,
       /*
        * Recurse to input subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to input subexpressions");
+
       if (!foreign_expr_walker((Node *) a->elements,
                                glob_cxt, &inner_cxt, case_arg_cxt))
         return false;
@@ -900,6 +1000,8 @@ foreign_expr_walker(Node *node,
       /*
        * Recurse to component subexpressions.
        */
+      DBUG_PRINT("fdw", "recurse to component subexpressions");
+
       foreach(lc, l) {
         if (!foreign_expr_walker((Node *) lfirst(lc),
                                  glob_cxt, &inner_cxt, case_arg_cxt))
@@ -923,22 +1025,30 @@ foreign_expr_walker(Node *node,
       ListCell   *lc;
 
       /* Not safe to pushdown when not in grouping context */
-      if (!IS_UPPER_REL(glob_cxt->foreignrel))
+      if (!IS_UPPER_REL(glob_cxt->foreignrel)) {
+        DBUG_PRINT("fdw", "not safe to pushdown when not in grouping context");
         return false;
+      }
 
       /* Only non-split aggregates are pushable. */
-      if (agg->aggsplit != AGGSPLIT_SIMPLE)
+      if (agg->aggsplit != AGGSPLIT_SIMPLE) {
+        DBUG_PRINT("fdw", "only non-split aggregates are pushable and return false");
         return false;
+      }
 
       /* As usual, it must be shippable. */
-      if (!is_shippable(agg->aggfnoid, ProcedureRelationId, fpinfo))
+      if (!is_shippable(agg->aggfnoid, ProcedureRelationId, fpinfo)) {
+        DBUG_PRINT("fdw", "as usual, it must be shippable and return false");
         return false;
+      }
 
       /*
        * Recurse to input args. aggdirectargs, aggorder and
        * aggdistinct are all present in args, so no need to check
        * their shippability explicitly.
        */
+      DBUG_PRINT("fdw", "recurse to input args");
+
       foreach(lc, agg->args) {
         Node     *n = (Node *) lfirst(lc);
 
@@ -975,15 +1085,20 @@ foreign_expr_walker(Node *node,
           if (srt->sortop != typentry->lt_opr &&
               srt->sortop != typentry->gt_opr &&
               !is_shippable(srt->sortop, OperatorRelationId,
-                            fpinfo))
+                            fpinfo)) {
+            DBUG_PRINT("fdw", "check shippability of non-default sort operator and return false");
             return false;
+          }
         }
       }
 
       /* Check aggregate filter */
+      DBUG_PRINT("fdw", "check aggregate filter");
+
       if (!foreign_expr_walker((Node *) agg->aggfilter,
-                               glob_cxt, &inner_cxt, case_arg_cxt))
+                               glob_cxt, &inner_cxt, case_arg_cxt)) {
         return false;
+      }
 
       /*
        * If aggregate's input collation is not derived from a
@@ -992,8 +1107,10 @@ foreign_expr_walker(Node *node,
       if (agg->inputcollid == InvalidOid)
         /* OK, inputs are all noncollatable */ ;
       else if (inner_cxt.state != FDW_COLLATE_SAFE ||
-               agg->inputcollid != inner_cxt.collation)
+               agg->inputcollid != inner_cxt.collation) {
+        DBUG_PRINT("fdw", "aggregate's input collation is not derived from a foreign var and return false");
         return false;
+      }
 
       /*
        * Detect whether node is introducing a collation not derived
@@ -1021,6 +1138,7 @@ foreign_expr_walker(Node *node,
        * If it's anything else, assume it's unsafe.  This list can be
        * expanded later, but don't forget to add deparse support below.
        */
+      DBUG_PRINT("fdw", "it's anything else, assume it's unsafe");
       return false;
   }
 
@@ -1028,8 +1146,10 @@ foreign_expr_walker(Node *node,
    * If result type of given expression is not shippable, it can't be sent
    * to remote because it might have incompatible semantics on remote side.
    */
-  if (check_type && !is_shippable(exprType(node), TypeRelationId, fpinfo))
+  if (check_type && !is_shippable(exprType(node), TypeRelationId, fpinfo)) {
+    DBUG_PRINT("fdw", "result type of given expression is not shippable");
     return false;
+  }
 
   /*
    * Now, merge my collation information into my parent's state.
@@ -1071,6 +1191,7 @@ foreign_expr_walker(Node *node,
     }
   }
 
+  DBUG_PRINT("fdw", "it looks OK");
   /* It looks OK */
   return true;
 }
@@ -1092,8 +1213,12 @@ is_foreign_param(PlannerInfo *root,
                  RelOptInfo *baserel,
                  Expr *expr)
 {
-  if (expr == NULL)
+  DBUG_TRACE;
+
+  if (expr == NULL) {
+    DBUG_PRINT("fdw", "expr is nullptr and return false");
     return false;
+  }
 
   switch (nodeTag(expr)) {
     case T_Var: {
@@ -1107,15 +1232,19 @@ is_foreign_param(PlannerInfo *root,
       else
         relids = baserel->relids;
 
-      if (bms_is_member(var->varno, relids) && var->varlevelsup == 0)
+      if (bms_is_member(var->varno, relids) && var->varlevelsup == 0) {
+        DBUG_PRINT("fdw", "foreign Var, so not a param");
         return false; /* foreign Var, so not a param */
-      else
+      } else {
+        DBUG_PRINT("fdw", "it'd have to be a param");
         return true;  /* it'd have to be a param */
+      }
 
       break;
     }
 
     case T_Param:
+      DBUG_PRINT("fdw", "params always have to be sent to the foreign server");
       /* Params always have to be sent to the foreign server */
       return true;
 
@@ -1123,6 +1252,7 @@ is_foreign_param(PlannerInfo *root,
       break;
   }
 
+  DBUG_PRINT("fdw", "return false");
   return false;
 }
 
@@ -1135,6 +1265,8 @@ is_foreign_pathkey(PlannerInfo *root,
                    RelOptInfo *baserel,
                    PathKey *pathkey)
 {
+  DBUG_TRACE;
+  bool result = false;
   EquivalenceClass *pathkey_ec = pathkey->pk_eclass;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) baserel->fdw_private;
 
@@ -1142,15 +1274,27 @@ is_foreign_pathkey(PlannerInfo *root,
    * is_foreign_expr would detect volatile expressions as well, but checking
    * ec_has_volatile here saves some cycles.
    */
-  if (pathkey_ec->ec_has_volatile)
+  if (pathkey_ec->ec_has_volatile) {
+    DBUG_PRINT("fdw", "save some cycles and return false");
     return false;
+  }
 
   /* can't push down the sort if the pathkey's opfamily is not shippable */
-  if (!is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo))
+  if (!is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo)) {
+    DBUG_PRINT("fdw", "the pathkey's opfamily is not shippable and return false");
     return false;
+  }
+
+  result = (find_em_for_rel(root, pathkey_ec, baserel) != NULL);
+
+  if (result) {
+    DBUG_PRINT("fdw", "a suitable EC member exists and return true");
+  } else {
+    DBUG_PRINT("fdw", "return false");
+  }
 
   /* can push if a suitable EC member exists */
-  return (find_em_for_rel(root, pathkey_ec, baserel) != NULL);
+  return result;
 }
 
 /*
@@ -1186,9 +1330,12 @@ deparse_type_name(Oid type_oid, int32 typemod)
 List *
 build_tlist_to_deparse(RelOptInfo *foreignrel)
 {
+  DBUG_TRACE;
   List     *tlist = NIL;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) foreignrel->fdw_private;
   ListCell   *lc;
+
+  DBUG_PRINT("fdw", "build the targetlist for given relation to be deparsed as SELECT clause");
 
   /*
    * For an upper relation, we have already built the target list while
@@ -1246,10 +1393,12 @@ deparseSelectStmtForRel(StringInfo buf, PlannerInfo *root, RelOptInfo *rel,
                         bool has_final_sort, bool has_limit, bool is_subquery,
                         List **retrieved_attrs, List **params_list)
 {
+  DBUG_TRACE;
   deparse_expr_cxt context;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) rel->fdw_private;
   List     *quals;
 
+  DBUG_PRINT("fdw", "deparse SELECT statement for given relation into buf");
   /*
    * We handle relations for foreign tables, joins between those and upper
    * relations.
@@ -1264,6 +1413,7 @@ deparseSelectStmtForRel(StringInfo buf, PlannerInfo *root, RelOptInfo *rel,
   context.params_list = params_list;
 
   /* Construct SELECT clause */
+  DBUG_PRINT("fdw", "construct SELECT clause");
   deparseSelectSql(tlist, is_subquery, retrieved_attrs, &context);
 
   /*
@@ -1280,28 +1430,36 @@ deparseSelectStmtForRel(StringInfo buf, PlannerInfo *root, RelOptInfo *rel,
     quals = remote_conds;
 
   /* Construct FROM and WHERE clauses */
+  DBUG_PRINT("fdw", "construct FROM and WHERE clauses");
   deparseFromExpr(quals, &context);
 
   if (IS_UPPER_REL(rel)) {
     /* Append GROUP BY clause */
+    DBUG_PRINT("fdw", "append GROUP BY clause");
     appendGroupByClause(tlist, &context);
 
     /* Append HAVING clause */
     if (remote_conds) {
+      DBUG_PRINT("fdw", "append HAVING clause");
       appendStringInfoString(buf, " HAVING ");
       appendConditions(remote_conds, &context);
     }
   }
 
   /* Add ORDER BY clause if we found any useful pathkeys */
-  if (pathkeys)
+  if (pathkeys) {
+    DBUG_PRINT("fdw", "add ORDER BY clause");
     appendOrderByClause(pathkeys, has_final_sort, &context);
+  }
 
   /* Add LIMIT clause if necessary */
-  if (has_limit)
+  if (has_limit) {
+    DBUG_PRINT("fdw", "add LIMIT clause");
     appendLimitClause(&context);
+  }
 
   /* Add any necessary FOR UPDATE/SHARE. */
+  DBUG_PRINT("fdw", "add any necessary FOR UPDATE/SHARE");
   deparseLockingClause(&context);
 }
 
@@ -1322,6 +1480,7 @@ static void
 deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs,
                  deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   RelOptInfo *foreignrel = context->foreignrel;
   PlannerInfo *root = context->root;
@@ -1374,6 +1533,7 @@ deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs,
 static void
 deparseFromExpr(List *quals, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   RelOptInfo *scanrel = context->scanrel;
   List     *additional_conds = NIL;
@@ -1392,6 +1552,9 @@ deparseFromExpr(List *quals, deparse_expr_cxt *context)
 
   if (additional_conds != NIL)
     list_free_deep(additional_conds);
+
+
+  DBUG_PRINT("fdw", "until now the constructed SQL is '%s'", buf->data);
 }
 
 /*
@@ -1414,6 +1577,7 @@ deparseTargetList(StringInfo buf,
                   bool qualify_col,
                   List **retrieved_attrs)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = RelationGetDescr(rel);
   bool    have_wholerow;
   bool    first;
@@ -1484,6 +1648,7 @@ deparseTargetList(StringInfo buf,
 static void
 deparseLockingClause(deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   PlannerInfo *root = context->root;
   RelOptInfo *rel = context->scanrel;
@@ -1556,6 +1721,8 @@ deparseLockingClause(deparse_expr_cxt *context)
       }
     }
   }
+
+  DBUG_PRINT("fdw", "the final SQL query:'%s'", buf->data);
 }
 
 /*
@@ -1570,6 +1737,7 @@ deparseLockingClause(deparse_expr_cxt *context)
 static void
 appendConditions(List *exprs, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   int     nestlevel;
   ListCell   *lc;
   bool    is_first = true;
@@ -1606,6 +1774,7 @@ appendConditions(List *exprs, deparse_expr_cxt *context)
 static void
 appendWhereClause(List *exprs, List *additional_conds, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   bool    need_and = false;
   ListCell   *lc;
@@ -1680,6 +1849,7 @@ deparseExplicitTargetList(List *tlist,
                           List **retrieved_attrs,
                           deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   StringInfo  buf = context->buf;
   int     i = 0;
@@ -1712,6 +1882,7 @@ deparseExplicitTargetList(List *tlist,
 static void
 deparseSubqueryTargetList(deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   RelOptInfo *foreignrel = context->foreignrel;
   bool    first;
@@ -1759,6 +1930,7 @@ deparseFromExprForRel(StringInfo buf, PlannerInfo *root, RelOptInfo *foreignrel,
                       bool use_alias, Index ignore_rel, List **ignore_conds,
                       List **additional_conds, List **params_list)
 {
+  DBUG_TRACE;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) foreignrel->fdw_private;
 
   if (IS_JOIN_REL(foreignrel)) {
@@ -1990,6 +2162,7 @@ deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *foreignrel,
                    bool make_subquery, Index ignore_rel, List **ignore_conds,
                    List **additional_conds, List **params_list)
 {
+  DBUG_TRACE;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) foreignrel->fdw_private;
 
   /* Should only be called in these cases. */
@@ -2066,11 +2239,13 @@ deparseInsertSql(StringInfo buf, RangeTblEntry *rte,
                  List *withCheckOptionList, List *returningList,
                  List **retrieved_attrs, int *values_end_len)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = RelationGetDescr(rel);
   AttrNumber  pindex;
   bool    first;
   ListCell   *lc;
 
+  DBUG_PRINT("fdw", "deparse remote INSERT statement");
   appendStringInfoString(buf, "INSERT INTO ");
   deparseRelation(buf, rel);
 
@@ -2124,6 +2299,7 @@ deparseInsertSql(StringInfo buf, RangeTblEntry *rte,
   deparseReturningList(buf, rte, rtindex, rel,
                        rel->trigdesc && rel->trigdesc->trig_insert_after_row,
                        withCheckOptionList, returningList, retrieved_attrs);
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2138,12 +2314,14 @@ rebuildInsertSql(StringInfo buf, Relation rel,
                  int values_end_len, int num_params,
                  int num_rows)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc = RelationGetDescr(rel);
   int     i;
   int     pindex;
   bool    first;
   ListCell   *lc;
 
+  DBUG_PRINT("fdw", "rebuild remote INSERT statement");
   /* Make sure the values_end_len is sensible */
   Assert((values_end_len > 0) && (values_end_len <= strlen(orig_query)));
 
@@ -2204,6 +2382,7 @@ deparseUpdateSql(StringInfo buf, RangeTblEntry *rte,
   bool    first;
   ListCell   *lc;
 
+  DBUG_PRINT("fdw", "deparse remote UPDATE statement");
   appendStringInfoString(buf, "UPDATE ");
   deparseRelation(buf, rel);
   appendStringInfoString(buf, " SET ");
@@ -2235,6 +2414,7 @@ deparseUpdateSql(StringInfo buf, RangeTblEntry *rte,
   deparseReturningList(buf, rte, rtindex, rel,
                        rel->trigdesc && rel->trigdesc->trig_update_after_row,
                        withCheckOptionList, returningList, retrieved_attrs);
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2273,6 +2453,7 @@ deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root,
              *lc2;
   List     *additional_conds = NIL;
 
+  DBUG_PRINT("fdw", "deparse direct remote UPDATE statement");
   /* Set up context struct for recursion */
   context.root = root;
   context.foreignrel = foreignrel;
@@ -2332,6 +2513,8 @@ deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root,
   else
     deparseReturningList(buf, rte, rtindex, rel, false,
                          NIL, returningList, retrieved_attrs);
+
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2347,6 +2530,8 @@ deparseDeleteSql(StringInfo buf, RangeTblEntry *rte,
                  List *returningList,
                  List **retrieved_attrs)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("fdw", "deparse remote DELETE statement");
   appendStringInfoString(buf, "DELETE FROM ");
   deparseRelation(buf, rel);
   appendStringInfoString(buf, " WHERE ctid = $1");
@@ -2354,6 +2539,7 @@ deparseDeleteSql(StringInfo buf, RangeTblEntry *rte,
   deparseReturningList(buf, rte, rtindex, rel,
                        rel->trigdesc && rel->trigdesc->trig_delete_after_row,
                        NIL, returningList, retrieved_attrs);
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2379,9 +2565,11 @@ deparseDirectDeleteSql(StringInfo buf, PlannerInfo *root,
                        List *returningList,
                        List **retrieved_attrs)
 {
+  DBUG_TRACE;
   deparse_expr_cxt context;
   List     *additional_conds = NIL;
 
+  DBUG_PRINT("fdw", "deparse direct remote DELETE statement");
   /* Set up context struct for recursion */
   context.root = root;
   context.foreignrel = foreignrel;
@@ -2416,6 +2604,8 @@ deparseDirectDeleteSql(StringInfo buf, PlannerInfo *root,
     deparseReturningList(buf, planner_rt_fetch(rtindex, root),
                          rtindex, rel, false,
                          NIL, returningList, retrieved_attrs);
+
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2429,7 +2619,10 @@ deparseReturningList(StringInfo buf, RangeTblEntry *rte,
                      List *returningList,
                      List **retrieved_attrs)
 {
+  DBUG_TRACE;
   Bitmapset  *attrs_used = NULL;
+
+  DBUG_PRINT("fdw", "add a RETURNING clause, if needed, to an INSERT/UPDATE/DELETE");
 
   if (trig_after_row) {
     /* whole-row reference acquires all non-system columns */
@@ -2478,8 +2671,10 @@ deparseReturningList(StringInfo buf, RangeTblEntry *rte,
 void
 deparseAnalyzeSizeSql(StringInfo buf, Relation rel)
 {
+  DBUG_TRACE;
   StringInfoData relname;
 
+  DBUG_PRINT("fdw", "construct SELECT statement to acquire size in blocks of given relation");
   /* We'll need the remote relation name as a literal. */
   initStringInfo(&relname);
   deparseRelation(&relname, rel);
@@ -2487,6 +2682,7 @@ deparseAnalyzeSizeSql(StringInfo buf, Relation rel)
   appendStringInfoString(buf, "SELECT pg_catalog.pg_relation_size(");
   deparseStringLiteral(buf, relname.data);
   appendStringInfo(buf, "::pg_catalog.regclass) / %d", BLCKSZ);
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2500,8 +2696,10 @@ deparseAnalyzeSizeSql(StringInfo buf, Relation rel)
 void
 deparseAnalyzeInfoSql(StringInfo buf, Relation rel)
 {
+  DBUG_TRACE;
   StringInfoData relname;
 
+  DBUG_PRINT("fdw", "construct SELECT statement to acquire the number of rows and the relkind of a relation");
   /* We'll need the remote relation name as a literal. */
   initStringInfo(&relname);
   deparseRelation(&relname, rel);
@@ -2509,6 +2707,7 @@ deparseAnalyzeInfoSql(StringInfo buf, Relation rel)
   appendStringInfoString(buf, "SELECT reltuples, relkind FROM pg_catalog.pg_class WHERE oid = ");
   deparseStringLiteral(buf, relname.data);
   appendStringInfoString(buf, "::pg_catalog.regclass");
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2542,6 +2741,7 @@ deparseAnalyzeSql(StringInfo buf, Relation rel,
                   PgFdwSamplingMethod sample_method, double sample_frac,
                   List **retrieved_attrs)
 {
+  DBUG_TRACE;
   Oid     relid = RelationGetRelid(rel);
   TupleDesc tupdesc = RelationGetDescr(rel);
   int     i;
@@ -2550,6 +2750,7 @@ deparseAnalyzeSql(StringInfo buf, Relation rel,
   ListCell   *lc;
   bool    first = true;
 
+  DBUG_PRINT("fdw", "construct SELECT statement to acquire sample rows of given relation");
   *retrieved_attrs = NIL;
 
   appendStringInfoString(buf, "SELECT ");
@@ -2615,6 +2816,8 @@ deparseAnalyzeSql(StringInfo buf, Relation rel,
       elog(ERROR, "unexpected sampling method");
       break;
   }
+
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2626,8 +2829,10 @@ deparseTruncateSql(StringInfo buf,
                    DropBehavior behavior,
                    bool restart_seqs)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
+  DBUG_PRINT("fdw", "construct a simple 'TRUNCATE rel' statement");
   appendStringInfoString(buf, "TRUNCATE ");
 
   foreach(cell, rels) {
@@ -2646,6 +2851,8 @@ deparseTruncateSql(StringInfo buf,
     appendStringInfoString(buf, " RESTRICT");
   else if (behavior == DROP_CASCADE)
     appendStringInfoString(buf, " CASCADE");
+
+  DBUG_PRINT("fdw", "Here is the SQL:'%s'", buf->data);
 }
 
 /*
@@ -2658,6 +2865,8 @@ static void
 deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEntry *rte,
                  bool qualify_col)
 {
+  DBUG_TRACE;
+
   /* We support fetching the remote side's CTID and OID. */
   if (varattno == SelfItemPointerAttributeNumber) {
     if (qualify_col)
@@ -2764,6 +2973,7 @@ deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEntry *rte,
       ADD_REL_QUALIFIER(buf, varno);
 
     appendStringInfoString(buf, quote_identifier(colname));
+    DBUG_PRINT("fdw", "colname:%s", colname);
   }
 }
 
@@ -2775,6 +2985,7 @@ deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEntry *rte,
 static void
 deparseRelation(StringInfo buf, Relation rel)
 {
+  DBUG_TRACE;
   ForeignTable *table;
   const char *nspname = NULL;
   const char *relname = NULL;
@@ -2807,6 +3018,7 @@ deparseRelation(StringInfo buf, Relation rel)
 
   appendStringInfo(buf, "%s.%s",
                    quote_identifier(nspname), quote_identifier(relname));
+  DBUG_PRINT("fdw", "nspname:%s, relname:%s", nspname, relname);
 }
 
 /*
@@ -2815,6 +3027,7 @@ deparseRelation(StringInfo buf, Relation rel)
 void
 deparseStringLiteral(StringInfo buf, const char *val)
 {
+  DBUG_TRACE;
   const char *valptr;
 
   /*
@@ -2853,6 +3066,8 @@ deparseStringLiteral(StringInfo buf, const char *val)
 static void
 deparseExpr(Expr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return;
 
@@ -2931,6 +3146,7 @@ deparseExpr(Expr *node, deparse_expr_cxt *context)
 static void
 deparseVar(Var *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   Relids    relids = context->scanrel->relids;
   int     relno;
   int     colno;
@@ -2997,6 +3213,7 @@ deparseVar(Var *node, deparse_expr_cxt *context)
 static void
 deparseConst(Const *node, deparse_expr_cxt *context, int showtype)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   Oid     typoutput;
   bool    typIsVarlena;
@@ -3114,6 +3331,8 @@ deparseConst(Const *node, deparse_expr_cxt *context, int showtype)
 static void
 deparseParam(Param *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
+
   if (context->params_list) {
     int     pindex = 0;
     ListCell   *lc;
@@ -3144,6 +3363,7 @@ deparseParam(Param *node, deparse_expr_cxt *context)
 static void
 deparseSubscriptingRef(SubscriptingRef *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   ListCell   *lowlist_item;
   ListCell   *uplist_item;
@@ -3190,6 +3410,7 @@ deparseSubscriptingRef(SubscriptingRef *node, deparse_expr_cxt *context)
 static void
 deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   bool    use_variadic;
   bool    first;
@@ -3254,6 +3475,7 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 static void
 deparseOpExpr(OpExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   HeapTuple tuple;
   Form_pg_operator form;
@@ -3349,6 +3571,8 @@ deparseOpExpr(OpExpr *node, deparse_expr_cxt *context)
 static bool
 isPlainForeignVar(Expr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
+
   /*
    * We allow the foreign Var to have an implicit RelabelType, mainly so
    * that this'll work with varchar columns.  Note that deparseRelabelType
@@ -3370,10 +3594,13 @@ isPlainForeignVar(Expr *node, deparse_expr_cxt *context)
     Var      *var = (Var *) node;
     Relids    relids = context->scanrel->relids;
 
-    if (bms_is_member(var->varno, relids) && var->varlevelsup == 0)
+    if (bms_is_member(var->varno, relids) && var->varlevelsup == 0) {
+      DBUG_PRINT("fdw", "return true");
       return true;
+    }
   }
 
+  DBUG_PRINT("fdw", "return false");
   return false;
 }
 
@@ -3383,6 +3610,7 @@ isPlainForeignVar(Expr *node, deparse_expr_cxt *context)
 static void
 deparseOperatorName(StringInfo buf, Form_pg_operator opform)
 {
+  DBUG_TRACE;
   char     *opname;
 
   /* opname is not a SQL identifier, so we should not quote it. */
@@ -3408,6 +3636,7 @@ deparseOperatorName(StringInfo buf, Form_pg_operator opform)
 static void
 deparseDistinctExpr(DistinctExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
 
   Assert(list_length(node->args) == 2);
@@ -3426,6 +3655,7 @@ deparseDistinctExpr(DistinctExpr *node, deparse_expr_cxt *context)
 static void
 deparseScalarArrayOpExpr(ScalarArrayOpExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   HeapTuple tuple;
   Form_pg_operator form;
@@ -3487,6 +3717,7 @@ deparseRelabelType(RelabelType *node, deparse_expr_cxt *context)
 static void
 deparseBoolExpr(BoolExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   const char *op = NULL;    /* keep compiler quiet */
   bool    first;
@@ -3558,6 +3789,7 @@ deparseNullTest(NullTest *node, deparse_expr_cxt *context)
 static void
 deparseCaseExpr(CaseExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   ListCell   *lc;
 
@@ -3605,6 +3837,7 @@ deparseCaseExpr(CaseExpr *node, deparse_expr_cxt *context)
 static void
 deparseArrayExpr(ArrayExpr *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   bool    first = true;
   ListCell   *lc;
@@ -3633,6 +3866,7 @@ deparseArrayExpr(ArrayExpr *node, deparse_expr_cxt *context)
 static void
 deparseAggref(Aggref *node, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   bool    use_variadic;
 
@@ -3719,6 +3953,7 @@ deparseAggref(Aggref *node, deparse_expr_cxt *context)
 static void
 appendAggOrderBy(List *orderList, List *targetList, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   ListCell   *lc;
   bool    first = true;
@@ -3749,6 +3984,7 @@ static void
 appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first,
                     deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   TypeCacheEntry *typentry;
 
@@ -3833,6 +4069,7 @@ printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
 static void
 appendGroupByClause(List *tlist, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   Query    *query = context->root->parse;
   ListCell   *lc;
@@ -3882,6 +4119,7 @@ static void
 appendOrderByClause(List *pathkeys, bool has_final_sort,
                     deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   ListCell   *lcell;
   int     nestlevel;
   StringInfo  buf = context->buf;
@@ -3972,6 +4210,7 @@ appendOrderByClause(List *pathkeys, bool has_final_sort,
 static void
 appendLimitClause(deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   PlannerInfo *root = context->root;
   StringInfo  buf = context->buf;
   int     nestlevel;
@@ -3999,6 +4238,7 @@ appendLimitClause(deparse_expr_cxt *context)
 static void
 appendFunctionName(Oid funcid, deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   HeapTuple proctup;
   Form_pg_proc procform;
@@ -4021,6 +4261,7 @@ appendFunctionName(Oid funcid, deparse_expr_cxt *context)
 
   /* Always print the function name */
   proname = NameStr(procform->proname);
+  DBUG_PRINT("fdw", "print the function name:%s", proname);
   appendStringInfoString(buf, quote_identifier(proname));
 
   ReleaseSysCache(proctup);
@@ -4036,6 +4277,7 @@ static Node *
 deparseSortGroupClause(Index ref, List *tlist, bool force_colno,
                        deparse_expr_cxt *context)
 {
+  DBUG_TRACE;
   StringInfo  buf = context->buf;
   TargetEntry *tle;
   Expr     *expr;
@@ -4075,6 +4317,7 @@ deparseSortGroupClause(Index ref, List *tlist, bool force_colno,
 static bool
 is_subquery_var(Var *node, RelOptInfo *foreignrel, int *relno, int *colno)
 {
+  DBUG_TRACE;
   PgFdwRelationInfo *fpinfo = (PgFdwRelationInfo *) foreignrel->fdw_private;
   RelOptInfo *outerrel = fpinfo->outerrel;
   RelOptInfo *innerrel = fpinfo->innerrel;
@@ -4086,15 +4329,19 @@ is_subquery_var(Var *node, RelOptInfo *foreignrel, int *relno, int *colno)
    * If the given relation isn't a join relation, it doesn't have any lower
    * subqueries, so the Var isn't a subquery output column.
    */
-  if (!IS_JOIN_REL(foreignrel))
+  if (!IS_JOIN_REL(foreignrel)) {
+    DBUG_PRINT("fdw", "return false");
     return false;
+  }
 
   /*
    * If the Var doesn't belong to any lower subqueries, it isn't a subquery
    * output column.
    */
-  if (!bms_is_member(node->varno, fpinfo->lower_subquery_rels))
+  if (!bms_is_member(node->varno, fpinfo->lower_subquery_rels)) {
+    DBUG_PRINT("fdw", "return false");
     return false;
+  }
 
   if (bms_is_member(node->varno, outerrel->relids)) {
     /*
@@ -4103,6 +4350,7 @@ is_subquery_var(Var *node, RelOptInfo *foreignrel, int *relno, int *colno)
      */
     if (fpinfo->make_outerrel_subquery) {
       get_relation_column_alias_ids(node, outerrel, relno, colno);
+      DBUG_PRINT("fdw", "return true");
       return true;
     }
 
@@ -4117,6 +4365,7 @@ is_subquery_var(Var *node, RelOptInfo *foreignrel, int *relno, int *colno)
      */
     if (fpinfo->make_innerrel_subquery) {
       get_relation_column_alias_ids(node, innerrel, relno, colno);
+      DBUG_PRINT("fdw", "return true");
       return true;
     }
 

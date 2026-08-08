@@ -34,6 +34,7 @@
 /*************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo.h"
 
 #if defined(PX)
@@ -49,11 +50,14 @@ void
 px(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring, int num_gene,
    City * city_table)
 {
+  DBUG_TRACE;
   int     num_positions;
   int     i,
           pos,
           tour2_index,
           offspring_index;
+
+  DBUG_PRINT("info", "position crossover");
 
   /* initialize city table */
   for (i = 1; i <= num_gene; i++)

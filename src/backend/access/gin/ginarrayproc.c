@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin.h"
 #include "access/stratnum.h"
@@ -32,6 +33,7 @@
 Datum
 ginarrayextract(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Make copy of array input to ensure it doesn't disappear while in use */
   ArrayType  *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
   int32    *nkeys = (int32 *) PG_GETARG_POINTER(1);
@@ -67,6 +69,8 @@ ginarrayextract(PG_FUNCTION_ARGS)
 Datum
 ginarrayextract_2args(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_NARGS() < 3)     /* should not happen */
     elog(ERROR, "ginarrayextract requires three arguments");
 
@@ -79,6 +83,7 @@ ginarrayextract_2args(PG_FUNCTION_ARGS)
 Datum
 ginqueryarrayextract(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Make copy of array input to ensure it doesn't disappear while in use */
   ArrayType  *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
   int32    *nkeys = (int32 *) PG_GETARG_POINTER(1);
@@ -147,6 +152,7 @@ ginqueryarrayextract(PG_FUNCTION_ARGS)
 Datum
 ginarrayconsistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool     *check = (bool *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 
@@ -234,6 +240,7 @@ ginarrayconsistent(PG_FUNCTION_ARGS)
 Datum
 ginarraytriconsistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
   StrategyNumber strategy = PG_GETARG_UINT16(1);
 

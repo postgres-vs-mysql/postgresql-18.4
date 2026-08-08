@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -52,6 +53,7 @@ Oid
 CreateSchemaCommand(CreateSchemaStmt *stmt, const char *queryString,
                     int stmt_location, int stmt_len)
 {
+  DBUG_TRACE;
   const char *schemaName = stmt->schemaname;
   Oid     namespaceId;
   List     *parsetree_list;
@@ -105,11 +107,13 @@ CreateSchemaCommand(CreateSchemaStmt *stmt, const char *queryString,
   check_can_set_role(saved_uid, owner_uid);
 
   /* Additional check to protect reserved schema names */
-  if (!allowSystemTableMods && IsReservedName(schemaName))
+  if (!allowSystemTableMods && IsReservedName(schemaName)) {
+    DBUG_INSTANT_PRINT("info", "unacceptable schema name \"%s\"", schemaName);
     ereport(ERROR,
             (errcode(ERRCODE_RESERVED_NAME),
              errmsg("unacceptable schema name \"%s\"", schemaName),
              errdetail("The prefix \"pg_\" is reserved for system schemas.")));
+  }
 
   /*
    * If if_not_exists was given and the schema already exists, bail out.
@@ -248,6 +252,7 @@ CreateSchemaCommand(CreateSchemaStmt *stmt, const char *queryString,
 ObjectAddress
 RenameSchema(const char *oldname, const char *newname)
 {
+  DBUG_TRACE;
   Oid     nspOid;
   HeapTuple tup;
   Relation  rel;
@@ -259,19 +264,23 @@ RenameSchema(const char *oldname, const char *newname)
 
   tup = SearchSysCacheCopy1(NAMESPACENAME, CStringGetDatum(oldname));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "schema \"%s\" does not exist", oldname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_SCHEMA),
              errmsg("schema \"%s\" does not exist", oldname)));
+  }
 
   nspform = (Form_pg_namespace) GETSTRUCT(tup);
   nspOid = nspform->oid;
 
   /* make sure the new name doesn't exist */
-  if (OidIsValid(get_namespace_oid(newname, true)))
+  if (OidIsValid(get_namespace_oid(newname, true))) {
+    DBUG_INSTANT_PRINT("info", "schema \"%s\" already exists", newname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_SCHEMA),
              errmsg("schema \"%s\" already exists", newname)));
+  }
 
   /* must be owner */
   if (!object_ownercheck(NamespaceRelationId, nspOid, GetUserId()))
@@ -285,11 +294,13 @@ RenameSchema(const char *oldname, const char *newname)
     aclcheck_error(aclresult, OBJECT_DATABASE,
                    get_database_name(MyDatabaseId));
 
-  if (!allowSystemTableMods && IsReservedName(newname))
+  if (!allowSystemTableMods && IsReservedName(newname)) {
+    DBUG_INSTANT_PRINT("info", "unacceptable schema name \"%s\"", newname);
     ereport(ERROR,
             (errcode(ERRCODE_RESERVED_NAME),
              errmsg("unacceptable schema name \"%s\"", newname),
              errdetail("The prefix \"pg_\" is reserved for system schemas.")));
+  }
 
   /* rename */
   namestrcpy(&nspform->nspname, newname);
@@ -308,6 +319,7 @@ RenameSchema(const char *oldname, const char *newname)
 void
 AlterSchemaOwner_oid(Oid schemaoid, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
@@ -332,6 +344,7 @@ AlterSchemaOwner_oid(Oid schemaoid, Oid newOwnerId)
 ObjectAddress
 AlterSchemaOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     nspOid;
   HeapTuple tup;
   Relation  rel;
@@ -342,10 +355,12 @@ AlterSchemaOwner(const char *name, Oid newOwnerId)
 
   tup = SearchSysCache1(NAMESPACENAME, CStringGetDatum(name));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "schema \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_SCHEMA),
              errmsg("schema \"%s\" does not exist", name)));
+  }
 
   nspform = (Form_pg_namespace) GETSTRUCT(tup);
   nspOid = nspform->oid;
@@ -364,6 +379,7 @@ AlterSchemaOwner(const char *name, Oid newOwnerId)
 static void
 AlterSchemaOwner_internal(HeapTuple tup, Relation rel, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_namespace nspForm;
 
   Assert(tup->t_tableOid == NamespaceRelationId);

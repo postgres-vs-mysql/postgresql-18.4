@@ -83,6 +83,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 #include "storage/barrier.h"
 
@@ -99,6 +100,7 @@ static inline bool BarrierDetachImpl(Barrier *barrier, bool arrive);
 void
 BarrierInit(Barrier *barrier, int participants)
 {
+  DBUG_TRACE;
   SpinLockInit(&barrier->mutex);
   barrier->participants = participants;
   barrier->arrived = 0;
@@ -124,6 +126,7 @@ BarrierInit(Barrier *barrier, int participants)
 bool
 BarrierArriveAndWait(Barrier *barrier, uint32 wait_event_info)
 {
+  DBUG_TRACE;
   bool    release = false;
   bool    elected;
   int     start_phase;
@@ -206,6 +209,7 @@ BarrierArriveAndWait(Barrier *barrier, uint32 wait_event_info)
 bool
 BarrierArriveAndDetach(Barrier *barrier)
 {
+  DBUG_TRACE;
   return BarrierDetachImpl(barrier, true);
 }
 
@@ -216,6 +220,7 @@ BarrierArriveAndDetach(Barrier *barrier)
 bool
 BarrierArriveAndDetachExceptLast(Barrier *barrier)
 {
+  DBUG_TRACE;
   SpinLockAcquire(&barrier->mutex);
 
   if (barrier->participants > 1) {
@@ -240,6 +245,7 @@ BarrierArriveAndDetachExceptLast(Barrier *barrier)
 int
 BarrierAttach(Barrier *barrier)
 {
+  DBUG_TRACE;
   int     phase;
 
   Assert(!barrier->static_party);
@@ -260,6 +266,7 @@ BarrierAttach(Barrier *barrier)
 bool
 BarrierDetach(Barrier *barrier)
 {
+  DBUG_TRACE;
   return BarrierDetachImpl(barrier, false);
 }
 
@@ -285,6 +292,7 @@ BarrierPhase(Barrier *barrier)
 int
 BarrierParticipants(Barrier *barrier)
 {
+  DBUG_TRACE;
   int     participants;
 
   SpinLockAcquire(&barrier->mutex);
@@ -304,6 +312,7 @@ BarrierParticipants(Barrier *barrier)
 static inline bool
 BarrierDetachImpl(Barrier *barrier, bool arrive)
 {
+  DBUG_TRACE;
   bool    release;
   bool    last;
 

@@ -27,8 +27,7 @@
  *    typedef struct FormData_pg_parameter_acl
  * ----------------
  */
-CATALOG(pg_parameter_acl, 6243, ParameterAclRelationId) BKI_SHARED_RELATION
-{
+CATALOG(pg_parameter_acl, 6243, ParameterAclRelationId) BKI_SHARED_RELATION {
   Oid     oid;      /* oid */
 
 #ifdef CATALOG_VARLEN     /* variable-length fields start here */

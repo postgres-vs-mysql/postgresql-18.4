@@ -157,6 +157,7 @@ static void
 pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt,
                   bool is_init)
 {
+  DBUG_TRACE;
   ListCell   *option;
   TestDecodingData *data;
   bool    enable_streaming = false;
@@ -261,6 +262,7 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt,
 static void
 pg_decode_shutdown(LogicalDecodingContext *ctx)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
 
   /* cleanup our own resources via memory context reset */
@@ -271,6 +273,7 @@ pg_decode_shutdown(LogicalDecodingContext *ctx)
 static void
 pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata =
     MemoryContextAllocZero(ctx->context, sizeof(TestDecodingTxnData));
@@ -291,6 +294,7 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 static void
 pg_output_begin(LogicalDecodingContext *ctx, TestDecodingData *data, ReorderBufferTXN *txn, bool last_write)
 {
+  DBUG_TRACE;
   OutputPluginPrepareWrite(ctx, last_write);
 
   if (data->include_xids)
@@ -306,6 +310,7 @@ static void
 pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                      XLogRecPtr commit_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
   bool    xact_wrote_changes = txndata->xact_wrote_changes;
@@ -334,6 +339,7 @@ pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 static void
 pg_decode_begin_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata =
     MemoryContextAllocZero(ctx->context, sizeof(TestDecodingTxnData));
@@ -356,6 +362,7 @@ static void
 pg_decode_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                       XLogRecPtr prepare_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 
@@ -386,6 +393,7 @@ static void
 pg_decode_commit_prepared_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                               XLogRecPtr commit_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
 
   OutputPluginPrepareWrite(ctx, true);
@@ -410,6 +418,7 @@ pg_decode_rollback_prepared_txn(LogicalDecodingContext *ctx,
                                 XLogRecPtr prepare_end_lsn,
                                 TimestampTz prepare_time)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
 
   OutputPluginPrepareWrite(ctx, true);
@@ -438,9 +447,14 @@ static bool
 pg_decode_filter_prepare(LogicalDecodingContext *ctx, TransactionId xid,
                          const char *gid)
 {
-  if (strstr(gid, "_nodecode") != NULL)
-    return true;
+  DBUG_TRACE;
 
+  if (strstr(gid, "_nodecode") != NULL) {
+    DBUG_PRINT("test_decoding", "return true");
+    return true;
+  }
+
+  DBUG_PRINT("test_decoding", "return false");
   return false;
 }
 
@@ -448,11 +462,15 @@ static bool
 pg_decode_filter(LogicalDecodingContext *ctx,
                  RepOriginId origin_id)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
 
-  if (data->only_local && origin_id != InvalidRepOriginId)
+  if (data->only_local && origin_id != InvalidRepOriginId) {
+    DBUG_PRINT("test_decoding", "return true");
     return true;
+  }
 
+  DBUG_PRINT("test_decoding", "return false");
   return false;
 }
 
@@ -514,6 +532,7 @@ print_literal(StringInfo s, Oid typid, char *outputstr)
 static void
 tuple_to_stringinfo(StringInfo s, TupleDesc tupdesc, HeapTuple tuple, bool skip_nulls)
 {
+  DBUG_TRACE;
   int     natt;
 
   /* print all columns individually */
@@ -589,6 +608,7 @@ static void
 pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                  Relation relation, ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   TestDecodingData *data;
   TestDecodingTxnData *txndata;
   Form_pg_class class_form;
@@ -682,6 +702,7 @@ static void
 pg_decode_truncate(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                    int nrelations, Relation relations[], ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   TestDecodingData *data;
   TestDecodingTxnData *txndata;
   MemoryContext old;
@@ -736,6 +757,7 @@ pg_decode_message(LogicalDecodingContext *ctx,
                   ReorderBufferTXN *txn, XLogRecPtr lsn, bool transactional,
                   const char *prefix, Size sz, const char *message)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata;
 
@@ -759,6 +781,7 @@ static void
 pg_decode_stream_start(LogicalDecodingContext *ctx,
                        ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 
@@ -783,6 +806,7 @@ pg_decode_stream_start(LogicalDecodingContext *ctx,
 static void
 pg_output_stream_start(LogicalDecodingContext *ctx, TestDecodingData *data, ReorderBufferTXN *txn, bool last_write)
 {
+  DBUG_TRACE;
   OutputPluginPrepareWrite(ctx, last_write);
 
   if (data->include_xids)
@@ -797,6 +821,7 @@ static void
 pg_decode_stream_stop(LogicalDecodingContext *ctx,
                       ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 
@@ -818,6 +843,7 @@ pg_decode_stream_abort(LogicalDecodingContext *ctx,
                        ReorderBufferTXN *txn,
                        XLogRecPtr abort_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
 
   /*
@@ -853,6 +879,7 @@ pg_decode_stream_prepare(LogicalDecodingContext *ctx,
                          ReorderBufferTXN *txn,
                          XLogRecPtr prepare_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 
@@ -880,6 +907,7 @@ pg_decode_stream_commit(LogicalDecodingContext *ctx,
                         ReorderBufferTXN *txn,
                         XLogRecPtr commit_lsn)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
   bool    xact_wrote_changes = txndata->xact_wrote_changes;
@@ -915,6 +943,7 @@ pg_decode_stream_change(LogicalDecodingContext *ctx,
                         Relation relation,
                         ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 
@@ -945,6 +974,8 @@ pg_decode_stream_message(LogicalDecodingContext *ctx,
                          ReorderBufferTXN *txn, XLogRecPtr lsn, bool transactional,
                          const char *prefix, Size sz, const char *message)
 {
+  DBUG_TRACE;
+
   /* Output stream start if we haven't yet for transactional messages. */
   if (transactional) {
     TestDecodingData *data = ctx->output_plugin_private;
@@ -980,6 +1011,7 @@ pg_decode_stream_truncate(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
                           int nrelations, Relation relations[],
                           ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   TestDecodingData *data = ctx->output_plugin_private;
   TestDecodingTxnData *txndata = txn->output_plugin_private;
 

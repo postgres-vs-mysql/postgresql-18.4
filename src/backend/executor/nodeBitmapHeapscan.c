@@ -34,6 +34,7 @@
  *    ExecEndBitmapHeapScan   releases all storage.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -122,6 +123,7 @@ BitmapTableScanSetup(BitmapHeapScanState *node)
 static TupleTableSlot *
 BitmapHeapNext(BitmapHeapScanState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->ss.ps.ps_ExprContext;
   TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
@@ -175,6 +177,7 @@ BitmapHeapNext(BitmapHeapScanState *node)
 static inline void
 BitmapDoneInitializingSharedState(ParallelBitmapHeapState *pstate)
 {
+  DBUG_TRACE;
   SpinLockAcquire(&pstate->mutex);
   pstate->state = BM_FINISHED;
   SpinLockRelease(&pstate->mutex);
@@ -187,6 +190,7 @@ BitmapDoneInitializingSharedState(ParallelBitmapHeapState *pstate)
 static bool
 BitmapHeapRecheck(BitmapHeapScanState *node, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   ExprContext *econtext;
 
   /*
@@ -206,8 +210,10 @@ BitmapHeapRecheck(BitmapHeapScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecBitmapHeapScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   BitmapHeapScanState *node = castNode(BitmapHeapScanState, pstate);
 
+  DBUG_PRINT("info", "scans a relation using bitmap info");
   return ExecScan(&node->ss,
                   (ExecScanAccessMtd) BitmapHeapNext,
                   (ExecScanRecheckMtd) BitmapHeapRecheck);
@@ -220,6 +226,7 @@ ExecBitmapHeapScan(PlanState *pstate)
 void
 ExecReScanBitmapHeapScan(BitmapHeapScanState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   TableScanDesc scan = node->ss.ss_currentScanDesc;
@@ -261,6 +268,7 @@ ExecReScanBitmapHeapScan(BitmapHeapScanState *node)
 void
 ExecEndBitmapHeapScan(BitmapHeapScanState *node)
 {
+  DBUG_TRACE;
   TableScanDesc scanDesc;
 
   /*
@@ -325,6 +333,7 @@ ExecEndBitmapHeapScan(BitmapHeapScanState *node)
 BitmapHeapScanState *
 ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   BitmapHeapScanState *scanstate;
   Relation  currentRelation;
 
@@ -412,6 +421,7 @@ ExecInitBitmapHeapScan(BitmapHeapScan *node, EState *estate, int eflags)
 static bool
 BitmapShouldInitializeSharedState(ParallelBitmapHeapState *pstate)
 {
+  DBUG_TRACE;
   SharedBitmapState state;
 
   while (1) {
@@ -471,6 +481,7 @@ void
 ExecBitmapHeapInitializeDSM(BitmapHeapScanState *node,
                             ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   ParallelBitmapHeapState *pstate;
   SharedBitmapHeapInstrumentation *sinstrument = NULL;
   dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
@@ -526,6 +537,7 @@ void
 ExecBitmapHeapReInitializeDSM(BitmapHeapScanState *node,
                               ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   ParallelBitmapHeapState *pstate = node->pstate;
   dsa_area   *dsa = node->ss.ps.state->es_query_dsa;
 
@@ -551,6 +563,7 @@ void
 ExecBitmapHeapInitializeWorker(BitmapHeapScanState *node,
                                ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   char     *ptr;
 
   Assert(node->ss.ps.state->es_query_dsa != NULL);
@@ -573,6 +586,7 @@ ExecBitmapHeapInitializeWorker(BitmapHeapScanState *node,
 void
 ExecBitmapHeapRetrieveInstrumentation(BitmapHeapScanState *node)
 {
+  DBUG_TRACE;
   SharedBitmapHeapInstrumentation *sinstrument = node->sinstrument;
   Size    size;
 

@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "plperl.h"
@@ -14,6 +15,7 @@ PG_FUNCTION_INFO_V1(bool_to_plperl);
 Datum
 bool_to_plperl(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   bool    in = PG_GETARG_BOOL(0);
 
@@ -26,6 +28,7 @@ PG_FUNCTION_INFO_V1(plperl_to_bool);
 Datum
 plperl_to_bool(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   dTHX;
   SV       *in = (SV *) PG_GETARG_POINTER(0);
 

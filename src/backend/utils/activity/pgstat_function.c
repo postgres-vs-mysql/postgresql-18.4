@@ -15,6 +15,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "fmgr.h"
@@ -44,6 +45,7 @@ static instr_time total_func_time;
 void
 pgstat_create_function(Oid proid)
 {
+  DBUG_TRACE;
   pgstat_create_transactional(PGSTAT_KIND_FUNCTION,
                               MyDatabaseId,
                               proid);
@@ -59,6 +61,7 @@ pgstat_create_function(Oid proid)
 void
 pgstat_drop_function(Oid proid)
 {
+  DBUG_TRACE;
   pgstat_drop_transactional(PGSTAT_KIND_FUNCTION,
                             MyDatabaseId,
                             proid);
@@ -72,6 +75,7 @@ void
 pgstat_init_function_usage(FunctionCallInfo fcinfo,
                            PgStat_FunctionCallUsage *fcu)
 {
+  DBUG_TRACE;
   PgStat_EntryRef *entry_ref;
   PgStat_FunctionCounts *pending;
   bool    created_entry;
@@ -143,6 +147,7 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 void
 pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 {
+  DBUG_TRACE;
   PgStat_FunctionCounts *fs = fcu->fs;
   instr_time  total;
   instr_time  others;
@@ -191,6 +196,7 @@ pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 bool
 pgstat_function_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 {
+  DBUG_TRACE;
   PgStat_FunctionCounts *localent;
   PgStatShared_Function *shfuncent;
 
@@ -221,6 +227,7 @@ pgstat_function_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 PgStat_FunctionCounts *
 find_funcstat_entry(Oid func_id)
 {
+  DBUG_TRACE;
   PgStat_EntryRef *entry_ref;
 
   entry_ref = pgstat_fetch_pending_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
@@ -238,6 +245,7 @@ find_funcstat_entry(Oid func_id)
 PgStat_StatFuncEntry *
 pgstat_fetch_stat_funcentry(Oid func_id)
 {
+  DBUG_TRACE;
   return (PgStat_StatFuncEntry *)
          pgstat_fetch_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
 }

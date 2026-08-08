@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/sysattr.h"
 #include "access/table.h"
@@ -86,6 +87,7 @@ void
 expand_inherited_rtentry(PlannerInfo *root, RelOptInfo *rel,
                          RangeTblEntry *rte, Index rti)
 {
+  DBUG_TRACE;
   Oid     parentOID;
   Relation  oldrelation;
   LOCKMODE  lockmode;
@@ -311,6 +313,7 @@ expand_partitioned_rtentry(PlannerInfo *root, RelOptInfo *relinfo,
                            Bitmapset *parent_updatedCols,
                            PlanRowMark *top_parentrc, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   PartitionDesc partdesc;
   int     num_live_parts;
   int     i;
@@ -454,6 +457,7 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
                                 RangeTblEntry **childrte_p,
                                 Index *childRTindex_p)
 {
+  DBUG_TRACE;
   Query    *parse = root->parse;
   Oid     parentOID PG_USED_FOR_ASSERTS_ONLY =
     RelationGetRelid(parentrel);
@@ -638,6 +642,7 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 Bitmapset *
 get_rel_all_updated_cols(PlannerInfo *root, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   Index   relid;
   RangeTblEntry *rte;
   RTEPermissionInfo *perminfo;
@@ -692,6 +697,7 @@ static Bitmapset *
 translate_col_privs(const Bitmapset *parent_privs,
                     List *translated_vars)
 {
+  DBUG_TRACE;
   Bitmapset  *child_privs = NULL;
   bool    whole_row;
   int     attno;
@@ -744,6 +750,7 @@ translate_col_privs_multilevel(PlannerInfo *root, RelOptInfo *rel,
                                RelOptInfo *parent_rel,
                                Bitmapset *parent_cols)
 {
+  DBUG_TRACE;
   AppendRelInfo *appinfo;
 
   /* Fast path for easy case. */
@@ -781,6 +788,7 @@ static void
 expand_appendrel_subquery(PlannerInfo *root, RelOptInfo *rel,
                           RangeTblEntry *rte, Index rti)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   foreach(l, root->append_rel_list) {
@@ -824,6 +832,7 @@ apply_child_basequals(PlannerInfo *root, RelOptInfo *parentrel,
                       RelOptInfo *childrel, RangeTblEntry *childRTE,
                       AppendRelInfo *appinfo)
 {
+  DBUG_TRACE;
   List     *childquals;
   Index   cq_min_security;
   ListCell   *lc;

@@ -24,6 +24,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/genam.h"
@@ -93,6 +94,7 @@ static Oid  TSCurrentConfigCache = InvalidOid;
 static void
 InvalidateTSCacheCallBack(Datum arg, int cacheid, uint32 hashvalue)
 {
+  DBUG_TRACE;
   HTAB     *hash = (HTAB *) DatumGetPointer(arg);
   HASH_SEQ_STATUS status;
   TSAnyCacheEntry *entry;
@@ -113,6 +115,7 @@ InvalidateTSCacheCallBack(Datum arg, int cacheid, uint32 hashvalue)
 TSParserCacheEntry *
 lookup_ts_parser_cache(Oid prsId)
 {
+  DBUG_TRACE;
   TSParserCacheEntry *entry;
 
   if (TSParserCacheHash == NULL) {
@@ -211,6 +214,7 @@ lookup_ts_parser_cache(Oid prsId)
 TSDictionaryCacheEntry *
 lookup_ts_dictionary_cache(Oid dictId)
 {
+  DBUG_TRACE;
   TSDictionaryCacheEntry *entry;
 
   if (TSDictionaryCacheHash == NULL) {
@@ -365,6 +369,7 @@ lookup_ts_dictionary_cache(Oid dictId)
 static void
 init_ts_config_cache(void)
 {
+  DBUG_TRACE;
   HASHCTL   ctl;
 
   ctl.keysize = sizeof(Oid);
@@ -388,6 +393,7 @@ init_ts_config_cache(void)
 TSConfigCacheEntry *
 lookup_ts_config_cache(Oid cfgId)
 {
+  DBUG_TRACE;
   TSConfigCacheEntry *entry;
 
   if (TSConfigCacheHash == NULL) {
@@ -555,6 +561,7 @@ lookup_ts_config_cache(Oid cfgId)
 Oid
 getTSCurrentConfig(bool emitError)
 {
+  DBUG_TRACE;
   List     *namelist;
 
   /* if we have a cached value, return it */
@@ -597,6 +604,8 @@ getTSCurrentConfig(bool emitError)
 bool
 check_default_text_search_config(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   /*
    * If we aren't inside a transaction, or connected to a database, we
    * cannot do the catalog accesses necessary to verify the config name.
@@ -665,6 +674,7 @@ check_default_text_search_config(char **newval, void **extra, GucSource source)
 void
 assign_default_text_search_config(const char *newval, void *extra)
 {
+  DBUG_TRACE;
   /* Just reset the cache to force a lookup on first use */
   TSCurrentConfigCache = InvalidOid;
 }

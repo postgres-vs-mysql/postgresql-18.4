@@ -28,6 +28,7 @@
  * associated with the process.
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <signal.h>
 #include <unistd.h>
@@ -96,6 +97,7 @@ static void CheckDeadLock(void);
 static Size
 PGProcShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size = 0;
   Size    TotalProcs =
     add_size(MaxBackends, add_size(NUM_AUXILIARY_PROCS, max_prepared_xacts));
@@ -191,11 +193,14 @@ ProcGlobalSemas(void)
 void
 InitProcGlobal(void)
 {
+  DBUG_TRACE;
   PGPROC     *procs;
   int     i,
           j;
   bool    found;
   uint32    TotalProcs = MaxBackends + NUM_AUXILIARY_PROCS + max_prepared_xacts;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
   /* Used for setup of per-backend fast-path slots. */
   char     *fpPtr,
@@ -286,9 +291,21 @@ InitProcGlobal(void)
   /* For asserts checking we did not overflow. */
   fpEndPtr = fpPtr + requestSize;
 
+  DBUG_PRINT("info", "total procs:%u", TotalProcs);
+
   for (i = 0; i < TotalProcs; i++) {
     PGPROC     *proc = &procs[i];
 
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
     /* Common initialization for all PGPROCs, regardless of type. */
 
     /*
@@ -311,7 +328,7 @@ InitProcGlobal(void)
     if (i < FIRST_PREPARED_XACT_PROC_NUMBER) {
       proc->sem = PGSemaphoreCreate();
       InitSharedLatch(&(proc->procLatch));
-      LWLockInitialize(&(proc->fpInfoLock), LWTRANCHE_LOCK_FASTPATH);
+      LWLockInitialize(&(proc->fpInfoLock), LWTRANCHE_LOCK_FASTPATH, i);
     }
 
     /*
@@ -360,6 +377,14 @@ InitProcGlobal(void)
   /* Should have consumed exactly the expected amount of fast-path memory. */
   Assert(fpPtr == fpEndPtr);
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   /*
    * Save pointers to the blocks of PGPROC structures reserved for auxiliary
    * processes and prepared transactions.
@@ -380,6 +405,7 @@ InitProcGlobal(void)
 void
 InitProcess(void)
 {
+  DBUG_TRACE;
   dlist_head *procgloballist;
 
   /*
@@ -608,6 +634,7 @@ InitProcessPhase2(void)
 void
 InitAuxiliaryProcess(void)
 {
+  DBUG_TRACE;
   PGPROC     *auxproc;
   int     proctype;
 
@@ -911,6 +938,7 @@ RemoveProcFromArray(int code, Datum arg)
 static void
 ProcKill(int code, Datum arg)
 {
+  DBUG_TRACE;
   PGPROC     *proc;
   dlist_head *procgloballist;
 
@@ -1030,6 +1058,7 @@ ProcKill(int code, Datum arg)
 static void
 AuxiliaryProcKill(int code, Datum arg)
 {
+  DBUG_TRACE;
   int     proctype = DatumGetInt32(arg);
   PGPROC     *auxproc PG_USED_FOR_ASSERTS_ONLY;
   PGPROC     *proc;
@@ -1081,6 +1110,7 @@ AuxiliaryProcKill(int code, Datum arg)
 PGPROC *
 AuxiliaryPidGetProc(int pid)
 {
+  DBUG_TRACE;
   PGPROC     *result = NULL;
   int     index;
 
@@ -1129,6 +1159,7 @@ AuxiliaryPidGetProc(int pid)
 ProcWaitStatus
 JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
 {
+  DBUG_TRACE;
   LOCKMODE  lockmode = locallock->tag.mode;
   LOCK     *lock = locallock->lock;
   PROCLOCK   *proclock = locallock->proclock;
@@ -1193,6 +1224,8 @@ JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
    * we are only considering the part of the wait queue before my insertion
    * point.
    */
+  DBUG_PRINT("info", "determine where to add myself in the wait queue");
+
   if (myHeldLocks != 0 && !dclist_is_empty(waitQueue)) {
     LOCKMASK  aheadRequests = 0;
     dlist_iter  iter;
@@ -1208,8 +1241,12 @@ JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
       if (leader != NULL && leader == proc->lockGroupLeader)
         continue;
 
+      DBUG_PRINT("info", "must proc:%d(trx id:%u) wait for me?", proc->pid, proc->xid);
+
       /* Must he wait for me? */
       if (lockMethodTable->conflictTab[proc->waitLockMode] & myHeldLocks) {
+        DBUG_PRINT("info", "yes, he must wait for me and must I wait for him?");
+
         /* Must I wait for him ? */
         if (lockMethodTable->conflictTab[lockmode] & proc->heldLocks) {
           /*
@@ -1221,6 +1258,7 @@ JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
            */
           RememberSimpleDeadLock(MyProc, lockmode, lock, proc);
           early_deadlock = true;
+          DBUG_PRINT("info", "yes, so we have a deadlock");
           break;
         }
 
@@ -1229,15 +1267,18 @@ JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
             !LockCheckConflicts(lockMethodTable, lockmode, lock,
                                 proclock)) {
           /* Skip the wait and just grant myself the lock. */
+          DBUG_PRINT("info", "skip the wait and just grant myself the lock");
           GrantLock(lock, proclock, lockmode);
           return PROC_WAIT_STATUS_OK;
         }
 
+        DBUG_PRINT("info", "put myself into wait queue before conflicting process");
         /* Put myself into wait queue before conflicting process */
         insert_before = proc;
         break;
       }
 
+      DBUG_PRINT("info", "nope, so advance to next waiter");
       /* Nope, so advance to next waiter */
       aheadRequests |= LOCKBIT_ON(proc->waitLockMode);
     }
@@ -1247,8 +1288,10 @@ JoinWaitQueue(LOCALLOCK *locallock, LockMethod lockMethodTable, bool dontWait)
    * If we detected deadlock, give up without waiting.  This must agree with
    * CheckDeadLock's recovery code.
    */
-  if (early_deadlock)
+  if (early_deadlock) {
+    DBUG_PRINT("info", "if we detected deadlock, give up without waiting.");
     return PROC_WAIT_STATUS_ERROR;
+  }
 
   /*
    * At this point we know that we'd really need to sleep. If we've been
@@ -1392,6 +1435,8 @@ ProcSleep(LOCALLOCK *locallock)
       bool    maybe_log_conflict =
         (standbyWaitStart != 0 && !logged_recovery_conflict);
 
+
+      DBUG_PRINT("info", "set a timer and wait for that or for the lock to be granted");
       /* Set a timer and wait for that or for the lock to be granted */
       ResolveRecoveryConflictWithLock(locallock->tag.lock,
                                       maybe_log_conflict);
@@ -1425,8 +1470,10 @@ ProcSleep(LOCALLOCK *locallock)
         }
       }
     } else {
+      DBUG_PRINT("info", "wait for a given latch to be set, or for postmaster death, or until timeout is exceeded");
       (void) WaitLatch(MyLatch, WL_LATCH_SET | WL_EXIT_ON_PM_DEATH, 0,
                        PG_WAIT_LOCK | locallock->tag.lock.locktag_type);
+      DBUG_PRINT("info", "after wait for a given latch");
       ResetLatch(MyLatch);
 
       /* check for deadlocks first, as that's probably log-worthy */
@@ -1444,6 +1491,14 @@ ProcSleep(LOCALLOCK *locallock)
      * surprising behavior (such as missing log messages).
      */
     myWaitStatus = *((volatile ProcWaitStatus *) &MyProc->waitStatus);
+
+    if (myWaitStatus == PROC_WAIT_STATUS_WAITING) {
+      DBUG_PRINT("info", "proc wait status: waiting");
+    } else if (myWaitStatus == PROC_WAIT_STATUS_OK) {
+      DBUG_PRINT("info", "proc wait status: ok");
+    } else {
+      DBUG_PRINT("info", "proc wait status: error");
+    }
 
     /*
      * If we are not deadlocked, but are waiting on an autovacuum-induced
@@ -1464,11 +1519,13 @@ ProcSleep(LOCALLOCK *locallock)
        * that could happen in any case unless we were to do kill() with
        * the lock held, which is much more undesirable.
        */
+      DBUG_PRINT("info", "before lock acquire");
       LWLockAcquire(ProcArrayLock, LW_EXCLUSIVE);
       statusFlags = ProcGlobal->statusFlags[autovac->pgxactoff];
       lockmethod_copy = lock->tag.locktag_lockmethodid;
       locktag_copy = lock->tag;
       LWLockRelease(ProcArrayLock);
+      DBUG_PRINT("info", "after lock release");
 
       /*
        * Only do it if the worker is not working to protect against Xid
@@ -1552,10 +1609,12 @@ ProcSleep(LOCALLOCK *locallock)
       usecs = usecs % 1000;
 
       /* Gather a list of all lock holders and waiters */
+      DBUG_PRINT("info", "before lock acquire");
       LWLockAcquire(partitionLock, LW_SHARED);
       GetLockHoldersAndWaiters(locallock, &lock_holders_sbuf,
                                &lock_waiters_sbuf, &lockHoldersNum);
       LWLockRelease(partitionLock);
+      DBUG_PRINT("info", "after lock release");
 
       if (deadlock_state == DS_SOFT_DEADLOCK)
         ereport(LOG,
@@ -1624,6 +1683,9 @@ ProcSleep(LOCALLOCK *locallock)
     }
   } while (myWaitStatus == PROC_WAIT_STATUS_WAITING);
 
+
+  DBUG_PRINT("info", "exit the wait loop");
+
   /*
    * Disable the timers, if they are still running.  As in LockErrorCleanup,
    * we must preserve the LOCK_TIMEOUT indicator flag: if a lock timeout has
@@ -1676,6 +1738,8 @@ ProcSleep(LOCALLOCK *locallock)
 void
 ProcWakeup(PGPROC *proc, ProcWaitStatus waitStatus)
 {
+  DBUG_TRACE;
+
   if (dlist_node_is_detached(&proc->links))
     return;
 
@@ -1704,6 +1768,7 @@ ProcWakeup(PGPROC *proc, ProcWaitStatus waitStatus)
 void
 ProcLockWakeup(LockMethod lockMethodTable, LOCK *lock)
 {
+  DBUG_TRACE;
   dclist_head *waitQueue = &lock->waitProcs;
   LOCKMASK  aheadRequests = 0;
   dlist_mutable_iter miter;
@@ -1748,6 +1813,7 @@ ProcLockWakeup(LockMethod lockMethodTable, LOCK *lock)
 static void
 CheckDeadLock(void)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -1785,6 +1851,7 @@ CheckDeadLock(void)
 #endif
 
   /* Run the deadlock check, and set deadlock_state for use by ProcSleep */
+  DBUG_PRINT("info", "run the deadlock check");
   deadlock_state = DeadLockCheck(MyProc);
 
   if (deadlock_state == DS_HARD_DEADLOCK) {
@@ -1986,6 +2053,7 @@ BecomeLockGroupLeader(void)
 bool
 BecomeLockGroupMember(PGPROC *leader, int pid)
 {
+  DBUG_TRACE;
   LWLock     *leader_lwlock;
   bool    ok = false;
 

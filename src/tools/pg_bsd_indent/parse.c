@@ -63,8 +63,8 @@ parse(int tk) /* tk: the code for the construct scanned */
 
 
   switch (tk) {
-      /* go on and figure out what to do with the
-           * input */
+    /* go on and figure out what to do with the
+         * input */
 
     case decl:      /* scanned a declaration word */
       ps.search_brace = btype_2;

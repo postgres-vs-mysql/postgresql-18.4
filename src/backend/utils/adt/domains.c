@@ -29,6 +29,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
@@ -89,11 +90,14 @@ domain_state_setup(Oid domainType, bool binary, MemoryContext mcxt)
    */
   typentry = lookup_type_cache(domainType, TYPECACHE_DOMAIN_BASE_INFO);
 
-  if (typentry->typtype != TYPTYPE_DOMAIN)
+  if (typentry->typtype != TYPTYPE_DOMAIN) {
+    char *format1 = format_type_be(domainType);
+    DBUG_INSTANT_PRINT("info", "type %s is not a domain", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("type %s is not a domain",
-                    format_type_be(domainType))));
+                    format1)));
+  }
 
   /* Find out the base type */
   baseType = typentry->domainBaseType;
@@ -139,6 +143,7 @@ static void
 domain_check_input(Datum value, bool isnull, DomainIOData *my_extra,
                    Node *escontext)
 {
+  DBUG_TRACE;
   ExprContext *econtext = my_extra->econtext;
   ListCell   *l;
 
@@ -151,10 +156,12 @@ domain_check_input(Datum value, bool isnull, DomainIOData *my_extra,
     switch (con->constrainttype) {
       case DOM_CONSTRAINT_NOTNULL:
         if (isnull) {
+          char *format_str = format_type_be(my_extra->domain_type);
+          DBUG_PRINT("info", "domain %s does not allow null values", format_str);
           errsave(escontext,
                   (errcode(ERRCODE_NOT_NULL_VIOLATION),
                    errmsg("domain %s does not allow null values",
-                          format_type_be(my_extra->domain_type)),
+                          format_str),
                    errdatatype(my_extra->domain_type)));
           goto fail;
         }
@@ -188,10 +195,13 @@ domain_check_input(Datum value, bool isnull, DomainIOData *my_extra,
         econtext->domainValue_isNull = isnull;
 
         if (!ExecCheck(con->check_exprstate, econtext)) {
+          char *format1 = format_type_be(my_extra->domain_type);
+          DBUG_INSTANT_PRINT("info", "value for domain %s violates check constraint \"%s\"",
+                             format1, con->name);
           errsave(escontext,
                   (errcode(ERRCODE_CHECK_VIOLATION),
                    errmsg("value for domain %s violates check constraint \"%s\"",
-                          format_type_be(my_extra->domain_type),
+                          format1,
                           con->name),
                    errdomainconstraint(my_extra->domain_type,
                                        con->name)));
@@ -226,6 +236,7 @@ fail:
 Datum
 domain_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *string;
   Oid     domainType;
   Node     *escontext = fcinfo->context;
@@ -263,6 +274,8 @@ domain_in(PG_FUNCTION_ARGS)
   /*
    * Invoke the base type's typinput procedure to convert the data.
    */
+  DBUG_PRINT("info", "invoke the base type's typinput procedure to convert the data");
+
   if (!InputFunctionCallSafe(&my_extra->proc,
                              string,
                              my_extra->typioparam,
@@ -288,6 +301,7 @@ domain_in(PG_FUNCTION_ARGS)
 Datum
 domain_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf;
   Oid     domainType;
   DomainIOData *my_extra;
@@ -324,6 +338,7 @@ domain_recv(PG_FUNCTION_ARGS)
   /*
    * Invoke the base type's typreceive procedure to convert the data.
    */
+  DBUG_PRINT("info", "invoke the base type's typreceive procedure to convert the data");
   value = ReceiveFunctionCall(&my_extra->proc,
                               buf,
                               my_extra->typioparam,
@@ -376,6 +391,7 @@ domain_check_internal(Datum value, bool isnull, Oid domainType,
                       void **extra, MemoryContext mcxt,
                       Node *escontext)
 {
+  DBUG_TRACE;
   DomainIOData *my_extra = NULL;
 
   if (mcxt == NULL)

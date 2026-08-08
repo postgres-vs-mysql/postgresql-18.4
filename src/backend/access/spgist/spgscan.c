@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/relscan.h"
@@ -127,6 +128,7 @@ spgAllocSearchItem(SpGistScanOpaque so, bool isnull, double *distances)
 static void
 spgAddStartItem(SpGistScanOpaque so, bool isnull)
 {
+  DBUG_TRACE;
   SpGistSearchItem *startEntry =
     spgAllocSearchItem(so, isnull, so->zeroDistances);
 
@@ -204,6 +206,7 @@ resetSpGistScanOpaque(SpGistScanOpaque so)
 static void
 spgPrepareScanKeys(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   SpGistScanOpaque so = (SpGistScanOpaque) scan->opaque;
   bool    qual_ok;
   bool    haveIsNull;
@@ -290,6 +293,7 @@ spgPrepareScanKeys(IndexScanDesc scan)
 IndexScanDesc
 spgbeginscan(Relation rel, int keysz, int orderbysz)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   SpGistScanOpaque so;
   int     i;
@@ -367,6 +371,7 @@ void
 spgrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
           ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   SpGistScanOpaque so = (SpGistScanOpaque) scan->opaque;
 
   /* copy scankeys into local storage */
@@ -414,6 +419,7 @@ spgrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 spgendscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   SpGistScanOpaque so = (SpGistScanOpaque) scan->opaque;
 
   MemoryContextDelete(so->tempCxt);
@@ -449,6 +455,7 @@ spgNewHeapItem(SpGistScanOpaque so, int level, SpGistLeafTuple leafTuple,
                Datum leafValue, bool recheck, bool recheckDistances,
                bool isnull, double *distances)
 {
+  DBUG_TRACE;
   SpGistSearchItem *item = spgAllocSearchItem(so, isnull, distances);
 
   item->level = level;
@@ -498,11 +505,14 @@ spgLeafTest(SpGistScanOpaque so, SpGistSearchItem *item,
             SpGistLeafTuple leafTuple, bool isnull,
             bool *reportedSome, storeRes_func storeRes)
 {
+  DBUG_TRACE;
   Datum   leafValue;
   double     *distances;
   bool    result;
   bool    recheck;
   bool    recheckDistances;
+
+  DBUG_PRINT("info", "test whether a leaf tuple satisfies all the scan keys");
 
   if (isnull) {
     /* Should not have arrived on a nulls page unless nulls are wanted */
@@ -570,6 +580,12 @@ spgLeafTest(SpGistScanOpaque so, SpGistSearchItem *item,
                leafTuple, recheck, false, NULL);
       *reportedSome = true;
     }
+  }
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   return result;
@@ -641,6 +657,7 @@ static void
 spgInnerTest(SpGistScanOpaque so, SpGistSearchItem *item,
              SpGistInnerTuple innerTuple, bool isnull)
 {
+  DBUG_TRACE;
   MemoryContext oldCxt = MemoryContextSwitchTo(so->tempCxt);
   spgInnerConsistentOut out;
   int     nNodes = innerTuple->nNodes;
@@ -654,6 +671,7 @@ spgInnerTest(SpGistScanOpaque so, SpGistSearchItem *item,
     spgInitInnerConsistentIn(&in, so, item, innerTuple);
 
     /* use user-defined inner consistent method */
+    DBUG_PRINT("info", "use user-defined inner consistent method");
     FunctionCall2Coll(&so->innerConsistentFn,
                       so->indexCollation,
                       PointerGetDatum(&in),
@@ -714,6 +732,8 @@ spgInnerTest(SpGistScanOpaque so, SpGistSearchItem *item,
 static SpGistSearchItem *
 spgGetNextQueueItem(SpGistScanOpaque so)
 {
+  DBUG_TRACE;
+
   if (pairingheap_is_empty(so->scanQueue))
     return NULL;      /* Done when both heaps are empty */
 
@@ -735,6 +755,7 @@ spgTestLeafTuple(SpGistScanOpaque so,
                  bool *reportedSome,
                  storeRes_func storeRes)
 {
+  DBUG_TRACE;
   SpGistLeafTuple leafTuple = (SpGistLeafTuple)
                               PageGetItem(page, PageGetItemId(page, offset));
 
@@ -781,6 +802,7 @@ static void
 spgWalk(Relation index, SpGistScanOpaque so, bool scanWholeIndex,
         storeRes_func storeRes)
 {
+  DBUG_TRACE;
   Buffer    buffer = InvalidBuffer;
   bool    reportedSome = false;
 
@@ -883,6 +905,7 @@ storeBitmap(SpGistScanOpaque so, ItemPointer heapPtr,
             SpGistLeafTuple leafTuple, bool recheck,
             bool recheckDistances, double *distances)
 {
+  DBUG_TRACE;
   Assert(!recheckDistances && !distances);
   tbm_add_tuples(so->tbm, heapPtr, 1, recheck);
   so->ntids++;
@@ -891,6 +914,7 @@ storeBitmap(SpGistScanOpaque so, ItemPointer heapPtr,
 int64
 spggetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   SpGistScanOpaque so = (SpGistScanOpaque) scan->opaque;
 
   /* Copy want_itup to *so so we don't need to pass it around separately */
@@ -911,6 +935,7 @@ storeGettuple(SpGistScanOpaque so, ItemPointer heapPtr,
               SpGistLeafTuple leafTuple, bool recheck,
               bool recheckDistances, double *nonNullDistances)
 {
+  DBUG_TRACE;
   Assert(so->nPtrs < MaxIndexTuplesPerPage);
   so->heapPtrs[so->nPtrs] = *heapPtr;
   so->recheck[so->nPtrs] = recheck;
@@ -969,6 +994,7 @@ storeGettuple(SpGistScanOpaque so, ItemPointer heapPtr,
 bool
 spggettuple(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   SpGistScanOpaque so = (SpGistScanOpaque) scan->opaque;
 
   if (dir != ForwardScanDirection)
@@ -1024,14 +1050,26 @@ spggettuple(IndexScanDesc scan, ScanDirection dir)
 bool
 spgcanreturn(Relation index, int attno)
 {
+  DBUG_TRACE;
   SpGistCache *cache;
+  bool result;
 
   /* INCLUDE attributes can always be fetched for index-only scans */
-  if (attno > 1)
+  if (attno > 1) {
+    DBUG_PRINT("info", "INCLUDE attributes can always be fetched for index-only scans(attno:%d)", attno);
     return true;
+  }
 
   /* We can do it if the opclass config function says so */
   cache = spgGetCache(index);
 
-  return cache->config.canReturnData;
+  result = cache->config.canReturnData;
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }

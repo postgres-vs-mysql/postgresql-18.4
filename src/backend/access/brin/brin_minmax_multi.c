@@ -55,6 +55,7 @@
  *    src/backend/access/brin/brin_minmax_multi.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 /* needed for PGSQL_AF_INET */
 #include <sys/socket.h>
@@ -271,6 +272,7 @@ static int  compare_values(const void *a, const void *b, void *arg);
 static void
 AssertArrayOrder(FmgrInfo *cmp, Oid colloid, Datum *values, int nvalues)
 {
+  DBUG_TRACE;
   int     i;
   Datum   lt;
 
@@ -287,6 +289,7 @@ AssertArrayOrder(FmgrInfo *cmp, Oid colloid, Datum *values, int nvalues)
 static void
 AssertCheckRanges(Ranges *ranges, FmgrInfo *cmpFn, Oid colloid)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
   int     i;
 
@@ -414,6 +417,7 @@ AssertCheckExpandedRanges(BrinDesc *bdesc, Oid colloid, AttrNumber attno,
                           Form_pg_attribute attr, ExpandedRange *ranges,
                           int nranges)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
   int     i;
   FmgrInfo   *eq;
@@ -817,6 +821,7 @@ brin_range_deserialize(int maxvalues, SerializedRanges *serialized)
 static int
 compare_expanded_ranges(const void *a, const void *b, void *arg)
 {
+  DBUG_TRACE;
   ExpandedRange *ra = (ExpandedRange *) a;
   ExpandedRange *rb = (ExpandedRange *) b;
   Datum   r;
@@ -826,25 +831,34 @@ compare_expanded_ranges(const void *a, const void *b, void *arg)
   /* first compare minvals */
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, ra->minval, rb->minval);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return -1");
     return -1;
+  }
 
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, rb->minval, ra->minval);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return 1");
     return 1;
+  }
 
   /* then compare maxvals */
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, ra->maxval, rb->maxval);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return -1");
     return -1;
+  }
 
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, rb->maxval, ra->maxval);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return 1");
     return 1;
+  }
 
+  DBUG_PRINT("info", "return 0");
   return 0;
 }
 
@@ -855,6 +869,7 @@ compare_expanded_ranges(const void *a, const void *b, void *arg)
 static int
 compare_values(const void *a, const void *b, void *arg)
 {
+  DBUG_TRACE;
   Datum    *da = (Datum *) a;
   Datum    *db = (Datum *) b;
   Datum   r;
@@ -863,14 +878,19 @@ compare_values(const void *a, const void *b, void *arg)
 
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, *da, *db);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return -1");
     return -1;
+  }
 
   r = FunctionCall2Coll(cxt->cmpFn, cxt->colloid, *db, *da);
 
-  if (DatumGetBool(r))
+  if (DatumGetBool(r)) {
+    DBUG_PRINT("info", "return 1");
     return 1;
+  }
 
+  DBUG_PRINT("info", "return 0");
   return 0;
 }
 
@@ -881,6 +901,7 @@ static bool
 has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
                    Datum newval, AttrNumber attno, Oid typid)
 {
+  DBUG_TRACE;
   Datum   compar;
 
   Datum   minvalue;
@@ -893,8 +914,12 @@ has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
   int     start,
           end;
 
-  if (ranges->nranges == 0)
+  DBUG_PRINT("info", "check if the new value matches one of the existing ranges");
+
+  if (ranges->nranges == 0) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   minvalue = ranges->values[0];
   maxvalue = ranges->values[2 * ranges->nranges - 1];
@@ -909,8 +934,11 @@ has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
   compar = FunctionCall2Coll(cmpLessFn, colloid, newval, minvalue);
 
   /* smaller than the smallest value in the range list */
-  if (DatumGetBool(compar))
+  if (DatumGetBool(compar)) {
+    DBUG_PRINT("info", "smaller than the smallest value in the range list");
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * And now compare it to the existing maximum (last value in the data
@@ -921,8 +949,10 @@ has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
                  BTGreaterStrategyNumber);
   compar = FunctionCall2Coll(cmpGreaterFn, colloid, newval, maxvalue);
 
-  if (DatumGetBool(compar))
+  if (DatumGetBool(compar)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /*
    * So we know it's in the general min/max, the question is whether it
@@ -938,8 +968,11 @@ has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
     int     midpoint = (start + end) / 2;
 
     /* this means we ran out of ranges in the last step */
-    if (start > end)
+    if (start > end) {
+      DBUG_PRINT("info", "this means we ran out of ranges in the last step");
+      DBUG_PRINT("info", "return false");
       return false;
+    }
 
     /* copy the min/max values from the ranges */
     minvalue = ranges->values[2 * midpoint];
@@ -969,10 +1002,13 @@ has_matching_range(BrinDesc *bdesc, Oid colloid, Ranges *ranges,
       continue;
     }
 
+    DBUG_PRINT("info", "we found a matching range");
     /* hey, we found a matching range */
     return true;
   }
 
+
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -1004,6 +1040,7 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
                      AttrNumber attno, Form_pg_attribute attr,
                      Ranges *ranges, Datum newval, bool full)
 {
+  DBUG_TRACE;
   int     i;
   FmgrInfo   *cmpEqualFn;
   Oid     typid = attr->atttypid;
@@ -1013,8 +1050,10 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
    * range, and only when there's still a chance of getting a match we
    * inspect the individual ranges.
    */
-  if (has_matching_range(bdesc, colloid, ranges, newval, attno, typid))
+  if (has_matching_range(bdesc, colloid, ranges, newval, attno, typid)) {
+    DBUG_PRINT("info", "return true");
     return true;
+  }
 
   cmpEqualFn = minmax_multi_get_strategy_procinfo(bdesc, attno, typid,
                BTEqualStrategyNumber);
@@ -1041,8 +1080,10 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
 
     if (bsearch_arg(&newval, &ranges->values[2 * ranges->nranges],
                     ranges->nsorted, sizeof(Datum),
-                    compare_values, &cxt) != NULL)
+                    compare_values, &cxt) != NULL) {
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   } else {
     for (i = 2 * ranges->nranges; i < 2 * ranges->nranges + ranges->nsorted; i++) {
       Datum   compar;
@@ -1050,14 +1091,20 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
       compar = FunctionCall2Coll(cmpEqualFn, colloid, newval, ranges->values[i]);
 
       /* found an exact match */
-      if (DatumGetBool(compar))
+      if (DatumGetBool(compar)) {
+        DBUG_PRINT("info", "found an exact match");
+        DBUG_PRINT("info", "return true");
         return true;
+      }
     }
   }
 
   /* If not asked to inspect the unsorted part, we're done. */
-  if (!full)
+  if (!full) {
+    DBUG_PRINT("info", "if not asked to inspect the unsorted part, we're done");
+    DBUG_PRINT("info", "return true");
     return false;
+  }
 
   /* Inspect the unsorted part. */
   for (i = 2 * ranges->nranges + ranges->nsorted; i < 2 * ranges->nranges + ranges->nvalues; i++) {
@@ -1066,11 +1113,16 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
     compar = FunctionCall2Coll(cmpEqualFn, colloid, newval, ranges->values[i]);
 
     /* found an exact match */
-    if (DatumGetBool(compar))
+    if (DatumGetBool(compar)) {
+      DBUG_PRINT("info", "found an exact match");
+      DBUG_PRINT("info", "return true");
       return true;
+    }
   }
 
   /* the value is not covered by this BRIN tuple */
+  DBUG_PRINT("info", "the value is not covered by this BRIN tuple");
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -1086,6 +1138,7 @@ range_contains_value(BrinDesc *bdesc, Oid colloid,
 static void
 fill_expanded_ranges(ExpandedRange *eranges, int neranges, Ranges *ranges)
 {
+  DBUG_TRACE;
   int     idx;
   int     i;
 
@@ -1131,6 +1184,7 @@ static int
 sort_expanded_ranges(FmgrInfo *cmp, Oid colloid,
                      ExpandedRange *eranges, int neranges)
 {
+  DBUG_TRACE;
   int     n;
   int     i;
   compare_context cxt;
@@ -1183,6 +1237,7 @@ static int
 merge_overlapping_ranges(FmgrInfo *cmp, Oid colloid,
                          ExpandedRange *eranges, int neranges)
 {
+  DBUG_TRACE;
   int     idx;
 
   /* Merge ranges (idx) and (idx+1) if they overlap. */
@@ -1280,6 +1335,7 @@ static DistanceValue *
 build_distances(FmgrInfo *distanceFn, Oid colloid,
                 ExpandedRange *eranges, int neranges)
 {
+  DBUG_TRACE;
   int     i;
   int     ndistances;
   DistanceValue *distances;
@@ -1297,6 +1353,9 @@ build_distances(FmgrInfo *distanceFn, Oid colloid,
    * Walk through the ranges once and compute the distance between the
    * ranges so that we can sort them once.
    */
+  DBUG_PRINT("info", "walk through the ranges once and compute the distance between the ranges so that we can sort them once");
+  DBUG_PRINT("info", "ndistances:%d", ndistances);
+
   for (i = 0; i < ndistances; i++) {
     Datum   a1,
             a2,
@@ -1306,6 +1365,7 @@ build_distances(FmgrInfo *distanceFn, Oid colloid,
     a2 = eranges[i + 1].minval;
 
     /* compute length of the gap (between max/min) */
+    DBUG_PRINT("info", "compute length of the gap (between max/min)");
     r = FunctionCall2Coll(distanceFn, colloid, a1, a2);
 
     /* remember the index of the gap the distance is for */
@@ -1336,6 +1396,7 @@ static ExpandedRange *
 build_expanded_ranges(FmgrInfo *cmp, Oid colloid, Ranges *ranges,
                       int *nranges)
 {
+  DBUG_TRACE;
   int     neranges;
   ExpandedRange *eranges;
 
@@ -1427,6 +1488,7 @@ reduce_expanded_ranges(ExpandedRange *eranges, int neranges,
                        DistanceValue *distances, int max_values,
                        FmgrInfo *cmp, Oid colloid)
 {
+  DBUG_TRACE;
   int     i;
   int     nvalues;
   Datum    *values;
@@ -1505,6 +1567,7 @@ reduce_expanded_ranges(ExpandedRange *eranges, int neranges,
 static void
 store_expanded_ranges(Ranges *ranges, ExpandedRange *eranges, int neranges)
 {
+  DBUG_TRACE;
   int     i;
   int     idx = 0;
 
@@ -1548,6 +1611,7 @@ ensure_free_space_in_buffer(BrinDesc *bdesc, Oid colloid,
                             AttrNumber attno, Form_pg_attribute attr,
                             Ranges *range)
 {
+  DBUG_TRACE;
   MemoryContext ctx;
   MemoryContext oldctx;
 
@@ -1649,6 +1713,7 @@ range_add_value(BrinDesc *bdesc, Oid colloid,
                 AttrNumber attno, Form_pg_attribute attr,
                 Ranges *ranges, Datum newval)
 {
+  DBUG_TRACE;
   FmgrInfo   *cmpFn;
   bool    modified = false;
 
@@ -1722,6 +1787,7 @@ range_add_value(BrinDesc *bdesc, Oid colloid,
   Assert(range_contains_value(bdesc, colloid, attno, attr, ranges, newval, true));
 
   /* yep, we've modified the range */
+  DBUG_PRINT("info", "we've modified the range");
   return true;
 }
 
@@ -1733,6 +1799,7 @@ range_add_value(BrinDesc *bdesc, Oid colloid,
 static void
 compactify_ranges(BrinDesc *bdesc, Ranges *ranges, int max_values)
 {
+  DBUG_TRACE;
   FmgrInfo   *cmpFn,
              *distanceFn;
 
@@ -1804,6 +1871,7 @@ compactify_ranges(BrinDesc *bdesc, Ranges *ranges, int max_values)
 Datum
 brin_minmax_multi_opcinfo(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinOpcInfo *result;
 
   /*
@@ -1828,6 +1896,7 @@ brin_minmax_multi_opcinfo(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_float4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float   a1 = PG_GETARG_FLOAT4(0);
   float   a2 = PG_GETARG_FLOAT4(1);
 
@@ -1854,6 +1923,7 @@ brin_minmax_multi_distance_float4(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_float8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   double    a1 = PG_GETARG_FLOAT8(0);
   double    a2 = PG_GETARG_FLOAT8(1);
 
@@ -1880,6 +1950,7 @@ brin_minmax_multi_distance_float8(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_int2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int16   a1 = PG_GETARG_INT16(0);
   int16   a2 = PG_GETARG_INT16(1);
 
@@ -1898,6 +1969,7 @@ brin_minmax_multi_distance_int2(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   a1 = PG_GETARG_INT32(0);
   int32   a2 = PG_GETARG_INT32(1);
 
@@ -1916,6 +1988,7 @@ brin_minmax_multi_distance_int4(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   a1 = PG_GETARG_INT64(0);
   int64   a2 = PG_GETARG_INT64(1);
 
@@ -1935,6 +2008,7 @@ brin_minmax_multi_distance_int8(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_tid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   double    da1,
             da2;
 
@@ -1966,6 +2040,7 @@ brin_minmax_multi_distance_tid(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Datum   d;
   Datum   a1 = PG_GETARG_DATUM(0);
   Datum   a2 = PG_GETARG_DATUM(1);
@@ -1992,6 +2067,7 @@ brin_minmax_multi_distance_numeric(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_uuid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     i;
   float8    delta = 0;
 
@@ -2024,6 +2100,7 @@ brin_minmax_multi_distance_uuid(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_date(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
   DateADT   dateVal1 = PG_GETARG_DATEADT(0);
   DateADT   dateVal2 = PG_GETARG_DATEADT(1);
@@ -2043,6 +2120,7 @@ brin_minmax_multi_distance_date(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_time(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
 
   TimeADT   ta = PG_GETARG_TIMEADT(0);
@@ -2063,6 +2141,7 @@ brin_minmax_multi_distance_time(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_timetz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
 
   TimeTzADT  *ta = PG_GETARG_TIMETZADT_P(0);
@@ -2081,6 +2160,7 @@ brin_minmax_multi_distance_timetz(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_timestamp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
 
   Timestamp dt1 = PG_GETARG_TIMESTAMP(0);
@@ -2099,6 +2179,7 @@ brin_minmax_multi_distance_timestamp(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_interval(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
 
   Interval   *ia = PG_GETARG_INTERVAL_P(0);
@@ -2135,6 +2216,7 @@ brin_minmax_multi_distance_interval(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_pg_lsn(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta = 0;
 
   XLogRecPtr  lsna = PG_GETARG_LSN(0);
@@ -2156,6 +2238,7 @@ brin_minmax_multi_distance_pg_lsn(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_macaddr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta;
 
   macaddr    *a = PG_GETARG_MACADDR_P(0);
@@ -2193,6 +2276,7 @@ brin_minmax_multi_distance_macaddr(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_macaddr8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta;
 
   macaddr8   *a = PG_GETARG_MACADDR8_P(0);
@@ -2241,6 +2325,7 @@ brin_minmax_multi_distance_macaddr8(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_distance_inet(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   float8    delta;
   int     i;
   int     len;
@@ -2323,6 +2408,7 @@ brin_minmax_multi_distance_inet(PG_FUNCTION_ARGS)
 static void
 brin_minmax_multi_serialize(BrinDesc *bdesc, Datum src, Datum *dst)
 {
+  DBUG_TRACE;
   Ranges     *ranges = (Ranges *) DatumGetPointer(src);
   SerializedRanges *s;
 
@@ -2342,6 +2428,7 @@ brin_minmax_multi_serialize(BrinDesc *bdesc, Datum src, Datum *dst)
 static int
 brin_minmax_multi_get_values(BrinDesc *bdesc, MinMaxMultiOptions *opts)
 {
+  DBUG_TRACE;
   return MinMaxMultiGetValuesPerRange(opts);
 }
 
@@ -2355,6 +2442,7 @@ brin_minmax_multi_get_values(BrinDesc *bdesc, MinMaxMultiOptions *opts)
 Datum
 brin_minmax_multi_add_value(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   Datum   newval = PG_GETARG_DATUM(2);
@@ -2478,6 +2566,12 @@ brin_minmax_multi_add_value(PG_FUNCTION_ARGS)
   modified |= range_add_value(bdesc, colloid, attno, attr, ranges, newval);
 
 
+  if (modified) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(modified);
 }
 
@@ -2489,6 +2583,7 @@ brin_minmax_multi_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
   ScanKey    *keys = (ScanKey *) PG_GETARG_POINTER(2);
@@ -2595,15 +2690,19 @@ brin_minmax_multi_consistent(PG_FUNCTION_ARGS)
       matching &= matches;
 
       /* once we find a non-matching key, we're done */
-      if (!matching)
+      if (!matching) {
+        DBUG_PRINT("info", "once we find a non-matching key, we're done");
         break;
+      }
     }
 
     /*
      * have we found a range matching all scan keys? if yes, we're done
      */
-    if (matching)
+    if (matching) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true);
+    }
   }
 
   /*
@@ -2652,15 +2751,20 @@ brin_minmax_multi_consistent(PG_FUNCTION_ARGS)
       matching &= matches;
 
       /* once we find a non-matching key, we're done */
-      if (!matching)
+      if (!matching) {
+        DBUG_PRINT("info", "once we find a non-matching key, we're done");
         break;
+      }
     }
 
     /* have we found a range matching all scan keys? if yes, we're done */
-    if (matching)
+    if (matching) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true);
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   PG_RETURN_BOOL(false);
 }
 
@@ -2671,6 +2775,7 @@ brin_minmax_multi_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
   BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
   BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
@@ -2799,6 +2904,7 @@ brin_minmax_multi_union(PG_FUNCTION_ARGS)
 static FmgrInfo *
 minmax_multi_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum)
 {
+  DBUG_TRACE;
   MinmaxMultiOpaque *opaque;
   uint16    basenum = procnum - PROCNUM_BASE;
 
@@ -2835,6 +2941,7 @@ static FmgrInfo *
 minmax_multi_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno, Oid subtype,
                                    uint16 strategynum)
 {
+  DBUG_TRACE;
   MinmaxMultiOpaque *opaque;
 
   Assert(strategynum >= 1 &&
@@ -2889,6 +2996,7 @@ minmax_multi_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno, Oid subtype,
 Datum
 brin_minmax_multi_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(MinMaxMultiOptions));
@@ -2911,6 +3019,7 @@ brin_minmax_multi_options(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_summary_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * brin_minmax_multi_summary stores the data in binary form and parsing
    * text input is not needed, so disallow this.
@@ -2933,6 +3042,7 @@ brin_minmax_multi_summary_in(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_summary_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     i;
   int     idx;
   SerializedRanges *ranges;
@@ -3049,6 +3159,7 @@ brin_minmax_multi_summary_out(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_summary_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("cannot accept a value of type %s", "brin_minmax_multi_summary")));
@@ -3066,5 +3177,6 @@ brin_minmax_multi_summary_recv(PG_FUNCTION_ARGS)
 Datum
 brin_minmax_multi_summary_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return byteasend(fcinfo);
 }

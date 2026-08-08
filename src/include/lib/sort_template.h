@@ -310,8 +310,7 @@ ST_SORT(ST_ELEMENT_TYPE * data, size_t n
 loop:
   DO_CHECK_FOR_INTERRUPTS();
 
-  if (n < 7)
-  {
+  if (n < 7) {
     for (pm = a + ST_POINTER_STEP; pm < a + n * ST_POINTER_STEP;
          pm += ST_POINTER_STEP)
       for (pl = pm; pl > a && DO_COMPARE(pl - ST_POINTER_STEP, pl) > 0;
@@ -324,12 +323,10 @@ loop:
   presorted = 1;
 
   for (pm = a + ST_POINTER_STEP; pm < a + n * ST_POINTER_STEP;
-       pm += ST_POINTER_STEP)
-  {
+       pm += ST_POINTER_STEP) {
     DO_CHECK_FOR_INTERRUPTS();
 
-    if (DO_COMPARE(pm - ST_POINTER_STEP, pm) > 0)
-    {
+    if (DO_COMPARE(pm - ST_POINTER_STEP, pm) > 0) {
       presorted = 0;
       break;
     }
@@ -340,13 +337,11 @@ loop:
 
   pm = a + (n / 2) * ST_POINTER_STEP;
 
-  if (n > 7)
-  {
+  if (n > 7) {
     pl = a;
     pn = a + (n - 1) * ST_POINTER_STEP;
 
-    if (n > 40)
-    {
+    if (n > 40) {
       size_t    d = (n / 8) * ST_POINTER_STEP;
 
       pl = DO_MED3(pl, pl + d, pl + 2 * d);
@@ -361,12 +356,9 @@ loop:
   pa = pb = a + ST_POINTER_STEP;
   pc = pd = a + (n - 1) * ST_POINTER_STEP;
 
-  for (;;)
-  {
-    while (pb <= pc && (r = DO_COMPARE(pb, a)) <= 0)
-    {
-      if (r == 0)
-      {
+  for (;;) {
+    while (pb <= pc && (r = DO_COMPARE(pb, a)) <= 0) {
+      if (r == 0) {
         DO_SWAP(pa, pb);
         pa += ST_POINTER_STEP;
       }
@@ -375,10 +367,8 @@ loop:
       DO_CHECK_FOR_INTERRUPTS();
     }
 
-    while (pb <= pc && (r = DO_COMPARE(pc, a)) >= 0)
-    {
-      if (r == 0)
-      {
+    while (pb <= pc && (r = DO_COMPARE(pc, a)) >= 0) {
+      if (r == 0) {
         DO_SWAP(pc, pd);
         pd -= ST_POINTER_STEP;
       }
@@ -403,29 +393,24 @@ loop:
   d1 = pb - pa;
   d2 = pd - pc;
 
-  if (d1 <= d2)
-  {
+  if (d1 <= d2) {
     /* Recurse on left partition, then iterate on right partition */
     if (d1 > ST_POINTER_STEP)
       DO_SORT(a, d1 / ST_POINTER_STEP);
 
-    if (d2 > ST_POINTER_STEP)
-    {
+    if (d2 > ST_POINTER_STEP) {
       /* Iterate rather than recurse to save stack space */
       /* DO_SORT(pn - d2, d2 / ST_POINTER_STEP) */
       a = pn - d2;
       n = d2 / ST_POINTER_STEP;
       goto loop;
     }
-  }
-  else
-  {
+  } else {
     /* Recurse on right partition, then iterate on left partition */
     if (d2 > ST_POINTER_STEP)
       DO_SORT(pn - d2, d2 / ST_POINTER_STEP);
 
-    if (d1 > ST_POINTER_STEP)
-    {
+    if (d1 > ST_POINTER_STEP) {
       /* Iterate rather than recurse to save stack space */
       /* DO_SORT(a, d1 / ST_POINTER_STEP) */
       n = d1 / ST_POINTER_STEP;

@@ -30,6 +30,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -49,6 +50,7 @@
 void
 restoreTimeLineHistoryFiles(TimeLineID begin, TimeLineID end)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   char    histfname[MAXFNAMELEN];
   TimeLineID  tli;
@@ -75,6 +77,7 @@ restoreTimeLineHistoryFiles(TimeLineID begin, TimeLineID end)
 List *
 readTimeLineHistory(TimeLineID targetTLI)
 {
+  DBUG_TRACE;
   List     *result;
   char    path[MAXPGPATH];
   char    histfname[MAXFNAMELEN];
@@ -102,10 +105,12 @@ readTimeLineHistory(TimeLineID targetTLI)
   fd = AllocateFile(path, "r");
 
   if (fd == NULL) {
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not open file \"%s\"", path);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not open file \"%s\": %m", path)));
+    }
 
     /* Not there, so assume no parents */
     entry = (TimeLineHistoryEntry *) palloc(sizeof(TimeLineHistoryEntry));
@@ -135,10 +140,12 @@ readTimeLineHistory(TimeLineID targetTLI)
     pgstat_report_wait_end();
 
     if (res == NULL) {
-      if (ferror(fd))
+      if (ferror(fd)) {
+        DBUG_INSTANT_PRINT("info", "could not read file \"%s\"", path);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not read file \"%s\": %m", path)));
+      }
 
       break;
     }
@@ -155,21 +162,26 @@ readTimeLineHistory(TimeLineID targetTLI)
     nfields = sscanf(fline, "%u\t%X/%X", &tli, &switchpoint_hi, &switchpoint_lo);
 
     if (nfields < 1) {
+      DBUG_INSTANT_PRINT("info", "syntax error in history file: %s", fline);
       /* expect a numeric timeline ID as first field of line */
       ereport(FATAL,
               (errmsg("syntax error in history file: %s", fline),
                errhint("Expected a numeric timeline ID.")));
     }
 
-    if (nfields != 3)
+    if (nfields != 3) {
+      DBUG_INSTANT_PRINT("info", "syntax error in history file: %s", fline);
       ereport(FATAL,
               (errmsg("syntax error in history file: %s", fline),
                errhint("Expected a write-ahead log switchpoint location.")));
+    }
 
-    if (result && tli <= lasttli)
+    if (result && tli <= lasttli) {
+      DBUG_INSTANT_PRINT("info", "syntax error in history file: %s", fline);
       ereport(FATAL,
               (errmsg("invalid data in history file: %s", fline),
                errhint("Timeline IDs must be in increasing sequence.")));
+    }
 
     lasttli = tli;
 
@@ -187,10 +199,12 @@ readTimeLineHistory(TimeLineID targetTLI)
 
   FreeFile(fd);
 
-  if (result && targetTLI <= lasttli)
+  if (result && targetTLI <= lasttli) {
+    DBUG_INSTANT_PRINT("info", "invalid data in history file \"%s\"", path);
     ereport(FATAL,
             (errmsg("invalid data in history file \"%s\"", path),
              errhint("Timeline IDs must be less than child timeline's ID.")));
+  }
 
   /*
    * Create one more entry for the "tip" of the timeline, which has no entry
@@ -219,6 +233,7 @@ readTimeLineHistory(TimeLineID targetTLI)
 bool
 existsTimeLineHistory(TimeLineID probeTLI)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   char    histfname[MAXFNAMELEN];
   FILE     *fd;
@@ -239,10 +254,12 @@ existsTimeLineHistory(TimeLineID probeTLI)
     FreeFile(fd);
     return true;
   } else {
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not open file \"%s\"", path);
       ereport(FATAL,
               (errcode_for_file_access(),
                errmsg("could not open file \"%s\": %m", path)));
+    }
 
     return false;
   }
@@ -258,6 +275,7 @@ existsTimeLineHistory(TimeLineID probeTLI)
 TimeLineID
 findNewestTimeLine(TimeLineID startTLI)
 {
+  DBUG_TRACE;
   TimeLineID  newestTLI;
   TimeLineID  probeTLI;
 
@@ -295,6 +313,7 @@ void
 writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
                      XLogRecPtr switchpoint, char *reason)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   char    tmppath[MAXPGPATH];
   char    histfname[MAXFNAMELEN];
@@ -315,10 +334,12 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
   /* do not use get_sync_bit() here --- want to fsync only at end of fill */
   fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
 
-  if (fd < 0)
+  if (fd < 0) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m", tmppath)));
+  }
 
   /*
    * If a history file exists for the parent, copy it verbatim
@@ -332,10 +353,12 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
   srcfd = OpenTransientFile(path, O_RDONLY);
 
   if (srcfd < 0) {
-    if (errno != ENOENT)
+    if (errno != ENOENT) {
+      DBUG_INSTANT_PRINT("info", "could not open file \"%s\"", path);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not open file \"%s\": %m", path)));
+    }
 
     /* Not there, so assume parent has no parents */
   } else {
@@ -345,10 +368,12 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
       nbytes = (int) read(srcfd, buffer, sizeof(buffer));
       pgstat_report_wait_end();
 
-      if (nbytes < 0 || errno != 0)
+      if (nbytes < 0 || errno != 0) {
+        DBUG_INSTANT_PRINT("info", "could not read file \"%s\"", path);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not read file \"%s\": %m", path)));
+      }
 
       if (nbytes == 0)
         break;
@@ -370,6 +395,7 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
          */
         errno = save_errno ? save_errno : ENOSPC;
 
+        DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", tmppath);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not write to file \"%s\": %m", tmppath)));
@@ -378,10 +404,12 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
       pgstat_report_wait_end();
     }
 
-    if (CloseTransientFile(srcfd) != 0)
+    if (CloseTransientFile(srcfd) != 0) {
+      DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", path);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not close file \"%s\": %m", path)));
+    }
   }
 
   /*
@@ -411,6 +439,7 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
     /* if write didn't set errno, assume problem is no disk space */
     errno = save_errno ? save_errno : ENOSPC;
 
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", tmppath)));
@@ -420,17 +449,21 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
 
   pgstat_report_wait_start(WAIT_EVENT_TIMELINE_HISTORY_SYNC);
 
-  if (pg_fsync(fd) != 0)
+  if (pg_fsync(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", tmppath);
     ereport(data_sync_elevel(ERROR),
             (errcode_for_file_access(),
              errmsg("could not fsync file \"%s\": %m", tmppath)));
+  }
 
   pgstat_report_wait_end();
 
-  if (CloseTransientFile(fd) != 0)
+  if (CloseTransientFile(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not close file \"%s\": %m", tmppath)));
+  }
 
   /*
    * Now move the completed history file into place with its final name.
@@ -456,6 +489,7 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
 void
 writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   char    tmppath[MAXPGPATH];
   int     fd;
@@ -470,10 +504,12 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
   /* do not use get_sync_bit() here --- want to fsync only at end of fill */
   fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
 
-  if (fd < 0)
+  if (fd < 0) {
+    DBUG_INSTANT_PRINT("info", "could not create file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not create file \"%s\": %m", tmppath)));
+  }
 
   errno = 0;
   pgstat_report_wait_start(WAIT_EVENT_TIMELINE_HISTORY_FILE_WRITE);
@@ -488,6 +524,7 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
     /* if write didn't set errno, assume problem is no disk space */
     errno = save_errno ? save_errno : ENOSPC;
 
+    DBUG_INSTANT_PRINT("info", "could not write to file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not write to file \"%s\": %m", tmppath)));
@@ -497,17 +534,21 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
 
   pgstat_report_wait_start(WAIT_EVENT_TIMELINE_HISTORY_FILE_SYNC);
 
-  if (pg_fsync(fd) != 0)
+  if (pg_fsync(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not fsync file \"%s\"", tmppath);
     ereport(data_sync_elevel(ERROR),
             (errcode_for_file_access(),
              errmsg("could not fsync file \"%s\": %m", tmppath)));
+  }
 
   pgstat_report_wait_end();
 
-  if (CloseTransientFile(fd) != 0)
+  if (CloseTransientFile(fd) != 0) {
+    DBUG_INSTANT_PRINT("info", "could not close file \"%s\"", tmppath);
     ereport(ERROR,
             (errcode_for_file_access(),
              errmsg("could not close file \"%s\": %m", tmppath)));
+  }
 
   /*
    * Now move the completed history file into place with its final name,
@@ -523,6 +564,7 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
 bool
 tliInHistory(TimeLineID tli, List *expectedTLEs)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   foreach(cell, expectedTLEs) {
@@ -540,6 +582,7 @@ tliInHistory(TimeLineID tli, List *expectedTLEs)
 TimeLineID
 tliOfPointInHistory(XLogRecPtr ptr, List *history)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   foreach(cell, history) {
@@ -553,6 +596,7 @@ tliOfPointInHistory(XLogRecPtr ptr, List *history)
   }
 
   /* shouldn't happen. */
+  DBUG_INSTANT_PRINT("info", "timeline history was not contiguous");
   elog(ERROR, "timeline history was not contiguous");
   return 0;         /* keep compiler quiet */
 }
@@ -566,6 +610,7 @@ tliOfPointInHistory(XLogRecPtr ptr, List *history)
 XLogRecPtr
 tliSwitchPoint(TimeLineID tli, List *history, TimeLineID *nextTLI)
 {
+  DBUG_TRACE;
   ListCell   *cell;
 
   if (nextTLI)
@@ -581,6 +626,7 @@ tliSwitchPoint(TimeLineID tli, List *history, TimeLineID *nextTLI)
       *nextTLI = tle->tli;
   }
 
+  DBUG_INSTANT_PRINT("info", "requested timeline %u is not in this server's history", tli);
   ereport(ERROR,
           (errmsg("requested timeline %u is not in this server's history",
                   tli)));

@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/amvalidate.h"
@@ -42,6 +43,7 @@
 List *
 identify_opfamily_groups(CatCList *oprlist, CatCList *proclist)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   OpFamilyOpFuncGroup *thisgroup;
   Form_pg_amop oprform;
@@ -144,6 +146,7 @@ bool
 check_amproc_signature(Oid funcid, Oid restype, bool exact,
                        int minargs, int maxargs, ...)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple tp;
   Form_pg_proc procform;
@@ -187,6 +190,7 @@ check_amproc_signature(Oid funcid, Oid restype, bool exact,
 bool
 check_amoptsproc_signature(Oid funcid)
 {
+  DBUG_TRACE;
   return check_amproc_signature(funcid, VOIDOID, true, 1, 1, INTERNALOID);
 }
 
@@ -201,6 +205,7 @@ check_amoptsproc_signature(Oid funcid)
 bool
 check_amop_signature(Oid opno, Oid restype, Oid lefttype, Oid righttype)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple tp;
   Form_pg_operator opform;
@@ -233,6 +238,7 @@ check_amop_signature(Oid opno, Oid restype, Oid lefttype, Oid righttype)
 Oid
 opclass_for_family_datatype(Oid amoid, Oid opfamilyoid, Oid datatypeoid)
 {
+  DBUG_TRACE;
   Oid     result = InvalidOid;
   CatCList   *opclist;
   int     i;
@@ -266,6 +272,7 @@ opclass_for_family_datatype(Oid amoid, Oid opfamilyoid, Oid datatypeoid)
 bool
 opfamily_can_sort_type(Oid opfamilyoid, Oid datatypeoid)
 {
+  DBUG_TRACE;
   return OidIsValid(opclass_for_family_datatype(BTREE_AM_OID,
                     opfamilyoid,
                     datatypeoid));

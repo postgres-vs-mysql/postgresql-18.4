@@ -20,6 +20,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "storage/freespace.h"
@@ -37,11 +38,13 @@
 BlockNumber
 GetFreeIndexPage(Relation rel)
 {
+  DBUG_TRACE;
   BlockNumber blkno = GetPageWithFreeSpace(rel, BLCKSZ / 2);
 
   if (blkno != InvalidBlockNumber)
     RecordUsedIndexPage(rel, blkno);
 
+  DBUG_PRINT("info", "return a free page from the FSM:%u", blkno);
   return blkno;
 }
 
@@ -51,7 +54,9 @@ GetFreeIndexPage(Relation rel)
 void
 RecordFreeIndexPage(Relation rel, BlockNumber freeBlock)
 {
+  DBUG_TRACE;
   RecordPageWithFreeSpace(rel, freeBlock, BLCKSZ - 1);
+  DBUG_PRINT("info", "mark a page as free in the FSM:%u", freeBlock);
 }
 
 
@@ -61,7 +66,9 @@ RecordFreeIndexPage(Relation rel, BlockNumber freeBlock)
 void
 RecordUsedIndexPage(Relation rel, BlockNumber usedBlock)
 {
+  DBUG_TRACE;
   RecordPageWithFreeSpace(rel, usedBlock, 0);
+  DBUG_PRINT("info", "mark a page as used in the FSM:%u", usedBlock);
 }
 
 /*
@@ -70,5 +77,6 @@ RecordUsedIndexPage(Relation rel, BlockNumber usedBlock)
 void
 IndexFreeSpaceMapVacuum(Relation rel)
 {
+  DBUG_TRACE;
   FreeSpaceMapVacuum(rel);
 }

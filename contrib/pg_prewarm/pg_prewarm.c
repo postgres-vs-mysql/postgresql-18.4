@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -58,6 +59,7 @@ static PGIOAlignedBlock blockbuffer;
 Datum
 pg_prewarm(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relOid;
   text     *forkName;
   text     *type;
@@ -277,5 +279,6 @@ pg_prewarm(PG_FUNCTION_ARGS)
   if (privOid != relOid)
     UnlockRelationOid(privOid, AccessShareLock);
 
+  DBUG_PRINT("prewarm", "the number of blocks successfully prewarmed:%ld", blocks_done);
   PG_RETURN_INT64(blocks_done);
 }

@@ -2517,6 +2517,7 @@ check_hba(hbaPort *port)
 bool
 load_hba(void)
 {
+  DBUG_TRACE;
   FILE     *file;
   List     *hba_lines = NIL;
   ListCell   *line;
@@ -2525,6 +2526,7 @@ load_hba(void)
   MemoryContext oldcxt;
   MemoryContext hbacxt;
 
+  DBUG_PRINT("info", "read the config file:'%s'", HbaFileName);
   file = open_auth_file(HbaFileName, LOG, 0, NULL);
 
   if (file == NULL) {
@@ -2874,6 +2876,7 @@ check_usermap(const char *usermap_name,
 bool
 load_ident(void)
 {
+  DBUG_TRACE;
   FILE     *file;
   List     *ident_lines = NIL;
   ListCell   *line_cell;

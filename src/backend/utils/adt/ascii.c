@@ -9,6 +9,7 @@
  *
  *-----------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "mb/pg_wchar.h"
@@ -108,6 +109,7 @@ encode_to_ascii(text *data, int enc)
 Datum
 to_ascii_encname(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data = PG_GETARG_TEXT_P_COPY(0);
   char     *encname = NameStr(*PG_GETARG_NAME(1));
   int     enc = pg_char_to_encoding(encname);
@@ -127,6 +129,7 @@ to_ascii_encname(PG_FUNCTION_ARGS)
 Datum
 to_ascii_enc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data = PG_GETARG_TEXT_P_COPY(0);
   int     enc = PG_GETARG_INT32(1);
 
@@ -145,6 +148,7 @@ to_ascii_enc(PG_FUNCTION_ARGS)
 Datum
 to_ascii_default(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data = PG_GETARG_TEXT_P_COPY(0);
   int     enc = GetDatabaseEncoding();
 

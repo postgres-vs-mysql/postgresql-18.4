@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -274,6 +275,7 @@ pg_read_binary_file_common(text *filename_t,
 Datum
 pg_read_file_off_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   int64   seek_offset = PG_GETARG_INT64(1);
   int64   bytes_to_read = PG_GETARG_INT64(2);
@@ -291,6 +293,7 @@ pg_read_file_off_len(PG_FUNCTION_ARGS)
 Datum
 pg_read_file_off_len_missing(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   int64   seek_offset = PG_GETARG_INT64(1);
   int64   bytes_to_read = PG_GETARG_INT64(2);
@@ -309,6 +312,7 @@ pg_read_file_off_len_missing(PG_FUNCTION_ARGS)
 Datum
 pg_read_file_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   text     *ret;
 
@@ -323,6 +327,7 @@ pg_read_file_all(PG_FUNCTION_ARGS)
 Datum
 pg_read_file_all_missing(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   bool    missing_ok = PG_GETARG_BOOL(1);
   text     *ret;
@@ -338,6 +343,7 @@ pg_read_file_all_missing(PG_FUNCTION_ARGS)
 Datum
 pg_read_binary_file_off_len(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   int64   seek_offset = PG_GETARG_INT64(1);
   int64   bytes_to_read = PG_GETARG_INT64(2);
@@ -355,6 +361,7 @@ pg_read_binary_file_off_len(PG_FUNCTION_ARGS)
 Datum
 pg_read_binary_file_off_len_missing(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   int64   seek_offset = PG_GETARG_INT64(1);
   int64   bytes_to_read = PG_GETARG_INT64(2);
@@ -373,6 +380,7 @@ pg_read_binary_file_off_len_missing(PG_FUNCTION_ARGS)
 Datum
 pg_read_binary_file_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   text     *ret;
 
@@ -387,6 +395,7 @@ pg_read_binary_file_all(PG_FUNCTION_ARGS)
 Datum
 pg_read_binary_file_all_missing(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   bool    missing_ok = PG_GETARG_BOOL(1);
   text     *ret;
@@ -405,6 +414,7 @@ pg_read_binary_file_all_missing(PG_FUNCTION_ARGS)
 Datum
 pg_stat_file(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *filename_t = PG_GETARG_TEXT_PP(0);
   char     *filename;
   struct stat fst;
@@ -480,6 +490,7 @@ pg_stat_file(PG_FUNCTION_ARGS)
 Datum
 pg_stat_file_1arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_stat_file(fcinfo);
 }
 
@@ -489,6 +500,7 @@ pg_stat_file_1arg(PG_FUNCTION_ARGS)
 Datum
 pg_ls_dir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   char     *location;
   bool    missing_ok = false;
@@ -549,6 +561,7 @@ pg_ls_dir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_dir_1arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir(fcinfo);
 }
 
@@ -561,6 +574,7 @@ pg_ls_dir_1arg(PG_FUNCTION_ARGS)
 static Datum
 pg_ls_dir_files(FunctionCallInfo fcinfo, const char *dir, bool missing_ok)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   DIR      *dirdesc;
   struct dirent *de;
@@ -625,6 +639,7 @@ pg_ls_dir_files(FunctionCallInfo fcinfo, const char *dir, bool missing_ok)
 Datum
 pg_ls_logdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, Log_directory, false);
 }
 
@@ -632,6 +647,7 @@ pg_ls_logdir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_waldir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, XLOGDIR, false);
 }
 
@@ -641,6 +657,7 @@ pg_ls_waldir(PG_FUNCTION_ARGS)
 static Datum
 pg_ls_tmpdir(FunctionCallInfo fcinfo, Oid tblspc)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
 
   if (!SearchSysCacheExists1(TABLESPACEOID, ObjectIdGetDatum(tblspc)))
@@ -660,6 +677,7 @@ pg_ls_tmpdir(FunctionCallInfo fcinfo, Oid tblspc)
 Datum
 pg_ls_tmpdir_noargs(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_tmpdir(fcinfo, DEFAULTTABLESPACE_OID);
 }
 
@@ -670,6 +688,7 @@ pg_ls_tmpdir_noargs(PG_FUNCTION_ARGS)
 Datum
 pg_ls_tmpdir_1arg(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_tmpdir(fcinfo, PG_GETARG_OID(0));
 }
 
@@ -679,6 +698,7 @@ pg_ls_tmpdir_1arg(PG_FUNCTION_ARGS)
 Datum
 pg_ls_archive_statusdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, XLOGDIR "/archive_status", true);
 }
 
@@ -688,6 +708,7 @@ pg_ls_archive_statusdir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_summariesdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, XLOGDIR "/summaries", true);
 }
 
@@ -698,6 +719,7 @@ pg_ls_summariesdir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_logicalsnapdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, PG_LOGICAL_SNAPSHOTS_DIR, false);
 }
 
@@ -708,6 +730,7 @@ pg_ls_logicalsnapdir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_logicalmapdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return pg_ls_dir_files(fcinfo, PG_LOGICAL_MAPPINGS_DIR, false);
 }
 
@@ -718,6 +741,7 @@ pg_ls_logicalmapdir(PG_FUNCTION_ARGS)
 Datum
 pg_ls_replslotdir(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *slotname_t;
   char    path[MAXPGPATH];
   char     *slotname;

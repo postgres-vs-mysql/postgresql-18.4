@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam.h"
 #include "access/htup_details.h"
@@ -121,6 +122,7 @@ static void SetDatabaseHasLoginEventTriggers(void);
 Oid
 CreateEventTrigger(CreateEventTrigStmt *stmt)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
   Oid     funcoid;
   Oid     funcrettype;
@@ -128,28 +130,34 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
   ListCell   *lc;
   List     *tags = NULL;
 
+  DBUG_PRINT("info", "create an event trigger");
+
   /*
    * It would be nice to allow database owners or even regular users to do
    * this, but there are obvious privilege escalation risks which would have
    * to somehow be plugged first.
    */
-  if (!superuser())
+  if (!superuser()) {
+    DBUG_INSTANT_PRINT("info", "permission denied to create event trigger \"%s\"", stmt->trigname);
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to create event trigger \"%s\"",
                     stmt->trigname),
              errhint("Must be superuser to create an event trigger.")));
+  }
 
   /* Validate event name. */
   if (strcmp(stmt->eventname, "ddl_command_start") != 0 &&
       strcmp(stmt->eventname, "ddl_command_end") != 0 &&
       strcmp(stmt->eventname, "sql_drop") != 0 &&
       strcmp(stmt->eventname, "login") != 0 &&
-      strcmp(stmt->eventname, "table_rewrite") != 0)
+      strcmp(stmt->eventname, "table_rewrite") != 0) {
+    DBUG_INSTANT_PRINT("info", "unrecognized event name \"%s\"", stmt->trigname);
     ereport(ERROR,
             (errcode(ERRCODE_SYNTAX_ERROR),
              errmsg("unrecognized event name \"%s\"",
                     stmt->eventname)));
+  }
 
   /* Validate filter conditions. */
   foreach(lc, stmt->whenclause) {
@@ -160,10 +168,12 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
         error_duplicate_filter_variable(def->defname);
 
       tags = (List *) def->arg;
-    } else
+    } else {
+      DBUG_INSTANT_PRINT("info", "unrecognized filter variable \"%s\"", def->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("unrecognized filter variable \"%s\"", def->defname)));
+    }
   }
 
   /* Validate tag list, if any. */
@@ -175,10 +185,12 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
   else if (strcmp(stmt->eventname, "table_rewrite") == 0
            && tags != NULL)
     validate_table_rewrite_tags("tag", tags);
-  else if (strcmp(stmt->eventname, "login") == 0 && tags != NULL)
+  else if (strcmp(stmt->eventname, "login") == 0 && tags != NULL) {
+    DBUG_INSTANT_PRINT("info", "tag filtering is not supported for login event triggers");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("tag filtering is not supported for login event triggers")));
+  }
 
   /*
    * Give user a nice error message if an event trigger of the same name
@@ -186,21 +198,25 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
    */
   tuple = SearchSysCache1(EVENTTRIGGERNAME, CStringGetDatum(stmt->trigname));
 
-  if (HeapTupleIsValid(tuple))
+  if (HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "event trigger \"%s\" already exists", stmt->trigname);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("event trigger \"%s\" already exists",
                     stmt->trigname)));
+  }
 
   /* Find and validate the trigger function. */
   funcoid = LookupFuncName(stmt->funcname, 0, NULL, false);
   funcrettype = get_func_rettype(funcoid);
 
-  if (funcrettype != EVENT_TRIGGEROID)
+  if (funcrettype != EVENT_TRIGGEROID) {
+    DBUG_INSTANT_PRINT("info", "function %s must return type %s", NameListToString(stmt->funcname), "event_trigger");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("function %s must return type %s",
                     NameListToString(stmt->funcname), "event_trigger")));
+  }
 
   /* Insert catalog entries. */
   return insert_event_trigger_tuple(stmt->trigname, stmt->eventname,
@@ -213,24 +229,29 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 static void
 validate_ddl_tags(const char *filtervar, List *taglist)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, taglist) {
     const char *tagstr = strVal(lfirst(lc));
     CommandTag  commandTag = GetCommandTagEnum(tagstr);
 
-    if (commandTag == CMDTAG_UNKNOWN)
+    if (commandTag == CMDTAG_UNKNOWN) {
+      DBUG_INSTANT_PRINT("info", "filter value \"%s\" not recognized for filter variable \"%s\"", tagstr, filtervar);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("filter value \"%s\" not recognized for filter variable \"%s\"",
                       tagstr, filtervar)));
+    }
 
-    if (!command_tag_event_trigger_ok(commandTag))
+    if (!command_tag_event_trigger_ok(commandTag)) {
+      DBUG_INSTANT_PRINT("info", "event triggers are not supported for %s", tagstr);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /* translator: %s represents an SQL statement name */
                errmsg("event triggers are not supported for %s",
                       tagstr)));
+    }
   }
 }
 
@@ -240,18 +261,21 @@ validate_ddl_tags(const char *filtervar, List *taglist)
 static void
 validate_table_rewrite_tags(const char *filtervar, List *taglist)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   foreach(lc, taglist) {
     const char *tagstr = strVal(lfirst(lc));
     CommandTag  commandTag = GetCommandTagEnum(tagstr);
 
-    if (!command_tag_table_rewrite_ok(commandTag))
+    if (!command_tag_table_rewrite_ok(commandTag)) {
+      DBUG_INSTANT_PRINT("info", "event triggers are not supported for %s", tagstr);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /* translator: %s represents an SQL statement name */
                errmsg("event triggers are not supported for %s",
                       tagstr)));
+    }
   }
 }
 
@@ -261,6 +285,7 @@ validate_table_rewrite_tags(const char *filtervar, List *taglist)
 static void
 error_duplicate_filter_variable(const char *defname)
 {
+  DBUG_INSTANT_PRINT("info", "filter variable \"%s\" specified more than once", defname);
   ereport(ERROR,
           (errcode(ERRCODE_SYNTAX_ERROR),
            errmsg("filter variable \"%s\" specified more than once",
@@ -274,6 +299,7 @@ static Oid
 insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtOwner,
                            Oid funcoid, List *taglist)
 {
+  DBUG_TRACE;
   Relation  tgrel;
   Oid     trigoid;
   HeapTuple tuple;
@@ -284,6 +310,7 @@ insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtO
   ObjectAddress myself,
                 referenced;
 
+  DBUG_PRINT("info", "insert the new pg_event_trigger row and record dependencies");
   /* Open pg_event_trigger. */
   tgrel = table_open(EventTriggerRelationId, RowExclusiveLock);
 
@@ -357,6 +384,7 @@ insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtO
 static Datum
 filter_list_to_array(List *filterlist)
 {
+  DBUG_TRACE;
   ListCell   *lc;
   Datum    *data;
   int     i = 0,
@@ -388,6 +416,7 @@ filter_list_to_array(List *filterlist)
 void
 SetDatabaseHasLoginEventTriggers(void)
 {
+  DBUG_TRACE;
   /* Set dathasloginevt flag in pg_database */
   Form_pg_database db;
   Relation  pg_db = table_open(DatabaseRelationId, RowExclusiveLock);
@@ -428,22 +457,26 @@ SetDatabaseHasLoginEventTriggers(void)
 Oid
 AlterEventTrigger(AlterEventTrigStmt *stmt)
 {
+  DBUG_TRACE;
   Relation  tgrel;
   HeapTuple tup;
   Oid     trigoid;
   Form_pg_event_trigger evtForm;
   char    tgenabled = stmt->tgenabled;
 
+  DBUG_PRINT("info", "alter event trigger");
   tgrel = table_open(EventTriggerRelationId, RowExclusiveLock);
 
   tup = SearchSysCacheCopy1(EVENTTRIGGERNAME,
                             CStringGetDatum(stmt->trigname));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "event trigger \"%s\" does not exist", stmt->trigname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("event trigger \"%s\" does not exist",
                     stmt->trigname)));
+  }
 
   evtForm = (Form_pg_event_trigger) GETSTRUCT(tup);
   trigoid = evtForm->oid;
@@ -481,20 +514,24 @@ AlterEventTrigger(AlterEventTrigStmt *stmt)
 ObjectAddress
 AlterEventTriggerOwner(const char *name, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Oid     evtOid;
   HeapTuple tup;
   Form_pg_event_trigger evtForm;
   Relation  rel;
   ObjectAddress address;
 
+  DBUG_PRINT("info", "change event trigger's owner -- by name");
   rel = table_open(EventTriggerRelationId, RowExclusiveLock);
 
   tup = SearchSysCacheCopy1(EVENTTRIGGERNAME, CStringGetDatum(name));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "event trigger \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("event trigger \"%s\" does not exist", name)));
+  }
 
   evtForm = (Form_pg_event_trigger) GETSTRUCT(tup);
   evtOid = evtForm->oid;
@@ -516,17 +553,21 @@ AlterEventTriggerOwner(const char *name, Oid newOwnerId)
 void
 AlterEventTriggerOwner_oid(Oid trigOid, Oid newOwnerId)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Relation  rel;
 
+  DBUG_PRINT("info", "change event trigger's owner -- by OID");
   rel = table_open(EventTriggerRelationId, RowExclusiveLock);
 
   tup = SearchSysCacheCopy1(EVENTTRIGGEROID, ObjectIdGetDatum(trigOid));
 
-  if (!HeapTupleIsValid(tup))
+  if (!HeapTupleIsValid(tup)) {
+    DBUG_INSTANT_PRINT("info", "event trigger with OID %u does not exist", trigOid);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("event trigger with OID %u does not exist", trigOid)));
+  }
 
   AlterEventTriggerOwner_internal(rel, tup, newOwnerId);
 
@@ -541,9 +582,12 @@ AlterEventTriggerOwner_oid(Oid trigOid, Oid newOwnerId)
 static void
 AlterEventTriggerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
+  DBUG_TRACE;
   Form_pg_event_trigger form;
 
   form = (Form_pg_event_trigger) GETSTRUCT(tup);
+
+  DBUG_PRINT("info", "internal workhorse for changing an event trigger's owner");
 
   if (form->evtowner == newOwnerId)
     return;
@@ -553,16 +597,19 @@ AlterEventTriggerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
                    NameStr(form->evtname));
 
   /* New owner must be a superuser */
-  if (!superuser_arg(newOwnerId))
+  if (!superuser_arg(newOwnerId)) {
+    DBUG_INSTANT_PRINT("info", "permission denied to change owner of event trigger \"%s\"", NameStr(form->evtname));
     ereport(ERROR,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("permission denied to change owner of event trigger \"%s\"",
                     NameStr(form->evtname)),
              errhint("The owner of an event trigger must be a superuser.")));
+  }
 
   form->evtowner = newOwnerId;
   CatalogTupleUpdate(rel, &tup->t_self, tup);
 
+  DBUG_PRINT("info", "update owner dependency reference");
   /* Update owner dependency reference */
   changeDependencyOnOwner(EventTriggerRelationId,
                           form->oid,
@@ -581,15 +628,18 @@ AlterEventTriggerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 Oid
 get_event_trigger_oid(const char *trigname, bool missing_ok)
 {
+  DBUG_TRACE;
   Oid     oid;
 
   oid = GetSysCacheOid1(EVENTTRIGGERNAME, Anum_pg_event_trigger_oid,
                         CStringGetDatum(trigname));
 
-  if (!OidIsValid(oid) && !missing_ok)
+  if (!OidIsValid(oid) && !missing_ok) {
+    DBUG_INSTANT_PRINT("info", "event trigger \"%s\" does not exist", trigname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("event trigger \"%s\" does not exist", trigname)));
+  }
 
   return oid;
 }
@@ -602,22 +652,31 @@ get_event_trigger_oid(const char *trigname, bool missing_ok)
 static bool
 filter_event_trigger(CommandTag tag, EventTriggerCacheItem *item)
 {
+  DBUG_TRACE;
+
   /*
    * Filter by session replication role, knowing that we never see disabled
    * items down here.
    */
   if (SessionReplicationRole == SESSION_REPLICATION_ROLE_REPLICA) {
-    if (item->enabled == TRIGGER_FIRES_ON_ORIGIN)
+    if (item->enabled == TRIGGER_FIRES_ON_ORIGIN) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   } else {
-    if (item->enabled == TRIGGER_FIRES_ON_REPLICA)
+    if (item->enabled == TRIGGER_FIRES_ON_REPLICA) {
+      DBUG_PRINT("info", "return false");
       return false;
+    }
   }
 
   /* Filter by tags, if any were specified. */
-  if (!bms_is_empty(item->tagset) && !bms_is_member(tag, item->tagset))
+  if (!bms_is_empty(item->tagset) && !bms_is_member(tag, item->tagset)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
+  DBUG_PRINT("info", "return true");
   /* if we reach that point, we're not filtering out this item */
   return true;
 }
@@ -641,6 +700,7 @@ EventTriggerCommonSetup(Node *parsetree,
                         EventTriggerEvent event, const char *eventstr,
                         EventTriggerData *trigdata, bool unfiltered)
 {
+  DBUG_TRACE;
   CommandTag  tag;
   List     *cachelist;
   ListCell   *lc;
@@ -722,6 +782,7 @@ EventTriggerCommonSetup(Node *parsetree,
 void
 EventTriggerDDLCommandStart(Node *parsetree)
 {
+  DBUG_TRACE;
   List     *runlist;
   EventTriggerData trigdata;
 
@@ -744,18 +805,24 @@ EventTriggerDDLCommandStart(Node *parsetree)
    * Additionally, event triggers can be disabled with a superuser-only GUC
    * to make fixing database easier as per 1 above.
    */
-  if (!IsUnderPostmaster || !event_triggers)
+  if (!IsUnderPostmaster || !event_triggers) {
+    DBUG_PRINT("info", "nothing to do");
     return;
+  }
 
+  DBUG_PRINT("info", "fire ddl_command_start triggers");
   runlist = EventTriggerCommonSetup(parsetree,
                                     EVT_DDLCommandStart,
                                     "ddl_command_start",
                                     &trigdata, false);
 
-  if (runlist == NIL)
+  if (runlist == NIL) {
+    DBUG_PRINT("info", "nothing to do if run list is empty");
     return;
+  }
 
   /* Run the triggers. */
+  DBUG_PRINT("info", "run the triggers");
   EventTriggerInvoke(runlist, &trigdata);
 
   /* Cleanup. */
@@ -774,6 +841,7 @@ EventTriggerDDLCommandStart(Node *parsetree)
 void
 EventTriggerDDLCommandEnd(Node *parsetree)
 {
+  DBUG_TRACE;
   List     *runlist;
   EventTriggerData trigdata;
 
@@ -781,8 +849,10 @@ EventTriggerDDLCommandEnd(Node *parsetree)
    * See EventTriggerDDLCommandStart for a discussion about why event
    * triggers are disabled in single user mode or via GUC.
    */
-  if (!IsUnderPostmaster || !event_triggers)
+  if (!IsUnderPostmaster || !event_triggers) {
+    DBUG_PRINT("info", "nothing to do");
     return;
+  }
 
   /*
    * Also do nothing if our state isn't set up, which it won't be if there
@@ -794,15 +864,19 @@ EventTriggerDDLCommandEnd(Node *parsetree)
    * pg_event_trigger_ddl_commands which would fail.  Better to do nothing
    * until the next command.
    */
-  if (!currentEventTriggerState)
+  if (!currentEventTriggerState) {
+    DBUG_PRINT("info", "also do nothing");
     return;
+  }
 
   runlist = EventTriggerCommonSetup(parsetree,
                                     EVT_DDLCommandEnd, "ddl_command_end",
                                     &trigdata, false);
 
-  if (runlist == NIL)
+  if (runlist == NIL) {
+    DBUG_PRINT("info", "nothing to do if run list is empty");
     return;
+  }
 
   /*
    * Make sure anything the main command did will be visible to the event
@@ -811,6 +885,7 @@ EventTriggerDDLCommandEnd(Node *parsetree)
   CommandCounterIncrement();
 
   /* Run the triggers. */
+  DBUG_PRINT("info", "run the triggers");
   EventTriggerInvoke(runlist, &trigdata);
 
   /* Cleanup. */
@@ -823,6 +898,7 @@ EventTriggerDDLCommandEnd(Node *parsetree)
 void
 EventTriggerSQLDrop(Node *parsetree)
 {
+  DBUG_TRACE;
   List     *runlist;
   EventTriggerData trigdata;
 
@@ -830,8 +906,10 @@ EventTriggerSQLDrop(Node *parsetree)
    * See EventTriggerDDLCommandStart for a discussion about why event
    * triggers are disabled in single user mode or via a GUC.
    */
-  if (!IsUnderPostmaster || !event_triggers)
+  if (!IsUnderPostmaster || !event_triggers) {
+    DBUG_PRINT("info", "nothing to do");
     return;
+  }
 
   /*
    * Use current state to determine whether this event fires at all.  If
@@ -841,9 +919,12 @@ EventTriggerSQLDrop(Node *parsetree)
    * be empty.
    */
   if (!currentEventTriggerState ||
-      slist_is_empty(&currentEventTriggerState->SQLDropList))
+      slist_is_empty(&currentEventTriggerState->SQLDropList)) {
+    DBUG_PRINT("info", "there are no triggers for the sql_drop event");
     return;
+  }
 
+  DBUG_PRINT("info", "fire sql_drop triggers");
   runlist = EventTriggerCommonSetup(parsetree,
                                     EVT_SQLDrop, "sql_drop",
                                     &trigdata, false);
@@ -854,8 +935,10 @@ EventTriggerSQLDrop(Node *parsetree)
    * have been collected in the first place and we would have quit above.
    * But it could occur if event triggers were dropped partway through.
    */
-  if (runlist == NIL)
+  if (runlist == NIL) {
+    DBUG_PRINT("info", "nothing to do if run list is empty");
     return;
+  }
 
   /*
    * Make sure anything the main command did will be visible to the event
@@ -875,6 +958,7 @@ EventTriggerSQLDrop(Node *parsetree)
   /* Run the triggers. */
   PG_TRY();
   {
+    DBUG_PRINT("info", "run the triggers");
     EventTriggerInvoke(runlist, &trigdata);
   }
   PG_FINALLY();
@@ -896,6 +980,7 @@ EventTriggerSQLDrop(Node *parsetree)
 void
 EventTriggerOnLogin(void)
 {
+  DBUG_TRACE;
   List     *runlist;
   EventTriggerData trigdata;
 
@@ -905,9 +990,12 @@ EventTriggerOnLogin(void)
    * database connection (some background workers don't have it).
    */
   if (!IsUnderPostmaster || !event_triggers ||
-      !OidIsValid(MyDatabaseId) || !MyDatabaseHasLoginEventTriggers)
+      !OidIsValid(MyDatabaseId) || !MyDatabaseHasLoginEventTriggers) {
+    DBUG_PRINT("info", "nothing to do");
     return;
+  }
 
+  DBUG_PRINT("info", "fire login event triggers");
   StartTransactionCommand();
   runlist = EventTriggerCommonSetup(NULL,
                                     EVT_Login, "login",
@@ -920,6 +1008,7 @@ EventTriggerOnLogin(void)
     PushActiveSnapshot(GetTransactionSnapshot());
 
     /* Run the triggers. */
+    DBUG_PRINT("info", "run the triggers");
     EventTriggerInvoke(runlist, &trigdata);
 
     /* Cleanup. */
@@ -998,6 +1087,7 @@ EventTriggerOnLogin(void)
 void
 EventTriggerTableRewrite(Node *parsetree, Oid tableOid, int reason)
 {
+  DBUG_TRACE;
   List     *runlist;
   EventTriggerData trigdata;
 
@@ -1005,8 +1095,10 @@ EventTriggerTableRewrite(Node *parsetree, Oid tableOid, int reason)
    * See EventTriggerDDLCommandStart for a discussion about why event
    * triggers are disabled in single user mode or via a GUC.
    */
-  if (!IsUnderPostmaster || !event_triggers)
+  if (!IsUnderPostmaster || !event_triggers) {
+    DBUG_PRINT("info", "nothing to do");
     return;
+  }
 
   /*
    * Also do nothing if our state isn't set up, which it won't be if there
@@ -1015,16 +1107,21 @@ EventTriggerTableRewrite(Node *parsetree, Oid tableOid, int reason)
    * *necessary*, because EventTriggerCommonSetup might find triggers that
    * didn't exist at the time the command started.
    */
-  if (!currentEventTriggerState)
+  if (!currentEventTriggerState) {
+    DBUG_PRINT("info", "also do nothing");
     return;
+  }
 
+  DBUG_PRINT("info", "fire table_rewrite triggers");
   runlist = EventTriggerCommonSetup(parsetree,
                                     EVT_TableRewrite,
                                     "table_rewrite",
                                     &trigdata, false);
 
-  if (runlist == NIL)
+  if (runlist == NIL) {
+    DBUG_PRINT("info", "nothing to do if run list is empty");
     return;
+  }
 
   /*
    * Make sure pg_event_trigger_table_rewrite_oid only works when running
@@ -1039,6 +1136,7 @@ EventTriggerTableRewrite(Node *parsetree, Oid tableOid, int reason)
   /* Run the triggers. */
   PG_TRY();
   {
+    DBUG_PRINT("info", "run the triggers");
     EventTriggerInvoke(runlist, &trigdata);
   }
   PG_FINALLY();
@@ -1064,6 +1162,7 @@ EventTriggerTableRewrite(Node *parsetree, Oid tableOid, int reason)
 static void
 EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
 {
+  DBUG_TRACE;
   MemoryContext context;
   MemoryContext oldcontext;
   ListCell   *lc;
@@ -1082,6 +1181,8 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
   oldcontext = MemoryContextSwitchTo(context);
 
   /* Call each event trigger. */
+  DBUG_PRINT("info", "call each event trigger");
+
   foreach(lc, fn_oid_list) {
     LOCAL_FCINFO(fcinfo, 0);
     Oid     fnoid = lfirst_oid(lc);
@@ -1089,6 +1190,8 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
     PgStat_FunctionCallUsage fcusage;
 
     elog(DEBUG1, "EventTriggerInvoke %u", fnoid);
+
+    DBUG_PRINT("info", "EventTriggerInvoke %u", fnoid);
 
     /*
      * We want each event trigger to be able to see the results of the
@@ -1102,8 +1205,10 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
       CommandCounterIncrement();
 
     /* Look up the function */
+    DBUG_PRINT("info", "look up the function");
     fmgr_info(fnoid, &flinfo);
 
+    DBUG_PRINT("info", "call the function, passing no arguments but setting a context");
     /* Call the function, passing no arguments but setting a context. */
     InitFunctionCallInfoData(*fcinfo, &flinfo, 0,
                              InvalidOid, (Node *) trigdata, NULL);
@@ -1128,19 +1233,24 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
 bool
 EventTriggerSupportsObjectType(ObjectType obtype)
 {
+  DBUG_TRACE;
+
   switch (obtype) {
     case OBJECT_DATABASE:
     case OBJECT_TABLESPACE:
     case OBJECT_ROLE:
     case OBJECT_PARAMETER_ACL:
+      DBUG_PRINT("info", "no support for global objects (except subscriptions)");
       /* no support for global objects (except subscriptions) */
       return false;
 
     case OBJECT_EVENT_TRIGGER:
+      DBUG_PRINT("info", "no support for event triggers on event triggers");
       /* no support for event triggers on event triggers */
       return false;
 
     default:
+      DBUG_PRINT("info", "return true");
       return true;
   }
 }
@@ -1153,6 +1263,8 @@ EventTriggerSupportsObjectType(ObjectType obtype)
 bool
 EventTriggerSupportsObject(const ObjectAddress *object)
 {
+  DBUG_TRACE;
+
   switch (object->classId) {
     case DatabaseRelationId:
     case TableSpaceRelationId:
@@ -1160,13 +1272,16 @@ EventTriggerSupportsObject(const ObjectAddress *object)
     case AuthMemRelationId:
     case ParameterAclRelationId:
       /* no support for global objects (except subscriptions) */
+      DBUG_PRINT("info", "no support for global objects (except subscriptions)");
       return false;
 
     case EventTriggerRelationId:
+      DBUG_PRINT("info", "no support for event triggers on event triggers");
       /* no support for event triggers on event triggers */
       return false;
 
     default:
+      DBUG_PRINT("info", "return true");
       return true;
   }
 }
@@ -1180,6 +1295,7 @@ EventTriggerSupportsObject(const ObjectAddress *object)
 bool
 EventTriggerBeginCompleteQuery(void)
 {
+  DBUG_TRACE;
   EventTriggerQueryState *state;
   MemoryContext cxt;
 
@@ -1188,8 +1304,10 @@ EventTriggerBeginCompleteQuery(void)
    * reason to have event trigger state at all; so if there are none, don't
    * install one.
    */
-  if (!trackDroppedObjectsNeeded())
+  if (!trackDroppedObjectsNeeded()) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   cxt = AllocSetContextCreate(TopMemoryContext,
                               "event trigger state",
@@ -1207,6 +1325,7 @@ EventTriggerBeginCompleteQuery(void)
   state->previous = currentEventTriggerState;
   currentEventTriggerState = state;
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -1224,6 +1343,7 @@ EventTriggerBeginCompleteQuery(void)
 void
 EventTriggerEndCompleteQuery(void)
 {
+  DBUG_TRACE;
   EventTriggerQueryState *prevstate;
 
   prevstate = currentEventTriggerState->previous;
@@ -1274,6 +1394,7 @@ trackDroppedObjectsNeeded(void)
 void
 EventTriggerSQLDropAddObject(const ObjectAddress *object, bool original, bool normal)
 {
+  DBUG_TRACE;
   SQLDropObject *obj;
   MemoryContext oldcxt;
 
@@ -1515,11 +1636,13 @@ pg_event_trigger_dropped_objects(PG_FUNCTION_ARGS)
    * Protect this function from being called out of context
    */
   if (!currentEventTriggerState ||
-      !currentEventTriggerState->in_sql_drop)
+      !currentEventTriggerState->in_sql_drop) {
+    DBUG_INSTANT_PRINT("info", "pg_event_trigger_dropped_objects() can only be called in a sql_drop event trigger function");
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_EVENT_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("%s can only be called in a sql_drop event trigger function",
                     "pg_event_trigger_dropped_objects()")));
+  }
 
   /* Build tuplestore to hold the result rows */
   InitMaterializedSRF(fcinfo, 0);
@@ -1600,15 +1723,19 @@ pg_event_trigger_dropped_objects(PG_FUNCTION_ARGS)
 Datum
 pg_event_trigger_table_rewrite_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   /*
    * Protect this function from being called out of context
    */
   if (!currentEventTriggerState ||
-      currentEventTriggerState->table_rewrite_oid == InvalidOid)
+      currentEventTriggerState->table_rewrite_oid == InvalidOid) {
+    DBUG_INSTANT_PRINT("info", "pg_event_trigger_table_rewrite_oid() can only be called in a table_rewrite event trigger function");
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_EVENT_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("%s can only be called in a table_rewrite event trigger function",
                     "pg_event_trigger_table_rewrite_oid()")));
+  }
 
   PG_RETURN_OID(currentEventTriggerState->table_rewrite_oid);
 }
@@ -1621,15 +1748,19 @@ pg_event_trigger_table_rewrite_oid(PG_FUNCTION_ARGS)
 Datum
 pg_event_trigger_table_rewrite_reason(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   /*
    * Protect this function from being called out of context
    */
   if (!currentEventTriggerState ||
-      currentEventTriggerState->table_rewrite_reason == 0)
+      currentEventTriggerState->table_rewrite_reason == 0) {
+    DBUG_INSTANT_PRINT("info", "pg_event_trigger_table_rewrite_reason() can only be called in a table_rewrite event trigger function");
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_EVENT_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("%s can only be called in a table_rewrite event trigger function",
                     "pg_event_trigger_table_rewrite_reason()")));
+  }
 
   PG_RETURN_INT32(currentEventTriggerState->table_rewrite_reason);
 }
@@ -1661,6 +1792,8 @@ pg_event_trigger_table_rewrite_reason(PG_FUNCTION_ARGS)
 void
 EventTriggerInhibitCommandCollection(void)
 {
+  DBUG_TRACE;
+
   if (!currentEventTriggerState)
     return;
 
@@ -1673,6 +1806,8 @@ EventTriggerInhibitCommandCollection(void)
 void
 EventTriggerUndoInhibitCommandCollection(void)
 {
+  DBUG_TRACE;
+
   if (!currentEventTriggerState)
     return;
 
@@ -1697,6 +1832,7 @@ EventTriggerCollectSimpleCommand(ObjectAddress address,
                                  ObjectAddress secondaryObject,
                                  Node *parsetree)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
 
@@ -1705,6 +1841,7 @@ EventTriggerCollectSimpleCommand(ObjectAddress address,
       currentEventTriggerState->commandCollectionInhibited)
     return;
 
+  DBUG_PRINT("info", "register one object as being dropped by the current command");
   oldcxt = MemoryContextSwitchTo(currentEventTriggerState->cxt);
 
   command = palloc(sizeof(CollectedCommand));
@@ -1733,6 +1870,7 @@ EventTriggerCollectSimpleCommand(ObjectAddress address,
 void
 EventTriggerAlterTableStart(Node *parsetree)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
 
@@ -1767,6 +1905,8 @@ EventTriggerAlterTableStart(Node *parsetree)
 void
 EventTriggerAlterTableRelid(Oid objectId)
 {
+  DBUG_TRACE;
+
   if (!currentEventTriggerState ||
       currentEventTriggerState->commandCollectionInhibited)
     return;
@@ -1785,8 +1925,11 @@ EventTriggerAlterTableRelid(Oid objectId)
 void
 EventTriggerCollectAlterTableSubcmd(Node *subcmd, ObjectAddress address)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedATSubcmd *newsub;
+
+  DBUG_PRINT("info", "save data about a single part of an ALTER TABLE");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -1820,7 +1963,10 @@ EventTriggerCollectAlterTableSubcmd(Node *subcmd, ObjectAddress address)
 void
 EventTriggerAlterTableEnd(void)
 {
+  DBUG_TRACE;
   CollectedCommand *parent;
+
+  DBUG_PRINT("info", "finish up saving an ALTER TABLE command, and add it to command list");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -1856,10 +2002,13 @@ EventTriggerAlterTableEnd(void)
 void
 EventTriggerCollectGrant(InternalGrant *istmt)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
   InternalGrant *icopy;
   ListCell   *cell;
+
+  DBUG_PRINT("info", "save data about a GRANT/REVOKE command being executed");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -1902,8 +2051,11 @@ void
 EventTriggerCollectAlterOpFam(AlterOpFamilyStmt *stmt, Oid opfamoid,
                               List *operators, List *procedures)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
+
+  DBUG_PRINT("info", "save data about an ALTER OPERATOR FAMILY ADD/DROP command being executed");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -1935,8 +2087,11 @@ void
 EventTriggerCollectCreateOpClass(CreateOpClassStmt *stmt, Oid opcoid,
                                  List *operators, List *procedures)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
+
+  DBUG_PRINT("info", "save data about a CREATE OPERATOR CLASS command being executed");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -1969,8 +2124,11 @@ void
 EventTriggerCollectAlterTSConfig(AlterTSConfigurationStmt *stmt, Oid cfgId,
                                  Oid *dictIds, int ndicts)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
+
+  DBUG_PRINT("info", "save data about an ALTER TEXT SEARCH CONFIGURATION command being executed");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -2007,8 +2165,11 @@ EventTriggerCollectAlterTSConfig(AlterTSConfigurationStmt *stmt, Oid cfgId,
 void
 EventTriggerCollectAlterDefPrivs(AlterDefaultPrivilegesStmt *stmt)
 {
+  DBUG_TRACE;
   MemoryContext oldcxt;
   CollectedCommand *command;
+
+  DBUG_PRINT("info", "save data about an ALTER DEFAULT PRIVILEGES command being executed");
 
   /* ignore if event trigger context not set, or collection disabled */
   if (!currentEventTriggerState ||
@@ -2035,17 +2196,22 @@ EventTriggerCollectAlterDefPrivs(AlterDefaultPrivilegesStmt *stmt)
 Datum
 pg_event_trigger_ddl_commands(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "ia ddl_command_end event trigger, this function reports the DDL commands being run");
 
   /*
    * Protect this function from being called out of context
    */
-  if (!currentEventTriggerState)
+  if (!currentEventTriggerState) {
+    DBUG_INSTANT_PRINT("info", "pg_event_trigger_ddl_commands() can only be called in an event trigger function");
     ereport(ERROR,
             (errcode(ERRCODE_E_R_I_E_EVENT_TRIGGER_PROTOCOL_VIOLATED),
              errmsg("%s can only be called in an event trigger function",
                     "pg_event_trigger_ddl_commands()")));
+  }
 
   /* Build tuplestore to hold the result rows */
   InitMaterializedSRF(fcinfo, 0);

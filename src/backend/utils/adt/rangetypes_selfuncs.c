@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -66,12 +67,16 @@ static double calc_hist_selectivity_contains(TypeCacheEntry *typcache,
 static double
 default_range_selectivity(Oid operator)
 {
+  DBUG_TRACE;
+
   switch (operator) {
     case OID_RANGE_OVERLAP_OP:
+      DBUG_PRINT("info", "default range selectivity:0.01");
       return 0.01;
 
     case OID_RANGE_CONTAINS_OP:
     case OID_RANGE_CONTAINED_OP:
+      DBUG_PRINT("info", "default range selectivity:0.005");
       return 0.005;
 
     case OID_RANGE_CONTAINS_ELEM_OP:
@@ -81,6 +86,7 @@ default_range_selectivity(Oid operator)
        * "range @> elem" is more or less identical to a scalar
        * inequality "A >= b AND A <= c".
        */
+      DBUG_PRINT("info", "default range selectivity:%g", DEFAULT_RANGE_INEQ_SEL);
       return DEFAULT_RANGE_INEQ_SEL;
 
     case OID_RANGE_LESS_OP:
@@ -92,10 +98,12 @@ default_range_selectivity(Oid operator)
     case OID_RANGE_OVERLAPS_LEFT_OP:
     case OID_RANGE_OVERLAPS_RIGHT_OP:
       /* these are similar to regular scalar inequalities */
+      DBUG_PRINT("info", "default range selectivity:%g", DEFAULT_INEQ_SEL);
       return DEFAULT_INEQ_SEL;
 
     default:
       /* all range operators should be handled above, but just in case */
+      DBUG_PRINT("info", "default range selectivity:0.01");
       return 0.01;
   }
 }
@@ -106,6 +114,7 @@ default_range_selectivity(Oid operator)
 Datum
 rangesel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -214,6 +223,7 @@ rangesel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -221,6 +231,7 @@ static double
 calc_rangesel(TypeCacheEntry *typcache, VariableStatData *vardata,
               const RangeType *constval, Oid operator)
 {
+  DBUG_TRACE;
   double    hist_selec;
   double    selec;
   float4    empty_frac,
@@ -339,6 +350,7 @@ calc_rangesel(TypeCacheEntry *typcache, VariableStatData *vardata,
   /* all range operators are strict */
   selec *= (1.0 - null_frac);
 
+  DBUG_PRINT("info", "selectivity:%g", selec);
   /* result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
@@ -355,6 +367,7 @@ static double
 calc_hist_selectivity(TypeCacheEntry *typcache, VariableStatData *vardata,
                       const RangeType *constval, Oid operator)
 {
+  DBUG_TRACE;
   AttStatsSlot hslot;
   AttStatsSlot lslot;
   int     nhist;
@@ -558,6 +571,7 @@ calc_hist_selectivity(TypeCacheEntry *typcache, VariableStatData *vardata,
   free_attstatsslot(&lslot);
   free_attstatsslot(&hslot);
 
+  DBUG_PRINT("info", "histograms selectivity:%g", hist_selec);
   return hist_selec;
 }
 
@@ -570,6 +584,7 @@ static double
 calc_hist_selectivity_scalar(TypeCacheEntry *typcache, const RangeBound *constbound,
                              const RangeBound *hist, int hist_nvalues, bool equal)
 {
+  DBUG_TRACE;
   Selectivity selec;
   int     index;
 
@@ -585,6 +600,7 @@ calc_hist_selectivity_scalar(TypeCacheEntry *typcache, const RangeBound *constbo
     selec += get_position(typcache, constbound, &hist[index],
                           &hist[index + 1]) / (Selectivity) (hist_nvalues - 1);
 
+  DBUG_PRINT("info", "look up the fraction of values less than a given const in a histogram of range bounds:%g", selec);
   return selec;
 }
 
@@ -602,6 +618,7 @@ static int
 rbound_bsearch(TypeCacheEntry *typcache, const RangeBound *value, const RangeBound *hist,
                int hist_length, bool equal)
 {
+  DBUG_TRACE;
   int     lower = -1,
           upper = hist_length - 1,
           cmp,
@@ -617,6 +634,7 @@ rbound_bsearch(TypeCacheEntry *typcache, const RangeBound *value, const RangeBou
       upper = middle - 1;
   }
 
+  DBUG_PRINT("info", "binary search on an array of range bounds:%d", lower);
   return lower;
 }
 
@@ -631,6 +649,7 @@ static int
 length_hist_bsearch(Datum *length_hist_values, int length_hist_nvalues,
                     double value, bool equal)
 {
+  DBUG_TRACE;
   int     lower = -1,
           upper = length_hist_nvalues - 1,
           middle;
@@ -648,6 +667,7 @@ length_hist_bsearch(Datum *length_hist_values, int length_hist_nvalues,
       upper = middle - 1;
   }
 
+  DBUG_PRINT("info", "binary search on length histogram:%d", lower);
   return lower;
 }
 
@@ -658,6 +678,7 @@ static float8
 get_position(TypeCacheEntry *typcache, const RangeBound *value, const RangeBound *hist1,
              const RangeBound *hist2)
 {
+  DBUG_TRACE;
   bool    has_subdiff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
   float8    position;
 
@@ -768,6 +789,7 @@ get_len_position(double value, double hist1, double hist2)
 static float8
 get_distance(TypeCacheEntry *typcache, const RangeBound *bound1, const RangeBound *bound2)
 {
+  DBUG_TRACE;
   bool    has_subdiff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
 
   if (!bound1->infinite && !bound2->infinite) {
@@ -976,6 +998,7 @@ calc_hist_selectivity_contained(TypeCacheEntry *typcache,
                                 const RangeBound *hist_lower, int hist_nvalues,
                                 Datum *length_hist_values, int length_hist_nvalues)
 {
+  DBUG_TRACE;
   int     i,
           upper_index;
   float8    prev_dist;
@@ -1082,6 +1105,7 @@ calc_hist_selectivity_contained(TypeCacheEntry *typcache,
     prev_dist = dist;
   }
 
+  DBUG_PRINT("info", "sum_frac:%g", sum_frac);
   return sum_frac;
 }
 
@@ -1097,6 +1121,7 @@ calc_hist_selectivity_contains(TypeCacheEntry *typcache,
                                const RangeBound *hist_lower, int hist_nvalues,
                                Datum *length_hist_values, int length_hist_nvalues)
 {
+  DBUG_TRACE;
   int     i,
           lower_index;
   double    bin_width,
@@ -1175,5 +1200,6 @@ calc_hist_selectivity_contains(TypeCacheEntry *typcache,
     prev_dist = dist;
   }
 
+  DBUG_PRINT("info", "sum_frac:%g", sum_frac);
   return sum_frac;
 }

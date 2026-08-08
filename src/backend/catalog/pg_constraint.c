@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/gist.h"
@@ -82,6 +83,7 @@ CreateConstraintEntry(const char *constraintName,
                       bool conPeriod,
                       bool is_internal)
 {
+  DBUG_TRACE;
   Relation  conDesc;
   Oid     conOid;
   HeapTuple tup;
@@ -400,6 +402,7 @@ bool
 ConstraintNameIsUsed(ConstraintCategory conCat, Oid objId,
                      const char *conname)
 {
+  DBUG_TRACE;
   bool    found;
   Relation  conDesc;
   SysScanDesc conscan;
@@ -431,6 +434,12 @@ ConstraintNameIsUsed(ConstraintCategory conCat, Oid objId,
   systable_endscan(conscan);
   table_close(conDesc, AccessShareLock);
 
+  if (found) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   return found;
 }
 
@@ -444,6 +453,7 @@ ConstraintNameIsUsed(ConstraintCategory conCat, Oid objId,
 bool
 ConstraintNameExists(const char *conname, Oid namespaceid)
 {
+  DBUG_TRACE;
   bool    found;
   Relation  conDesc;
   SysScanDesc conscan;
@@ -468,6 +478,12 @@ ConstraintNameExists(const char *conname, Oid namespaceid)
 
   systable_endscan(conscan);
   table_close(conDesc, AccessShareLock);
+
+  if (found) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   return found;
 }
@@ -502,6 +518,7 @@ ChooseConstraintName(const char *name1, const char *name2,
                      const char *label, Oid namespaceid,
                      List *others)
 {
+  DBUG_TRACE;
   int     pass = 0;
   char     *conname = NULL;
   char    modlabel[NAMEDATALEN];
@@ -642,6 +659,7 @@ findNotNullConstraint(Oid relid, const char *colname)
 HeapTuple
 findDomainNotNullConstraint(Oid typid)
 {
+  DBUG_TRACE;
   Relation  pg_constraint;
   HeapTuple conTup,
             retval = NULL;
@@ -892,6 +910,7 @@ RelationGetNotNullConstraints(Oid relid, bool cooked, bool include_noinh)
 void
 RemoveConstraintById(Oid conId)
 {
+  DBUG_TRACE;
   Relation  conDesc;
   HeapTuple tup;
   Form_pg_constraint con;
@@ -983,6 +1002,7 @@ RemoveConstraintById(Oid conId)
 void
 RenameConstraintById(Oid conId, const char *newname)
 {
+  DBUG_TRACE;
   Relation  conDesc;
   HeapTuple tuple;
   Form_pg_constraint con;
@@ -1002,20 +1022,28 @@ RenameConstraintById(Oid conId, const char *newname)
   if (OidIsValid(con->conrelid) &&
       ConstraintNameIsUsed(CONSTRAINT_RELATION,
                            con->conrelid,
-                           newname))
+                           newname)) {
+    char *rel_name = get_rel_name(con->conrelid);
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for relation \"%s\" already exists",
+                       newname, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("constraint \"%s\" for relation \"%s\" already exists",
-                    newname, get_rel_name(con->conrelid))));
+                    newname, rel_name)));
+  }
 
   if (OidIsValid(con->contypid) &&
       ConstraintNameIsUsed(CONSTRAINT_DOMAIN,
                            con->contypid,
-                           newname))
+                           newname)) {
+    char *format1 = format_type_be(con->contypid);
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for domain %s already exists",
+                       newname, format1);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_OBJECT),
              errmsg("constraint \"%s\" for domain %s already exists",
-                    newname, format_type_be(con->contypid))));
+                    newname, format1)));
+  }
 
   /* OK, do the rename --- tuple is a copy, so OK to scribble on it */
   namestrcpy(&(con->conname), newname);
@@ -1039,6 +1067,7 @@ void
 AlterConstraintNamespaces(Oid ownerId, Oid oldNspId,
                           Oid newNspId, bool isType, ObjectAddresses *objsMoved)
 {
+  DBUG_TRACE;
   Relation  conRel;
   ScanKeyData key[2];
   SysScanDesc scan;
@@ -1107,6 +1136,7 @@ ConstraintSetParentConstraint(Oid childConstrId,
                               Oid parentConstrId,
                               Oid childTableId)
 {
+  DBUG_TRACE;
   Relation  constrRel;
   Form_pg_constraint constrForm;
   HeapTuple tuple,
@@ -1117,8 +1147,10 @@ ConstraintSetParentConstraint(Oid childConstrId,
   constrRel = table_open(ConstraintRelationId, RowExclusiveLock);
   tuple = SearchSysCache1(CONSTROID, ObjectIdGetDatum(childConstrId));
 
-  if (!HeapTupleIsValid(tuple))
+  if (!HeapTupleIsValid(tuple)) {
+    DBUG_INSTANT_PRINT("info", "cache lookup failed for constraint %u", childConstrId);
     elog(ERROR, "cache lookup failed for constraint %u", childConstrId);
+  }
 
   newtup = heap_copytuple(tuple);
   constrForm = (Form_pg_constraint) GETSTRUCT(newtup);
@@ -1127,17 +1159,21 @@ ConstraintSetParentConstraint(Oid childConstrId,
     /* don't allow setting parent for a constraint that already has one */
     Assert(constrForm->coninhcount == 0);
 
-    if (constrForm->conparentid != InvalidOid)
+    if (constrForm->conparentid != InvalidOid) {
+      DBUG_INSTANT_PRINT("info", "constraint %u already has a parent constraint", childConstrId);
       elog(ERROR, "constraint %u already has a parent constraint",
            childConstrId);
+    }
 
     constrForm->conislocal = false;
 
     if (pg_add_s16_overflow(constrForm->coninhcount, 1,
-                            &constrForm->coninhcount))
+                            &constrForm->coninhcount)) {
+      DBUG_INSTANT_PRINT("info", "too many inheritance parents");
       ereport(ERROR,
               errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
               errmsg("too many inheritance parents"));
+    }
 
     constrForm->conparentid = parentConstrId;
 
@@ -1181,6 +1217,7 @@ ConstraintSetParentConstraint(Oid childConstrId,
 Oid
 get_relation_constraint_oid(Oid relid, const char *conname, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  pg_constraint;
   HeapTuple tuple;
   SysScanDesc scan;
@@ -1212,11 +1249,14 @@ get_relation_constraint_oid(Oid relid, const char *conname, bool missing_ok)
   systable_endscan(scan);
 
   /* If no such constraint exists, complain */
-  if (!OidIsValid(conOid) && !missing_ok)
+  if (!OidIsValid(conOid) && !missing_ok) {
+    char *rel_name = get_rel_name(relid);
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for table \"%s\" does not exist", conname, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("constraint \"%s\" for table \"%s\" does not exist",
-                    conname, get_rel_name(relid))));
+                    conname, rel_name)));
+  }
 
   table_close(pg_constraint, AccessShareLock);
 
@@ -1239,6 +1279,7 @@ Bitmapset *
 get_relation_constraint_attnos(Oid relid, const char *conname,
                                bool missing_ok, Oid *constraintOid)
 {
+  DBUG_TRACE;
   Bitmapset  *conattnos = NULL;
   Relation  pg_constraint;
   HeapTuple tuple;
@@ -1305,11 +1346,14 @@ get_relation_constraint_attnos(Oid relid, const char *conname,
   systable_endscan(scan);
 
   /* If no such constraint exists, complain */
-  if (!OidIsValid(*constraintOid) && !missing_ok)
+  if (!OidIsValid(*constraintOid) && !missing_ok) {
+    char *rel_name = get_rel_name(relid);
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for table \"%s\" does not exist", conname, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("constraint \"%s\" for table \"%s\" does not exist",
-                    conname, get_rel_name(relid))));
+                    conname, rel_name)));
+  }
 
   table_close(pg_constraint, AccessShareLock);
 
@@ -1327,6 +1371,7 @@ get_relation_constraint_attnos(Oid relid, const char *conname,
 Oid
 get_relation_idx_constraint_oid(Oid relationId, Oid indexId)
 {
+  DBUG_TRACE;
   Relation  pg_constraint;
   SysScanDesc scan;
   ScanKeyData key;
@@ -1374,6 +1419,7 @@ get_relation_idx_constraint_oid(Oid relationId, Oid indexId)
 Oid
 get_domain_constraint_oid(Oid typid, const char *conname, bool missing_ok)
 {
+  DBUG_TRACE;
   Relation  pg_constraint;
   HeapTuple tuple;
   SysScanDesc scan;
@@ -1405,11 +1451,14 @@ get_domain_constraint_oid(Oid typid, const char *conname, bool missing_ok)
   systable_endscan(scan);
 
   /* If no such constraint exists, complain */
-  if (!OidIsValid(conOid) && !missing_ok)
+  if (!OidIsValid(conOid) && !missing_ok) {
+    char *format1 = format_type_be(typid);
+    DBUG_INSTANT_PRINT("info", "constraint \"%s\" for domain %s does not exist", conname, format1);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_OBJECT),
              errmsg("constraint \"%s\" for domain %s does not exist",
-                    conname, format_type_be(typid))));
+                    conname, format1)));
+  }
 
   table_close(pg_constraint, AccessShareLock);
 
@@ -1433,6 +1482,7 @@ get_domain_constraint_oid(Oid typid, const char *conname, bool missing_ok)
 Bitmapset *
 get_primary_key_attnos(Oid relid, bool deferrableOk, Oid *constraintOid)
 {
+  DBUG_TRACE;
   Bitmapset  *pkattnos = NULL;
   Relation  pg_constraint;
   HeapTuple tuple;
@@ -1525,6 +1575,7 @@ DeconstructFkConstraintRow(HeapTuple tuple, int *numfks,
                            Oid *pf_eq_oprs, Oid *pp_eq_oprs, Oid *ff_eq_oprs,
                            int *num_fk_del_set_cols, AttrNumber *fk_del_set_cols)
 {
+  DBUG_TRACE;
   Datum   adatum;
   bool    isNull;
   ArrayType  *arr;
@@ -1742,16 +1793,20 @@ check_functional_grouping(Oid relid,
                           List *grouping_columns,
                           List **constraintDeps)
 {
+  DBUG_TRACE;
   Bitmapset  *pkattnos;
   Bitmapset  *groupbyattnos;
   Oid     constraintOid;
   ListCell   *gl;
 
+  DBUG_PRINT("info", "determine whether a relation can be proven functionally dependent on a set of grouping columns");
   /* If the rel has no PK, then we can't prove functional dependency */
   pkattnos = get_primary_key_attnos(relid, false, &constraintOid);
 
-  if (pkattnos == NULL)
+  if (pkattnos == NULL) {
+    DBUG_PRINT("info", "the rel has no PK and we can't prove functional dependency");
     return false;
+  }
 
   /* Identify all the rel's columns that appear in grouping_columns */
   groupbyattnos = NULL;
@@ -1768,9 +1823,11 @@ check_functional_grouping(Oid relid,
 
   if (bms_is_subset(pkattnos, groupbyattnos)) {
     /* The PK is a subset of grouping_columns, so we win */
+    DBUG_PRINT("info", "the PK is a subset of grouping_columns, so we win");
     *constraintDeps = lappend_oid(*constraintDeps, constraintOid);
     return true;
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }

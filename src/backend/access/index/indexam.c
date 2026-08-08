@@ -42,6 +42,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/relation.h"
@@ -57,6 +58,7 @@
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "utils/lsyscache.h"
 
 
 /* ----------------------------------------------------------------
@@ -73,36 +75,36 @@
  * ----------------------------------------------------------------
  */
 #define RELATION_CHECKS \
-do { \
-  Assert(RelationIsValid(indexRelation)); \
-  Assert(PointerIsValid(indexRelation->rd_indam)); \
-  if (unlikely(ReindexIsProcessingIndex(RelationGetRelid(indexRelation)))) \
+  do { \
+    Assert(RelationIsValid(indexRelation)); \
+    Assert(PointerIsValid(indexRelation->rd_indam)); \
+    if (unlikely(ReindexIsProcessingIndex(RelationGetRelid(indexRelation)))) \
     ereport(ERROR, \
         (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
          errmsg("cannot access index \"%s\" while it is being reindexed", \
-            RelationGetRelationName(indexRelation)))); \
-} while(0)
+           RelationGetRelationName(indexRelation)))); \
+  } while(0)
 
 #define SCAN_CHECKS \
-( \
-  AssertMacro(IndexScanIsValid(scan)), \
-  AssertMacro(RelationIsValid(scan->indexRelation)), \
-  AssertMacro(PointerIsValid(scan->indexRelation->rd_indam)) \
-)
+  ( \
+    AssertMacro(IndexScanIsValid(scan)), \
+    AssertMacro(RelationIsValid(scan->indexRelation)), \
+    AssertMacro(PointerIsValid(scan->indexRelation->rd_indam)) \
+  )
 
 #define CHECK_REL_PROCEDURE(pname) \
-do { \
-  if (indexRelation->rd_indam->pname == NULL) \
+  do { \
+    if (indexRelation->rd_indam->pname == NULL) \
     elog(ERROR, "function \"%s\" is not defined for index \"%s\"", \
-       CppAsString(pname), RelationGetRelationName(indexRelation)); \
-} while(0)
+        CppAsString(pname), RelationGetRelationName(indexRelation)); \
+  } while(0)
 
 #define CHECK_SCAN_PROCEDURE(pname) \
-do { \
-  if (scan->indexRelation->rd_indam->pname == NULL) \
+  do { \
+    if (scan->indexRelation->rd_indam->pname == NULL) \
     elog(ERROR, "function \"%s\" is not defined for index \"%s\"", \
-       CppAsString(pname), RelationGetRelationName(scan->indexRelation)); \
-} while(0)
+        CppAsString(pname), RelationGetRelationName(scan->indexRelation)); \
+  } while(0)
 
 static IndexScanDesc index_beginscan_internal(Relation indexRelation,
     int nkeys, int norderbys, Snapshot snapshot,
@@ -110,6 +112,18 @@ static IndexScanDesc index_beginscan_internal(Relation indexRelation,
 static inline void validate_relation_kind(Relation r);
 
 
+/* Names of lock modes, for debug printouts */
+static const char *const lock_mode_names[] = {
+  "INVALID",
+  "AccessShareLock",
+  "RowShareLock",
+  "RowExclusiveLock",
+  "ShareUpdateExclusiveLock",
+  "ShareLock",
+  "ShareRowExclusiveLock",
+  "ExclusiveLock",
+  "AccessExclusiveLock"
+};
 /* ----------------------------------------------------------------
  *           index_ interface functions
  * ----------------------------------------------------------------
@@ -132,11 +146,21 @@ static inline void validate_relation_kind(Relation r);
 Relation
 index_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = relation_open(relationId, lockmode);
-
   validate_relation_kind(r);
+
+  if (r && r->rd_index) {
+    const char *index_name = RelationGetRelationName(r);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index open:%s, lockmode:%s",
+                 index_name, lock_mode_names[lockmode]);
+    }
+  }
+
 
   return r;
 }
@@ -151,6 +175,7 @@ index_open(Oid relationId, LOCKMODE lockmode)
 Relation
 try_index_open(Oid relationId, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   Relation  r;
 
   r = try_relation_open(relationId, lockmode);
@@ -160,6 +185,15 @@ try_index_open(Oid relationId, LOCKMODE lockmode)
     return NULL;
 
   validate_relation_kind(r);
+
+  {
+    const char *index_name = RelationGetRelationName(r);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index open:%s, lockmode:%s",
+                 index_name, lock_mode_names[lockmode]);
+    }
+  }
 
   return r;
 }
@@ -176,10 +210,23 @@ try_index_open(Oid relationId, LOCKMODE lockmode)
 void
 index_close(Relation relation, LOCKMODE lockmode)
 {
+  DBUG_TRACE;
   LockRelId relid = relation->rd_lockInfo.lockRelId;
 
   Assert(lockmode >= NoLock && lockmode < MAX_LOCKMODES);
 
+  {
+    const char *index_name = RelationGetRelationName(relation);
+
+    if (index_name) {
+      if (lockmode > 0) {
+        DBUG_PRINT("info", "index close:%s, lockmode:%s",
+                   index_name, lock_mode_names[lockmode]);
+      } else {
+        DBUG_PRINT("info", "index close:%s", index_name);
+      }
+    }
+  }
   /* The relcache does the real work... */
   RelationClose(relation);
 
@@ -197,11 +244,13 @@ static inline void
 validate_relation_kind(Relation r)
 {
   if (r->rd_rel->relkind != RELKIND_INDEX &&
-      r->rd_rel->relkind != RELKIND_PARTITIONED_INDEX)
+      r->rd_rel->relkind != RELKIND_PARTITIONED_INDEX) {
+    DBUG_INSTANT_PRINT("info", "\"%s\" is not an index", RelationGetRelationName(r));
     ereport(ERROR,
             (errcode(ERRCODE_WRONG_OBJECT_TYPE),
              errmsg("\"%s\" is not an index",
                     RelationGetRelationName(r))));
+  }
 }
 
 
@@ -219,18 +268,40 @@ index_insert(Relation indexRelation,
              bool indexUnchanged,
              IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
+
+  bool result;
+  const char *index_name;
   RELATION_CHECKS;
   CHECK_REL_PROCEDURE(aminsert);
+
+  index_name = RelationGetRelationName(indexRelation);
+
+  if (index_name) {
+    if (indexUnchanged) {
+      DBUG_PRINT("info", "indexUnchanged is true and index name:%s", index_name);
+    } else {
+      DBUG_PRINT("info", "indexUnchanged is false and index name:%s", index_name);
+    }
+  }
 
   if (!(indexRelation->rd_indam->ampredlocks))
     CheckForSerializableConflictIn(indexRelation,
                                    (ItemPointer) NULL,
                                    InvalidBlockNumber);
 
-  return indexRelation->rd_indam->aminsert(indexRelation, values, isnull,
-         heap_t_ctid, heapRelation,
-         checkUnique, indexUnchanged,
-         indexInfo);
+  result = indexRelation->rd_indam->aminsert(indexRelation, values, isnull,
+           heap_t_ctid, heapRelation,
+           checkUnique, indexUnchanged,
+           indexInfo);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 /* -------------------------
@@ -241,6 +312,7 @@ void
 index_insert_cleanup(Relation indexRelation,
                      IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   RELATION_CHECKS;
 
   if (indexRelation->rd_indam->aminsertcleanup)
@@ -259,12 +331,20 @@ index_beginscan(Relation heapRelation,
                 IndexScanInstrumentation *instrument,
                 int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
 
   Assert(snapshot != InvalidSnapshot);
 
   scan = index_beginscan_internal(indexRelation, nkeys, norderbys, snapshot, NULL, false);
 
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   /*
    * Save additional parameters into the scandesc.  Everything else was set
    * up by RelationGetIndexScan.
@@ -291,10 +371,17 @@ index_beginscan_bitmap(Relation indexRelation,
                        IndexScanInstrumentation *instrument,
                        int nkeys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
 
   Assert(snapshot != InvalidSnapshot);
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
 
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   scan = index_beginscan_internal(indexRelation, nkeys, 0, snapshot, NULL, false);
 
   /*
@@ -315,10 +402,18 @@ index_beginscan_internal(Relation indexRelation,
                          int nkeys, int norderbys, Snapshot snapshot,
                          ParallelIndexScanDesc pscan, bool temp_snap)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
 
   RELATION_CHECKS;
   CHECK_REL_PROCEDURE(ambeginscan);
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
 
   if (!(indexRelation->rd_indam->ampredlocks))
     PredicateLockRelation(indexRelation, snapshot);
@@ -357,6 +452,7 @@ index_rescan(IndexScanDesc scan,
              ScanKey keys, int nkeys,
              ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   SCAN_CHECKS;
   CHECK_SCAN_PROCEDURE(amrescan);
 
@@ -369,7 +465,13 @@ index_rescan(IndexScanDesc scan,
 
   scan->kill_prior_tuple = false; /* for safety */
   scan->xs_heap_continue = false;
+  {
+    const char *index_name = RelationGetRelationName(scan->indexRelation);
 
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   scan->indexRelation->rd_indam->amrescan(scan, keys, nkeys,
                                           orderbys, norderbys);
 }
@@ -381,6 +483,7 @@ index_rescan(IndexScanDesc scan,
 void
 index_endscan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   SCAN_CHECKS;
   CHECK_SCAN_PROCEDURE(amendscan);
 
@@ -392,7 +495,13 @@ index_endscan(IndexScanDesc scan)
 
   /* End the AM's scan */
   scan->indexRelation->rd_indam->amendscan(scan);
+  {
+    const char *index_name = RelationGetRelationName(scan->indexRelation);
 
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   /* Release index refcount acquired by index_beginscan */
   RelationDecrementReferenceCount(scan->indexRelation);
 
@@ -410,6 +519,7 @@ index_endscan(IndexScanDesc scan)
 void
 index_markpos(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   SCAN_CHECKS;
   CHECK_SCAN_PROCEDURE(ammarkpos);
 
@@ -434,6 +544,7 @@ index_markpos(IndexScanDesc scan)
 void
 index_restrpos(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   Assert(IsMVCCSnapshot(scan->xs_snapshot));
 
   SCAN_CHECKS;
@@ -461,6 +572,7 @@ index_parallelscan_estimate(Relation indexRelation, int nkeys, int norderbys,
                             Snapshot snapshot, bool instrument,
                             bool parallel_aware, int nworkers)
 {
+  DBUG_TRACE;
   Size    nbytes;
 
   Assert(instrument || parallel_aware);
@@ -470,6 +582,13 @@ index_parallelscan_estimate(Relation indexRelation, int nkeys, int norderbys,
   nbytes = offsetof(ParallelIndexScanDescData, ps_snapshot_data);
   nbytes = add_size(nbytes, EstimateSnapshotSpace(snapshot));
   nbytes = MAXALIGN(nbytes);
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
 
   if (instrument) {
     Size    sharedinfosz;
@@ -511,6 +630,7 @@ index_parallelscan_initialize(Relation heapRelation, Relation indexRelation,
                               SharedIndexScanInstrumentation **sharedinfo,
                               ParallelIndexScanDesc target)
 {
+  DBUG_TRACE;
   Size    offset;
 
   Assert(instrument || parallel_aware);
@@ -560,10 +680,19 @@ index_parallelscan_initialize(Relation heapRelation, Relation indexRelation,
 void
 index_parallelrescan(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   SCAN_CHECKS;
 
   if (scan->xs_heapfetch)
     table_index_fetch_reset(scan->xs_heapfetch);
+
+  {
+    const char *index_name = RelationGetRelationName(scan->indexRelation);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
 
   /* amparallelrescan is optional; assume no-op if not provided by AM */
   if (scan->indexRelation->rd_indam->amparallelrescan != NULL)
@@ -581,9 +710,18 @@ index_beginscan_parallel(Relation heaprel, Relation indexrel,
                          int nkeys, int norderbys,
                          ParallelIndexScanDesc pscan)
 {
+  DBUG_TRACE;
   Snapshot  snapshot;
   IndexScanDesc scan;
 
+  DBUG_PRINT("info", "join parallel index scan");
+  {
+    const char *index_name = RelationGetRelationName(indexrel);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   Assert(RelFileLocatorEquals(heaprel->rd_locator, pscan->ps_locator));
   Assert(RelFileLocatorEquals(indexrel->rd_locator, pscan->ps_indexlocator));
 
@@ -606,6 +744,7 @@ index_beginscan_parallel(Relation heaprel, Relation indexrel,
   return scan;
 }
 
+
 /* ----------------
  * index_getnext_tid - get the next TID from a scan
  *
@@ -616,6 +755,7 @@ index_beginscan_parallel(Relation heaprel, Relation indexrel,
 ItemPointer
 index_getnext_tid(IndexScanDesc scan, ScanDirection direction)
 {
+  DBUG_TRACE;
   bool    found;
 
   SCAN_CHECKS;
@@ -638,6 +778,8 @@ index_getnext_tid(IndexScanDesc scan, ScanDirection direction)
 
   /* If we're out of index entries, we're done */
   if (!found) {
+    DBUG_PRINT("info", "if we're out of index entries, we're done");
+
     /* release resources (like buffer pins) from table accesses */
     if (scan->xs_heapfetch)
       table_index_fetch_reset(scan->xs_heapfetch);
@@ -648,7 +790,11 @@ index_getnext_tid(IndexScanDesc scan, ScanDirection direction)
   Assert(ItemPointerIsValid(&scan->xs_heaptid));
 
   pgstat_count_index_tuples(scan->indexRelation, 1);
-
+  {
+    const char *index_name = RelationGetRelationName(scan->indexRelation);
+    DBUG_PRINT("info", "return the TID of the tuple, blkno:%u offset:%u from index:%s",
+               BlockIdGetBlockNumber(&(scan->xs_heaptid.ip_blkid)), scan->xs_heaptid.ip_posid, index_name);
+  }
   /* Return the TID of the tuple we found. */
   return &scan->xs_heaptid;
 }
@@ -674,6 +820,7 @@ index_getnext_tid(IndexScanDesc scan, ScanDirection direction)
 bool
 index_fetch_heap(IndexScanDesc scan, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   bool    all_dead = false;
   bool    found;
 
@@ -693,6 +840,12 @@ index_fetch_heap(IndexScanDesc scan, TupleTableSlot *slot)
    */
   if (!scan->xactStartedInRecovery)
     scan->kill_prior_tuple = all_dead;
+
+  if (found) {
+    DBUG_PRINT("info", "get the scan's next heap tuple and return true");
+  } else {
+    DBUG_PRINT("info", "get the scan's next heap tuple and return false");
+  }
 
   return found;
 }
@@ -715,7 +868,23 @@ index_fetch_heap(IndexScanDesc scan, TupleTableSlot *slot)
 bool
 index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *slot)
 {
+  DBUG_TRACE;
+  char *relation_name;
+  size_t count = 0;
+  bool tmp_trace_disabled = false;
+
   for (;;) {
+    if (count >= min_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
+    count++;
+
     if (!scan->xs_heap_continue) {
       ItemPointer tid;
 
@@ -723,8 +892,10 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
       tid = index_getnext_tid(scan, direction);
 
       /* If we're out of index entries, we're done */
-      if (tid == NULL)
+      if (tid == NULL) {
+        DBUG_PRINT("info", "If we're out of index entries, we're done");
         break;
+      }
 
       Assert(ItemPointerEquals(tid, &scan->xs_heaptid));
     }
@@ -736,8 +907,34 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
      */
     Assert(ItemPointerIsValid(&scan->xs_heaptid));
 
-    if (index_fetch_heap(scan, slot))
+    if (slot->tts_tableOid) {
+      relation_name = get_rel_name(slot->tts_tableOid);
+
+      if (relation_name) {
+        DBUG_PRINT("info", "has to visit index_fetch_heap(table:%s)", relation_name);
+        pfree(relation_name);
+      }
+    }
+
+    if (index_fetch_heap(scan, slot)) {
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
       return true;
+    }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   return false;
@@ -759,11 +956,13 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
 int64
 index_getbitmap(IndexScanDesc scan, TIDBitmap *bitmap)
 {
+  DBUG_TRACE;
   int64   ntids;
 
   SCAN_CHECKS;
   CHECK_SCAN_PROCEDURE(amgetbitmap);
 
+  DBUG_PRINT("info", "get all tuples at once from an index scan");
   /* just make sure this is false... */
   scan->kill_prior_tuple = false;
 
@@ -771,7 +970,13 @@ index_getbitmap(IndexScanDesc scan, TIDBitmap *bitmap)
    * have the am's getbitmap proc do all the work.
    */
   ntids = scan->indexRelation->rd_indam->amgetbitmap(scan, bitmap);
+  {
+    const char *index_name = RelationGetRelationName(scan->indexRelation);
 
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   pgstat_count_index_tuples(scan->indexRelation, ntids);
 
   return ntids;
@@ -792,11 +997,18 @@ index_bulk_delete(IndexVacuumInfo *info,
                   IndexBulkDeleteCallback callback,
                   void *callback_state)
 {
+  DBUG_TRACE;
   Relation  indexRelation = info->index;
 
   RELATION_CHECKS;
   CHECK_REL_PROCEDURE(ambulkdelete);
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
 
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   return indexRelation->rd_indam->ambulkdelete(info, istat,
          callback, callback_state);
 }
@@ -811,11 +1023,19 @@ IndexBulkDeleteResult *
 index_vacuum_cleanup(IndexVacuumInfo *info,
                      IndexBulkDeleteResult *istat)
 {
+  DBUG_TRACE;
   Relation  indexRelation = info->index;
 
   RELATION_CHECKS;
   CHECK_REL_PROCEDURE(amvacuumcleanup);
 
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
+
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
   return indexRelation->rd_indam->amvacuumcleanup(info, istat);
 }
 
@@ -829,13 +1049,33 @@ index_vacuum_cleanup(IndexVacuumInfo *info,
 bool
 index_can_return(Relation indexRelation, int attno)
 {
+  DBUG_TRACE;
+  bool result = false;
   RELATION_CHECKS;
 
-  /* amcanreturn is optional; assume false if not provided by AM */
-  if (indexRelation->rd_indam->amcanreturn == NULL)
-    return false;
+  {
+    const char *index_name = RelationGetRelationName(indexRelation);
 
-  return indexRelation->rd_indam->amcanreturn(indexRelation, attno);
+    if (index_name) {
+      DBUG_PRINT("info", "index name:%s", index_name);
+    }
+  }
+
+  /* amcanreturn is optional; assume false if not provided by AM */
+  if (indexRelation->rd_indam->amcanreturn == NULL) {
+    DBUG_PRINT("info", "return false when not provided by AM for attno:%d", attno);
+    return false;
+  }
+
+  result = indexRelation->rd_indam->amcanreturn(indexRelation, attno);
+
+  if (result) {
+    DBUG_PRINT("info", "return true for attno=%d", attno);
+  } else {
+    DBUG_PRINT("info", "return false for attno=%d", attno);
+  }
+
+  return result;
 }
 
 /* ----------------
@@ -936,9 +1176,12 @@ index_getprocinfo(Relation irel,
      * entries for the index opclass.  (If an AM wants to allow a support
      * function to be optional, it can use index_getprocid.)
      */
-    if (!RegProcedureIsValid(procId))
+    if (!RegProcedureIsValid(procId)) {
+      DBUG_INSTANT_PRINT("info", "missing support function %d for attribute %d of index \"%s\"",
+                         procnum, attnum, RelationGetRelationName(irel));
       elog(ERROR, "missing support function %d for attribute %d of index \"%s\"",
            procnum, attnum, RelationGetRelationName(irel));
+    }
 
     fmgr_info_cxt(procId, locinfo, irel->rd_indexcxt);
 
@@ -969,11 +1212,14 @@ index_store_float8_orderby_distances(IndexScanDesc scan, Oid *orderByTypes,
                                      IndexOrderByDistance *distances,
                                      bool recheckOrderBy)
 {
+  DBUG_TRACE;
   int     i;
 
   Assert(distances || !recheckOrderBy);
 
   scan->xs_recheckorderby = recheckOrderBy;
+
+  DBUG_PRINT("info", "numberOfOrderBys:%d", scan->numberOfOrderBys);
 
   for (i = 0; i < scan->numberOfOrderBys; i++) {
     if (orderByTypes[i] == FLOAT8OID) {
@@ -994,6 +1240,8 @@ index_store_float8_orderby_distances(IndexScanDesc scan, Oid *orderByTypes,
       }
     } else if (orderByTypes[i] == FLOAT4OID) {
       /* convert distance function's result to ORDER BY type */
+      DBUG_PRINT("info", "convert distance function's result to ORDER BY type");
+
       if (distances && !distances[i].isnull) {
         scan->xs_orderbyvals[i] = Float4GetDatum((float4) distances[i].value);
         scan->xs_orderbynulls[i] = false;
@@ -1010,8 +1258,10 @@ index_store_float8_orderby_distances(IndexScanDesc scan, Oid *orderByTypes,
        * results, so only insist on converting if the *recheck flag is
        * set.
        */
-      if (scan->xs_recheckorderby)
+      if (scan->xs_recheckorderby) {
+        DBUG_INSTANT_PRINT("info", "ORDER BY operator must return float8 or float4 if the distance function is lossy");
         elog(ERROR, "ORDER BY operator must return float8 or float4 if the distance function is lossy");
+      }
 
       scan->xs_orderbynulls[i] = true;
     }
@@ -1028,6 +1278,7 @@ bytea *
 index_opclass_options(Relation indrel, AttrNumber attnum, Datum attoptions,
                       bool validate)
 {
+  DBUG_TRACE;
   int     amoptsprocnum = indrel->rd_indam->amoptsprocnum;
   Oid     procid = InvalidOid;
   FmgrInfo   *procinfo;
@@ -1054,6 +1305,7 @@ index_opclass_options(Relation indrel, AttrNumber attnum, Datum attoptions,
     indclass = (oidvector *) DatumGetPointer(indclassDatum);
     opclass = indclass->values[attnum - 1];
 
+    DBUG_INSTANT_PRINT("info", "operator class %s has no options", generate_opclass_name(opclass));
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("operator class %s has no options",

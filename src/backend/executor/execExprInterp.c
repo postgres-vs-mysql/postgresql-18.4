@@ -55,6 +55,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heaptoast.h"
 #include "catalog/pg_type.h"
@@ -246,6 +247,7 @@ typedef struct ScalarArrayOpExprHashTable {
 void
 ExecReadyInterpretedExpr(ExprState *state)
 {
+  DBUG_TRACE;
   /* Ensure one-time interpreter setup has been done */
   ExecInitInterpreter();
 
@@ -259,8 +261,10 @@ ExecReadyInterpretedExpr(ExprState *state)
    * cases, but might be hit if there's additional expression evaluation
    * methods that rely on interpreted execution to work.
    */
-  if (state->flags & EEO_FLAG_INTERPRETER_INITIALIZED)
+  if (state->flags & EEO_FLAG_INTERPRETER_INITIALIZED) {
+    DBUG_PRINT("info", "don't perform redundant initialization");
     return;
+  }
 
   /*
    * First time through, check whether attribute matches Var.  Might not be
@@ -404,6 +408,7 @@ ExecReadyInterpretedExpr(ExprState *state)
   state->flags |= EEO_FLAG_DIRECT_THREADED;
 #endif              /* EEO_USE_COMPUTED_GOTO */
 
+  DBUG_PRINT("info", "use ExecInterpExpr as the private state of an evalfunc");
   state->evalfunc_private = ExecInterpExpr;
 }
 
@@ -420,6 +425,7 @@ ExecReadyInterpretedExpr(ExprState *state)
 static Datum
 ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op;
   TupleTableSlot *resultslot;
   TupleTableSlot *innerslot;
@@ -983,6 +989,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOL_AND_STEP_LAST) {
+
       if (*op->resnull) {
         /* result is already set to NULL, need not change it */
       } else if (!DatumGetBool(*op->resvalue)) {
@@ -1025,6 +1032,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOL_OR_STEP) {
+
       if (*op->resnull) {
         *op->d.boolexpr.anynull = true;
       } else if (DatumGetBool(*op->resvalue)) {
@@ -1037,6 +1045,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOL_OR_STEP_LAST) {
+
       if (*op->resnull) {
         /* result is already set to NULL, need not change it */
       } else if (DatumGetBool(*op->resvalue)) {
@@ -1095,6 +1104,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_JUMP_IF_NULL) {
+
       /* Transfer control if current result is null */
       if (*op->resnull)
         EEO_JUMP(op->d.jump.jumpdone);
@@ -1111,6 +1121,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_JUMP_IF_NOT_TRUE) {
+
       /* Transfer control if current result is null or false */
       if (*op->resnull || !DatumGetBool(*op->resvalue))
         EEO_JUMP(op->d.jump.jumpdone);
@@ -1149,6 +1160,7 @@ strictfail:
     /* BooleanTest implementations for all booltesttypes */
 
     EEO_CASE(EEOP_BOOLTEST_IS_TRUE) {
+
       if (*op->resnull) {
         *op->resvalue = BoolGetDatum(false);
         *op->resnull = false;
@@ -1160,6 +1172,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOLTEST_IS_NOT_TRUE) {
+
       if (*op->resnull) {
         *op->resvalue = BoolGetDatum(true);
         *op->resnull = false;
@@ -1170,6 +1183,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOLTEST_IS_FALSE) {
+
       if (*op->resnull) {
         *op->resvalue = BoolGetDatum(false);
         *op->resnull = false;
@@ -1180,6 +1194,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_BOOLTEST_IS_NOT_FALSE) {
+
       if (*op->resnull) {
         *op->resvalue = BoolGetDatum(true);
         *op->resnull = false;
@@ -1230,6 +1245,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_MAKE_READONLY) {
+
       /*
        * Force a varlena value that might be read multiple times to R/O
        */
@@ -1315,6 +1331,7 @@ strictfail:
        */
       FunctionCallInfo fcinfo = op->d.func.fcinfo_data;
 
+
       /* check function arguments for NULLness */
       if (fcinfo->args[0].isnull && fcinfo->args[1].isnull) {
         /* Both NULL? Then is not distinct... */
@@ -1368,6 +1385,7 @@ strictfail:
       Datum   save_arg0 = fcinfo->args[0].value;
 
       /* if either argument is NULL they can't be equal */
+
       if (!fcinfo->args[0].isnull && !fcinfo->args[1].isnull) {
         Datum   result;
 
@@ -1557,6 +1575,7 @@ strictfail:
     }
 
     EEO_CASE(EEOP_SBSREF_SUBSCRIPTS) {
+
       /* Precheck SubscriptingRef subscript(s) */
       if (op->d.sbsref_subscript.subscriptfunc(state, op, econtext)) {
         EEO_NEXT();
@@ -1812,6 +1831,7 @@ strictfail:
 
     /* evaluate a strict aggregate deserialization function */
     EEO_CASE(EEOP_AGG_STRICT_DESERIALIZE) {
+
       /* Don't call a strict deserialization function with NULL input */
       if (op->d.agg_deserialize.fcinfo_data->args[0].isnull)
         EEO_JUMP(op->d.agg_deserialize.jumpnull);
@@ -2075,6 +2095,7 @@ out_error:
 Datum
 ExecInterpExprStillValid(ExprState *state, ExprContext *econtext, bool *isNull)
 {
+  DBUG_TRACE;
   /*
    * First time through, check whether attribute matches Var.  Might not be
    * ok anymore, due to schema changes.
@@ -2095,6 +2116,7 @@ ExecInterpExprStillValid(ExprState *state, ExprContext *econtext, bool *isNull)
 void
 CheckExprStillValid(ExprState *state, ExprContext *econtext)
 {
+  DBUG_TRACE;
   TupleTableSlot *innerslot;
   TupleTableSlot *outerslot;
   TupleTableSlot *scanslot;
@@ -2160,6 +2182,8 @@ CheckExprStillValid(ExprState *state, ExprContext *econtext)
 static void
 CheckVarSlotCompatibility(TupleTableSlot *slot, int attnum, Oid vartype)
 {
+  DBUG_TRACE;
+
   /*
    * What we have to check for here is the possibility of an attribute
    * having been dropped or changed in type since the plan tree was created.
@@ -2330,6 +2354,7 @@ get_cached_rowtype(Oid type_id, int32 typmod,
 static pg_attribute_always_inline Datum
 ExecJustVarImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[1];
   int     attnum = op->d.var.attnum + 1;
 
@@ -2347,6 +2372,7 @@ ExecJustVarImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 static Datum
 ExecJustInnerVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarImpl(state, econtext->ecxt_innertuple, isnull);
 }
 
@@ -2354,6 +2380,7 @@ ExecJustInnerVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustOuterVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarImpl(state, econtext->ecxt_outertuple, isnull);
 }
 
@@ -2361,6 +2388,7 @@ ExecJustOuterVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustScanVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarImpl(state, econtext->ecxt_scantuple, isnull);
 }
 
@@ -2368,6 +2396,7 @@ ExecJustScanVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static pg_attribute_always_inline Datum
 ExecJustAssignVarImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[1];
   int     attnum = op->d.assign_var.attnum + 1;
   int     resultnum = op->d.assign_var.resultnum;
@@ -2394,6 +2423,7 @@ ExecJustAssignVarImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull)
 static Datum
 ExecJustAssignInnerVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarImpl(state, econtext->ecxt_innertuple, isnull);
 }
 
@@ -2401,6 +2431,7 @@ ExecJustAssignInnerVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustAssignOuterVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarImpl(state, econtext->ecxt_outertuple, isnull);
 }
 
@@ -2408,6 +2439,7 @@ ExecJustAssignOuterVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustAssignScanVar(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarImpl(state, econtext->ecxt_scantuple, isnull);
 }
 
@@ -2415,6 +2447,7 @@ ExecJustAssignScanVar(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustApplyFuncToCase(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[0];
   FunctionCallInfo fcinfo;
   NullableDatum *args;
@@ -2452,6 +2485,7 @@ ExecJustApplyFuncToCase(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustConst(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[0];
 
   *isnull = op->d.constval.isnull;
@@ -2462,6 +2496,7 @@ ExecJustConst(ExprState *state, ExprContext *econtext, bool *isnull)
 static pg_attribute_always_inline Datum
 ExecJustVarVirtImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[0];
   int     attnum = op->d.var.attnum;
 
@@ -2484,6 +2519,7 @@ ExecJustVarVirtImpl(ExprState *state, TupleTableSlot *slot, bool *isnull)
 static Datum
 ExecJustInnerVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarVirtImpl(state, econtext->ecxt_innertuple, isnull);
 }
 
@@ -2491,6 +2527,7 @@ ExecJustInnerVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustOuterVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarVirtImpl(state, econtext->ecxt_outertuple, isnull);
 }
 
@@ -2498,6 +2535,7 @@ ExecJustOuterVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 static Datum
 ExecJustScanVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustVarVirtImpl(state, econtext->ecxt_scantuple, isnull);
 }
 
@@ -2505,6 +2543,7 @@ ExecJustScanVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 static pg_attribute_always_inline Datum
 ExecJustAssignVarVirtImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull)
 {
+  DBUG_TRACE;
   ExprEvalStep *op = &state->steps[0];
   int     attnum = op->d.assign_var.attnum;
   int     resultnum = op->d.assign_var.resultnum;
@@ -2527,6 +2566,7 @@ ExecJustAssignVarVirtImpl(ExprState *state, TupleTableSlot *inslot, bool *isnull
 static Datum
 ExecJustAssignInnerVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarVirtImpl(state, econtext->ecxt_innertuple, isnull);
 }
 
@@ -2534,6 +2574,7 @@ ExecJustAssignInnerVarVirt(ExprState *state, ExprContext *econtext, bool *isnull
 static Datum
 ExecJustAssignOuterVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarVirtImpl(state, econtext->ecxt_outertuple, isnull);
 }
 
@@ -2541,6 +2582,7 @@ ExecJustAssignOuterVarVirt(ExprState *state, ExprContext *econtext, bool *isnull
 static Datum
 ExecJustAssignScanVarVirt(ExprState *state, ExprContext *econtext, bool *isnull)
 {
+  DBUG_TRACE;
   return ExecJustAssignVarVirtImpl(state, econtext->ecxt_scantuple, isnull);
 }
 
@@ -2709,6 +2751,7 @@ static void
 ExecInitInterpreter(void)
 {
 #if defined(EEO_USE_COMPUTED_GOTO)
+  DBUG_TRACE;
 
   /* Set up externally-visible pointer to dispatch table */
   if (dispatch_table == NULL) {
@@ -2740,6 +2783,7 @@ ExecInitInterpreter(void)
 ExprEvalOp
 ExecEvalStepOp(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
 #if defined(EEO_USE_COMPUTED_GOTO)
 
   if (state->flags & EEO_FLAG_DIRECT_THREADED) {
@@ -2753,10 +2797,13 @@ ExecEvalStepOp(ExprState *state, ExprEvalStep *op)
                   sizeof(ExprEvalOpLookup),
                   dispatch_compare_ptr);
     Assert(res);      /* unknown ops shouldn't get looked up */
+    DBUG_PRINT("info", "return the opcode of an expression step:%d", res->op);
     return res->op;
   }
 
 #endif
+
+  DBUG_PRINT("info", "return the opcode of an expression step:%d", (ExprEvalOp) op->opcode);
   return (ExprEvalOp) op->opcode;
 }
 
@@ -2772,6 +2819,7 @@ void
 ExecEvalFuncExprFusage(ExprState *state, ExprEvalStep *op,
                        ExprContext *econtext)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = op->d.func.fcinfo_data;
   PgStat_FunctionCallUsage fcusage;
   Datum   d;
@@ -2793,7 +2841,7 @@ void
 ExecEvalFuncExprStrictFusage(ExprState *state, ExprEvalStep *op,
                              ExprContext *econtext)
 {
-
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = op->d.func.fcinfo_data;
   PgStat_FunctionCallUsage fcusage;
   NullableDatum *args = fcinfo->args;
@@ -2827,6 +2875,7 @@ ExecEvalFuncExprStrictFusage(ExprState *state, ExprEvalStep *op,
 void
 ExecEvalParamExec(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   ParamExecData *prm;
 
   prm = &(econtext->ecxt_param_exec_vals[op->d.param.paramid]);
@@ -2850,6 +2899,7 @@ ExecEvalParamExec(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalParamExtern(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   ParamListInfo paramInfo = econtext->ecxt_param_list_info;
   int     paramId = op->d.param.paramid;
 
@@ -2914,6 +2964,7 @@ ExecEvalParamSet(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalCoerceViaIOSafe(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   char     *str;
 
   /* call output function (similar to OutputFunctionCall) */
@@ -2969,6 +3020,7 @@ ExecEvalCoerceViaIOSafe(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalSQLValueFunction(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, 0);
   SQLValueFunction *svf = op->d.sqlvaluefunction.svf;
 
@@ -3054,6 +3106,7 @@ ExecEvalCurrentOfExpr(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalNextValueExpr(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   int64   newval = nextval_internal(op->d.nextvalueexpr.seqid, false);
 
   switch (op->d.nextvalueexpr.seqtypid) {
@@ -3092,6 +3145,7 @@ ExecEvalRowNull(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalRowNotNull(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   ExecEvalRowNullInt(state, op, econtext, false);
 }
 
@@ -3100,6 +3154,7 @@ static void
 ExecEvalRowNullInt(ExprState *state, ExprEvalStep *op,
                    ExprContext *econtext, bool checkisnull)
 {
+  DBUG_TRACE;
   Datum   value = *op->resvalue;
   bool    isnull = *op->resnull;
   HeapTupleHeader tuple;
@@ -3179,6 +3234,7 @@ ExecEvalRowNullInt(ExprState *state, ExprEvalStep *op,
 void
 ExecEvalArrayExpr(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   ArrayType  *result;
   Oid     element_type = op->d.arrayexpr.elemtype;
   int     nelems = op->d.arrayexpr.nelems;
@@ -3386,6 +3442,7 @@ ExecEvalArrayExpr(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalArrayCoerce(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   Datum   arraydatum;
 
   /* NULL array -> NULL result */
@@ -3426,6 +3483,7 @@ ExecEvalArrayCoerce(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalRow(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   HeapTuple tuple;
 
   /* build tuple from evaluated field values */
@@ -3446,6 +3504,7 @@ ExecEvalRow(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalMinMax(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   Datum    *values = op->d.minmax.values;
   bool     *nulls = op->d.minmax.nulls;
   FunctionCallInfo fcinfo = op->d.minmax.fcinfo_data;
@@ -3496,6 +3555,7 @@ ExecEvalMinMax(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalFieldSelect(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   AttrNumber  fieldnum = op->d.fieldselect.fieldnum;
   Datum   tupDatum;
   HeapTupleHeader tuple;
@@ -3620,6 +3680,8 @@ ExecEvalFieldSelect(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalFieldStoreDeForm(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
+
   if (*op->resnull) {
     /* Convert null input tuple into an all-nulls row */
     memset(op->d.fieldstore.nulls, true,
@@ -3667,6 +3729,7 @@ ExecEvalFieldStoreDeForm(ExprState *state, ExprEvalStep *op, ExprContext *econte
 void
 ExecEvalFieldStoreForm(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   TupleDesc tupDesc;
   HeapTuple tuple;
 
@@ -3691,6 +3754,7 @@ ExecEvalFieldStoreForm(ExprState *state, ExprEvalStep *op, ExprContext *econtext
 void
 ExecEvalConvertRowtype(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   HeapTuple result;
   Datum   tupDatum;
   HeapTupleHeader tuple;
@@ -3782,6 +3846,7 @@ ExecEvalConvertRowtype(ExprState *state, ExprEvalStep *op, ExprContext *econtext
 void
 ExecEvalScalarArrayOp(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = op->d.scalararrayop.fcinfo_data;
   bool    useOr = op->d.scalararrayop.useOr;
   bool    strictfunc = op->d.scalararrayop.finfo->fn_strict;
@@ -3940,6 +4005,7 @@ ExecEvalArrayCompareInternal(FunctionCallInfo fcinfo, ArrayType *arr,
 static uint32
 saop_element_hash(struct saophash_hash *tb, Datum key)
 {
+  DBUG_TRACE;
   ScalarArrayOpExprHashTable *elements_tab = (ScalarArrayOpExprHashTable *) tb->private_data;
   FunctionCallInfo fcinfo = &elements_tab->hash_fcinfo_data;
   Datum   hash;
@@ -3959,6 +4025,7 @@ saop_element_hash(struct saophash_hash *tb, Datum key)
 static bool
 saop_hash_element_match(struct saophash_hash *tb, Datum key1, Datum key2)
 {
+  DBUG_TRACE;
   Datum   result;
 
   ScalarArrayOpExprHashTable *elements_tab = (ScalarArrayOpExprHashTable *) tb->private_data;
@@ -3990,6 +4057,7 @@ saop_hash_element_match(struct saophash_hash *tb, Datum key1, Datum key2)
 void
 ExecEvalHashedScalarArrayOp(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   ScalarArrayOpExprHashTable *elements_tab = op->d.hashedscalararrayop.elements_tab;
   FunctionCallInfo fcinfo = op->d.hashedscalararrayop.fcinfo_data;
   bool    inclause = op->d.hashedscalararrayop.inclause;
@@ -4203,12 +4271,17 @@ ExecEvalHashedScalarArrayOp(ExprState *state, ExprEvalStep *op, ExprContext *eco
 void
 ExecEvalConstraintNotNull(ExprState *state, ExprEvalStep *op)
 {
-  if (*op->resnull)
+  DBUG_TRACE;
+
+  if (*op->resnull) {
+    char *format1 = format_type_be(op->d.domaincheck.resulttype);
+    DBUG_INSTANT_PRINT("info", "domain %s does not allow null values", format1);
     errsave((Node *) op->d.domaincheck.escontext,
             (errcode(ERRCODE_NOT_NULL_VIOLATION),
              errmsg("domain %s does not allow null values",
-                    format_type_be(op->d.domaincheck.resulttype)),
+                    format1),
              errdatatype(op->d.domaincheck.resulttype)));
+  }
 }
 
 /*
@@ -4217,15 +4290,21 @@ ExecEvalConstraintNotNull(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalConstraintCheck(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
+
   if (!*op->d.domaincheck.checknull &&
-      !DatumGetBool(*op->d.domaincheck.checkvalue))
+      !DatumGetBool(*op->d.domaincheck.checkvalue)) {
+    char *format1 = format_type_be(op->d.domaincheck.resulttype);
+    DBUG_INSTANT_PRINT("info", "value for domain %s violates check constraint \"%s\"", format1,
+                       op->d.domaincheck.constraintname);
     errsave((Node *) op->d.domaincheck.escontext,
             (errcode(ERRCODE_CHECK_VIOLATION),
              errmsg("value for domain %s violates check constraint \"%s\"",
-                    format_type_be(op->d.domaincheck.resulttype),
+                    format1,
                     op->d.domaincheck.constraintname),
              errdomainconstraint(op->d.domaincheck.resulttype,
                                  op->d.domaincheck.constraintname)));
+  }
 }
 
 /*
@@ -4237,6 +4316,7 @@ ExecEvalConstraintCheck(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalXmlExpr(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   XmlExpr    *xexpr = op->d.xmlexpr.xexpr;
   Datum   value;
 
@@ -4444,6 +4524,7 @@ void
 ExecEvalJsonConstructor(ExprState *state, ExprEvalStep *op,
                         ExprContext *econtext)
 {
+  DBUG_TRACE;
   Datum   res;
   JsonConstructorExprState *jcstate = op->d.json_constructor.jcstate;
   JsonConstructorExpr *ctor = jcstate->constructor;
@@ -4510,6 +4591,7 @@ ExecEvalJsonConstructor(ExprState *state, ExprEvalStep *op,
 void
 ExecEvalJsonIsPredicate(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   JsonIsPredicate *pred = op->d.is_json.pred;
   Datum   js = *op->resvalue;
   Oid     exprtype;
@@ -4608,6 +4690,7 @@ int
 ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
                      ExprContext *econtext)
 {
+  DBUG_TRACE;
   JsonExprState *jsestate = op->d.jsonexpr.jsestate;
   JsonExpr   *jsexpr = jsestate->jsexpr;
   Datum   item;
@@ -4793,6 +4876,7 @@ ExecEvalJsonExprPath(ExprState *state, ExprEvalStep *op,
 static char *
 ExecGetJsonValueItemString(JsonbValue *item, bool *resnull)
 {
+  DBUG_TRACE;
   *resnull = false;
 
   /* get coercion state reference and datum of the corresponding SQL type */
@@ -4872,6 +4956,7 @@ void
 ExecEvalJsonCoercion(ExprState *state, ExprEvalStep *op,
                      ExprContext *econtext)
 {
+  DBUG_TRACE;
   ErrorSaveContext *escontext = op->d.jsonexpr_coercion.escontext;
 
   /*
@@ -4947,6 +5032,7 @@ GetJsonBehaviorValueString(JsonBehavior *behavior)
 void
 ExecEvalJsonCoercionFinish(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   JsonExprState *jsestate = op->d.jsonexpr.jsestate;
 
   if (SOFT_ERROR_OCCURRED(&jsestate->escontext)) {
@@ -4999,6 +5085,7 @@ ExecEvalJsonCoercionFinish(ExprState *state, ExprEvalStep *op)
 void
 ExecEvalGroupingFunc(ExprState *state, ExprEvalStep *op)
 {
+  DBUG_TRACE;
   AggState   *aggstate = castNode(AggState, state->parent);
   int     result = 0;
   Bitmapset  *grouped_cols = aggstate->grouped_cols;
@@ -5026,6 +5113,7 @@ void
 ExecEvalMergeSupportFunc(ExprState *state, ExprEvalStep *op,
                          ExprContext *econtext)
 {
+  DBUG_TRACE;
   ModifyTableState *mtstate = castNode(ModifyTableState, state->parent);
   MergeActionState *relaction = mtstate->mt_merge_action;
 
@@ -5065,6 +5153,7 @@ ExecEvalMergeSupportFunc(ExprState *state, ExprEvalStep *op,
 void
 ExecEvalSubPlan(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   SubPlanState *sstate = op->d.subplan.sstate;
 
   /* could potentially be nested, so make sure there's enough stack */
@@ -5082,6 +5171,7 @@ ExecEvalSubPlan(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 void
 ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
+  DBUG_TRACE;
   Var      *variable = op->d.wholerow.var;
   TupleTableSlot *slot = NULL;
   TupleDesc output_tupdesc;
@@ -5089,6 +5179,7 @@ ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
   HeapTupleHeader dtuple;
   HeapTuple tuple;
 
+  DBUG_PRINT("info", "evaluate a wholerow Var expression");
   /* This was checked by ExecInitExpr */
   Assert(variable->varattno == InvalidAttrNumber);
 
@@ -5336,6 +5427,7 @@ void
 ExecEvalSysVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext,
                TupleTableSlot *slot)
 {
+  DBUG_TRACE;
   Datum   d;
 
   /* OLD/NEW system attribute is NULL if OLD/NEW row is NULL */
@@ -5367,6 +5459,7 @@ void
 ExecAggInitGroup(AggState *aggstate, AggStatePerTrans pertrans, AggStatePerGroup pergroup,
                  ExprContext *aggcontext)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   MemoryContext oldContext;
 
@@ -5421,6 +5514,7 @@ ExecAggCopyTransValue(AggState *aggstate, AggStatePerTrans pertrans,
                       Datum newValue, bool newValueIsNull,
                       Datum oldValue, bool oldValueIsNull)
 {
+  DBUG_TRACE;
   Assert(newValue != oldValue);
 
   if (!newValueIsNull) {
@@ -5465,6 +5559,7 @@ ExecAggCopyTransValue(AggState *aggstate, AggStatePerTrans pertrans,
 bool
 ExecEvalPreOrderedDistinctSingle(AggState *aggstate, AggStatePerTrans pertrans)
 {
+  DBUG_TRACE;
   Datum   value = pertrans->transfn_fcinfo->args[1].value;
   bool    isnull = pertrans->transfn_fcinfo->args[1].isnull;
 
@@ -5492,9 +5587,11 @@ ExecEvalPreOrderedDistinctSingle(AggState *aggstate, AggStatePerTrans pertrans)
       pertrans->lastdatum = (Datum) 0;
 
     pertrans->lastisnull = isnull;
+    DBUG_PRINT("info", "return true when the aggregate transition value Datum is distinct from the previous input Datum");
     return true;
   }
 
+  DBUG_PRINT("info", "returns false when the input Datum matches the previous input Datum");
   return false;
 }
 
@@ -5507,6 +5604,7 @@ ExecEvalPreOrderedDistinctSingle(AggState *aggstate, AggStatePerTrans pertrans)
 bool
 ExecEvalPreOrderedDistinctMulti(AggState *aggstate, AggStatePerTrans pertrans)
 {
+  DBUG_TRACE;
   ExprContext *tmpcontext = aggstate->tmpcontext;
   bool    isdistinct = false; /* for now */
   TupleTableSlot *save_outer;
@@ -5543,6 +5641,12 @@ ExecEvalPreOrderedDistinctMulti(AggState *aggstate, AggStatePerTrans pertrans)
   tmpcontext->ecxt_outertuple = save_outer;
   tmpcontext->ecxt_innertuple = save_inner;
 
+  if (isdistinct) {
+    DBUG_PRINT("info", "return true when the aggregate input is distinct from the previous input");
+  } else {
+    DBUG_PRINT("info", "returns false when the input matches the previous input");
+  }
+
   return isdistinct;
 }
 
@@ -5553,6 +5657,7 @@ void
 ExecEvalAggOrderedTransDatum(ExprState *state, ExprEvalStep *op,
                              ExprContext *econtext)
 {
+  DBUG_TRACE;
   AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
   int     setno = op->d.agg_trans.setno;
 
@@ -5567,9 +5672,11 @@ void
 ExecEvalAggOrderedTransTuple(ExprState *state, ExprEvalStep *op,
                              ExprContext *econtext)
 {
+  DBUG_TRACE;
   AggStatePerTrans pertrans = op->d.agg_trans.pertrans;
   int     setno = op->d.agg_trans.setno;
 
+  DBUG_PRINT("info", "invoke ordered transition function, with a tuple argument");
   ExecClearTuple(pertrans->sortslot);
   pertrans->sortslot->tts_nvalid = pertrans->numInputs;
   ExecStoreVirtualTuple(pertrans->sortslot);
@@ -5582,6 +5689,7 @@ ExecAggPlainTransByVal(AggState *aggstate, AggStatePerTrans pertrans,
                        AggStatePerGroup pergroup,
                        ExprContext *aggcontext, int setno)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   MemoryContext oldContext;
   Datum   newVal;
@@ -5614,6 +5722,7 @@ ExecAggPlainTransByRef(AggState *aggstate, AggStatePerTrans pertrans,
                        AggStatePerGroup pergroup,
                        ExprContext *aggcontext, int setno)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   MemoryContext oldContext;
   Datum   newVal;

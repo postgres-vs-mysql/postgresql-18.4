@@ -52,6 +52,7 @@
  *------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -173,6 +174,7 @@ WaitEventSet *FeBeWaitSet;
 Port *
 pq_init(ClientSocket *client_sock)
 {
+  DBUG_TRACE;
   Port     *port;
   int     socket_pos PG_USED_FOR_ASSERTS_ONLY;
   int     latch_pos PG_USED_FOR_ASSERTS_ONLY;
@@ -184,6 +186,7 @@ pq_init(ClientSocket *client_sock)
   port->raddr.salen = client_sock->raddr.salen;
 
   /* fill in the server (local) address */
+  DBUG_PRINT("info", "fill in the server address");
   port->laddr.salen = sizeof(port->laddr.addr);
 
   if (getsockname(port->sock,
@@ -352,6 +355,8 @@ socket_comm_reset(void)
 static void
 socket_close(int code, Datum arg)
 {
+  DBUG_TRACE;
+
   /* Nothing to do in a standalone backend, where MyProcPort is NULL. */
   if (MyProcPort != NULL) {
 #ifdef ENABLE_GSS
@@ -423,6 +428,7 @@ ListenServerPort(int family, const char *hostName, unsigned short portNumber,
                  const char *unixSocketDir,
                  pgsocket ListenSockets[], int *NumListenSockets, int MaxListen)
 {
+  DBUG_TRACE;
   pgsocket  fd;
   int     err;
   int     maxconn;
@@ -654,15 +660,18 @@ ListenServerPort(int family, const char *hostName, unsigned short portNumber,
       continue;
     }
 
-    if (addr->ai_family == AF_UNIX)
+    if (addr->ai_family == AF_UNIX) {
+      DBUG_PRINT("info", "listening on Unix socket %s", addrDesc);
       ereport(LOG,
               (errmsg("listening on Unix socket \"%s\"",
                       addrDesc)));
-    else
+    } else {
+      DBUG_PRINT("info", "listening on %s address %s, port %d", familyDesc, addrDesc, (int) portNumber);
       ereport(LOG,
               /* translator: first %s is IPv4 or IPv6 */
               (errmsg("listening on %s address \"%s\", port %d",
                       familyDesc, addrDesc, (int) portNumber)));
+    }
 
     ListenSockets[*NumListenSockets] = fd;
     (*NumListenSockets)++;
@@ -795,6 +804,7 @@ Setup_AF_UNIX(const char *sock_path)
 int
 AcceptConnection(pgsocket server_fd, ClientSocket *client_sock)
 {
+  DBUG_TRACE;
   /* accept connection and fill in the client (remote) address */
   client_sock->raddr.salen = sizeof(client_sock->raddr.addr);
 
@@ -831,6 +841,7 @@ AcceptConnection(pgsocket server_fd, ClientSocket *client_sock)
 void
 TouchSocketFiles(void)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /* Loop through all created sockets... */
@@ -848,6 +859,7 @@ TouchSocketFiles(void)
 void
 RemoveSocketFiles(void)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /* Loop through all created sockets... */
@@ -1321,6 +1333,7 @@ internal_putbytes(const void *b, size_t len)
 static int
 socket_flush(void)
 {
+  DBUG_TRACE;
   int     res;
 
   /* No-op if reentrant call */
@@ -1344,6 +1357,7 @@ socket_flush(void)
 static inline int
 internal_flush(void)
 {
+  DBUG_TRACE;
   return internal_flush_buffer(PqSendBuffer, &PqSendStart, &PqSendPointer);
 }
 
@@ -1357,6 +1371,7 @@ internal_flush(void)
 static pg_noinline int
 internal_flush_buffer(const char *buf, size_t *start, size_t *end)
 {
+  DBUG_TRACE;
   static int  last_reported_send_errno = 0;
 
   const char *bufptr = buf + *start;
@@ -1426,6 +1441,7 @@ internal_flush_buffer(const char *buf, size_t *start, size_t *end)
 static int
 socket_flush_if_writable(void)
 {
+  DBUG_TRACE;
   int     res;
 
   /* Quick exit if nothing to do */
@@ -1452,6 +1468,7 @@ socket_flush_if_writable(void)
 static bool
 socket_is_send_pending(void)
 {
+  DBUG_TRACE;
   return (PqSendStart < PqSendPointer);
 }
 
@@ -1482,13 +1499,17 @@ socket_is_send_pending(void)
 static int
 socket_putmessage(char msgtype, const char *s, size_t len)
 {
+  DBUG_TRACE;
   uint32    n32;
 
   Assert(msgtype != 0);
 
-  if (PqCommBusy)
+  if (PqCommBusy) {
+    DBUG_PRINT("info", "pq busy and return 0");
     return 0;
+  }
 
+  DBUG_PRINT("info", "this length of the message body data:%lu", len);
   PqCommBusy = true;
 
   if (internal_putbytes(&msgtype, 1))
@@ -1519,6 +1540,7 @@ fail:
 static void
 socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 {
+  DBUG_TRACE;
   int     res PG_USED_FOR_ASSERTS_ONLY;
   int     required;
 
@@ -1535,7 +1557,7 @@ socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 
   res = pq_putmessage(msgtype, s, len);
   Assert(res == 0);     /* should not fail when the message fits in
-                 * buffer */
+                         * buffer */
 }
 
 /* --------------------------------
@@ -1557,6 +1579,7 @@ socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 int
 pq_putmessage_v2(char msgtype, const char *s, size_t len)
 {
+  DBUG_TRACE;
   Assert(msgtype != 0);
 
   if (PqCommBusy)
@@ -1592,6 +1615,7 @@ fail:
 static int
 pq_setkeepaliveswin32(Port *port, int idle, int interval)
 {
+  DBUG_TRACE;
   struct tcp_keepalive ka;
   DWORD   retsize;
 
@@ -1634,6 +1658,7 @@ pq_setkeepaliveswin32(Port *port, int idle, int interval)
 int
 pq_getkeepalivesidle(Port *port)
 {
+  DBUG_TRACE;
 #if defined(PG_TCP_KEEPALIVE_IDLE) || defined(SIO_KEEPALIVE_VALS)
 
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
@@ -1669,6 +1694,8 @@ pq_getkeepalivesidle(Port *port)
 int
 pq_setkeepalivesidle(int idle, Port *port)
 {
+  DBUG_TRACE;
+
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
     return STATUS_OK;
 
@@ -1719,6 +1746,7 @@ pq_setkeepalivesidle(int idle, Port *port)
 int
 pq_getkeepalivesinterval(Port *port)
 {
+  DBUG_TRACE;
 #if defined(TCP_KEEPINTVL) || defined(SIO_KEEPALIVE_VALS)
 
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
@@ -1754,6 +1782,8 @@ pq_getkeepalivesinterval(Port *port)
 int
 pq_setkeepalivesinterval(int interval, Port *port)
 {
+  DBUG_TRACE;
+
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
     return STATUS_OK;
 
@@ -1803,6 +1833,7 @@ pq_setkeepalivesinterval(int interval, Port *port)
 int
 pq_getkeepalivescount(Port *port)
 {
+  DBUG_TRACE;
 #ifdef TCP_KEEPCNT
 
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
@@ -1832,6 +1863,8 @@ pq_getkeepalivescount(Port *port)
 int
 pq_setkeepalivescount(int count, Port *port)
 {
+  DBUG_TRACE;
+
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
     return STATUS_OK;
 
@@ -1876,6 +1909,7 @@ pq_setkeepalivescount(int count, Port *port)
 int
 pq_gettcpusertimeout(Port *port)
 {
+  DBUG_TRACE;
 #ifdef TCP_USER_TIMEOUT
 
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
@@ -1905,6 +1939,8 @@ pq_gettcpusertimeout(Port *port)
 int
 pq_settcpusertimeout(int timeout, Port *port)
 {
+  DBUG_TRACE;
+
   if (port == NULL || port->laddr.addr.ss_family == AF_UNIX)
     return STATUS_OK;
 
@@ -1952,6 +1988,7 @@ pq_settcpusertimeout(int timeout, Port *port)
 void
 assign_tcp_keepalives_idle(int newval, void *extra)
 {
+  DBUG_TRACE;
   /*
    * The kernel API provides no way to test a value without setting it; and
    * once we set it we might fail to unset it.  So there seems little point
@@ -1972,6 +2009,7 @@ assign_tcp_keepalives_idle(int newval, void *extra)
 const char *
 show_tcp_keepalives_idle(void)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   static char nbuf[16];
 
@@ -1985,6 +2023,7 @@ show_tcp_keepalives_idle(void)
 void
 assign_tcp_keepalives_interval(int newval, void *extra)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   (void) pq_setkeepalivesinterval(newval, MyProcPort);
 }
@@ -1995,6 +2034,7 @@ assign_tcp_keepalives_interval(int newval, void *extra)
 const char *
 show_tcp_keepalives_interval(void)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   static char nbuf[16];
 
@@ -2008,6 +2048,7 @@ show_tcp_keepalives_interval(void)
 void
 assign_tcp_keepalives_count(int newval, void *extra)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   (void) pq_setkeepalivescount(newval, MyProcPort);
 }
@@ -2018,6 +2059,7 @@ assign_tcp_keepalives_count(int newval, void *extra)
 const char *
 show_tcp_keepalives_count(void)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   static char nbuf[16];
 
@@ -2031,6 +2073,7 @@ show_tcp_keepalives_count(void)
 void
 assign_tcp_user_timeout(int newval, void *extra)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   (void) pq_settcpusertimeout(newval, MyProcPort);
 }
@@ -2041,6 +2084,7 @@ assign_tcp_user_timeout(int newval, void *extra)
 const char *
 show_tcp_user_timeout(void)
 {
+  DBUG_TRACE;
   /* See comments in assign_tcp_keepalives_idle */
   static char nbuf[16];
 
@@ -2054,6 +2098,7 @@ show_tcp_user_timeout(void)
 bool
 pq_check_connection(void)
 {
+  DBUG_TRACE;
   WaitEvent events[FeBeWaitSetNEvents];
   int     rc;
 

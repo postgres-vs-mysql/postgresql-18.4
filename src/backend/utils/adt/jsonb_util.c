@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_collation.h"
@@ -91,6 +92,7 @@ JsonbToJsonbValue(Jsonb *jsonb, JsonbValue *val)
 Jsonb *
 JsonbValueToJsonb(JsonbValue *val)
 {
+  DBUG_TRACE;
   Jsonb    *out;
 
   if (IsAJsonbScalar(val)) {
@@ -128,6 +130,7 @@ JsonbValueToJsonb(JsonbValue *val)
 uint32
 getJsonbOffset(const JsonbContainer *jc, int index)
 {
+  DBUG_TRACE;
   uint32    offset = 0;
   int     i;
 
@@ -143,6 +146,7 @@ getJsonbOffset(const JsonbContainer *jc, int index)
       break;
   }
 
+  DBUG_PRINT("info", "offset:%u", offset);
   return offset;
 }
 
@@ -153,6 +157,7 @@ getJsonbOffset(const JsonbContainer *jc, int index)
 uint32
 getJsonbLength(const JsonbContainer *jc, int index)
 {
+  DBUG_TRACE;
   uint32    off;
   uint32    len;
 
@@ -167,6 +172,7 @@ getJsonbLength(const JsonbContainer *jc, int index)
   } else
     len = JBE_OFFLENFLD(jc->children[index]);
 
+  DBUG_PRINT("info", "len:%u", len);
   return len;
 }
 
@@ -183,6 +189,7 @@ getJsonbLength(const JsonbContainer *jc, int index)
 int
 compareJsonbContainers(JsonbContainer *a, JsonbContainer *b)
 {
+  DBUG_TRACE;
   JsonbIterator *ita,
                 *itb;
   int     res = 0;
@@ -302,6 +309,7 @@ compareJsonbContainers(JsonbContainer *a, JsonbContainer *b)
     itb = i;
   }
 
+  DBUG_PRINT("info", "result:%d", res);
   return res;
 }
 
@@ -335,6 +343,7 @@ JsonbValue *
 findJsonbValueFromContainer(JsonbContainer *container, uint32 flags,
                             JsonbValue *key)
 {
+  DBUG_TRACE;
   JEntry     *children = container->children;
   int     count = JsonContainerSize(container);
 
@@ -384,6 +393,7 @@ JsonbValue *
 getKeyJsonValueFromContainer(JsonbContainer *container,
                              const char *keyVal, int keyLen, JsonbValue *res)
 {
+  DBUG_TRACE;
   JEntry     *children = container->children;
   int     count = JsonContainerSize(container);
   char     *baseAddr;
@@ -391,6 +401,8 @@ getKeyJsonValueFromContainer(JsonbContainer *container,
             stopHigh;
 
   Assert(JsonContainerIsObject(container));
+
+  DBUG_PRINT("info", "find value by key in Jsonb object:'%s'", keyVal);
 
   /* Quick out without a palloc cycle if object is empty */
   if (count <= 0)
@@ -422,6 +434,8 @@ getKeyJsonValueFromContainer(JsonbContainer *container,
       /* Found our key, return corresponding value */
       int     index = stopMiddle + count;
 
+      DBUG_PRINT("info", "found our key, return corresponding value");
+
       if (!res)
         res = palloc(sizeof(JsonbValue));
 
@@ -438,6 +452,7 @@ getKeyJsonValueFromContainer(JsonbContainer *container,
     }
   }
 
+  DBUG_PRINT("info", "not found");
   /* Not found */
   return NULL;
 }
@@ -450,6 +465,7 @@ getKeyJsonValueFromContainer(JsonbContainer *container,
 JsonbValue *
 getIthJsonbValueFromContainer(JsonbContainer *container, uint32 i)
 {
+  DBUG_TRACE;
   JsonbValue *result;
   char     *base_addr;
   uint32    nelements;
@@ -489,6 +505,7 @@ fillJsonbValue(JsonbContainer *container, int index,
                char *base_addr, uint32 offset,
                JsonbValue *result)
 {
+  DBUG_TRACE;
   JEntry    entry = container->children[index];
 
   if (JBE_ISNULL(entry)) {
@@ -538,6 +555,7 @@ JsonbValue *
 pushJsonbValue(JsonbParseState **pstate, JsonbIteratorToken seq,
                JsonbValue *jbval)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
   JsonbValue *res = NULL;
   JsonbValue  v;
@@ -608,6 +626,7 @@ static JsonbValue *
 pushJsonbValueScalar(JsonbParseState **pstate, JsonbIteratorToken seq,
                      JsonbValue *scalarVal)
 {
+  DBUG_TRACE;
   JsonbValue *result = NULL;
 
   switch (seq) {
@@ -789,6 +808,7 @@ appendElement(JsonbParseState *pstate, JsonbValue *scalarVal)
 JsonbIterator *
 JsonbIteratorInit(JsonbContainer *container)
 {
+  DBUG_TRACE;
   return iteratorFromContainer(container, NULL);
 }
 
@@ -827,6 +847,8 @@ JsonbIteratorInit(JsonbContainer *container)
 JsonbIteratorToken
 JsonbIteratorNext(JsonbIterator **it, JsonbValue *val, bool skipNested)
 {
+  DBUG_TRACE;
+
   if (*it == NULL) {
     val->type = jbvNull;
     return WJB_DONE;
@@ -971,6 +993,7 @@ recurse:
 static JsonbIterator *
 iteratorFromContainer(JsonbContainer *container, JsonbIterator *parent)
 {
+  DBUG_TRACE;
   JsonbIterator *it;
 
   it = palloc0(sizeof(JsonbIterator));
@@ -1033,6 +1056,7 @@ freeAndGetParent(JsonbIterator *it)
 bool
 JsonbDeepContains(JsonbIterator **val, JsonbIterator **mContained)
 {
+  DBUG_TRACE;
   JsonbValue  vval,
               vcontained;
   JsonbIteratorToken rval,
@@ -1270,6 +1294,7 @@ JsonbDeepContains(JsonbIterator **val, JsonbIterator **mContained)
 void
 JsonbHashScalarValue(const JsonbValue *scalarVal, uint32 *hash)
 {
+  DBUG_TRACE;
   uint32    tmp;
 
   /* Compute hash value for scalarVal */
@@ -1317,6 +1342,7 @@ void
 JsonbHashScalarValueExtended(const JsonbValue *scalarVal, uint64 *hash,
                              uint64 seed)
 {
+  DBUG_TRACE;
   uint64    tmp;
 
   switch (scalarVal->type) {
@@ -1361,6 +1387,8 @@ JsonbHashScalarValueExtended(const JsonbValue *scalarVal, uint64 *hash,
 static bool
 equalsJsonbScalarValue(JsonbValue *a, JsonbValue *b)
 {
+  DBUG_TRACE;
+
   if (a->type == b->type) {
     switch (a->type) {
       case jbvNull:
@@ -1395,6 +1423,8 @@ equalsJsonbScalarValue(JsonbValue *a, JsonbValue *b)
 static int
 compareJsonbScalarValue(JsonbValue *a, JsonbValue *b)
 {
+  DBUG_TRACE;
+
   if (a->type == b->type) {
     switch (a->type) {
       case jbvNull:
@@ -1513,6 +1543,7 @@ padBufferToInt(StringInfo buffer)
 static Jsonb *
 convertToJsonb(JsonbValue *val)
 {
+  DBUG_TRACE;
   StringInfoData buffer;
   JEntry    jentry;
   Jsonb    *res;
@@ -1555,6 +1586,7 @@ convertToJsonb(JsonbValue *val)
 static void
 convertJsonbValue(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 {
+  DBUG_TRACE;
   check_stack_depth();
 
   if (!val)
@@ -1580,6 +1612,7 @@ convertJsonbValue(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 static void
 convertJsonbArray(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 {
+  DBUG_TRACE;
   int     base_offset;
   int     jentry_offset;
   int     i;
@@ -1664,6 +1697,7 @@ convertJsonbArray(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 static void
 convertJsonbObject(StringInfo buffer, JEntry *header, JsonbValue *val, int level)
 {
+  DBUG_TRACE;
   int     base_offset;
   int     jentry_offset;
   int     i;
@@ -1780,6 +1814,7 @@ convertJsonbObject(StringInfo buffer, JEntry *header, JsonbValue *val, int level
 static void
 convertJsonbScalar(StringInfo buffer, JEntry *header, JsonbValue *scalarVal)
 {
+  DBUG_TRACE;
   int     numlen;
   short   padlen;
 
@@ -1862,10 +1897,22 @@ lengthCompareJsonbStringValue(const void *a, const void *b)
 static int
 lengthCompareJsonbString(const char *val1, int len1, const char *val2, int len2)
 {
-  if (len1 == len2)
-    return memcmp(val1, val2, len1);
-  else
-    return len1 > len2 ? 1 : -1;
+  DBUG_TRACE;
+  int result;
+
+  if (len1 == len2) {
+
+    result = memcmp(val1, val2, len1);
+    DBUG_PRINT("info", "val1:'%s', len1:%d, val2:'%s', len2:%d", val1, len1, val2, len2);
+    DBUG_PRINT("info", "result:%d", result);
+    return result;
+  } else {
+    result = len1 > len2 ? 1 : -1;
+
+    DBUG_PRINT("info", "len1:%d, len2:%d", len1, len2);
+    DBUG_PRINT("info", "result:%d", result);
+    return result;
+  }
 }
 
 /*
@@ -1907,6 +1954,7 @@ lengthCompareJsonbPair(const void *a, const void *b, void *binequal)
 static void
 uniqueifyJsonbObject(JsonbValue *object, bool unique_keys, bool skip_nulls)
 {
+  DBUG_TRACE;
   bool    hasNonUniq = false;
 
   Assert(object->type == jbvObject);

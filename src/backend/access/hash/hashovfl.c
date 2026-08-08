@@ -15,6 +15,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/hash.h"
@@ -34,6 +35,7 @@ static uint32 _hash_firstfreebit(uint32 map);
 static BlockNumber
 bitno_to_blkno(HashMetaPage metap, uint32 ovflbitnum)
 {
+  DBUG_TRACE;
   uint32    splitnum = metap->hashm_ovflpoint;
   uint32    i;
 
@@ -61,6 +63,7 @@ bitno_to_blkno(HashMetaPage metap, uint32 ovflbitnum)
 uint32
 _hash_ovflblkno_to_bitno(HashMetaPage metap, BlockNumber ovflblkno)
 {
+  DBUG_TRACE;
   uint32    splitnum = metap->hashm_ovflpoint;
   uint32    i;
   uint32    bitnum;
@@ -111,6 +114,7 @@ _hash_ovflblkno_to_bitno(HashMetaPage metap, BlockNumber ovflblkno)
 Buffer
 _hash_addovflpage(Relation rel, Buffer metabuf, Buffer buf, bool retain_pin)
 {
+  DBUG_TRACE;
   Buffer    ovflbuf;
   Page    page;
   Page    ovflpage;
@@ -431,6 +435,7 @@ found:
 static uint32
 _hash_firstfreebit(uint32 map)
 {
+  DBUG_TRACE;
   uint32    i,
             mask;
 
@@ -477,6 +482,7 @@ _hash_freeovflpage(Relation rel, Buffer bucketbuf, Buffer ovflbuf,
                    Size *tups_size, uint16 nitups,
                    BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   Buffer    metabuf;
   Buffer    mapbuf;
@@ -754,6 +760,7 @@ _hash_freeovflpage(Relation rel, Buffer bucketbuf, Buffer ovflbuf,
 void
 _hash_initbitmapbuffer(Buffer buf, uint16 bmsize, bool initpage)
 {
+  DBUG_TRACE;
   Page    pg;
   HashPageOpaque op;
   uint32     *freep;
@@ -823,6 +830,7 @@ _hash_squeezebucket(Relation rel,
                     Buffer bucket_buf,
                     BufferAccessStrategy bstrategy)
 {
+  DBUG_TRACE;
   BlockNumber wblkno;
   BlockNumber rblkno;
   Buffer    wbuf;

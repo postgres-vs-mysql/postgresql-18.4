@@ -20,6 +20,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <ctype.h>
@@ -51,6 +52,7 @@ static int  ParseTzFile(const char *filename, int depth,
 static bool
 validateTzEntry(tzEntry *tzentry)
 {
+  DBUG_TRACE;
   unsigned char *p;
 
   /*
@@ -60,6 +62,9 @@ validateTzEntry(tzEntry *tzentry)
     GUC_check_errmsg("time zone abbreviation \"%s\" is too long (maximum %d characters) in time zone file \"%s\", line %d",
                      tzentry->abbrev, TOKMAXLEN,
                      tzentry->filename, tzentry->lineno);
+    DBUG_PRINT("info", "time zone abbreviation \"%s\" is too long (maximum %d characters) in time zone file \"%s\", line %d",
+               tzentry->abbrev, TOKMAXLEN, tzentry->filename, tzentry->lineno);
+    DBUG_PRINT("info", "return false");
     return false;
   }
 
@@ -71,6 +76,9 @@ validateTzEntry(tzEntry *tzentry)
     GUC_check_errmsg("time zone offset %d is out of range in time zone file \"%s\", line %d",
                      tzentry->offset,
                      tzentry->filename, tzentry->lineno);
+    DBUG_PRINT("info", "time zone offset %d is out of range in time zone file \"%s\", line %d",
+               tzentry->offset, tzentry->filename, tzentry->lineno);
+    DBUG_PRINT("info", "return false");
     return false;
   }
 
@@ -80,6 +88,8 @@ validateTzEntry(tzEntry *tzentry)
   for (p = (unsigned char *) tzentry->abbrev; *p; p++)
     *p = pg_tolower(*p);
 
+
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -95,6 +105,7 @@ validateTzEntry(tzEntry *tzentry)
 static bool
 splitTzLine(const char *filename, int lineno, char *line, tzEntry *tzentry)
 {
+  DBUG_TRACE;
   char     *brkl;
   char     *abbrev;
   char     *offset;
@@ -106,6 +117,8 @@ splitTzLine(const char *filename, int lineno, char *line, tzEntry *tzentry)
   tzentry->filename = filename;
 
   abbrev = strtok_r(line, WHITESPACE, &brkl);
+
+  DBUG_PRINT("info", "time zone file \"%s\", lineno %d, line:'%s'", filename, lineno, line);
 
   if (!abbrev) {
     GUC_check_errmsg("missing time zone abbreviation in time zone file \"%s\", line %d",
@@ -183,6 +196,7 @@ static int
 addToArray(tzEntry **base, int *arraysize, int n,
            tzEntry *entry, bool override)
 {
+  DBUG_TRACE;
   tzEntry    *arrayptr;
   int     low;
   int     high;
@@ -195,6 +209,8 @@ addToArray(tzEntry **base, int *arraysize, int n,
   arrayptr = *base;
   low = 0;
   high = n - 1;
+
+  DBUG_PRINT("info", "search the array(low:%d, high:%d) for a duplicate", low, high);
 
   while (low <= high) {
     int     mid = (low + high) >> 1;
@@ -211,17 +227,21 @@ addToArray(tzEntry **base, int *arraysize, int n,
       /*
        * Found a duplicate entry; complain unless it's the same.
        */
+      DBUG_PRINT("info", "found a duplicate entry; complain unless it's the same");
+
       if ((midptr->zone == NULL && entry->zone == NULL &&
            midptr->offset == entry->offset &&
            midptr->is_dst == entry->is_dst) ||
           (midptr->zone != NULL && entry->zone != NULL &&
            strcmp(midptr->zone, entry->zone) == 0)) {
+        DBUG_PRINT("info", "return unchanged array");
         /* return unchanged array */
         return n;
       }
 
       if (override) {
         /* same abbrev but something is different, override */
+        DBUG_PRINT("info", "same abbrev but something is different, override");
         midptr->zone = entry->zone;
         midptr->offset = entry->offset;
         midptr->is_dst = entry->is_dst;
@@ -229,6 +249,7 @@ addToArray(tzEntry **base, int *arraysize, int n,
       }
 
       /* same abbrev but something is different, complain */
+      DBUG_PRINT("info", "time zone abbreviation \"%s\" is multiply defined", entry->abbrev);
       GUC_check_errmsg("time zone abbreviation \"%s\" is multiply defined",
                        entry->abbrev);
       GUC_check_errdetail("Entry in time zone file \"%s\", line %d, conflicts with entry in file \"%s\", line %d.",
@@ -241,6 +262,8 @@ addToArray(tzEntry **base, int *arraysize, int n,
   /*
    * No match, insert at position "low".
    */
+  DBUG_PRINT("info", "nmatch, insert at position low:%d", low);
+
   if (n >= *arraysize) {
     *arraysize *= 2;
     *base = (tzEntry *) repalloc(*base, *arraysize * sizeof(tzEntry));
@@ -270,6 +293,7 @@ static int
 ParseTzFile(const char *filename, int depth,
             tzEntry **base, int *arraysize, int n)
 {
+  DBUG_TRACE;
   char    share_path[MAXPGPATH];
   char    file_path[MAXPGPATH];
   FILE     *tzFile;
@@ -443,6 +467,7 @@ ParseTzFile(const char *filename, int depth,
 TimeZoneAbbrevTable *
 load_tzoffsets(const char *filename)
 {
+  DBUG_TRACE;
   TimeZoneAbbrevTable *result = NULL;
   MemoryContext tmpContext;
   MemoryContext oldContext;

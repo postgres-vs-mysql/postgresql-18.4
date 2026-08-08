@@ -13,6 +13,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "mb/pg_wchar.h"
@@ -156,6 +157,7 @@ struct yyguts_t {
 int
 plpgsql_yylex(YYSTYPE *yylvalp, YYLTYPE *yyllocp, yyscan_t yyscanner)
 {
+  DBUG_TRACE;
   int     tok1;
   TokenAuxData aux1;
   int     kwnum;
@@ -327,6 +329,7 @@ plpgsql_token_length(yyscan_t yyscanner)
 static int
 internal_yylex(TokenAuxData *auxdata, yyscan_t yyscanner)
 {
+  DBUG_TRACE;
   int     token;
   const char *yytext;
 
@@ -402,13 +405,17 @@ plpgsql_push_back_token(int token, YYSTYPE *yylvalp, YYLTYPE *yyllocp, yyscan_t 
 bool
 plpgsql_token_is_unreserved_keyword(int token)
 {
+  DBUG_TRACE;
   int     i;
 
   for (i = 0; i < lengthof(UnreservedPLKeywordTokens); i++) {
-    if (UnreservedPLKeywordTokens[i] == token)
+    if (UnreservedPLKeywordTokens[i] == token) {
+      DBUG_PRINT("info", "tell whether a token(%d) is an unreserved keyword? Yes", token);
       return true;
+    }
   }
 
+  DBUG_PRINT("info", "tell whether a token(%d) is an unreserved keyword? No", token);
   return false;
 }
 
@@ -421,6 +428,7 @@ plpgsql_append_source_text(StringInfo buf,
                            int startlocation, int endlocation,
                            yyscan_t yyscanner)
 {
+  DBUG_TRACE;
   Assert(startlocation <= endlocation);
   appendBinaryStringInfo(buf, yyextra->scanorig + startlocation,
                          endlocation - startlocation);
@@ -521,6 +529,7 @@ plpgsql_scanner_errposition(int location, yyscan_t yyscanner)
 void
 plpgsql_yyerror(YYLTYPE *yyllocp, PLpgSQL_stmt_block **plpgsql_parse_result_p, yyscan_t yyscanner, const char *message)
 {
+  DBUG_TRACE;
   char     *yytext = yyextra->core_yy_extra.scanbuf + *yyllocp;
 
   if (*yytext == '\0') {
@@ -605,6 +614,7 @@ plpgsql_latest_lineno(yyscan_t yyscanner)
 yyscan_t
 plpgsql_scanner_init(const char *str)
 {
+  DBUG_TRACE;
   yyscan_t  yyscanner;
   struct plpgsql_yy_extra_type *yyext = palloc0_object(struct plpgsql_yy_extra_type);
 
@@ -637,6 +647,7 @@ plpgsql_scanner_init(const char *str)
 void
 plpgsql_scanner_finish(yyscan_t yyscanner)
 {
+  DBUG_TRACE;
   /* release storage */
   scanner_finish(yyscanner);
 }

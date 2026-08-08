@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <limits.h>
 
@@ -32,6 +33,7 @@
 Datum
 xidin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   TransactionId result;
 
@@ -42,6 +44,7 @@ xidin(PG_FUNCTION_ARGS)
 Datum
 xidout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId transactionId = PG_GETARG_TRANSACTIONID(0);
   char     *result = (char *) palloc(16);
 
@@ -55,6 +58,7 @@ xidout(PG_FUNCTION_ARGS)
 Datum
 xidrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_TRANSACTIONID((TransactionId) pq_getmsgint(buf, sizeof(TransactionId)));
@@ -66,6 +70,7 @@ xidrecv(PG_FUNCTION_ARGS)
 Datum
 xidsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId arg1 = PG_GETARG_TRANSACTIONID(0);
   StringInfoData buf;
 
@@ -80,6 +85,7 @@ xidsend(PG_FUNCTION_ARGS)
 Datum
 xideq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid1 = PG_GETARG_TRANSACTIONID(0);
   TransactionId xid2 = PG_GETARG_TRANSACTIONID(1);
 
@@ -92,6 +98,7 @@ xideq(PG_FUNCTION_ARGS)
 Datum
 xidneq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid1 = PG_GETARG_TRANSACTIONID(0);
   TransactionId xid2 = PG_GETARG_TRANSACTIONID(1);
 
@@ -116,6 +123,7 @@ hashxidextended(PG_FUNCTION_ARGS)
 Datum
 xid_age(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid = PG_GETARG_TRANSACTIONID(0);
   TransactionId now = GetStableLatestTransactionId();
 
@@ -132,6 +140,7 @@ xid_age(PG_FUNCTION_ARGS)
 Datum
 mxid_age(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TransactionId xid = PG_GETARG_TRANSACTIONID(0);
   MultiXactId now = ReadNextMultiXactId();
 
@@ -186,6 +195,7 @@ xidLogicalComparator(const void *arg1, const void *arg2)
 Datum
 xid8toxid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid = PG_GETARG_FULLTRANSACTIONID(0);
 
   PG_RETURN_TRANSACTIONID(XidFromFullTransactionId(fxid));
@@ -194,6 +204,7 @@ xid8toxid(PG_FUNCTION_ARGS)
 Datum
 xid8in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   uint64    result;
 
@@ -204,6 +215,7 @@ xid8in(PG_FUNCTION_ARGS)
 Datum
 xid8out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid = PG_GETARG_FULLTRANSACTIONID(0);
   char     *result = (char *) palloc(21);
 
@@ -214,6 +226,7 @@ xid8out(PG_FUNCTION_ARGS)
 Datum
 xid8recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   uint64    value;
 
@@ -224,6 +237,7 @@ xid8recv(PG_FUNCTION_ARGS)
 Datum
 xid8send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId arg1 = PG_GETARG_FULLTRANSACTIONID(0);
   StringInfoData buf;
 
@@ -235,6 +249,7 @@ xid8send(PG_FUNCTION_ARGS)
 Datum
 xid8eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -244,6 +259,7 @@ xid8eq(PG_FUNCTION_ARGS)
 Datum
 xid8ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -253,6 +269,7 @@ xid8ne(PG_FUNCTION_ARGS)
 Datum
 xid8lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -262,6 +279,7 @@ xid8lt(PG_FUNCTION_ARGS)
 Datum
 xid8gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -271,6 +289,7 @@ xid8gt(PG_FUNCTION_ARGS)
 Datum
 xid8le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -280,6 +299,7 @@ xid8le(PG_FUNCTION_ARGS)
 Datum
 xid8ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -289,6 +309,7 @@ xid8ge(PG_FUNCTION_ARGS)
 Datum
 xid8cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -315,6 +336,7 @@ hashxid8extended(PG_FUNCTION_ARGS)
 Datum
 xid8_larger(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -327,6 +349,7 @@ xid8_larger(PG_FUNCTION_ARGS)
 Datum
 xid8_smaller(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId fxid1 = PG_GETARG_FULLTRANSACTIONID(0);
   FullTransactionId fxid2 = PG_GETARG_FULLTRANSACTIONID(1);
 
@@ -346,6 +369,7 @@ xid8_smaller(PG_FUNCTION_ARGS)
 Datum
 cidin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   CommandId result;
 
@@ -359,6 +383,7 @@ cidin(PG_FUNCTION_ARGS)
 Datum
 cidout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CommandId c = PG_GETARG_COMMANDID(0);
   char     *result = (char *) palloc(16);
 
@@ -372,6 +397,7 @@ cidout(PG_FUNCTION_ARGS)
 Datum
 cidrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
 
   PG_RETURN_COMMANDID((CommandId) pq_getmsgint(buf, sizeof(CommandId)));
@@ -383,6 +409,7 @@ cidrecv(PG_FUNCTION_ARGS)
 Datum
 cidsend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CommandId arg1 = PG_GETARG_COMMANDID(0);
   StringInfoData buf;
 
@@ -394,6 +421,7 @@ cidsend(PG_FUNCTION_ARGS)
 Datum
 cideq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   CommandId arg1 = PG_GETARG_COMMANDID(0);
   CommandId arg2 = PG_GETARG_COMMANDID(1);
 

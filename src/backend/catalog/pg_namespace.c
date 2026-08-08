@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -42,6 +43,7 @@
 Oid
 NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp)
 {
+  DBUG_TRACE;
   Relation  nspdesc;
   HeapTuple tup;
   Oid     nspoid;
@@ -58,10 +60,12 @@ NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp)
     elog(ERROR, "no namespace name supplied");
 
   /* make sure there is no existing namespace of same name */
-  if (SearchSysCacheExists1(NAMESPACENAME, PointerGetDatum(nspName)))
+  if (SearchSysCacheExists1(NAMESPACENAME, PointerGetDatum(nspName))) {
+    DBUG_INSTANT_PRINT("info", "schema \"%s\" already exists", nspName);
     ereport(ERROR,
             (errcode(ERRCODE_DUPLICATE_SCHEMA),
              errmsg("schema \"%s\" already exists", nspName)));
+  }
 
   if (!isTemp)
     nspacl = get_user_default_acl(OBJECT_SCHEMA, ownerId,

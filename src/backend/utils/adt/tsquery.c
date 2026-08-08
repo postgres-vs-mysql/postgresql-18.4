@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "libpq/pqformat.h"
 #include "miscadmin.h"
@@ -165,6 +166,7 @@ get_modifiers(char *buf, int16 *weight, bool *prefix)
 static bool
 parse_phrase_operator(TSQueryParserState pstate, int16 *distance)
 {
+  DBUG_TRACE;
   enum {
     PHRASE_OPEN = 0,
     PHRASE_DIST,
@@ -239,6 +241,7 @@ parse_phrase_operator(TSQueryParserState pstate, int16 *distance)
 static bool
 parse_or_operator(TSQueryParserState pstate)
 {
+  DBUG_TRACE;
   char     *ptr = pstate->buf;
 
   /* it should begin with "OR" literal */
@@ -282,6 +285,7 @@ gettoken_query_standard(TSQueryParserState state, int8 *operator,
                         int *lenval, char **strval,
                         int16 *weight, bool *prefix)
 {
+  DBUG_TRACE;
   *weight = 0;
   *prefix = false;
 
@@ -369,6 +373,7 @@ gettoken_query_websearch(TSQueryParserState state, int8 *operator,
                          int *lenval, char **strval,
                          int16 *weight, bool *prefix)
 {
+  DBUG_TRACE;
   *weight = 0;
   *prefix = false;
 
@@ -481,6 +486,7 @@ gettoken_query_plain(TSQueryParserState state, int8 *operator,
 void
 pushOperator(TSQueryParserState state, int8 oper, int16 distance)
 {
+  DBUG_TRACE;
   QueryOperator *tmp;
 
   Assert(oper == OP_NOT || oper == OP_AND || oper == OP_OR || oper == OP_PHRASE);
@@ -497,6 +503,7 @@ pushOperator(TSQueryParserState state, int8 oper, int16 distance)
 static void
 pushValue_internal(TSQueryParserState state, pg_crc32 valcrc, int distance, int lenval, int weight, bool prefix)
 {
+  DBUG_TRACE;
   QueryOperand *tmp;
 
   if (distance >= MAXSTRPOS)
@@ -531,6 +538,7 @@ pushValue_internal(TSQueryParserState state, pg_crc32 valcrc, int distance, int 
 void
 pushValue(TSQueryParserState state, char *strval, int lenval, int16 weight, bool prefix)
 {
+  DBUG_TRACE;
   pg_crc32  valcrc;
 
   if (lenval >= MAXSTRLEN)
@@ -567,6 +575,7 @@ pushValue(TSQueryParserState state, char *strval, int lenval, int16 weight, bool
 void
 pushStop(TSQueryParserState state)
 {
+  DBUG_TRACE;
   QueryOperand *tmp;
 
   tmp = (QueryOperand *) palloc0(sizeof(QueryOperand));
@@ -623,6 +632,7 @@ makepol(TSQueryParserState state,
         PushFunction pushval,
         Datum opaque)
 {
+  DBUG_TRACE;
   int8    operator = 0;
   ts_tokentype type;
   int     lenval = 0;
@@ -632,6 +642,7 @@ makepol(TSQueryParserState state,
   int16   weight = 0;
   bool    prefix;
 
+  DBUG_PRINT("info", "make polish (prefix) notation of query");
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
 
@@ -680,6 +691,7 @@ makepol(TSQueryParserState state,
 static void
 findoprnd_recurse(QueryItem *ptr, uint32 *pos, int nnodes, bool *needcleanup)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -767,6 +779,7 @@ parse_tsquery(char *buf,
               int flags,
               Node *escontext)
 {
+  DBUG_TRACE;
   struct TSQueryParserStateData state;
   int     i;
   TSQuery   query;
@@ -900,6 +913,7 @@ pushval_asis(Datum opaque, TSQueryParserState state, char *strval, int lenval,
 Datum
 tsqueryin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *in = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
 
@@ -938,6 +952,7 @@ while( ( (inf)->cur - (inf)->buf ) + (addsize) + 1 >= (inf)->buflen ) \
 static void
 infix(INFIX *in, int parentPriority, bool rightPhraseOp)
 {
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow. */
   check_stack_depth();
 
@@ -1090,6 +1105,7 @@ infix(INFIX *in, int parentPriority, bool rightPhraseOp)
 Datum
 tsqueryout(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   INFIX   nrm;
 
@@ -1133,6 +1149,7 @@ tsqueryout(PG_FUNCTION_ARGS)
 Datum
 tsquerysend(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   StringInfoData buf;
   int     i;
@@ -1175,6 +1192,7 @@ tsquerysend(PG_FUNCTION_ARGS)
 Datum
 tsqueryrecv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   TSQuery   query;
   int     i,
@@ -1310,6 +1328,7 @@ tsqueryrecv(PG_FUNCTION_ARGS)
 Datum
 tsquerytree(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY(0);
   INFIX   nrm;
   text     *res;

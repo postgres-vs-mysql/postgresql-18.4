@@ -26,8 +26,7 @@
  *    typedef struct FormData_pg_tablespace
  * ----------------
  */
-CATALOG(pg_tablespace, 1213, TableSpaceRelationId) BKI_SHARED_RELATION
-{
+CATALOG(pg_tablespace, 1213, TableSpaceRelationId) BKI_SHARED_RELATION {
   Oid     oid;      /* oid */
   NameData  spcname;    /* tablespace name */
 

@@ -33,6 +33,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/table.h"
 #include "catalog/pg_class.h"
@@ -99,6 +100,7 @@ get_row_security_policies(Query *root, RangeTblEntry *rte, int rt_index,
                           List **securityQuals, List **withCheckOptions,
                           bool *hasRowSecurity, bool *hasSubLinks)
 {
+  DBUG_TRACE;
   Oid     user_id;
   int     rls_status;
   Relation  rel;
@@ -533,6 +535,7 @@ get_policies_for_relation(Relation relation, CmdType cmd, Oid user_id,
                           List **permissive_policies,
                           List **restrictive_policies)
 {
+  DBUG_TRACE;
   ListCell   *item;
 
   *permissive_policies = NIL;
@@ -656,6 +659,7 @@ get_policies_for_relation(Relation relation, CmdType cmd, Oid user_id,
 static void
 sort_policies_by_name(List *policies)
 {
+  DBUG_TRACE;
   list_sort(policies, row_security_policy_cmp);
 }
 
@@ -665,6 +669,7 @@ sort_policies_by_name(List *policies)
 static int
 row_security_policy_cmp(const ListCell *a, const ListCell *b)
 {
+  DBUG_TRACE;
   const RowSecurityPolicy *pa = (const RowSecurityPolicy *) lfirst(a);
   const RowSecurityPolicy *pb = (const RowSecurityPolicy *) lfirst(b);
 
@@ -696,6 +701,7 @@ add_security_quals(int rt_index,
                    List **securityQuals,
                    bool *hasSubLinks)
 {
+  DBUG_TRACE;
   ListCell   *item;
   List     *permissive_quals = NIL;
   Expr     *rowsec_expr;
@@ -789,6 +795,7 @@ add_with_check_options(Relation rel,
                        bool *hasSubLinks,
                        bool force_using)
 {
+  DBUG_TRACE;
   ListCell   *item;
   List     *permissive_quals = NIL;
 
@@ -895,6 +902,7 @@ add_with_check_options(Relation rel,
 static bool
 check_role_for_policy(ArrayType *policy_roles, Oid user_id)
 {
+  DBUG_TRACE;
   int     i;
   Oid      *roles = (Oid *) ARR_DATA_PTR(policy_roles);
 

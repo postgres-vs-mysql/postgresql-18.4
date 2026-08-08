@@ -124,8 +124,7 @@ typedef struct HeapTupleFields
   TransactionId t_xmin;   /* inserting xact ID */
   TransactionId t_xmax;   /* deleting or locking xact ID */
 
-  union
-  {
+  union {
     CommandId t_cid;    /* inserting or deleting command ID, or both */
     TransactionId t_xvac; /* old-style VACUUM FULL xact ID */
   }     t_field3;
@@ -152,8 +151,7 @@ typedef struct DatumTupleFields
 
 struct HeapTupleHeaderData
 {
-  union
-  {
+  union {
     HeapTupleFields t_heap;
     DatumTupleFields t_datum;
   }     t_choice;
@@ -870,8 +868,7 @@ fastgetattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 
   *isnull = false;
 
-  if (HeapTupleNoNulls(tup))
-  {
+  if (HeapTupleNoNulls(tup)) {
     CompactAttribute *att;
 
     att = TupleDescCompactAttr(tupleDesc, attnum - 1);
@@ -881,15 +878,11 @@ fastgetattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
                       att->attcacheoff);
     else
       return nocachegetattr(tup, attnum, tupleDesc);
-  }
-  else
-  {
-    if (att_isnull(attnum - 1, tup->t_data->t_bits))
-    {
+  } else {
+    if (att_isnull(attnum - 1, tup->t_data->t_bits)) {
       *isnull = true;
       return (Datum) NULL;
-    }
-    else
+    } else
       return nocachegetattr(tup, attnum, tupleDesc);
   }
 }
@@ -911,14 +904,12 @@ fastgetattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 static inline Datum
 heap_getattr(HeapTuple tup, int attnum, TupleDesc tupleDesc, bool *isnull)
 {
-  if (attnum > 0)
-  {
+  if (attnum > 0) {
     if (attnum > (int) HeapTupleHeaderGetNatts(tup->t_data))
       return getmissingattr(tupleDesc, attnum, isnull);
     else
       return fastgetattr(tup, attnum, tupleDesc, isnull);
-  }
-  else
+  } else
     return heap_getsysattr(tup, attnum, tupleDesc, isnull);
 }
 #endif              /* FRONTEND */

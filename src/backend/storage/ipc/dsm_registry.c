@@ -24,6 +24,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "lib/dshash.h"
@@ -66,6 +67,7 @@ DSMRegistryShmemSize(void)
 void
 DSMRegistryShmemInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   DSMRegistryCtx = (DSMRegistryCtxStruct *)
@@ -87,6 +89,8 @@ DSMRegistryShmemInit(void)
 static void
 init_dsm_registry(void)
 {
+  DBUG_TRACE;
+
   /* Quick exit if we already did this. */
   if (dsm_registry_table)
     return;
@@ -126,6 +130,7 @@ void *
 GetNamedDSMSegment(const char *name, size_t size,
                    void (*init_callback) (void *ptr), bool *found)
 {
+  DBUG_TRACE;
   DSMRegistryEntry *entry;
   MemoryContext oldcontext;
   void     *ret;

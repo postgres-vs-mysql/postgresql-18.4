@@ -10,6 +10,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "bloom.h"
@@ -24,6 +25,7 @@ blcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
                Selectivity *indexSelectivity, double *indexCorrelation,
                double *indexPages)
 {
+  DBUG_TRACE;
   IndexOptInfo *index = path->indexinfo;
   GenericCosts costs = {0};
 
@@ -38,4 +40,8 @@ blcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
   *indexSelectivity = costs.indexSelectivity;
   *indexCorrelation = costs.indexCorrelation;
   *indexPages = costs.numIndexPages;
+  DBUG_PRINT("bloom", "estimate cost of bloom index scan");
+  DBUG_PRINT("bloom", "indexStartupCost:%g, indexTotalCost:%g, indexSelectivity:%g, indexCorrelation:%g, indexPages:%g",
+             *indexStartupCost, *indexTotalCost, *indexSelectivity, *indexCorrelation, *indexPages);
 }
+

@@ -55,18 +55,15 @@
 
 typedef struct
 {
-  union
-  {
+  union {
     uint8   b8[20];
     uint32    b32[5];
   }     h;
-  union
-  {
+  union {
     uint8   b8[8];
     uint64    b64[1];
   }     c;
-  union
-  {
+  union {
     uint8   b8[64];
     uint32    b32[16];
   }     m;

@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
@@ -20,6 +21,7 @@
 Datum
 jsonb_exists(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   text     *key = PG_GETARG_TEXT_PP(1);
   JsonbValue  kval;
@@ -39,12 +41,19 @@ jsonb_exists(PG_FUNCTION_ARGS)
                                   JB_FOBJECT | JB_FARRAY,
                                   &kval);
 
+  if (v != NULL) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
   PG_RETURN_BOOL(v != NULL);
 }
 
 Datum
 jsonb_exists_any(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   ArrayType  *keys = PG_GETARG_ARRAYTYPE_P(1);
   int     i;
@@ -67,16 +76,20 @@ jsonb_exists_any(PG_FUNCTION_ARGS)
 
     if (findJsonbValueFromContainer(&jb->root,
                                     JB_FOBJECT | JB_FARRAY,
-                                    &strVal) != NULL)
+                                    &strVal) != NULL) {
+      DBUG_PRINT("info", "return true");
       PG_RETURN_BOOL(true);
+    }
   }
 
+  DBUG_PRINT("info", "return false");
   PG_RETURN_BOOL(false);
 }
 
 Datum
 jsonb_exists_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   ArrayType  *keys = PG_GETARG_ARRAYTYPE_P(1);
   int     i;
@@ -99,18 +112,23 @@ jsonb_exists_all(PG_FUNCTION_ARGS)
 
     if (findJsonbValueFromContainer(&jb->root,
                                     JB_FOBJECT | JB_FARRAY,
-                                    &strVal) == NULL)
+                                    &strVal) == NULL) {
+      DBUG_PRINT("info", "return false");
       PG_RETURN_BOOL(false);
+    }
   }
 
+  DBUG_PRINT("info", "return true");
   PG_RETURN_BOOL(true);
 }
 
 Datum
 jsonb_contains(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *val = PG_GETARG_JSONB_P(0);
   Jsonb    *tmpl = PG_GETARG_JSONB_P(1);
+  bool result;
 
   JsonbIterator *it1,
                 *it2;
@@ -121,15 +139,25 @@ jsonb_contains(PG_FUNCTION_ARGS)
   it1 = JsonbIteratorInit(&val->root);
   it2 = JsonbIteratorInit(&tmpl->root);
 
-  PG_RETURN_BOOL(JsonbDeepContains(&it1, &it2));
+  result = JsonbDeepContains(&it1, &it2);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 jsonb_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Commutator of "contains" */
   Jsonb    *tmpl = PG_GETARG_JSONB_P(0);
   Jsonb    *val = PG_GETARG_JSONB_P(1);
+  bool result;
 
   JsonbIterator *it1,
                 *it2;
@@ -140,17 +168,32 @@ jsonb_contained(PG_FUNCTION_ARGS)
   it1 = JsonbIteratorInit(&val->root);
   it2 = JsonbIteratorInit(&tmpl->root);
 
-  PG_RETURN_BOOL(JsonbDeepContains(&it1, &it2));
+  result = JsonbDeepContains(&it1, &it2);
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 jsonb_ne(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) != 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -163,11 +206,18 @@ jsonb_ne(PG_FUNCTION_ARGS)
 Datum
 jsonb_lt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) < 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -177,11 +227,18 @@ jsonb_lt(PG_FUNCTION_ARGS)
 Datum
 jsonb_gt(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) > 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -191,11 +248,18 @@ jsonb_gt(PG_FUNCTION_ARGS)
 Datum
 jsonb_le(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) <= 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -205,11 +269,18 @@ jsonb_le(PG_FUNCTION_ARGS)
 Datum
 jsonb_ge(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) >= 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -219,11 +290,18 @@ jsonb_ge(PG_FUNCTION_ARGS)
 Datum
 jsonb_eq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   bool    res;
 
   res = (compareJsonbContainers(&jba->root, &jbb->root) == 0);
+
+  if (res) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
@@ -233,6 +311,7 @@ jsonb_eq(PG_FUNCTION_ARGS)
 Datum
 jsonb_cmp(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jba = PG_GETARG_JSONB_P(0);
   Jsonb    *jbb = PG_GETARG_JSONB_P(1);
   int     res;
@@ -241,6 +320,7 @@ jsonb_cmp(PG_FUNCTION_ARGS)
 
   PG_FREE_IF_COPY(jba, 0);
   PG_FREE_IF_COPY(jbb, 1);
+  DBUG_PRINT("info", "result:%d", res);
   PG_RETURN_INT32(res);
 }
 
@@ -250,6 +330,7 @@ jsonb_cmp(PG_FUNCTION_ARGS)
 Datum
 jsonb_hash(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   JsonbIterator *it;
   JsonbValue  v;
@@ -288,12 +369,14 @@ jsonb_hash(PG_FUNCTION_ARGS)
   }
 
   PG_FREE_IF_COPY(jb, 0);
+  DBUG_PRINT("info", "result:%d", hash);
   PG_RETURN_INT32(hash);
 }
 
 Datum
 jsonb_hash_extended(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   uint64    seed = PG_GETARG_INT64(1);
   JsonbIterator *it;
@@ -333,5 +416,6 @@ jsonb_hash_extended(PG_FUNCTION_ARGS)
   }
 
   PG_FREE_IF_COPY(jb, 0);
+  DBUG_PRINT("info", "result:%ld", hash);
   PG_RETURN_UINT64(hash);
 }

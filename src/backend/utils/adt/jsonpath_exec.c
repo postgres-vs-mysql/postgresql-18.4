@@ -58,6 +58,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
@@ -385,6 +386,7 @@ const TableFuncRoutine JsonbTableRoutine = {
 static Datum
 jsonb_path_exists_internal(FunctionCallInfo fcinfo, bool tz)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   JsonPath   *jp = PG_GETARG_JSONPATH_P(1);
   JsonPathExecResult res;
@@ -412,12 +414,14 @@ jsonb_path_exists_internal(FunctionCallInfo fcinfo, bool tz)
 Datum
 jsonb_path_exists(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_exists_internal(fcinfo, false);
 }
 
 Datum
 jsonb_path_exists_tz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_exists_internal(fcinfo, true);
 }
 
@@ -429,6 +433,7 @@ jsonb_path_exists_tz(PG_FUNCTION_ARGS)
 Datum
 jsonb_path_exists_opr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* just call the other one -- it can handle both cases */
   return jsonb_path_exists_internal(fcinfo, false);
 }
@@ -441,6 +446,7 @@ jsonb_path_exists_opr(PG_FUNCTION_ARGS)
 static Datum
 jsonb_path_match_internal(FunctionCallInfo fcinfo, bool tz)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   JsonPath   *jp = PG_GETARG_JSONPATH_P(1);
   JsonValueList found = {0};
@@ -480,12 +486,14 @@ jsonb_path_match_internal(FunctionCallInfo fcinfo, bool tz)
 Datum
 jsonb_path_match(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_match_internal(fcinfo, false);
 }
 
 Datum
 jsonb_path_match_tz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_match_internal(fcinfo, true);
 }
 
@@ -497,6 +505,7 @@ jsonb_path_match_tz(PG_FUNCTION_ARGS)
 Datum
 jsonb_path_match_opr(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* just call the other one -- it can handle both cases */
   return jsonb_path_match_internal(fcinfo, false);
 }
@@ -509,6 +518,7 @@ jsonb_path_match_opr(PG_FUNCTION_ARGS)
 static Datum
 jsonb_path_query_internal(FunctionCallInfo fcinfo, bool tz)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   List     *found;
   JsonbValue *v;
@@ -556,12 +566,14 @@ jsonb_path_query_internal(FunctionCallInfo fcinfo, bool tz)
 Datum
 jsonb_path_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_internal(fcinfo, false);
 }
 
 Datum
 jsonb_path_query_tz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_internal(fcinfo, true);
 }
 
@@ -573,6 +585,7 @@ jsonb_path_query_tz(PG_FUNCTION_ARGS)
 static Datum
 jsonb_path_query_array_internal(FunctionCallInfo fcinfo, bool tz)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   JsonPath   *jp = PG_GETARG_JSONPATH_P(1);
   JsonValueList found = {0};
@@ -589,12 +602,14 @@ jsonb_path_query_array_internal(FunctionCallInfo fcinfo, bool tz)
 Datum
 jsonb_path_query_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_array_internal(fcinfo, false);
 }
 
 Datum
 jsonb_path_query_array_tz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_array_internal(fcinfo, true);
 }
 
@@ -606,6 +621,7 @@ jsonb_path_query_array_tz(PG_FUNCTION_ARGS)
 static Datum
 jsonb_path_query_first_internal(FunctionCallInfo fcinfo, bool tz)
 {
+  DBUG_TRACE;
   Jsonb    *jb = PG_GETARG_JSONB_P(0);
   JsonPath   *jp = PG_GETARG_JSONPATH_P(1);
   JsonValueList found = {0};
@@ -625,12 +641,14 @@ jsonb_path_query_first_internal(FunctionCallInfo fcinfo, bool tz)
 Datum
 jsonb_path_query_first(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_first_internal(fcinfo, false);
 }
 
 Datum
 jsonb_path_query_first_tz(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return jsonb_path_query_first_internal(fcinfo, true);
 }
 
@@ -664,6 +682,7 @@ executeJsonPath(JsonPath *path, void *vars, JsonPathGetVarCallback getVar,
                 Jsonb *json, bool throwErrors, JsonValueList *result,
                 bool useTz)
 {
+  DBUG_TRACE;
   JsonPathExecContext cxt;
   JsonPathExecResult res;
   JsonPathItem jsp;
@@ -717,6 +736,7 @@ static JsonPathExecResult
 executeItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
             JsonbValue *jb, JsonValueList *found)
 {
+  DBUG_TRACE;
   return executeItemOptUnwrapTarget(cxt, jsp, jb, found, jspAutoUnwrap(cxt));
 }
 
@@ -729,6 +749,7 @@ static JsonPathExecResult
 executeItemOptUnwrapTarget(JsonPathExecContext *cxt, JsonPathItem *jsp,
                            JsonbValue *jb, JsonValueList *found, bool unwrap)
 {
+  DBUG_TRACE;
   JsonPathItem elem;
   JsonPathExecResult res = jperNotFound;
   JsonBaseObjectInfo baseObject;
@@ -1624,6 +1645,8 @@ executeItemUnwrapTargetArray(JsonPathExecContext *cxt, JsonPathItem *jsp,
                              JsonbValue *jb, JsonValueList *found,
                              bool unwrapElements)
 {
+  DBUG_TRACE;
+
   if (jb->type != jbvBinary) {
     Assert(jb->type != jbvArray);
     elog(ERROR, "invalid jsonb array value type: %d", jb->type);
@@ -1643,6 +1666,7 @@ executeNextItem(JsonPathExecContext *cxt,
                 JsonPathItem *cur, JsonPathItem *next,
                 JsonbValue *v, JsonValueList *found, bool copy)
 {
+  DBUG_TRACE;
   JsonPathItem elem;
   bool    hasNext;
 
@@ -1673,6 +1697,8 @@ executeItemOptUnwrapResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
                            JsonbValue *jb, bool unwrap,
                            JsonValueList *found)
 {
+  DBUG_TRACE;
+
   if (unwrap && jspAutoUnwrap(cxt)) {
     JsonValueList seq = {0};
     JsonValueListIterator it;
@@ -1708,6 +1734,7 @@ executeItemOptUnwrapResultNoThrow(JsonPathExecContext *cxt,
                                   JsonbValue *jb, bool unwrap,
                                   JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonPathExecResult res;
   bool    throwErrors = cxt->throwErrors;
 
@@ -1723,6 +1750,7 @@ static JsonPathBool
 executeBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
                 JsonbValue *jb, bool canHaveNext)
 {
+  DBUG_TRACE;
   JsonPathItem larg;
   JsonPathItem rarg;
   JsonPathBool res;
@@ -1854,6 +1882,7 @@ static JsonPathBool
 executeNestedBoolItem(JsonPathExecContext *cxt, JsonPathItem *jsp,
                       JsonbValue *jb)
 {
+  DBUG_TRACE;
   JsonbValue *prev;
   JsonPathBool res;
 
@@ -1876,6 +1905,7 @@ executeAnyItem(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbContainer *jbc,
                JsonValueList *found, uint32 level, uint32 first, uint32 last,
                bool ignoreStructuralErrors, bool unwrapNext)
 {
+  DBUG_TRACE;
   JsonPathExecResult res = jperNotFound;
   JsonbIterator *it;
   int32   r;
@@ -1959,6 +1989,7 @@ executePredicate(JsonPathExecContext *cxt, JsonPathItem *pred,
                  bool unwrapRightArg, JsonPathPredicateCallback exec,
                  void *param)
 {
+  DBUG_TRACE;
   JsonPathExecResult res;
   JsonValueListIterator lseqit;
   JsonValueList lseq = {0};
@@ -2037,6 +2068,7 @@ executeBinaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
                         JsonbValue *jb, BinaryArithmFunc func,
                         JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonPathExecResult jper;
   JsonPathItem elem;
   JsonValueList lseq = {0};
@@ -2106,6 +2138,7 @@ static JsonPathExecResult
 executeUnaryArithmExpr(JsonPathExecContext *cxt, JsonPathItem *jsp,
                        JsonbValue *jb, PGFunction func, JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonPathExecResult jper;
   JsonPathExecResult jper2;
   JsonPathItem elem;
@@ -2170,6 +2203,8 @@ static JsonPathBool
 executeStartsWith(JsonPathItem *jsp, JsonbValue *whole, JsonbValue *initial,
                   void *param)
 {
+  DBUG_TRACE;
+
   if (!(whole = getScalar(whole, jbvString)))
     return jpbUnknown;    /* error */
 
@@ -2194,6 +2229,7 @@ static JsonPathBool
 executeLikeRegex(JsonPathItem *jsp, JsonbValue *str, JsonbValue *rarg,
                  void *param)
 {
+  DBUG_TRACE;
   JsonLikeRegexContext *cxt = param;
 
   if (!(str = getScalar(str, jbvString)))
@@ -2225,6 +2261,7 @@ executeNumericItemMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
                          JsonbValue *jb, bool unwrap, PGFunction func,
                          JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonPathItem next;
   Datum   datum;
 
@@ -2265,6 +2302,7 @@ static JsonPathExecResult
 executeDateTimeMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
                       JsonbValue *jb, JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonbValue  jbvbuf;
   Datum   value;
   text     *datetime;
@@ -2754,6 +2792,7 @@ static JsonPathExecResult
 executeKeyValueMethod(JsonPathExecContext *cxt, JsonPathItem *jsp,
                       JsonbValue *jb, JsonValueList *found)
 {
+  DBUG_TRACE;
   JsonPathExecResult res = jperNotFound;
   JsonPathItem next;
   JsonbContainer *jbc;
@@ -2863,6 +2902,7 @@ static JsonPathExecResult
 appendBoolResult(JsonPathExecContext *cxt, JsonPathItem *jsp,
                  JsonValueList *found, JsonPathBool res)
 {
+  DBUG_TRACE;
   JsonPathItem next;
   JsonbValue  jbv;
 
@@ -2888,6 +2928,8 @@ static void
 getJsonPathItem(JsonPathExecContext *cxt, JsonPathItem *item,
                 JsonbValue *value)
 {
+  DBUG_TRACE;
+
   switch (item->type) {
     case jpiNull:
       value->type = jbvNull;
@@ -2925,6 +2967,7 @@ static JsonbValue *
 GetJsonPathVar(void *cxt, char *varName, int varNameLen,
                JsonbValue *baseObject, int *baseObjectId)
 {
+  DBUG_TRACE;
   JsonPathVariable *var = NULL;
   List     *vars = cxt;
   ListCell   *lc;
@@ -2978,6 +3021,8 @@ CountJsonPathVars(void *cxt)
 static void
 JsonItemFromDatum(Datum val, Oid typid, int32 typmod, JsonbValue *res)
 {
+  DBUG_TRACE;
+
   switch (typid) {
     case BOOLOID:
       res->type = jbvBool;
@@ -3078,6 +3123,7 @@ static void
 getJsonPathVariable(JsonPathExecContext *cxt, JsonPathItem *variable,
                     JsonbValue *value)
 {
+  DBUG_TRACE;
   char     *varName;
   int     varNameLength;
   JsonbValue  baseObject;
@@ -3109,6 +3155,7 @@ static JsonbValue *
 getJsonPathVariableFromJsonb(void *varsJsonb, char *varName, int varNameLength,
                              JsonbValue *baseObject, int *baseObjectId)
 {
+  DBUG_TRACE;
   Jsonb    *vars = varsJsonb;
   JsonbValue  tmp;
   JsonbValue *result;
@@ -3373,6 +3420,7 @@ compareItems(int32 op, JsonbValue *jb1, JsonbValue *jb2, bool useTz)
 static int
 compareNumeric(Numeric a, Numeric b)
 {
+  DBUG_TRACE;
   return DatumGetInt32(DirectFunctionCall2(numeric_cmp,
                        NumericGetDatum(a),
                        NumericGetDatum(b)));
@@ -3396,6 +3444,7 @@ static JsonPathExecResult
 getArrayIndex(JsonPathExecContext *cxt, JsonPathItem *jsp, JsonbValue *jb,
               int32 *index)
 {
+  DBUG_TRACE;
   JsonbValue *jbv;
   JsonValueList found = {0};
   JsonPathExecResult res = executeItem(cxt, jsp, jb, &found);
@@ -3604,6 +3653,7 @@ checkTimezoneIsUsedForCast(bool useTz, const char *type1, const char *type2)
 static Datum
 castTimeToTimeTz(Datum time, bool useTz)
 {
+  DBUG_TRACE;
   checkTimezoneIsUsedForCast(useTz, "time", "timetz");
 
   return DirectFunctionCall1(time_timetz, time);
@@ -3650,6 +3700,7 @@ static int
 compareDatetime(Datum val1, Oid typid1, Datum val2, Oid typid2,
                 bool useTz, bool *cast_error)
 {
+  DBUG_TRACE;
   PGFunction  cmpfunc;
 
   *cast_error = false;
@@ -3813,6 +3864,7 @@ compareDatetime(Datum val1, Oid typid1, Datum val2, Oid typid2,
 bool
 JsonPathExists(Datum jb, JsonPath *jp, bool *error, List *vars)
 {
+  DBUG_TRACE;
   JsonPathExecResult res;
 
   res = executeJsonPath(jp, vars,
@@ -3838,6 +3890,7 @@ JsonPathQuery(Datum jb, JsonPath *jp, JsonWrapper wrapper, bool *empty,
               bool *error, List *vars,
               const char *column_name)
 {
+  DBUG_TRACE;
   JsonbValue *singleton;
   bool    wrap;
   JsonValueList found = {0};
@@ -3929,6 +3982,7 @@ JsonbValue *
 JsonPathValue(Datum jb, JsonPath *jp, bool *empty, bool *error, List *vars,
               const char *column_name)
 {
+  DBUG_TRACE;
   JsonbValue *res;
   JsonValueList found = {0};
   JsonPathExecResult jper PG_USED_FOR_ASSERTS_ONLY;
@@ -4032,6 +4086,7 @@ GetJsonTableExecContext(TableFuncScanState *state, const char *fname)
 static void
 JsonTableInitOpaque(TableFuncScanState *state, int natts)
 {
+  DBUG_TRACE;
   JsonTableExecContext *cxt;
   PlanState  *ps = &state->ss.ps;
   TableFuncScan *tfs = castNode(TableFuncScan, ps->plan);
@@ -4095,6 +4150,7 @@ JsonTableInitOpaque(TableFuncScanState *state, int natts)
 static void
 JsonTableDestroyOpaque(TableFuncScanState *state)
 {
+  DBUG_TRACE;
   JsonTableExecContext *cxt =
     GetJsonTableExecContext(state, "JsonTableDestroyOpaque");
 
@@ -4114,6 +4170,7 @@ JsonTableInitPlan(JsonTableExecContext *cxt, JsonTablePlan *plan,
                   JsonTablePlanState *parentstate,
                   List *args, MemoryContext mcxt)
 {
+  DBUG_TRACE;
   JsonTablePlanState *planstate = palloc0(sizeof(*planstate));
 
   planstate->plan = plan;
@@ -4169,6 +4226,7 @@ JsonTableSetDocument(TableFuncScanState *state, Datum value)
 static void
 JsonTableResetRowPattern(JsonTablePlanState *planstate, Datum item)
 {
+  DBUG_TRACE;
   JsonTablePathScan *scan = castNode(JsonTablePathScan, planstate->plan);
   MemoryContext oldcxt;
   JsonPathExecResult res;
@@ -4208,6 +4266,8 @@ JsonTableResetRowPattern(JsonTablePlanState *planstate, Datum item)
 static bool
 JsonTablePlanNextRow(JsonTablePlanState *planstate)
 {
+  DBUG_TRACE;
+
   if (IsA(planstate->plan, JsonTablePathScan))
     return JsonTablePlanScanNextRow(planstate);
   else if (IsA(planstate->plan, JsonTableSiblingJoin))
@@ -4235,6 +4295,7 @@ JsonTablePlanNextRow(JsonTablePlanState *planstate)
 static bool
 JsonTablePlanScanNextRow(JsonTablePlanState *planstate)
 {
+  DBUG_TRACE;
   JsonbValue *jbv;
   MemoryContext oldcxt;
 
@@ -4294,6 +4355,7 @@ JsonTablePlanScanNextRow(JsonTablePlanState *planstate)
 static void
 JsonTableResetNestedPlan(JsonTablePlanState *planstate)
 {
+  DBUG_TRACE;
   /* This better be a child plan. */
   Assert(planstate->parent != NULL);
 
@@ -4321,6 +4383,7 @@ JsonTableResetNestedPlan(JsonTablePlanState *planstate)
 static bool
 JsonTablePlanJoinNextRow(JsonTablePlanState *planstate)
 {
+  DBUG_TRACE;
 
   /* Fetch row from left sibling. */
   if (!JsonTablePlanNextRow(planstate->left)) {
@@ -4346,6 +4409,7 @@ JsonTablePlanJoinNextRow(JsonTablePlanState *planstate)
 static bool
 JsonTableFetchRow(TableFuncScanState *state)
 {
+  DBUG_TRACE;
   JsonTableExecContext *cxt =
     GetJsonTableExecContext(state, "JsonTableFetchRow");
 
@@ -4363,6 +4427,7 @@ static Datum
 JsonTableGetValue(TableFuncScanState *state, int colnum,
                   Oid typid, int32 typmod, bool *isnull)
 {
+  DBUG_TRACE;
   JsonTableExecContext *cxt =
     GetJsonTableExecContext(state, "JsonTableGetValue");
   ExprContext *econtext = state->ss.ps.ps_ExprContext;

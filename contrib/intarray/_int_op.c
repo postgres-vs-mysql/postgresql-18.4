@@ -2,6 +2,7 @@
  * contrib/intarray/_int_op.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "_int.h"
 
@@ -21,6 +22,7 @@ PG_FUNCTION_INFO_V1(_int_inter);
 Datum
 _int_contained(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* just reverse the operands and call _int_contains */
   return DirectFunctionCall2(_int_contains,
                              PG_GETARG_DATUM(1),
@@ -30,6 +32,7 @@ _int_contained(PG_FUNCTION_ARGS)
 Datum
 _int_contains(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Force copy so we can modify the arrays in-place */
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
@@ -42,20 +45,38 @@ _int_contains(PG_FUNCTION_ARGS)
   res = inner_int_contains(a, b);
   pfree(a);
   pfree(b);
+
+  if (res) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _int_different(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL(!DatumGetBool(DirectFunctionCall2(_int_same,
-                               PointerGetDatum(PG_GETARG_POINTER(0)),
-                               PointerGetDatum(PG_GETARG_POINTER(1)))));
+  DBUG_TRACE;
+  bool result;
+  result = (!DatumGetBool(DirectFunctionCall2(_int_same,
+                          PointerGetDatum(PG_GETARG_POINTER(0)),
+                          PointerGetDatum(PG_GETARG_POINTER(1)))));
+
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 _int_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
   int     na,
@@ -90,6 +111,12 @@ _int_same(PG_FUNCTION_ARGS)
   pfree(a);
   pfree(b);
 
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
@@ -98,6 +125,7 @@ _int_same(PG_FUNCTION_ARGS)
 Datum
 _int_overlap(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
   bool    result;
@@ -116,12 +144,19 @@ _int_overlap(PG_FUNCTION_ARGS)
   pfree(a);
   pfree(b);
 
+  if (result) {
+    DBUG_PRINT("intarray", "return true");
+  } else {
+    DBUG_PRINT("intarray", "return false");
+  }
+
   PG_RETURN_BOOL(result);
 }
 
 Datum
 _int_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
   ArrayType  *result;
@@ -143,6 +178,7 @@ _int_union(PG_FUNCTION_ARGS)
 Datum
 _int_inter(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
   ArrayType  *result;
@@ -179,22 +215,27 @@ PG_FUNCTION_INFO_V1(intset_subtract);
 Datum
 intset(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PG_RETURN_POINTER(int_to_intset(PG_GETARG_INT32(0)));
 }
 
 Datum
 icount(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   int32   count = ARRNELEMS(a);
 
   PG_FREE_IF_COPY(a, 0);
+
+  DBUG_PRINT("intarray", "return count:%d", count);
   PG_RETURN_INT32(count);
 }
 
 Datum
 sort(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   text     *dirstr = (fcinfo->nargs == 2) ? PG_GETARG_TEXT_PP(1) : NULL;
   int32   dc = (dirstr) ? VARSIZE_ANY_EXHDR(dirstr) : 0;
@@ -223,6 +264,7 @@ sort(PG_FUNCTION_ARGS)
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("second parameter must be \"ASC\" or \"DESC\"")));
 
+  DBUG_PRINT("intarray", "calling qsort");
   QSORT(a, dir);
   PG_RETURN_POINTER(a);
 }
@@ -230,9 +272,11 @@ sort(PG_FUNCTION_ARGS)
 Datum
 sort_asc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
 
   CHECKARRVALID(a);
+  DBUG_PRINT("intarray", "calling qsort");
   QSORT(a, 1);
   PG_RETURN_POINTER(a);
 }
@@ -240,9 +284,11 @@ sort_asc(PG_FUNCTION_ARGS)
 Datum
 sort_desc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
 
   CHECKARRVALID(a);
+  DBUG_PRINT("intarray", "calling qsort");
   QSORT(a, 0);
   PG_RETURN_POINTER(a);
 }
@@ -250,6 +296,7 @@ sort_desc(PG_FUNCTION_ARGS)
 Datum
 uniq(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
 
   CHECKARRVALID(a);
@@ -264,6 +311,7 @@ uniq(PG_FUNCTION_ARGS)
 Datum
 idx(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   int32   result;
 
@@ -274,12 +322,14 @@ idx(PG_FUNCTION_ARGS)
     result = intarray_match_first(a, PG_GETARG_INT32(1));
 
   PG_FREE_IF_COPY(a, 0);
+  DBUG_PRINT("intarray", "result:%d", result);
   PG_RETURN_INT32(result);
 }
 
 Datum
 subarray(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   int32   start = PG_GETARG_INT32(1);
   int32   len = (fcinfo->nargs == 3) ? PG_GETARG_INT32(2) : 0;
@@ -331,6 +381,7 @@ subarray(PG_FUNCTION_ARGS)
 Datum
 intarray_push_elem(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *result;
 
@@ -342,6 +393,7 @@ intarray_push_elem(PG_FUNCTION_ARGS)
 Datum
 intarray_push_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P(1);
   ArrayType  *result;
@@ -355,6 +407,7 @@ intarray_push_array(PG_FUNCTION_ARGS)
 Datum
 intarray_del_elem(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   int32   elem = PG_GETARG_INT32(1);
   int32   c;
@@ -386,6 +439,7 @@ intarray_del_elem(PG_FUNCTION_ARGS)
 Datum
 intset_union_elem(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P(0);
   ArrayType  *result;
 
@@ -398,6 +452,7 @@ intset_union_elem(PG_FUNCTION_ARGS)
 Datum
 intset_subtract(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *a = PG_GETARG_ARRAYTYPE_P_COPY(0);
   ArrayType  *b = PG_GETARG_ARRAYTYPE_P_COPY(1);
   ArrayType  *result;

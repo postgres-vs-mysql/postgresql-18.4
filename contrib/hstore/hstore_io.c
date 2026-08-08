@@ -2,6 +2,7 @@
  * contrib/hstore/hstore_io.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -180,6 +181,7 @@ get_val(HSParser *state, bool ignoreeq, bool *escaped)
 static bool
 parse_hstore(HSParser *state)
 {
+  DBUG_TRACE;
   int     st = WKEY;
   bool    escaped = false;
 
@@ -301,6 +303,7 @@ comparePairs(const void *a, const void *b)
 int
 hstoreUniquePairs(Pairs *a, int32 l, int32 *buflen)
 {
+  DBUG_TRACE;
   Pairs    *ptr,
            *res;
 
@@ -313,6 +316,7 @@ hstoreUniquePairs(Pairs *a, int32 l, int32 *buflen)
     return l;
   }
 
+  DBUG_PRINT("hstore", "qsort data");
   qsort(a, l, sizeof(Pairs), comparePairs);
 
   /*
@@ -394,13 +398,16 @@ hstoreCheckValLength(size_t len, HSParser *state)
 HStore *
 hstorePairs(Pairs *pairs, int32 pcount, int32 buflen)
 {
+  DBUG_TRACE;
   HStore     *out;
   HEntry     *entry;
   char     *ptr;
   char     *buf;
   int32   len;
   int32   i;
+  char buf1[64], buf2[64];
 
+  DBUG_PRINT("hstore", "constructs and returns a HStore object from pairs(buflen:%d)", buflen);
   len = CALCDATASIZE(pcount, buflen);
   out = palloc(len);
   SET_VARSIZE(out, len);
@@ -412,9 +419,20 @@ hstorePairs(Pairs *pairs, int32 pcount, int32 buflen)
   entry = ARRPTR(out);
   buf = ptr = STRPTR(out);
 
-  for (i = 0; i < pcount; i++)
+  for (i = 0; i < pcount; i++) {
     HS_ADDITEM(entry, buf, ptr, pairs[i]);
 
+    if (pairs[i].keylen < 64 && pairs[i].vallen < 64) {
+      strncpy(buf1, pairs[i].key, pairs[i].keylen);
+      strncpy(buf2, pairs[i].val, pairs[i].vallen);
+      buf1[pairs[i].keylen] = '\0';
+      buf2[pairs[i].vallen] = '\0';
+
+      DBUG_PRINT("hstore", "key:%s, value:%s", buf1, buf2);
+    }
+  }
+
+  DBUG_PRINT("hstore", "finalize a newly-constructed hstore(pcount:%d, len:%d)", pcount, len);
   HS_FINALIZE(out, pcount, buf, ptr);
 
   return out;
@@ -425,6 +443,7 @@ PG_FUNCTION_INFO_V1(hstore_in);
 Datum
 hstore_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   Node     *escontext = fcinfo->context;
   HSParser  state;
@@ -433,6 +452,8 @@ hstore_in(PG_FUNCTION_ARGS)
 
   state.begin = str;
   state.escontext = escontext;
+
+  DBUG_PRINT("hstore", "original str:'%s'", str);
 
   if (!parse_hstore(&state))
     PG_RETURN_NULL();
@@ -449,6 +470,7 @@ PG_FUNCTION_INFO_V1(hstore_recv);
 Datum
 hstore_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   buflen;
   HStore     *out;
   Pairs    *pairs;
@@ -509,6 +531,7 @@ PG_FUNCTION_INFO_V1(hstore_from_text);
 Datum
 hstore_from_text(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *key;
   text     *val = NULL;
   Pairs   p;
@@ -542,6 +565,7 @@ PG_FUNCTION_INFO_V1(hstore_from_arrays);
 Datum
 hstore_from_arrays(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   buflen;
   HStore     *out;
   Pairs    *pairs;
@@ -651,6 +675,7 @@ PG_FUNCTION_INFO_V1(hstore_from_array);
 Datum
 hstore_from_array(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ArrayType  *in_array = PG_GETARG_ARRAYTYPE_P(0);
   int     ndims = ARR_NDIM(in_array);
   int     count;
@@ -731,6 +756,7 @@ hstore_from_array(PG_FUNCTION_ARGS)
   }
 
   count = hstoreUniquePairs(pairs, count, &buflen);
+  DBUG_PRINT("hstore", "ndims:%d, count:%d", ndims, count);
 
   out = hstorePairs(pairs, count, buflen);
 
@@ -762,6 +788,7 @@ PG_FUNCTION_INFO_V1(hstore_from_record);
 Datum
 hstore_from_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HeapTupleHeader rec;
   int32   buflen;
   HStore     *out;
@@ -911,6 +938,7 @@ PG_FUNCTION_INFO_V1(hstore_populate_record);
 Datum
 hstore_populate_record(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     argtype = get_fn_expr_argtype(fcinfo->flinfo, 0);
   HStore     *hs;
   HEntry     *entries;
@@ -1129,6 +1157,7 @@ PG_FUNCTION_INFO_V1(hstore_out);
 Datum
 hstore_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     buflen,
           i;
@@ -1188,6 +1217,7 @@ hstore_out(PG_FUNCTION_ARGS)
 
   *ptr = '\0';
 
+  DBUG_PRINT("hstore", "count:%d, out:%s", count, out);
   PG_RETURN_CSTRING(out);
 }
 
@@ -1196,6 +1226,7 @@ PG_FUNCTION_INFO_V1(hstore_send);
 Datum
 hstore_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -1206,6 +1237,8 @@ hstore_send(PG_FUNCTION_ARGS)
   pq_begintypsend(&buf);
 
   pq_sendint32(&buf, count);
+
+  DBUG_PRINT("hstore", "count:%d", count);
 
   for (i = 0; i < count; i++) {
     int32   keylen = HSTORE_KEYLEN(entries, i);
@@ -1239,6 +1272,7 @@ PG_FUNCTION_INFO_V1(hstore_to_json_loose);
 Datum
 hstore_to_json_loose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -1252,6 +1286,8 @@ hstore_to_json_loose(PG_FUNCTION_ARGS)
   initStringInfo(&dst);
 
   appendStringInfoChar(&dst, '{');
+
+  DBUG_PRINT("hstore", "count:%d", count);
 
   for (i = 0; i < count; i++) {
     escape_json_with_len(&dst,
@@ -1284,6 +1320,7 @@ hstore_to_json_loose(PG_FUNCTION_ARGS)
 
   appendStringInfoChar(&dst, '}');
 
+  DBUG_PRINT("hstore", "out:%s", dst.data);
   PG_RETURN_TEXT_P(cstring_to_text_with_len(dst.data, dst.len));
 }
 
@@ -1291,6 +1328,7 @@ PG_FUNCTION_INFO_V1(hstore_to_json);
 Datum
 hstore_to_json(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -1304,6 +1342,8 @@ hstore_to_json(PG_FUNCTION_ARGS)
   initStringInfo(&dst);
 
   appendStringInfoChar(&dst, '{');
+
+  DBUG_PRINT("hstore", "count:%d", count);
 
   for (i = 0; i < count; i++) {
     escape_json_with_len(&dst,
@@ -1332,6 +1372,7 @@ PG_FUNCTION_INFO_V1(hstore_to_jsonb);
 Datum
 hstore_to_jsonb(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -1341,6 +1382,8 @@ hstore_to_jsonb(PG_FUNCTION_ARGS)
   JsonbValue *res;
 
   (void) pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+  DBUG_PRINT("hstore", "count:%d", count);
 
   for (i = 0; i < count; i++) {
     JsonbValue  key,
@@ -1372,6 +1415,7 @@ PG_FUNCTION_INFO_V1(hstore_to_jsonb_loose);
 Datum
 hstore_to_jsonb_loose(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   HStore     *in = PG_GETARG_HSTORE_P(0);
   int     i;
   int     count = HS_COUNT(in);
@@ -1384,6 +1428,8 @@ hstore_to_jsonb_loose(PG_FUNCTION_ARGS)
   initStringInfo(&tmp);
 
   (void) pushJsonbValue(&state, WJB_BEGIN_OBJECT, NULL);
+
+  DBUG_PRINT("hstore", "count:%d", count);
 
   for (i = 0; i < count; i++) {
     JsonbValue  key,

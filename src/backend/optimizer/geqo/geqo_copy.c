@@ -34,6 +34,7 @@
 /*************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo_copy.h"
 
 /* geqo_copy

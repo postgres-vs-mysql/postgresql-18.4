@@ -25,6 +25,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/transam.h"
 #include "access/xact.h"
@@ -337,6 +338,7 @@ bad_format:
 Datum
 pg_current_xact_id(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /*
    * Must prevent during recovery because if an xid is not assigned we try
    * to assign one, which would fail. Programs already rely on this function
@@ -355,6 +357,7 @@ pg_current_xact_id(PG_FUNCTION_ARGS)
 Datum
 pg_current_xact_id_if_assigned(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId topfxid = GetTopFullTransactionIdIfAny();
 
   if (!FullTransactionIdIsValid(topfxid))
@@ -373,6 +376,7 @@ pg_current_xact_id_if_assigned(PG_FUNCTION_ARGS)
 Datum
 pg_current_snapshot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_snapshot *snap;
   uint32    nxip,
             i;
@@ -425,6 +429,7 @@ pg_current_snapshot(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *str = PG_GETARG_CSTRING(0);
   pg_snapshot *snap;
 
@@ -441,6 +446,7 @@ pg_snapshot_in(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_snapshot *snap = (pg_snapshot *) PG_GETARG_VARLENA_P(0);
   StringInfoData str;
   uint32    i;
@@ -473,6 +479,7 @@ pg_snapshot_out(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   pg_snapshot *snap;
   FullTransactionId last = InvalidFullTransactionId;
@@ -540,6 +547,7 @@ bad_format:
 Datum
 pg_snapshot_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_snapshot *snap = (pg_snapshot *) PG_GETARG_VARLENA_P(0);
   StringInfoData buf;
   uint32    i;
@@ -563,6 +571,7 @@ pg_snapshot_send(PG_FUNCTION_ARGS)
 Datum
 pg_visible_in_snapshot(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FullTransactionId value = PG_GETARG_FULLTRANSACTIONID(0);
   pg_snapshot *snap = (pg_snapshot *) PG_GETARG_VARLENA_P(1);
 
@@ -577,6 +586,7 @@ pg_visible_in_snapshot(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_xmin(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_snapshot *snap = (pg_snapshot *) PG_GETARG_VARLENA_P(0);
 
   PG_RETURN_FULLTRANSACTIONID(snap->xmin);
@@ -590,6 +600,7 @@ pg_snapshot_xmin(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_xmax(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_snapshot *snap = (pg_snapshot *) PG_GETARG_VARLENA_P(0);
 
   PG_RETURN_FULLTRANSACTIONID(snap->xmax);
@@ -603,6 +614,7 @@ pg_snapshot_xmax(PG_FUNCTION_ARGS)
 Datum
 pg_snapshot_xip(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *fctx;
   pg_snapshot *snap;
   FullTransactionId value;
@@ -645,6 +657,7 @@ pg_snapshot_xip(PG_FUNCTION_ARGS)
 Datum
 pg_xact_status(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   const char *status;
   FullTransactionId fxid = PG_GETARG_FULLTRANSACTIONID(0);
   TransactionId xid;

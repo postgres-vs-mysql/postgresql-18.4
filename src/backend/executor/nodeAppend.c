@@ -56,6 +56,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execAsync.h"
 #include "executor/execPartition.h"
@@ -107,6 +108,7 @@ static void classify_matching_subplans(AppendState *node);
 AppendState *
 ExecInitAppend(Append *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   AppendState *appendstate = makeNode(AppendState);
   PlanState **appendplanstates;
   const TupleTableSlotOps *appendops;
@@ -293,6 +295,7 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 static TupleTableSlot *
 ExecAppend(PlanState *pstate)
 {
+  DBUG_TRACE;
   AppendState *node = castNode(AppendState, pstate);
   TupleTableSlot *result;
 
@@ -388,6 +391,7 @@ ExecAppend(PlanState *pstate)
 void
 ExecEndAppend(AppendState *node)
 {
+  DBUG_TRACE;
   PlanState **appendplans;
   int     nplans;
   int     i;
@@ -408,6 +412,7 @@ ExecEndAppend(AppendState *node)
 void
 ExecReScanAppend(AppendState *node)
 {
+  DBUG_TRACE;
   int     nasyncplans = node->as_nasyncplans;
   int     i;
 
@@ -484,6 +489,7 @@ void
 ExecAppendEstimate(AppendState *node,
                    ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   node->pstate_len =
     add_size(offsetof(ParallelAppendState, pa_finished),
              sizeof(bool) * node->as_nplans);
@@ -503,11 +509,12 @@ void
 ExecAppendInitializeDSM(AppendState *node,
                         ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   ParallelAppendState *pstate;
 
   pstate = shm_toc_allocate(pcxt->toc, node->pstate_len);
   memset(pstate, 0, node->pstate_len);
-  LWLockInitialize(&pstate->pa_lock, LWTRANCHE_PARALLEL_APPEND);
+  LWLockInitialize(&pstate->pa_lock, LWTRANCHE_PARALLEL_APPEND, 0);
   shm_toc_insert(pcxt->toc, node->ps.plan->plan_node_id, pstate);
 
   node->as_pstate = pstate;
@@ -523,6 +530,7 @@ ExecAppendInitializeDSM(AppendState *node,
 void
 ExecAppendReInitializeDSM(AppendState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   ParallelAppendState *pstate = node->as_pstate;
 
   pstate->pa_next_plan = 0;
@@ -539,6 +547,7 @@ ExecAppendReInitializeDSM(AppendState *node, ParallelContext *pcxt)
 void
 ExecAppendInitializeWorker(AppendState *node, ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   node->as_pstate = shm_toc_lookup(pwcxt->toc, node->ps.plan->plan_node_id, false);
   node->choose_next_subplan = choose_next_subplan_for_worker;
 }
@@ -553,15 +562,20 @@ ExecAppendInitializeWorker(AppendState *node, ParallelWorkerContext *pwcxt)
 static bool
 choose_next_subplan_locally(AppendState *node)
 {
+  DBUG_TRACE;
   int     whichplan = node->as_whichplan;
   int     nextplan;
 
   /* We should never be called when there are no subplans */
   Assert(node->as_nplans > 0);
 
+  DBUG_PRINT("info", "node->as_nplans:%d, node->as_whichplan:%d", node->as_nplans, node->as_whichplan);
+
   /* Nothing to do if syncdone */
-  if (node->as_syncdone)
+  if (node->as_syncdone) {
+    DBUG_PRINT("info", "nothing to do if syncdone");
     return false;
+  }
 
   /*
    * If first call then have the bms member function choose the first valid
@@ -596,10 +610,13 @@ choose_next_subplan_locally(AppendState *node)
     if (node->as_nasyncplans > 0)
       node->as_syncdone = true;
 
+    DBUG_PRINT("info", "nextplan:%d", nextplan);
     return false;
   }
 
   node->as_whichplan = nextplan;
+
+  DBUG_PRINT("info", "nextplan:%d", nextplan);
 
   return true;
 }
@@ -615,6 +632,7 @@ choose_next_subplan_locally(AppendState *node)
 static bool
 choose_next_subplan_for_leader(AppendState *node)
 {
+  DBUG_TRACE;
   ParallelAppendState *pstate = node->as_pstate;
 
   /* Backward scan is not supported by parallel-aware plans */
@@ -691,6 +709,7 @@ choose_next_subplan_for_leader(AppendState *node)
 static bool
 choose_next_subplan_for_worker(AppendState *node)
 {
+  DBUG_TRACE;
   ParallelAppendState *pstate = node->as_pstate;
 
   /* Backward scan is not supported by parallel-aware plans */
@@ -807,6 +826,7 @@ choose_next_subplan_for_worker(AppendState *node)
 static void
 mark_invalid_subplans_as_finished(AppendState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Only valid to call this while in parallel Append mode */
@@ -840,6 +860,7 @@ mark_invalid_subplans_as_finished(AppendState *node)
 static void
 ExecAppendAsyncBegin(AppendState *node)
 {
+  DBUG_TRACE;
   int     i;
 
   /* Backward scan is not supported by async-aware Appends. */
@@ -891,6 +912,7 @@ ExecAppendAsyncBegin(AppendState *node)
 static bool
 ExecAppendAsyncGetNext(AppendState *node, TupleTableSlot **result)
 {
+  DBUG_TRACE;
   *result = NULL;
 
   /* We should never be called when there are no valid async subplans. */
@@ -938,6 +960,7 @@ ExecAppendAsyncGetNext(AppendState *node, TupleTableSlot **result)
 static bool
 ExecAppendAsyncRequest(AppendState *node, TupleTableSlot **result)
 {
+  DBUG_TRACE;
   Bitmapset  *needrequest;
   int     i;
 
@@ -990,6 +1013,7 @@ ExecAppendAsyncRequest(AppendState *node, TupleTableSlot **result)
 static void
 ExecAppendAsyncEventWait(AppendState *node)
 {
+  DBUG_TRACE;
   int     nevents = node->as_nasyncplans + 2;
   long    timeout = node->as_syncdone ? -1 : 0;
   WaitEvent occurred_event[EVENT_BUFFER_SIZE];
@@ -1096,6 +1120,7 @@ ExecAppendAsyncEventWait(AppendState *node)
 void
 ExecAsyncAppendResponse(AsyncRequest *areq)
 {
+  DBUG_TRACE;
   AppendState *node = (AppendState *) areq->requestor;
   TupleTableSlot *slot = areq->result;
 
@@ -1140,6 +1165,7 @@ ExecAsyncAppendResponse(AsyncRequest *areq)
 static void
 classify_matching_subplans(AppendState *node)
 {
+  DBUG_TRACE;
   Bitmapset  *valid_asyncplans;
 
   Assert(node->as_valid_subplans_identified);

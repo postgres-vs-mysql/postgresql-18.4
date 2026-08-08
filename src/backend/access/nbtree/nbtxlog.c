@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/nbtree.h"
@@ -35,6 +36,7 @@ static MemoryContext opCtx;   /* working memory for operations */
 static void
 _bt_restore_page(Page page, char *from, int len)
 {
+  DBUG_TRACE;
   IndexTupleData itupdata;
   Size    itemsz;
   char     *end = from + len;
@@ -43,6 +45,7 @@ _bt_restore_page(Page page, char *from, int len)
   int     i;
   int     nitems;
 
+  DBUG_PRINT("info", "re-enter all the index tuples on a page");
   /*
    * To get the items back in the original order, we add them to the page in
    * reverse.  To figure out where one tuple ends and another begins, we
@@ -81,6 +84,7 @@ _bt_restore_page(Page page, char *from, int len)
 static void
 _bt_restore_meta(XLogReaderState *record, uint8 block_id)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    metabuf;
   Page    metapg;
@@ -138,6 +142,7 @@ _bt_restore_meta(XLogReaderState *record, uint8 block_id)
 static void
 _bt_clear_incomplete_split(XLogReaderState *record, uint8 block_id)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buf;
 
@@ -160,6 +165,7 @@ static void
 btree_xlog_insert(bool isleaf, bool ismeta, bool posting,
                   XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_insert *xlrec = (xl_btree_insert *) XLogRecGetData(record);
   Buffer    buffer;
@@ -249,6 +255,7 @@ btree_xlog_insert(bool isleaf, bool ismeta, bool posting,
 static void
 btree_xlog_split(bool newitemonleft, XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_split *xlrec = (xl_btree_split *) XLogRecGetData(record);
   bool    isleaf = (xlrec->level == 0);
@@ -304,6 +311,8 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
   MarkBufferDirty(rbuf);
 
   /* Now reconstruct original page (left half of split) */
+  DBUG_PRINT("info", "now reconstruct original page (left half of split)");
+
   if (XLogReadBufferForRedo(record, 0, &buf) == BLK_NEEDS_REDO) {
     /*
      * To retain the same physical order of the tuples that they had, we
@@ -354,6 +363,7 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
      * is enough to apply IndexTupleSize (since it's fetching from a
      * uint16 field).
      */
+    DBUG_PRINT("info", "extract left hikey and its size");
     left_hikey = (IndexTuple) datapos;
     left_hikeysz = MAXALIGN(IndexTupleSize(left_hikey));
     datapos += left_hikeysz;
@@ -364,6 +374,7 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
     leftpage = PageGetTempPageCopySpecial(origpage);
 
     /* Add high key tuple from WAL record to temp page */
+    DBUG_PRINT("info", "add high key tuple from WAL record to temp page");
     leftoff = P_HIKEY;
 
     if (PageAddItem(leftpage, (Item) left_hikey, left_hikeysz, P_HIKEY,
@@ -393,6 +404,8 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
 
       /* add the new item if it was inserted on left page */
       else if (newitemonleft && off == xlrec->newitemoff) {
+        DBUG_PRINT("info", "add the new item if it was inserted on left page");
+
         if (PageAddItem(leftpage, (Item) newitem, newitemsz, leftoff,
                         false, false) == InvalidOffsetNumber)
           elog(ERROR, "failed to add new item to left page after split");
@@ -413,6 +426,8 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
 
     /* cope with possibility that newitem goes at the end */
     if (newitemonleft && off == xlrec->newitemoff) {
+      DBUG_PRINT("info", "cope with possibility that newitem goes at the end");
+
       if (PageAddItem(leftpage, (Item) newitem, newitemsz, leftoff,
                       false, false) == InvalidOffsetNumber)
         elog(ERROR, "failed to add new item to left page after split");
@@ -466,6 +481,7 @@ btree_xlog_split(bool newitemonleft, XLogReaderState *record)
 static void
 btree_xlog_dedup(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_dedup *xlrec = (xl_btree_dedup *) XLogRecGetData(record);
   Buffer    buf;
@@ -554,6 +570,7 @@ static void
 btree_xlog_updates(Page page, OffsetNumber *updatedoffsets,
                    xl_btree_update *updates, int nupdated)
 {
+  DBUG_TRACE;
   BTVacuumPosting vacposting;
   IndexTuple  origtuple;
   ItemId    itemid;
@@ -594,6 +611,7 @@ btree_xlog_updates(Page page, OffsetNumber *updatedoffsets,
 static void
 btree_xlog_vacuum(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_vacuum *xlrec = (xl_btree_vacuum *) XLogRecGetData(record);
   Buffer    buffer;
@@ -647,6 +665,7 @@ btree_xlog_vacuum(XLogReaderState *record)
 static void
 btree_xlog_delete(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_delete *xlrec = (xl_btree_delete *) XLogRecGetData(record);
   Buffer    buffer;
@@ -696,6 +715,7 @@ btree_xlog_delete(XLogReaderState *record)
      * Do *not* clear the vacuum cycle ID, but do mark the page as not
      * containing any LP_DEAD items
      */
+    DBUG_PRINT("info", "mark the page as not containing any LP_DEAD items");
     opaque = BTPageGetOpaque(page);
     opaque->btpo_flags &= ~BTP_HAS_GARBAGE;
 
@@ -710,6 +730,7 @@ btree_xlog_delete(XLogReaderState *record)
 static void
 btree_xlog_mark_page_halfdead(uint8 info, XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_mark_page_halfdead *xlrec = (xl_btree_mark_page_halfdead *) XLogRecGetData(record);
   Buffer    buffer;
@@ -724,6 +745,8 @@ btree_xlog_mark_page_halfdead(uint8 info, XLogReaderState *record)
    * be happening, and readers should not care whether they arrive at the
    * target page or not (since it's surely empty).
    */
+
+  DBUG_PRINT("info", "in WAL replay, it should be okay to lock just one page at a time");
 
   /* to-be-deleted subtree's parent page */
   if (XLogReadBufferForRedo(record, 1, &buffer) == BLK_NEEDS_REDO) {
@@ -761,6 +784,7 @@ btree_xlog_mark_page_halfdead(uint8 info, XLogReaderState *record)
     UnlockReleaseBuffer(buffer);
 
   /* Rewrite the leaf page as a halfdead page */
+  DBUG_PRINT("info", "rewrite the leaf page as a halfdead page");
   buffer = XLogInitBufferForRedo(record, 0);
   page = (Page) BufferGetPage(buffer);
 
@@ -794,6 +818,7 @@ btree_xlog_mark_page_halfdead(uint8 info, XLogReaderState *record)
 static void
 btree_xlog_unlink_page(uint8 info, XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_unlink_page *xlrec = (xl_btree_unlink_page *) XLogRecGetData(record);
   BlockNumber leftsib;
@@ -931,6 +956,7 @@ btree_xlog_unlink_page(uint8 info, XLogReaderState *record)
 static void
 btree_xlog_newroot(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_btree_newroot *xlrec = (xl_btree_newroot *) XLogRecGetData(record);
   Buffer    buffer;
@@ -1009,6 +1035,7 @@ btree_xlog_reuse_page(XLogReaderState *record)
 void
 btree_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
   MemoryContext oldCtx;
 
@@ -1016,59 +1043,77 @@ btree_redo(XLogReaderState *record)
 
   switch (info) {
     case XLOG_BTREE_INSERT_LEAF:
+      DBUG_PRINT("info", "XLOG_BTREE_INSERT_LEAF");
       btree_xlog_insert(true, false, false, record);
       break;
 
     case XLOG_BTREE_INSERT_UPPER:
+      DBUG_PRINT("info", "XLOG_BTREE_INSERT_UPPER");
       btree_xlog_insert(false, false, false, record);
       break;
 
     case XLOG_BTREE_INSERT_META:
+      DBUG_PRINT("info", "");
       btree_xlog_insert(false, true, false, record);
       break;
 
     case XLOG_BTREE_SPLIT_L:
+      DBUG_PRINT("info", "XLOG_BTREE_SPLIT_L");
       btree_xlog_split(true, record);
       break;
 
     case XLOG_BTREE_SPLIT_R:
+      DBUG_PRINT("info", "XLOG_BTREE_SPLIT_R");
       btree_xlog_split(false, record);
       break;
 
     case XLOG_BTREE_INSERT_POST:
+      DBUG_PRINT("info", "XLOG_BTREE_INSERT_POST");
       btree_xlog_insert(true, false, true, record);
       break;
 
     case XLOG_BTREE_DEDUP:
+      DBUG_PRINT("info", "XLOG_BTREE_DEDUP");
       btree_xlog_dedup(record);
       break;
 
     case XLOG_BTREE_VACUUM:
+      DBUG_PRINT("info", "XLOG_BTREE_VACUUM");
       btree_xlog_vacuum(record);
       break;
 
     case XLOG_BTREE_DELETE:
+      DBUG_PRINT("info", "XLOG_BTREE_DELETE");
       btree_xlog_delete(record);
       break;
 
     case XLOG_BTREE_MARK_PAGE_HALFDEAD:
+      DBUG_PRINT("info", "XLOG_BTREE_MARK_PAGE_HALFDEAD");
       btree_xlog_mark_page_halfdead(info, record);
       break;
 
     case XLOG_BTREE_UNLINK_PAGE:
+      DBUG_PRINT("info", "XLOG_BTREE_UNLINK_PAGE");
+      btree_xlog_unlink_page(info, record);
+      break;
+
     case XLOG_BTREE_UNLINK_PAGE_META:
+      DBUG_PRINT("info", "XLOG_BTREE_UNLINK_PAGE_META");
       btree_xlog_unlink_page(info, record);
       break;
 
     case XLOG_BTREE_NEWROOT:
+      DBUG_PRINT("info", "XLOG_BTREE_NEWROOT");
       btree_xlog_newroot(record);
       break;
 
     case XLOG_BTREE_REUSE_PAGE:
+      DBUG_PRINT("info", "XLOG_BTREE_REUSE_PAGE");
       btree_xlog_reuse_page(record);
       break;
 
     case XLOG_BTREE_META_CLEANUP:
+      DBUG_PRINT("info", "XLOG_BTREE_META_CLEANUP");
       _bt_restore_meta(record, 0);
       break;
 

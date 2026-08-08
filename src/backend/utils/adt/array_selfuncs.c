@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -83,6 +84,7 @@ scalararraysel_containment(PlannerInfo *root,
                            Oid elemtype, bool isEquality, bool useOr,
                            int varRelid)
 {
+  DBUG_TRACE;
   Selectivity selec;
   VariableStatData vardata;
   Datum   constval;
@@ -227,6 +229,7 @@ scalararraysel_containment(PlannerInfo *root,
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -236,6 +239,7 @@ scalararraysel_containment(PlannerInfo *root,
 Datum
 arraycontsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -302,6 +306,7 @@ arraycontsel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -311,10 +316,14 @@ arraycontsel(PG_FUNCTION_ARGS)
 Datum
 arraycontjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  float8 result;
   /* For the moment this is just a stub */
   Oid     operator = PG_GETARG_OID(1);
 
-  PG_RETURN_FLOAT8(DEFAULT_SEL(operator));
+  result = (DEFAULT_SEL(operator));
+  DBUG_PRINT("info", "return selectivity:%g", result);
+  PG_RETURN_FLOAT8(result);
 }
 
 /*
@@ -328,6 +337,7 @@ static Selectivity
 calc_arraycontsel(VariableStatData *vardata, Datum constval,
                   Oid elemtype, Oid operator)
 {
+  DBUG_TRACE;
   Selectivity selec;
   TypeCacheEntry *typentry;
   FmgrInfo   *cmpfunc;
@@ -401,6 +411,7 @@ calc_arraycontsel(VariableStatData *vardata, Datum constval,
   if (PointerGetDatum(array) != constval)
     pfree(array);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -418,6 +429,7 @@ mcelem_array_selec(ArrayType *array, TypeCacheEntry *typentry,
                    float4 *hist, int nhist,
                    Oid operator)
 {
+  DBUG_TRACE;
   Selectivity selec;
   int     num_elems;
   Datum    *elem_values;
@@ -482,6 +494,7 @@ mcelem_array_selec(ArrayType *array, TypeCacheEntry *typentry,
 
   pfree(elem_values);
   pfree(elem_nulls);
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -508,6 +521,7 @@ mcelem_array_contain_overlap_selec(Datum *mcelem, int nmcelem,
                                    Datum *array_data, int nitems,
                                    Oid operator, TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   Selectivity selec,
               elem_selec;
   int     mcelem_index,
@@ -611,6 +625,7 @@ mcelem_array_contain_overlap_selec(Datum *mcelem, int nmcelem,
     CLAMP_PROBABILITY(selec);
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -670,6 +685,7 @@ mcelem_array_contained_selec(Datum *mcelem, int nmcelem,
                              float4 *hist, int nhist,
                              Oid operator, TypeCacheEntry *typentry)
 {
+  DBUG_TRACE;
   int     mcelem_index,
           i,
           unique_nitems = 0;
@@ -866,6 +882,7 @@ mcelem_array_contained_selec(Datum *mcelem, int nmcelem,
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -1124,6 +1141,8 @@ find_next_mcelem(Datum *mcelem, int nmcelem, Datum value, int *index,
 static int
 element_compare(const void *key1, const void *key2, void *arg)
 {
+  DBUG_TRACE;
+  int result;
   Datum   d1 = *((const Datum *) key1);
   Datum   d2 = *((const Datum *) key2);
   TypeCacheEntry *typentry = (TypeCacheEntry *) arg;
@@ -1131,7 +1150,9 @@ element_compare(const void *key1, const void *key2, void *arg)
   Datum   c;
 
   c = FunctionCall2Coll(cmpfunc, typentry->typcollation, d1, d2);
-  return DatumGetInt32(c);
+  result = DatumGetInt32(c);
+  DBUG_PRINT("info", "result:%d", result);
+  return result;
 }
 
 /*

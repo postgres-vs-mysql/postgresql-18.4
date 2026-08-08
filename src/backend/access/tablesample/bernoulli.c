@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -63,6 +64,7 @@ static OffsetNumber bernoulli_nextsampletuple(SampleScanState *node,
 Datum
 tsm_bernoulli_handler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TsmRoutine *tsm = makeNode(TsmRoutine);
 
   tsm->parameterTypes = list_make1_oid(FLOAT4OID);

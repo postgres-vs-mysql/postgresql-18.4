@@ -83,14 +83,15 @@
  *        }
  *      }
  *    }
- *
- *    The merge join operation is coded in the fashion
- *    of a state machine.  At each state, we do something and then
- *    proceed to another state.  This state is stored in the node's
- *    execution state information and is preserved across calls to
- *    ExecMergeJoin. -cim 10/31/89
- */
+*
+*   The merge join operation is coded in the fashion
+*   of a state machine.  At each state, we do something and then
+*   proceed to another state.  This state is stored in the node's
+*   execution state information and is preserved across calls to
+*   ExecMergeJoin. -cim 10/31/89
+*/
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "executor/execdebug.h"
@@ -177,6 +178,7 @@ MJExamineQuals(List *mergeclauses,
                bool *mergenullsfirst,
                PlanState *parent)
 {
+  DBUG_TRACE;
   MergeJoinClause clauses;
   int     nClauses = list_length(mergeclauses);
   int     iClause;
@@ -289,6 +291,7 @@ MJExamineQuals(List *mergeclauses,
 static MJEvalResult
 MJEvalOuterValues(MergeJoinState *mergestate)
 {
+  DBUG_TRACE;
   ExprContext *econtext = mergestate->mj_OuterEContext;
   MJEvalResult result = MJEVAL_MATCHABLE;
   int     i;
@@ -335,6 +338,7 @@ MJEvalOuterValues(MergeJoinState *mergestate)
 static MJEvalResult
 MJEvalInnerValues(MergeJoinState *mergestate, TupleTableSlot *innerslot)
 {
+  DBUG_TRACE;
   ExprContext *econtext = mergestate->mj_InnerEContext;
   MJEvalResult result = MJEVAL_MATCHABLE;
   int     i;
@@ -384,6 +388,7 @@ MJEvalInnerValues(MergeJoinState *mergestate, TupleTableSlot *innerslot)
 static int
 MJCompare(MergeJoinState *mergestate)
 {
+  DBUG_TRACE;
   int     result = 0;
   bool    nulleqnull = false;
   ExprContext *econtext = mergestate->js.ps.ps_ExprContext;
@@ -443,6 +448,7 @@ MJCompare(MergeJoinState *mergestate)
 static TupleTableSlot *
 MJFillOuter(MergeJoinState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->js.ps.ps_ExprContext;
   ExprState  *otherqual = node->js.ps.qual;
 
@@ -457,6 +463,7 @@ MJFillOuter(MergeJoinState *node)
      * return the slot containing it.
      */
     MJ_printf("ExecMergeJoin: returning outer fill tuple\n");
+    DBUG_PRINT("info", "ExecMergeJoin: returning outer fill tuple");
 
     return ExecProject(node->js.ps.ps_ProjInfo);
   } else
@@ -472,6 +479,7 @@ MJFillOuter(MergeJoinState *node)
 static TupleTableSlot *
 MJFillInner(MergeJoinState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->js.ps.ps_ExprContext;
   ExprState  *otherqual = node->js.ps.qual;
 
@@ -486,6 +494,7 @@ MJFillInner(MergeJoinState *node)
      * return the slot containing it.
      */
     MJ_printf("ExecMergeJoin: returning inner fill tuple\n");
+    DBUG_PRINT("info", "ExecMergeJoin: returning inner fill tuple");
 
     return ExecProject(node->js.ps.ps_ProjInfo);
   } else
@@ -590,6 +599,7 @@ ExecMergeTupleDump(MergeJoinState *mergestate)
 static TupleTableSlot *
 ExecMergeJoin(PlanState *pstate)
 {
+  DBUG_TRACE;
   MergeJoinState *node = castNode(MergeJoinState, pstate);
   ExprState  *joinqual;
   ExprState  *otherqual;
@@ -641,6 +651,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_INITIALIZE_OUTER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_OUTER\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_INITIALIZE_OUTER");
 
         outerTupleSlot = ExecProcNode(outerPlan);
         node->mj_OuterTupleSlot = outerTupleSlot;
@@ -649,12 +660,14 @@ ExecMergeJoin(PlanState *pstate)
         switch (MJEvalOuterValues(node)) {
           case MJEVAL_MATCHABLE:
             /* OK to go get the first inner tuple */
+            DBUG_PRINT("info", "matchable and ok to go get the first inner tuple");
             node->mj_JoinState = EXEC_MJ_INITIALIZE_INNER;
             break;
 
           case MJEVAL_NONMATCHABLE:
-
             /* Stay in same state to fetch next outer tuple */
+            DBUG_PRINT("info", "nonmatchable and stay in same state to fetch next outer tuple");
+
             if (doFillOuter) {
               /*
                * Generate a fake join tuple with nulls for the
@@ -674,6 +687,7 @@ ExecMergeJoin(PlanState *pstate)
           case MJEVAL_ENDOFJOIN:
             /* No more outer tuples */
             MJ_printf("ExecMergeJoin: nothing in outer subplan\n");
+            DBUG_PRINT("info", "ExecMergeJoin: nothing in outer subplan");
 
             if (doFillInner) {
               /*
@@ -694,6 +708,7 @@ ExecMergeJoin(PlanState *pstate)
 
       case EXEC_MJ_INITIALIZE_INNER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_INITIALIZE_INNER\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_INITIALIZE_INNER");
 
         innerTupleSlot = ExecProcNode(innerPlan);
         node->mj_InnerTupleSlot = innerTupleSlot;
@@ -706,6 +721,7 @@ ExecMergeJoin(PlanState *pstate)
              * OK, we have the initial tuples.  Begin by skipping
              * non-matching tuples.
              */
+            DBUG_PRINT("info", "begin by skipping non-matching tuples");
             node->mj_JoinState = EXEC_MJ_SKIP_TEST;
             break;
 
@@ -716,6 +732,8 @@ ExecMergeJoin(PlanState *pstate)
               ExecMarkPos(innerPlan);
 
             /* Stay in same state to fetch next inner tuple */
+            DBUG_PRINT("info", "stay in same state to fetch next inner tuple");
+
             if (doFillInner) {
               /*
                * Generate a fake join tuple with nulls for the
@@ -735,6 +753,7 @@ ExecMergeJoin(PlanState *pstate)
           case MJEVAL_ENDOFJOIN:
             /* No more inner tuples */
             MJ_printf("ExecMergeJoin: nothing in inner subplan\n");
+            DBUG_PRINT("info", "ExecMergeJoin: nothing in inner subplan");
 
             if (doFillOuter) {
               /*
@@ -762,6 +781,8 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_JOINTUPLES:
         MJ_printf("ExecMergeJoin: EXEC_MJ_JOINTUPLES\n");
+        DBUG_PRINT("info", "EXEC_MJ_JOINTUPLES means we have two tuples which satisfied the merge clause");
+        DBUG_PRINT("info", "so we join them and then proceed to get the next inner tuple (EXEC_MJ_NEXTINNER)");
 
         /*
          * Set the next state machine state.  The right things will
@@ -799,6 +820,7 @@ ExecMergeJoin(PlanState *pstate)
 
           /* In an antijoin, we never return a matched tuple */
           if (node->js.jointype == JOIN_ANTI) {
+            DBUG_PRINT("info", "in an antijoin, we never return a matched tuple");
             node->mj_JoinState = EXEC_MJ_NEXTOUTER;
             break;
           }
@@ -808,8 +830,10 @@ ExecMergeJoin(PlanState *pstate)
            * tuple, then advance to next outer tuple after we've
            * processed this one.
            */
-          if (node->js.single_match)
+          if (node->js.single_match) {
+            DBUG_PRINT("info", "advance to next outer tuple after we've processed this one");
             node->mj_JoinState = EXEC_MJ_NEXTOUTER;
+          }
 
           /*
            * In a right-antijoin, we never return a matched tuple.
@@ -830,6 +854,7 @@ ExecMergeJoin(PlanState *pstate)
              * projection tuple and return the slot containing it.
              */
             MJ_printf("ExecMergeJoin: returning tuple\n");
+            DBUG_PRINT("info", "qualification succeeded and ExecMergeJoin: returning tuple");
 
             return ExecProject(node->js.ps.ps_ProjInfo);
           } else
@@ -849,6 +874,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_NEXTINNER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_NEXTINNER\n");
+        DBUG_PRINT("info", "EXEC_MJ_NEXTINNER means advance the inner scan to the next tuple");
 
         if (doFillInner && !node->mj_MatchedInner) {
           /*
@@ -892,14 +918,15 @@ ExecMergeJoin(PlanState *pstate)
              * If they do not match then advance to next outer
              * tuple.
              */
+            DBUG_PRINT("info", "test the new inner tuple to see if it matches outer");
             compareResult = MJCompare(node);
             MJ_DEBUG_COMPARE(compareResult);
 
             if (compareResult == 0)
               node->mj_JoinState = EXEC_MJ_JOINTUPLES;
-            else if (compareResult < 0)
+            else if (compareResult < 0) {
               node->mj_JoinState = EXEC_MJ_NEXTOUTER;
-            else  /* compareResult > 0 should not happen */
+            } else  /* compareResult > 0 should not happen */
               elog(ERROR, "mergejoin input data is out of order");
 
             break;
@@ -924,6 +951,7 @@ ExecMergeJoin(PlanState *pstate)
              * because we are not transiting to a state where the
              * inner plan is assumed to be exhausted.)
              */
+            DBUG_PRINT("info", "no more inner tuples");
             node->mj_InnerTupleSlot = NULL;
             node->mj_JoinState = EXEC_MJ_NEXTOUTER;
             break;
@@ -953,6 +981,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_NEXTOUTER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_NEXTOUTER\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_NEXTOUTER");
 
         if (doFillOuter && !node->mj_MatchedOuter) {
           /*
@@ -972,6 +1001,7 @@ ExecMergeJoin(PlanState *pstate)
         /*
          * now we get the next outer tuple, if any
          */
+        DBUG_PRINT("info", "now we get the next outer tuple, if any");
         outerTupleSlot = ExecProcNode(outerPlan);
         node->mj_OuterTupleSlot = outerTupleSlot;
         MJ_DEBUG_PROC_NODE(outerTupleSlot);
@@ -981,17 +1011,20 @@ ExecMergeJoin(PlanState *pstate)
         switch (MJEvalOuterValues(node)) {
           case MJEVAL_MATCHABLE:
             /* Go test the new tuple against the marked tuple */
+            DBUG_PRINT("info", "go test the new tuple against the marked tuple");
             node->mj_JoinState = EXEC_MJ_TESTOUTER;
             break;
 
           case MJEVAL_NONMATCHABLE:
             /* Can't match, so fetch next outer tuple */
+            DBUG_PRINT("info", "can't match, so fetch next outer tuple");
             node->mj_JoinState = EXEC_MJ_NEXTOUTER;
             break;
 
           case MJEVAL_ENDOFJOIN:
             /* No more outer tuples */
             MJ_printf("ExecMergeJoin: end of outer subplan\n");
+            DBUG_PRINT("info", "ExecMergeJoin: end of outer subplan");
             innerTupleSlot = node->mj_InnerTupleSlot;
 
             if (doFillInner && !TupIsNull(innerTupleSlot)) {
@@ -999,6 +1032,7 @@ ExecMergeJoin(PlanState *pstate)
                * Need to emit right-join tuples for remaining
                * inner tuples.
                */
+              DBUG_PRINT("info", "need to emit right-join tuples for remaining inner tuples");
               node->mj_JoinState = EXEC_MJ_ENDOUTER;
               break;
             }
@@ -1046,12 +1080,14 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_TESTOUTER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_TESTOUTER\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_TESTOUTER");
 
         /*
          * Here we must compare the outer tuple with the marked inner
          * tuple.  (We can ignore the result of MJEvalInnerValues,
          * since the marked inner tuple is certainly matchable.)
          */
+        DBUG_PRINT("info", "here we must compare the outer tuple with the marked inner tuple");
         innerTupleSlot = node->mj_MarkedTupleSlot;
         (void) MJEvalInnerValues(node, innerTupleSlot);
 
@@ -1182,6 +1218,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_SKIP_TEST:
         MJ_printf("ExecMergeJoin: EXEC_MJ_SKIP_TEST\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_SKIP_TEST");
 
         /*
          * before we advance, make sure the current tuples do not
@@ -1215,6 +1252,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_SKIPOUTER_ADVANCE:
         MJ_printf("ExecMergeJoin: EXEC_MJ_SKIPOUTER_ADVANCE\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_SKIPOUTER_ADVANCE");
 
         if (doFillOuter && !node->mj_MatchedOuter) {
           /*
@@ -1234,6 +1272,7 @@ ExecMergeJoin(PlanState *pstate)
         /*
          * now we get the next outer tuple, if any
          */
+        DBUG_PRINT("info", "now we get the next outer tuple, if any");
         outerTupleSlot = ExecProcNode(outerPlan);
         node->mj_OuterTupleSlot = outerTupleSlot;
         MJ_DEBUG_PROC_NODE(outerTupleSlot);
@@ -1254,6 +1293,7 @@ ExecMergeJoin(PlanState *pstate)
           case MJEVAL_ENDOFJOIN:
             /* No more outer tuples */
             MJ_printf("ExecMergeJoin: end of outer subplan\n");
+            DBUG_PRINT("info", "ExecMergeJoin: end of outer subplan");
             innerTupleSlot = node->mj_InnerTupleSlot;
 
             if (doFillInner && !TupIsNull(innerTupleSlot)) {
@@ -1261,10 +1301,12 @@ ExecMergeJoin(PlanState *pstate)
                * Need to emit right-join tuples for remaining
                * inner tuples.
                */
+              DBUG_PRINT("info", "need to emit right-join tuples for remaining inner tuples");
               node->mj_JoinState = EXEC_MJ_ENDOUTER;
               break;
             }
 
+            DBUG_PRINT("info", "otherwise we're done");
             /* Otherwise we're done. */
             return NULL;
         }
@@ -1280,6 +1322,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_SKIPINNER_ADVANCE:
         MJ_printf("ExecMergeJoin: EXEC_MJ_SKIPINNER_ADVANCE\n");
+        DBUG_PRINT("info", "EXEC_MJ_SKIPINNER_ADVANCE: advance over an inner tuple that is known not to join to any outer tuple");
 
         if (doFillInner && !node->mj_MatchedInner) {
           /*
@@ -1303,6 +1346,7 @@ ExecMergeJoin(PlanState *pstate)
         /*
          * now we get the next inner tuple, if any
          */
+        DBUG_PRINT("info", "now we get the next inner tuple, if any");
         innerTupleSlot = ExecProcNode(innerPlan);
         node->mj_InnerTupleSlot = innerTupleSlot;
         MJ_DEBUG_PROC_NODE(innerTupleSlot);
@@ -1312,6 +1356,7 @@ ExecMergeJoin(PlanState *pstate)
         switch (MJEvalInnerValues(node, innerTupleSlot)) {
           case MJEVAL_MATCHABLE:
             /* proceed to compare it to the current outer */
+            DBUG_PRINT("info", "proceed to compare it to the current outer");
             node->mj_JoinState = EXEC_MJ_SKIP_TEST;
             break;
 
@@ -1321,12 +1366,14 @@ ExecMergeJoin(PlanState *pstate)
              * current inner can't possibly match any outer;
              * better to advance the inner scan than the outer.
              */
+            DBUG_PRINT("info", "current inner can't possibly match any outer; better to advance the inner scan than the outer");
             node->mj_JoinState = EXEC_MJ_SKIPINNER_ADVANCE;
             break;
 
           case MJEVAL_ENDOFJOIN:
             /* No more inner tuples */
             MJ_printf("ExecMergeJoin: end of inner subplan\n");
+            DBUG_PRINT("info", "ExecMergeJoin: end of inner subplan");
             outerTupleSlot = node->mj_OuterTupleSlot;
 
             if (doFillOuter && !TupIsNull(outerTupleSlot)) {
@@ -1334,10 +1381,12 @@ ExecMergeJoin(PlanState *pstate)
                * Need to emit left-join tuples for remaining
                * outer tuples.
                */
+              DBUG_PRINT("info", "need to emit left-join tuples for remaining outer tuples");
               node->mj_JoinState = EXEC_MJ_ENDINNER;
               break;
             }
 
+            DBUG_PRINT("info", "otherwise we're done");
             /* Otherwise we're done. */
             return NULL;
         }
@@ -1351,6 +1400,8 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_ENDOUTER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_ENDOUTER\n");
+        DBUG_PRINT("info", "EXEC_MJ_ENDOUTER means we have run out of outer tuples");
+        DBUG_PRINT("info", "but are doing a right/right-anti/full join and therefore must null-fill any remaining unmatched inner tuples");
 
         Assert(doFillInner);
 
@@ -1376,12 +1427,14 @@ ExecMergeJoin(PlanState *pstate)
         /*
          * now we get the next inner tuple, if any
          */
+        DBUG_PRINT("info", "now we get the next inner tuple, if any");
         innerTupleSlot = ExecProcNode(innerPlan);
         node->mj_InnerTupleSlot = innerTupleSlot;
         MJ_DEBUG_PROC_NODE(innerTupleSlot);
         node->mj_MatchedInner = false;
 
         if (TupIsNull(innerTupleSlot)) {
+          DBUG_PRINT("info", "ExecMergeJoin: end of inner subplan");
           MJ_printf("ExecMergeJoin: end of inner subplan\n");
           return NULL;
         }
@@ -1396,6 +1449,7 @@ ExecMergeJoin(PlanState *pstate)
        */
       case EXEC_MJ_ENDINNER:
         MJ_printf("ExecMergeJoin: EXEC_MJ_ENDINNER\n");
+        DBUG_PRINT("info", "ExecMergeJoin: EXEC_MJ_ENDINNER");
 
         Assert(doFillOuter);
 
@@ -1417,16 +1471,19 @@ ExecMergeJoin(PlanState *pstate)
         /*
          * now we get the next outer tuple, if any
          */
+        DBUG_PRINT("info", "now we get the next outer tuple, if any");
         outerTupleSlot = ExecProcNode(outerPlan);
         node->mj_OuterTupleSlot = outerTupleSlot;
         MJ_DEBUG_PROC_NODE(outerTupleSlot);
         node->mj_MatchedOuter = false;
 
         if (TupIsNull(outerTupleSlot)) {
+          DBUG_PRINT("info", "ExecMergeJoin: end of outer subplan");
           MJ_printf("ExecMergeJoin: end of outer subplan\n");
           return NULL;
         }
 
+        DBUG_PRINT("info", "remain in ENDINNER state and process next tuple");
         /* Else remain in ENDINNER state and process next tuple. */
         break;
 
@@ -1447,6 +1504,7 @@ ExecMergeJoin(PlanState *pstate)
 MergeJoinState *
 ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   MergeJoinState *mergestate;
   TupleDesc outerDesc,
             innerDesc;
@@ -1550,6 +1608,14 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
   mergestate->js.single_match = (node->join.inner_unique ||
                                  node->join.jointype == JOIN_SEMI);
 
+  if (mergestate->js.single_match) {
+    if (node->join.inner_unique) {
+      DBUG_PRINT("info", "we need only consider the first matching inner tuple because of inner_unique:true");
+    } else {
+      DBUG_PRINT("info", "we need only consider the first matching inner tuple because of jointype:JOIN_SEMI");
+    }
+  }
+
   /* set up null tuples for outer joins, if needed */
   switch (node->join.jointype) {
     case JOIN_INNER:
@@ -1649,6 +1715,7 @@ ExecInitMergeJoin(MergeJoin *node, EState *estate, int eflags)
 void
 ExecEndMergeJoin(MergeJoinState *node)
 {
+  DBUG_TRACE;
   MJ1_printf("ExecEndMergeJoin: %s\n",
              "ending node processing");
 
@@ -1665,6 +1732,7 @@ ExecEndMergeJoin(MergeJoinState *node)
 void
 ExecReScanMergeJoin(MergeJoinState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
   PlanState  *innerPlan = innerPlanState(node);
 

@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/gin_private.h"
 #include "access/ginxlog.h"
@@ -46,6 +47,7 @@ GinFormTuple(GinState *ginstate,
              Pointer data, Size dataSize, int nipd,
              bool errorTooBig)
 {
+  DBUG_TRACE;
   Datum   datums[2];
   bool    isnull[2];
   IndexTuple  itup;
@@ -156,6 +158,7 @@ ItemPointer
 ginReadTuple(GinState *ginstate, OffsetNumber attnum, IndexTuple itup,
              int *nitems)
 {
+  DBUG_TRACE;
   Pointer   ptr = GinGetPosting(itup);
   int     nipd = GinGetNPosting(itup);
   ItemPointer ipd;
@@ -190,6 +193,7 @@ ginReadTuple(GinState *ginstate, OffsetNumber attnum, IndexTuple itup,
 static IndexTuple
 GinFormInteriorTuple(IndexTuple itup, Page page, BlockNumber childblk)
 {
+  DBUG_TRACE;
   IndexTuple  nitup;
 
   if (GinPageIsLeaf(page) && !GinIsPostingTree(itup)) {
@@ -229,6 +233,7 @@ getRightMostTuple(Page page)
 static bool
 entryIsMoveRight(GinBtree btree, Page page)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
   OffsetNumber attnum;
   Datum   key;
@@ -256,6 +261,7 @@ entryIsMoveRight(GinBtree btree, Page page)
 static BlockNumber
 entryLocateEntry(GinBtree btree, GinBtreeStack *stack)
 {
+  DBUG_TRACE;
   OffsetNumber low,
                high,
                maxoff;
@@ -325,6 +331,7 @@ entryLocateEntry(GinBtree btree, GinBtreeStack *stack)
 static bool
 entryLocateLeafEntry(GinBtree btree, GinBtreeStack *stack)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(stack->buffer);
   OffsetNumber low,
                high;
@@ -380,6 +387,7 @@ entryLocateLeafEntry(GinBtree btree, GinBtreeStack *stack)
 static OffsetNumber
 entryFindChildPtr(GinBtree btree, Page page, BlockNumber blkno, OffsetNumber storedOff)
 {
+  DBUG_TRACE;
   OffsetNumber i,
                maxoff = PageGetMaxOffsetNumber(page);
   IndexTuple  itup;
@@ -422,6 +430,7 @@ entryFindChildPtr(GinBtree btree, Page page, BlockNumber blkno, OffsetNumber sto
 static BlockNumber
 entryGetLeftMostPage(GinBtree btree, Page page)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
 
   Assert(!GinPageIsLeaf(page));
@@ -436,6 +445,7 @@ static bool
 entryIsEnoughSpace(GinBtree btree, Buffer buf, OffsetNumber off,
                    GinBtreeEntryInsertData *insertData)
 {
+  DBUG_TRACE;
   Size    releasedsz = 0;
   Size    addedsz;
   Page    page = BufferGetPage(buf);
@@ -466,6 +476,7 @@ static void
 entryPreparePage(GinBtree btree, Page page, OffsetNumber off,
                  GinBtreeEntryInsertData *insertData, BlockNumber updateblkno)
 {
+  DBUG_TRACE;
   Assert(insertData->entry);
   Assert(!GinPageIsData(page));
 
@@ -503,6 +514,7 @@ entryBeginPlaceToPage(GinBtree btree, Buffer buf, GinBtreeStack *stack,
                       void **ptp_workspace,
                       Page *newlpage, Page *newrpage)
 {
+  DBUG_TRACE;
   GinBtreeEntryInsertData *insertData = insertPayload;
   OffsetNumber off = stack->off;
 
@@ -528,6 +540,7 @@ entryExecPlaceToPage(GinBtree btree, Buffer buf, GinBtreeStack *stack,
                      void *insertPayload, BlockNumber updateblkno,
                      void *ptp_workspace)
 {
+  DBUG_TRACE;
   GinBtreeEntryInsertData *insertData = insertPayload;
   Page    page = BufferGetPage(buf);
   OffsetNumber off = stack->off;
@@ -578,6 +591,7 @@ entrySplitPage(GinBtree btree, Buffer origbuf,
                BlockNumber updateblkno,
                Page *newlpage, Page *newrpage)
 {
+  DBUG_TRACE;
   OffsetNumber off = stack->off;
   OffsetNumber i,
                maxoff,
@@ -671,6 +685,7 @@ entrySplitPage(GinBtree btree, Buffer origbuf,
 static void *
 entryPrepareDownlink(GinBtree btree, Buffer lbuf)
 {
+  DBUG_TRACE;
   GinBtreeEntryInsertData *insertData;
   Page    lpage = BufferGetPage(lbuf);
   BlockNumber lblkno = BufferGetBlockNumber(lbuf);
@@ -694,6 +709,7 @@ ginEntryFillRoot(GinBtree btree, Page root,
                  BlockNumber lblkno, Page lpage,
                  BlockNumber rblkno, Page rpage)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
 
   itup = GinFormInteriorTuple(getRightMostTuple(lpage), lpage, lblkno);
@@ -722,6 +738,7 @@ ginPrepareEntryScan(GinBtree btree, OffsetNumber attnum,
                     Datum key, GinNullCategory category,
                     GinState *ginstate)
 {
+  DBUG_TRACE;
   memset(btree, 0, sizeof(GinBtreeData));
 
   btree->index = ginstate->index;

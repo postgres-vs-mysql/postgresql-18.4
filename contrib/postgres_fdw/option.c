@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_server.h"
@@ -69,6 +70,7 @@ PG_FUNCTION_INFO_V1(postgres_fdw_validator);
 Datum
 postgres_fdw_validator(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   List     *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
   Oid     catalog = PG_GETARG_OID(1);
   ListCell   *cell;

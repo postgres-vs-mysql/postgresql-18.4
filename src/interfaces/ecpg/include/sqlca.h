@@ -21,8 +21,8 @@ struct sqlca_t
   char    sqlcaid[8];
   long    sqlabc;
   long    sqlcode;
-  struct
-  {
+struct
+{
     int     sqlerrml;
     char    sqlerrmc[SQLERRMC_LEN];
   }     sqlerrm;

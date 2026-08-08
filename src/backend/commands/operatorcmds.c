@@ -30,6 +30,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -66,6 +67,7 @@ static Oid  ValidateOperatorReference(List *name,
 ObjectAddress
 DefineOperator(List *names, List *parameters)
 {
+  DBUG_TRACE;
   char     *oprName;
   Oid     oprNamespace;
   AclResult aclresult;
@@ -107,17 +109,21 @@ DefineOperator(List *names, List *parameters)
     if (strcmp(defel->defname, "leftarg") == 0) {
       typeName1 = defGetTypeName(defel);
 
-      if (typeName1->setof)
+      if (typeName1->setof) {
+        DBUG_PRINT("info", "SETOF type not allowed for operator argument");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("SETOF type not allowed for operator argument")));
+      }
     } else if (strcmp(defel->defname, "rightarg") == 0) {
       typeName2 = defGetTypeName(defel);
 
-      if (typeName2->setof)
+      if (typeName2->setof) {
+        DBUG_PRINT("info", "SETOF type not allowed for operator argument");
         ereport(ERROR,
                 (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                  errmsg("SETOF type not allowed for operator argument")));
+      }
     }
     /* "function" and "procedure" are equivalent here */
     else if (strcmp(defel->defname, "function") == 0)
@@ -157,10 +163,12 @@ DefineOperator(List *names, List *parameters)
   /*
    * make sure we have our required definitions
    */
-  if (functionName == NIL)
+  if (functionName == NIL) {
+    DBUG_PRINT("info", "make sure we have our required definitions");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator function must be specified")));
+  }
 
   /* Transform type names to type OIDs */
   if (typeName1)
@@ -176,16 +184,20 @@ DefineOperator(List *names, List *parameters)
    * operators, as the user most likely simply neglected to mention the
    * arguments.
    */
-  if (!OidIsValid(typeId1) && !OidIsValid(typeId2))
+  if (!OidIsValid(typeId1) && !OidIsValid(typeId2)) {
+    DBUG_PRINT("info", "operator argument types must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator argument types must be specified")));
+  }
 
-  if (!OidIsValid(typeId2))
+  if (!OidIsValid(typeId2)) {
+    DBUG_PRINT("info", "operator right argument type must be specified");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator right argument type must be specified"),
              errdetail("Postfix operators are not supported.")));
+  }
 
   if (typeName1) {
     aclresult = object_aclcheck(TypeRelationId, typeId1, GetUserId(), ACL_USAGE);
@@ -273,6 +285,7 @@ DefineOperator(List *names, List *parameters)
 static Oid
 ValidateRestrictionEstimator(List *restrictionName)
 {
+  DBUG_TRACE;
   Oid     typeId[4];
   Oid     restrictionOid;
 
@@ -284,11 +297,13 @@ ValidateRestrictionEstimator(List *restrictionName)
   restrictionOid = LookupFuncName(restrictionName, 4, typeId, false);
 
   /* estimators must return float8 */
-  if (get_func_rettype(restrictionOid) != FLOAT8OID)
+  if (get_func_rettype(restrictionOid) != FLOAT8OID) {
+    DBUG_PRINT("info", "restriction estimator function %s must return type %s", NameListToString(restrictionName), "float8");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("restriction estimator function %s must return type %s",
                     NameListToString(restrictionName), "float8")));
+  }
 
   /*
    * If the estimator is not a built-in function, require superuser
@@ -327,6 +342,7 @@ ValidateRestrictionEstimator(List *restrictionName)
 static Oid
 ValidateJoinEstimator(List *joinName)
 {
+  DBUG_TRACE;
   Oid     typeId[5];
   Oid     joinOid;
   Oid     joinOid2;
@@ -346,11 +362,13 @@ ValidateJoinEstimator(List *joinName)
   joinOid2 = LookupFuncName(joinName, 4, typeId, true);
 
   if (OidIsValid(joinOid)) {
-    if (OidIsValid(joinOid2))
+    if (OidIsValid(joinOid2)) {
+      DBUG_PRINT("info", "join estimator function %s has multiple matches", NameListToString(joinName));
       ereport(ERROR,
               (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
                errmsg("join estimator function %s has multiple matches",
                       NameListToString(joinName))));
+    }
   } else {
     joinOid = joinOid2;
 
@@ -360,11 +378,13 @@ ValidateJoinEstimator(List *joinName)
   }
 
   /* estimators must return float8 */
-  if (get_func_rettype(joinOid) != FLOAT8OID)
+  if (get_func_rettype(joinOid) != FLOAT8OID) {
+    DBUG_PRINT("info", "join estimator function %s must return type %s", NameListToString(joinName), "float8");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
              errmsg("join estimator function %s must return type %s",
                     NameListToString(joinName), "float8")));
+  }
 
   /* privilege checks are the same as in ValidateRestrictionEstimator */
   if (joinOid >= FirstGenbkiObjectId) {
@@ -400,6 +420,7 @@ ValidateOperatorReference(List *name,
                           Oid leftTypeId,
                           Oid rightTypeId)
 {
+  DBUG_TRACE;
   Oid     oid;
   bool    defined;
 
@@ -409,21 +430,25 @@ ValidateOperatorReference(List *name,
                        &defined);
 
   /* These message strings are chosen to match parse_oper.c */
-  if (!OidIsValid(oid))
+  if (!OidIsValid(oid)) {
+    DBUG_PRINT("info", "operator does not exist: %s", op_signature_string(name, leftTypeId, rightTypeId));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator does not exist: %s",
                     op_signature_string(name,
                                         leftTypeId,
                                         rightTypeId))));
+  }
 
-  if (!defined)
+  if (!defined) {
+    DBUG_PRINT("info", "operator is only a shell: %s", op_signature_string(name, leftTypeId, rightTypeId));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_FUNCTION),
              errmsg("operator is only a shell: %s",
                     op_signature_string(name,
                                         leftTypeId,
                                         rightTypeId))));
+  }
 
   if (!object_ownercheck(OperatorRelationId, oid, GetUserId()))
     aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_OPERATOR,
@@ -439,6 +464,7 @@ ValidateOperatorReference(List *name,
 void
 RemoveOperatorById(Oid operOid)
 {
+  DBUG_TRACE;
   Relation  relation;
   HeapTuple tup;
   Form_pg_operator op;
@@ -490,6 +516,7 @@ RemoveOperatorById(Oid operOid)
 ObjectAddress
 AlterOperator(AlterOperatorStmt *stmt)
 {
+  DBUG_TRACE;
   ObjectAddress address;
   Oid     oprId;
   Relation  catalog;
@@ -561,15 +588,18 @@ AlterOperator(AlterOperatorStmt *stmt)
              strcmp(defel->defname, "rightarg") == 0 ||
              strcmp(defel->defname, "function") == 0 ||
              strcmp(defel->defname, "procedure") == 0) {
+      DBUG_PRINT("info", "operator attribute \"%s\" cannot be changed", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("operator attribute \"%s\" cannot be changed",
                       defel->defname)));
-    } else
+    } else {
+      DBUG_PRINT("info", "operator attribute \"%s\" not recognized", defel->defname);
       ereport(ERROR,
               (errcode(ERRCODE_SYNTAX_ERROR),
                errmsg("operator attribute \"%s\" not recognized",
                       defel->defname)));
+    }
   }
 
   /* Check permissions. Must be owner. */
@@ -609,10 +639,12 @@ AlterOperator(AlterOperatorStmt *stmt)
                                            oprForm->oprright);
 
     /* Must reject self-negation */
-    if (negatorOid == oprForm->oid)
+    if (negatorOid == oprForm->oid) {
+      DBUG_PRINT("info", "operator cannot be its own negator");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
                errmsg("operator cannot be its own negator")));
+    }
   } else {
     negatorOid = InvalidOid;
   }
@@ -622,30 +654,38 @@ AlterOperator(AlterOperatorStmt *stmt)
    * by plans, while allowing no-op updates.
    */
   if (OidIsValid(commutatorOid) && OidIsValid(oprForm->oprcom) &&
-      commutatorOid != oprForm->oprcom)
+      commutatorOid != oprForm->oprcom) {
+    DBUG_PRINT("info", "operator attribute \"%s\" cannot be changed if it has already been set", "commutator");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator attribute \"%s\" cannot be changed if it has already been set",
                     "commutator")));
+  }
 
   if (OidIsValid(negatorOid) && OidIsValid(oprForm->oprnegate) &&
-      negatorOid != oprForm->oprnegate)
+      negatorOid != oprForm->oprnegate) {
+    DBUG_PRINT("info", "operator attribute \"%s\" cannot be changed if it has already been set", "commutator");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator attribute \"%s\" cannot be changed if it has already been set",
                     "negator")));
+  }
 
-  if (updateMerges && oprForm->oprcanmerge && !canMerge)
+  if (updateMerges && oprForm->oprcanmerge && !canMerge) {
+    DBUG_PRINT("info", "operator attribute \"%s\" cannot be changed if it has already been set", "merges");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator attribute \"%s\" cannot be changed if it has already been set",
                     "merges")));
+  }
 
-  if (updateHashes && oprForm->oprcanhash && !canHash)
+  if (updateHashes && oprForm->oprcanhash && !canHash) {
+    DBUG_PRINT("info", "operator attribute \"%s\" cannot be changed if it has already been set", "hashes");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
              errmsg("operator attribute \"%s\" cannot be changed if it has already been set",
                     "hashes")));
+  }
 
   /* Perform additional checks, like OperatorCreate does */
   OperatorValidateParams(oprForm->oprleft,

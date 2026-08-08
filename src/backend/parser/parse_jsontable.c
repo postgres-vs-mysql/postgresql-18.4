@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "nodes/makefuncs.h"
@@ -72,6 +73,7 @@ static JsonTablePlan *makeJsonTableSiblingJoin(JsonTablePlan *lplan,
 ParseNamespaceItem *
 transformJsonTable(ParseState *pstate, JsonTable *jt)
 {
+  DBUG_TRACE;
   TableFunc  *tf;
   JsonFuncExpr *jfe;
   JsonExpr   *je;
@@ -79,18 +81,21 @@ transformJsonTable(ParseState *pstate, JsonTable *jt)
   bool    is_lateral;
   JsonTableParseContext cxt = {pstate};
 
+  DBUG_PRINT("info", "transform a raw JsonTable into TableFunc");
   Assert(IsA(rootPathSpec->string, A_Const) &&
          castNode(A_Const, rootPathSpec->string)->val.node.type == T_String);
 
   if (jt->on_error &&
       jt->on_error->btype != JSON_BEHAVIOR_ERROR &&
       jt->on_error->btype != JSON_BEHAVIOR_EMPTY &&
-      jt->on_error->btype != JSON_BEHAVIOR_EMPTY_ARRAY)
+      jt->on_error->btype != JSON_BEHAVIOR_EMPTY_ARRAY) {
+    DBUG_INSTANT_PRINT("info", "invalid %s behavior", "ON ERROR");
     ereport(ERROR,
             errcode(ERRCODE_SYNTAX_ERROR),
             errmsg("invalid %s behavior", "ON ERROR"),
             errdetail("Only EMPTY [ ARRAY ] or ERROR is allowed in the top-level ON ERROR clause."),
             parser_errposition(pstate, jt->on_error->location));
+  }
 
   cxt.pathNameId = 0;
 
@@ -172,6 +177,7 @@ static void
 CheckDuplicateColumnOrPathNames(JsonTableParseContext *cxt,
                                 List *columns)
 {
+  DBUG_TRACE;
   ListCell   *lc1;
 
   foreach(lc1, columns) {
@@ -179,25 +185,29 @@ CheckDuplicateColumnOrPathNames(JsonTableParseContext *cxt,
 
     if (jtc->coltype == JTC_NESTED) {
       if (jtc->pathspec->name) {
-        if (LookupPathOrColumnName(cxt, jtc->pathspec->name))
+        if (LookupPathOrColumnName(cxt, jtc->pathspec->name)) {
+          DBUG_INSTANT_PRINT("info", "duplicate JSON_TABLE column or path name: %s", jtc->pathspec->name);
           ereport(ERROR,
                   errcode(ERRCODE_DUPLICATE_ALIAS),
                   errmsg("duplicate JSON_TABLE column or path name: %s",
                          jtc->pathspec->name),
                   parser_errposition(cxt->pstate,
                                      jtc->pathspec->name_location));
+        }
 
         cxt->pathNames = lappend(cxt->pathNames, jtc->pathspec->name);
       }
 
       CheckDuplicateColumnOrPathNames(cxt, jtc->columns);
     } else {
-      if (LookupPathOrColumnName(cxt, jtc->name))
+      if (LookupPathOrColumnName(cxt, jtc->name)) {
+        DBUG_INSTANT_PRINT("info", "duplicate JSON_TABLE column or path name: %s", jtc->name);
         ereport(ERROR,
                 errcode(ERRCODE_DUPLICATE_ALIAS),
                 errmsg("duplicate JSON_TABLE column or path name: %s",
                        jtc->name),
                 parser_errposition(cxt->pstate, jtc->location));
+      }
 
       cxt->pathNames = lappend(cxt->pathNames, jtc->name);
     }
@@ -225,6 +235,7 @@ LookupPathOrColumnName(JsonTableParseContext *cxt, char *name)
 static char *
 generateJsonTablePathName(JsonTableParseContext *cxt)
 {
+  DBUG_TRACE;
   char    namebuf[32];
   char     *name = namebuf;
 
@@ -247,6 +258,7 @@ transformJsonTableColumns(JsonTableParseContext *cxt, List *columns,
                           List *passingArgs,
                           JsonTablePathSpec *pathspec)
 {
+  DBUG_TRACE;
   ParseState *pstate = cxt->pstate;
   JsonTable  *jt = cxt->jt;
   TableFunc  *tf = cxt->tf;
@@ -281,11 +293,13 @@ transformJsonTableColumns(JsonTableParseContext *cxt, List *columns,
      */
     switch (rawc->coltype) {
       case JTC_FOR_ORDINALITY:
-        if (ordinality_found)
+        if (ordinality_found) {
+          DBUG_INSTANT_PRINT("info", "only one FOR ORDINALITY column is allowed");
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("only one FOR ORDINALITY column is allowed"),
                    parser_errposition(pstate, rawc->location)));
+        }
 
         ordinality_found = true;
         colexpr = NULL;
@@ -389,8 +403,11 @@ static JsonFuncExpr *
 transformJsonTableColumn(JsonTableColumn *jtc, Node *contextItemExpr,
                          List *passingArgs)
 {
+  DBUG_TRACE;
   Node     *pathspec;
   JsonFuncExpr *jfexpr = makeNode(JsonFuncExpr);
+
+  DBUG_PRINT("info", "transform JSON_TABLE column definition into a JsonFuncExpr");
 
   if (jtc->coltype == JTC_REGULAR)
     jfexpr->op = JSON_VALUE_OP;
@@ -446,6 +463,7 @@ transformJsonTableNestedColumns(JsonTableParseContext *cxt,
                                 List *passingArgs,
                                 List *columns)
 {
+  DBUG_TRACE;
   JsonTablePlan *plan = NULL;
   ListCell   *lc;
 
@@ -455,6 +473,8 @@ transformJsonTableNestedColumns(JsonTableParseContext *cxt,
    * effectively does a UNION of the sets of rows coming from each nested
    * plan.
    */
+  DBUG_PRINT("info", "recursively transform nested columns and create child plan(s) that will be used to evaluate their row patterns");
+
   foreach(lc, columns) {
     JsonTableColumn *jtc = castNode(JsonTableColumn, lfirst(lc));
     JsonTablePlan *nested;
@@ -490,6 +510,7 @@ makeJsonTablePathScan(JsonTablePathSpec *pathspec, bool errorOnError,
                       int colMin, int colMax,
                       JsonTablePlan *childplan)
 {
+  DBUG_TRACE;
   JsonTablePathScan *scan = makeNode(JsonTablePathScan);
   char     *pathstring;
   Const    *value;

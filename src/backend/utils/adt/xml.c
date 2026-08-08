@@ -44,6 +44,7 @@
 /* #define USE_LIBXMLCONTEXT */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #ifdef USE_LIBXML
 #include <libxml/chvalid.h>
@@ -249,11 +250,13 @@ xmlChar_to_encoding(const xmlChar *encoding_name)
 {
   int     encoding = pg_char_to_encoding((const char *) encoding_name);
 
-  if (encoding < 0)
+  if (encoding < 0) {
+    DBUG_INSTANT_PRINT("info", "invalid encoding name \"%s\"", (const char *) encoding_name);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("invalid encoding name \"%s\"",
                     (const char *) encoding_name)));
+  }
 
   return encoding;
 }
@@ -270,6 +273,7 @@ xmlChar_to_encoding(const xmlChar *encoding_name)
 Datum
 xml_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   char     *s = PG_GETARG_CSTRING(0);
   xmltype    *vardata;
@@ -341,6 +345,7 @@ xml_out_internal(xmltype *x, pg_enc target_encoding)
     return buf.data;
   }
 
+  DBUG_INSTANT_PRINT("info", "could not parse XML declaration in stored value");
   ereport(WARNING,
           errcode(ERRCODE_DATA_CORRUPTED),
           errmsg_internal("could not parse XML declaration in stored value"),
@@ -353,6 +358,7 @@ xml_out_internal(xmltype *x, pg_enc target_encoding)
 Datum
 xml_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   xmltype    *x = PG_GETARG_XML_P(0);
 
   /*
@@ -368,6 +374,7 @@ xml_out(PG_FUNCTION_ARGS)
 Datum
 xml_recv(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
   xmltype    *result;
@@ -434,6 +441,7 @@ xml_recv(PG_FUNCTION_ARGS)
 Datum
 xml_send(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   xmltype    *x = PG_GETARG_XML_P(0);
   char     *outval;
   StringInfoData buf;
@@ -487,6 +495,7 @@ xmlBuffer_to_xmltype(xmlBufferPtr buf)
 Datum
 xmlcomment(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *arg = PG_GETARG_TEXT_PP(0);
   char     *argdata = VARDATA_ANY(arg);
@@ -496,16 +505,20 @@ xmlcomment(PG_FUNCTION_ARGS)
 
   /* check for "--" in string or "-" at the end */
   for (i = 1; i < len; i++) {
-    if (argdata[i] == '-' && argdata[i - 1] == '-')
+    if (argdata[i] == '-' && argdata[i - 1] == '-') {
+      DBUG_INSTANT_PRINT("info", "invalid XML comment");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_XML_COMMENT),
                errmsg("invalid XML comment")));
+    }
   }
 
-  if (len > 0 && argdata[len - 1] == '-')
+  if (len > 0 && argdata[len - 1] == '-') {
+    DBUG_INSTANT_PRINT("info", "invalid XML comment");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_XML_COMMENT),
              errmsg("invalid XML comment")));
+  }
 
   initStringInfo(&buf);
   appendStringInfoString(&buf, "<!--");
@@ -523,6 +536,7 @@ xmlcomment(PG_FUNCTION_ARGS)
 Datum
 xmltext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *arg = PG_GETARG_TEXT_PP(0);
   text     *result;
@@ -615,6 +629,8 @@ xmlconcat(List *args)
 Datum
 xmlconcat2(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   if (PG_ARGISNULL(0)) {
     if (PG_ARGISNULL(1))
       PG_RETURN_NULL();
@@ -631,6 +647,7 @@ xmlconcat2(PG_FUNCTION_ARGS)
 Datum
 texttoxml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *data = PG_GETARG_TEXT_PP(0);
 
   PG_RETURN_XML_P(xmlparse(data, xmloption, true));
@@ -640,6 +657,7 @@ texttoxml(PG_FUNCTION_ARGS)
 Datum
 xmltotext(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   xmltype    *data = PG_GETARG_XML_P(0);
 
   /* It's actually binary compatible. */
@@ -686,6 +704,7 @@ xmltotext_with_options(xmltype *data, XmlOptionType xmloption_arg, bool indent)
     if (doc)
       xmlFreeDoc(doc);
 
+    DBUG_INSTANT_PRINT("info", "not an XML document");
     /* A soft error must be failure to conform to XMLOPTION_DOCUMENT */
     ereport(ERROR,
             (errcode(ERRCODE_NOT_AN_XML_DOCUMENT),
@@ -1006,11 +1025,13 @@ xmlpi(const char *target, text *arg, bool arg_is_null, bool *result_is_null)
   xmltype    *result;
   StringInfoData buf;
 
-  if (pg_strcasecmp(target, "xml") == 0)
+  if (pg_strcasecmp(target, "xml") == 0) {
+    DBUG_INSTANT_PRINT("info", "invalid XML processing instruction");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION),
              errmsg("invalid XML processing instruction"),
              errdetail("XML processing instruction target name cannot be \"%s\".", target)));
+  }
 
   /*
    * Following the SQL standard, the null check comes after the syntax check
@@ -1030,11 +1051,13 @@ xmlpi(const char *target, text *arg, bool arg_is_null, bool *result_is_null)
 
     string = text_to_cstring(arg);
 
-    if (strstr(string, "?>") != NULL)
+    if (strstr(string, "?>") != NULL) {
+      DBUG_INSTANT_PRINT("info", "invalid XML processing instruction");
       ereport(ERROR,
               (errcode(ERRCODE_INVALID_XML_PROCESSING_INSTRUCTION),
                errmsg("invalid XML processing instruction"),
                errdetail("XML processing instruction cannot contain \"?>\".")));
+    }
 
     appendStringInfoChar(&buf, ' ');
     appendStringInfoString(&buf, string + strspn(string, " "));
@@ -1114,6 +1137,8 @@ xmlroot(xmltype *data, text *version, int standalone)
 Datum
 xmlvalidate(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_INSTANT_PRINT("info", "xmlvalidate is not implemented");
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
            errmsg("xmlvalidate is not implemented")));
@@ -1170,11 +1195,13 @@ pg_xml_init_library(void)
      * Currently, we have no pure UTF-8 support for internals -- check if
      * we can work.
      */
-    if (sizeof(char) != sizeof(xmlChar))
+    if (sizeof(char) != sizeof(xmlChar)) {
+      DBUG_INSTANT_PRINT("info", "could not initialize XML library");
       ereport(ERROR,
               (errmsg("could not initialize XML library"),
                errdetail("libxml2 has incompatible char type: sizeof(char)=%zu, sizeof(xmlChar)=%zu.",
                          sizeof(char), sizeof(xmlChar))));
+    }
 
 #ifdef USE_LIBXMLCONTEXT
     /* Set up libxml's memory allocation our way */
@@ -1256,13 +1283,15 @@ pg_xml_init(PgXmlStrictness strictness)
   new_errcxt = xmlGenericErrorContext;
 #endif
 
-  if (new_errcxt != errcxt)
+  if (new_errcxt != errcxt) {
+    DBUG_INSTANT_PRINT("info", "could not set up XML error handler");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("could not set up XML error handler"),
              errhint("This probably indicates that the version of libxml2"
                      " being used is not compatible with the libxml2"
                      " header files that PostgreSQL was built with.")));
+  }
 
   /*
    * Also, install an entity loader to prevent unwanted fetches of external
@@ -2031,8 +2060,10 @@ xml_ereport(PgXmlErrorContext *errcxt, int level, int sqlcode, const char *msg)
   char     *detail;
 
   /* Defend against someone passing us a bogus context struct */
-  if (errcxt->magic != ERRCXT_MAGIC)
+  if (errcxt->magic != ERRCXT_MAGIC) {
+    DBUG_INSTANT_PRINT("info", "xml_ereport called with invalid PgXmlErrorContext");
     elog(ERROR, "xml_ereport called with invalid PgXmlErrorContext");
+  }
 
   /* Flag that the current libxml error has been reported */
   errcxt->err_occurred = false;
@@ -2043,6 +2074,7 @@ xml_ereport(PgXmlErrorContext *errcxt, int level, int sqlcode, const char *msg)
   else
     detail = NULL;
 
+  DBUG_INSTANT_PRINT("info", "%s", msg);
   ereport(level,
           (errcode(sqlcode),
            errmsg_internal("%s", msg),
@@ -2255,9 +2287,11 @@ xml_errorHandler(void *data, PgXmlErrorPtr error)
 
     xmlerrcxt->err_occurred = true;
   } else if (level >= XML_ERR_WARNING) {
+    DBUG_INSTANT_PRINT("info", "%s", errorBuf->data);
     ereport(WARNING,
             (errmsg_internal("%s", errorBuf->data)));
   } else {
+    DBUG_PRINT("info", "%s", errorBuf->data);
     ereport(NOTICE,
             (errmsg_internal("%s", errorBuf->data)));
   }
@@ -2388,6 +2422,7 @@ char *
 map_sql_identifier_to_xml_name(const char *ident, bool fully_escaped,
                                bool escape_period)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   StringInfoData buf;
   const char *p;
@@ -2478,6 +2513,8 @@ map_xml_name_to_sql_identifier(const char *name)
 char *
 map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
 {
+  DBUG_TRACE;
+
   if (type_is_array_domain(type)) {
     ArrayType  *array;
     Oid     elmtype;
@@ -2545,11 +2582,13 @@ map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
         date = DatumGetDateADT(value);
 
         /* XSD doesn't support infinite values */
-        if (DATE_NOT_FINITE(date))
+        if (DATE_NOT_FINITE(date)) {
+          DBUG_INSTANT_PRINT("info", "date out of range");
           ereport(ERROR,
                   (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
                    errmsg("date out of range"),
                    errdetail("XML does not support infinite date values.")));
+        }
 
         j2date(date + POSTGRES_EPOCH_JDATE,
                &(tm.tm_year), &(tm.tm_mon), &(tm.tm_mday));
@@ -2567,17 +2606,20 @@ map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
         timestamp = DatumGetTimestamp(value);
 
         /* XSD doesn't support infinite values */
-        if (TIMESTAMP_NOT_FINITE(timestamp))
+        if (TIMESTAMP_NOT_FINITE(timestamp)) {
+          DBUG_INSTANT_PRINT("info", "timestamp out of range");
           ereport(ERROR,
                   (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
                    errmsg("timestamp out of range"),
                    errdetail("XML does not support infinite timestamp values.")));
-        else if (timestamp2tm(timestamp, NULL, &tm, &fsec, NULL, NULL) == 0)
+        } else if (timestamp2tm(timestamp, NULL, &tm, &fsec, NULL, NULL) == 0) {
           EncodeDateTime(&tm, fsec, false, 0, NULL, USE_XSD_DATES, buf);
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "timestamp out of range");
           ereport(ERROR,
                   (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
                    errmsg("timestamp out of range")));
+        }
 
         return pstrdup(buf);
       }
@@ -2593,17 +2635,20 @@ map_sql_value_to_xml_value(Datum value, Oid type, bool xml_escape_strings)
         timestamp = DatumGetTimestamp(value);
 
         /* XSD doesn't support infinite values */
-        if (TIMESTAMP_NOT_FINITE(timestamp))
+        if (TIMESTAMP_NOT_FINITE(timestamp)) {
+          DBUG_INSTANT_PRINT("info", "timestamp out of range");
           ereport(ERROR,
                   (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
                    errmsg("timestamp out of range"),
                    errdetail("XML does not support infinite timestamp values.")));
-        else if (timestamp2tm(timestamp, &tz, &tm, &fsec, &tzn, NULL) == 0)
+        } else if (timestamp2tm(timestamp, &tz, &tm, &fsec, &tzn, NULL) == 0) {
           EncodeDateTime(&tm, fsec, true, tz, tzn, USE_XSD_DATES, buf);
-        else
+        } else {
+          DBUG_INSTANT_PRINT("info", "timestamp out of range");
           ereport(ERROR,
                   (errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
                    errmsg("timestamp out of range")));
+        }
 
         return pstrdup(buf);
       }
@@ -2820,6 +2865,7 @@ query_to_oid_list(const char *query)
 static List *
 schema_get_xml_visible_tables(Oid nspid)
 {
+  DBUG_TRACE;
   StringInfoData query;
 
   initStringInfo(&query);
@@ -2847,6 +2893,7 @@ schema_get_xml_visible_tables(Oid nspid)
 static List *
 database_get_xml_visible_schemas(void)
 {
+  DBUG_TRACE;
   return query_to_oid_list(XML_VISIBLE_SCHEMAS " ORDER BY nspname;");
 }
 
@@ -2854,6 +2901,7 @@ database_get_xml_visible_schemas(void)
 static List *
 database_get_xml_visible_tables(void)
 {
+  DBUG_TRACE;
   /* At the moment there is no order required here. */
   return query_to_oid_list("SELECT oid FROM pg_catalog.pg_class"
                            " WHERE relkind IN ("
@@ -2875,6 +2923,7 @@ table_to_xml_internal(Oid relid,
                       const char *xmlschema, bool nulls, bool tableforest,
                       const char *targetns, bool top_level)
 {
+  DBUG_TRACE;
   StringInfoData query;
 
   initStringInfo(&query);
@@ -2890,6 +2939,7 @@ table_to_xml_internal(Oid relid,
 Datum
 table_to_xml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -2904,6 +2954,7 @@ table_to_xml(PG_FUNCTION_ARGS)
 Datum
 query_to_xml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -2918,6 +2969,7 @@ query_to_xml(PG_FUNCTION_ARGS)
 Datum
 cursor_to_xml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   int32   count = PG_GETARG_INT32(1);
   bool    nulls = PG_GETARG_BOOL(2);
@@ -2938,10 +2990,12 @@ cursor_to_xml(PG_FUNCTION_ARGS)
   SPI_connect();
   portal = SPI_cursor_find(name);
 
-  if (portal == NULL)
+  if (portal == NULL) {
+    DBUG_INSTANT_PRINT("info", "cursor \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_CURSOR),
              errmsg("cursor \"%s\" does not exist", name)));
+  }
 
   SPI_cursor_fetch(portal, true, count);
 
@@ -2975,6 +3029,7 @@ xmldata_root_element_start(StringInfo result, const char *eltname,
                            const char *xmlschema, const char *targetns,
                            bool top_level)
 {
+  DBUG_TRACE;
   /* This isn't really wrong but currently makes no sense. */
   Assert(top_level || !xmlschema);
 
@@ -3011,6 +3066,7 @@ query_to_xml_internal(const char *query, char *tablename,
                       const char *xmlschema, bool nulls, bool tableforest,
                       const char *targetns, bool top_level)
 {
+  DBUG_TRACE;
   StringInfo  result;
   char     *xmltn;
   uint64    i;
@@ -3024,10 +3080,12 @@ query_to_xml_internal(const char *query, char *tablename,
 
   SPI_connect();
 
-  if (SPI_execute(query, true, 0) != SPI_OK_SELECT)
+  if (SPI_execute(query, true, 0) != SPI_OK_SELECT) {
+    DBUG_INSTANT_PRINT("info", "invalid query");
     ereport(ERROR,
             (errcode(ERRCODE_DATA_EXCEPTION),
              errmsg("invalid query")));
+  }
 
   if (!tableforest) {
     xmldata_root_element_start(result, xmltn, xmlschema,
@@ -3054,6 +3112,7 @@ query_to_xml_internal(const char *query, char *tablename,
 Datum
 table_to_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3073,6 +3132,7 @@ table_to_xmlschema(PG_FUNCTION_ARGS)
 Datum
 query_to_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3102,6 +3162,7 @@ query_to_xmlschema(PG_FUNCTION_ARGS)
 Datum
 cursor_to_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3112,15 +3173,19 @@ cursor_to_xmlschema(PG_FUNCTION_ARGS)
   SPI_connect();
   portal = SPI_cursor_find(name);
 
-  if (portal == NULL)
+  if (portal == NULL) {
+    DBUG_INSTANT_PRINT("info", "cursor \"%s\" does not exist", name);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_CURSOR),
              errmsg("cursor \"%s\" does not exist", name)));
+  }
 
-  if (portal->tupDesc == NULL)
+  if (portal->tupDesc == NULL) {
+    DBUG_INSTANT_PRINT("info", "portal \"%s\" does not return tuples", name);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_CURSOR_STATE),
              errmsg("portal \"%s\" does not return tuples", name)));
+  }
 
   xmlschema = _SPI_strdup(map_sql_table_to_xmlschema(portal->tupDesc,
                           InvalidOid, nulls,
@@ -3134,6 +3199,7 @@ cursor_to_xmlschema(PG_FUNCTION_ARGS)
 Datum
 table_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3155,6 +3221,7 @@ table_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 Datum
 query_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   char     *query = text_to_cstring(PG_GETARG_TEXT_PP(0));
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3192,6 +3259,7 @@ static StringInfo
 schema_to_xml_internal(Oid nspid, const char *xmlschema, bool nulls,
                        bool tableforest, const char *targetns, bool top_level)
 {
+  DBUG_TRACE;
   StringInfo  result;
   char     *xmlsn;
   List     *relid_list;
@@ -3233,6 +3301,7 @@ schema_to_xml_internal(Oid nspid, const char *xmlschema, bool nulls,
 Datum
 schema_to_xml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3282,6 +3351,7 @@ static StringInfo
 schema_to_xmlschema_internal(const char *schemaname, bool nulls,
                              bool tableforest, const char *targetns)
 {
+  DBUG_TRACE;
   Oid     nspid;
   List     *relid_list;
   List     *tupdesc_list;
@@ -3326,6 +3396,7 @@ schema_to_xmlschema_internal(const char *schemaname, bool nulls,
 Datum
 schema_to_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3339,6 +3410,7 @@ schema_to_xmlschema(PG_FUNCTION_ARGS)
 Datum
 schema_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    name = PG_GETARG_NAME(0);
   bool    nulls = PG_GETARG_BOOL(1);
   bool    tableforest = PG_GETARG_BOOL(2);
@@ -3368,6 +3440,7 @@ static StringInfo
 database_to_xml_internal(const char *xmlschema, bool nulls,
                          bool tableforest, const char *targetns)
 {
+  DBUG_TRACE;
   StringInfo  result;
   List     *nspid_list;
   ListCell   *cell;
@@ -3409,6 +3482,7 @@ database_to_xml_internal(const char *xmlschema, bool nulls,
 Datum
 database_to_xml(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nulls = PG_GETARG_BOOL(0);
   bool    tableforest = PG_GETARG_BOOL(1);
   const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -3422,6 +3496,7 @@ static StringInfo
 database_to_xmlschema_internal(bool nulls, bool tableforest,
                                const char *targetns)
 {
+  DBUG_TRACE;
   List     *relid_list;
   List     *nspid_list;
   List     *tupdesc_list;
@@ -3464,6 +3539,7 @@ database_to_xmlschema_internal(bool nulls, bool tableforest,
 Datum
 database_to_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nulls = PG_GETARG_BOOL(0);
   bool    tableforest = PG_GETARG_BOOL(1);
   const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -3476,6 +3552,7 @@ database_to_xmlschema(PG_FUNCTION_ARGS)
 Datum
 database_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bool    nulls = PG_GETARG_BOOL(0);
   bool    tableforest = PG_GETARG_BOOL(1);
   const char *targetns = text_to_cstring(PG_GETARG_TEXT_PP(2));
@@ -3495,6 +3572,7 @@ database_to_xml_and_xmlschema(PG_FUNCTION_ARGS)
 static char *
 map_multipart_sql_identifier_to_xml_name(const char *a, const char *b, const char *c, const char *d)
 {
+  DBUG_TRACE;
   StringInfoData result;
 
   initStringInfo(&result);
@@ -3530,6 +3608,7 @@ static const char *
 map_sql_table_to_xmlschema(TupleDesc tupdesc, Oid relid, bool nulls,
                            bool tableforest, const char *targetns)
 {
+  DBUG_TRACE;
   int     i;
   char     *xmltn;
   char     *tabletypename;
@@ -3632,6 +3711,7 @@ static const char *
 map_sql_schema_to_xmlschema_types(Oid nspid, List *relid_list, bool nulls,
                                   bool tableforest, const char *targetns)
 {
+  DBUG_TRACE;
   char     *dbname;
   char     *nspname;
   char     *xmlsn;
@@ -3706,6 +3786,7 @@ static const char *
 map_sql_catalog_to_xmlschema_types(List *nspid_list, bool nulls,
                                    bool tableforest, const char *targetns)
 {
+  DBUG_TRACE;
   char     *dbname;
   char     *xmlcn;
   char     *catalogtypename;
@@ -3761,6 +3842,7 @@ map_sql_catalog_to_xmlschema_types(List *nspid_list, bool nulls,
 static const char *
 map_sql_type_to_xml_name(Oid typeoid, int typmod)
 {
+  DBUG_TRACE;
   StringInfoData result;
 
   initStringInfo(&result);
@@ -3888,6 +3970,7 @@ map_sql_type_to_xml_name(Oid typeoid, int typmod)
 static const char *
 map_sql_typecoll_to_xmlschema_types(List *tupdesc_list)
 {
+  DBUG_TRACE;
   List     *uniquetypes = NIL;
   int     i;
   StringInfoData result;
@@ -3940,6 +4023,7 @@ map_sql_typecoll_to_xmlschema_types(List *tupdesc_list)
 static const char *
 map_sql_type_to_xmlschema_type(Oid typeoid, int typmod)
 {
+  DBUG_TRACE;
   StringInfoData result;
   const char *typename = map_sql_type_to_xml_name(typeoid, typmod);
 
@@ -4117,6 +4201,7 @@ SPI_sql_row_to_xmlelement(uint64 rownum, StringInfo result, char *tablename,
                           bool nulls, bool tableforest,
                           const char *targetns, bool top_level)
 {
+  DBUG_TRACE;
   int     i;
   char     *xmltn;
 
@@ -4180,6 +4265,7 @@ SPI_sql_row_to_xmlelement(uint64 rownum, StringInfo result, char *tablename,
 static text *
 xml_xmlnodetoxmltype(xmlNodePtr cur, PgXmlErrorContext *xmlerrcxt)
 {
+  DBUG_TRACE;
   xmltype    *result = NULL;
 
   if (cur->type != XML_ATTRIBUTE_NODE && cur->type != XML_TEXT_NODE) {
@@ -4274,6 +4360,7 @@ xml_xpathobjtoxmlarray(xmlXPathObjectPtr xpathobj,
                        ArrayBuildState *astate,
                        PgXmlErrorContext *xmlerrcxt)
 {
+  DBUG_TRACE;
   int     result = 0;
   Datum   datum;
   Oid     datumtype;
@@ -4352,6 +4439,7 @@ static void
 xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
                int *res_nitems, ArrayBuildState *astate)
 {
+  DBUG_TRACE;
   PgXmlErrorContext *xmlerrcxt;
   volatile xmlParserCtxtPtr ctxt = NULL;
   volatile xmlDocPtr doc = NULL;
@@ -4386,11 +4474,13 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 
     dims = ARR_DIMS(namespaces);
 
-    if (ndim != 2 || dims[1] != 2)
+    if (ndim != 2 || dims[1] != 2) {
+      DBUG_INSTANT_PRINT("info", "invalid array for XML namespace mapping");
       ereport(ERROR,
               (errcode(ERRCODE_DATA_EXCEPTION),
                errmsg("invalid array for XML namespace mapping"),
                errdetail("The array must be two-dimensional with length of the second axis equal to 2.")));
+    }
 
     Assert(ARR_ELEMTYPE(namespaces) == TEXTOID);
 
@@ -4410,10 +4500,12 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
   len = VARSIZE(data) - VARHDRSZ;
   xpath_len = VARSIZE_ANY_EXHDR(xpath_expr_text);
 
-  if (xpath_len == 0)
+  if (xpath_len == 0) {
+    DBUG_INSTANT_PRINT("info", "empty XPath expression");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_ARGUMENT_FOR_XQUERY),
              errmsg("empty XPath expression")));
+  }
 
   string = pg_xmlCharStrndup(datastr, len);
   xpath_expr = pg_xmlCharStrndup(VARDATA_ANY(xpath_expr_text), xpath_len);
@@ -4466,20 +4558,24 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
         char     *ns_uri;
 
         if (ns_names_uris_nulls[i * 2] ||
-            ns_names_uris_nulls[i * 2 + 1])
+            ns_names_uris_nulls[i * 2 + 1]) {
+          DBUG_INSTANT_PRINT("info", "neither namespace name nor URI may be null");
           ereport(ERROR,
                   (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
                    errmsg("neither namespace name nor URI may be null")));
+        }
 
         ns_name = TextDatumGetCString(ns_names_uris[i * 2]);
         ns_uri = TextDatumGetCString(ns_names_uris[i * 2 + 1]);
 
         if (xmlXPathRegisterNs(xpathctx,
                                (xmlChar *) ns_name,
-                               (xmlChar *) ns_uri) != 0)
+                               (xmlChar *) ns_uri) != 0) {
+          DBUG_INSTANT_PRINT("info", "could not register XML namespace with name \"%s\" and URI \"%s\"", ns_name, ns_uri);
           ereport(ERROR,  /* is this an internal error??? */
                   (errmsg("could not register XML namespace with name \"%s\" and URI \"%s\"",
                           ns_name, ns_uri)));
+        }
       }
     }
 
@@ -4559,6 +4655,7 @@ xpath_internal(text *xpath_expr_text, xmltype *data, ArrayType *namespaces,
 Datum
 xpath(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *xpath_expr_text = PG_GETARG_TEXT_PP(0);
   xmltype    *data = PG_GETARG_XML_P(1);
@@ -4582,6 +4679,7 @@ xpath(PG_FUNCTION_ARGS)
 Datum
 xmlexists(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *xpath_expr_text = PG_GETARG_TEXT_PP(0);
   xmltype    *data = PG_GETARG_XML_P(1);
@@ -4605,6 +4703,7 @@ xmlexists(PG_FUNCTION_ARGS)
 Datum
 xpath_exists(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *xpath_expr_text = PG_GETARG_TEXT_PP(0);
   xmltype    *data = PG_GETARG_XML_P(1);
@@ -4648,6 +4747,7 @@ wellformed_xml(text *data, XmlOptionType xmloption_arg)
 Datum
 xml_is_well_formed(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *data = PG_GETARG_TEXT_PP(0);
 
@@ -4661,6 +4761,7 @@ xml_is_well_formed(PG_FUNCTION_ARGS)
 Datum
 xml_is_well_formed_document(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *data = PG_GETARG_TEXT_PP(0);
 
@@ -4674,6 +4775,7 @@ xml_is_well_formed_document(PG_FUNCTION_ARGS)
 Datum
 xml_is_well_formed_content(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   text     *data = PG_GETARG_TEXT_PP(0);
 
@@ -4725,6 +4827,7 @@ GetXmlTableBuilderPrivateData(TableFuncScanState *state, const char *fname)
 static void
 XmlTableInitOpaque(TableFuncScanState *state, int natts)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   volatile xmlParserCtxtPtr ctxt = NULL;
   XmlTableBuilderData *xtCxt;
@@ -4774,6 +4877,7 @@ XmlTableInitOpaque(TableFuncScanState *state, int natts)
 static void
 XmlTableSetDocument(TableFuncScanState *state, Datum value)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
   xmltype    *xmlval = DatumGetXmlP(value);
@@ -4836,13 +4940,16 @@ XmlTableSetDocument(TableFuncScanState *state, Datum value)
 static void
 XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *uri)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
 
-  if (name == NULL)
+  if (name == NULL) {
+    DBUG_INSTANT_PRINT("info", "DEFAULT namespace is not supported");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("DEFAULT namespace is not supported")));
+  }
 
   xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetNamespace");
 
@@ -4864,16 +4971,19 @@ XmlTableSetNamespace(TableFuncScanState *state, const char *name, const char *ur
 static void
 XmlTableSetRowFilter(TableFuncScanState *state, const char *path)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
   xmlChar    *xstr;
 
   xtCxt = GetXmlTableBuilderPrivateData(state, "XmlTableSetRowFilter");
 
-  if (*path == '\0')
+  if (*path == '\0') {
+    DBUG_INSTANT_PRINT("info", "row path filter must not be empty string");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_ARGUMENT_FOR_XQUERY),
              errmsg("row path filter must not be empty string")));
+  }
 
   xstr = pg_xmlCharStrndup(path, strlen(path));
 
@@ -4898,6 +5008,7 @@ XmlTableSetRowFilter(TableFuncScanState *state, const char *path)
 static void
 XmlTableSetColumnFilter(TableFuncScanState *state, const char *path, int colnum)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
   xmlChar    *xstr;
@@ -4935,6 +5046,7 @@ XmlTableSetColumnFilter(TableFuncScanState *state, const char *path, int colnum)
 static bool
 XmlTableFetchRow(TableFuncScanState *state)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
 
@@ -4979,6 +5091,7 @@ static Datum
 XmlTableGetValue(TableFuncScanState *state, int colnum,
                  Oid typid, int32 typmod, bool *isnull)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   Datum   result = (Datum) 0;
   XmlTableBuilderData *xtCxt;
@@ -5048,10 +5161,12 @@ XmlTableGetValue(TableFuncScanState *state, int colnum,
         } else {
           xmlChar    *str;
 
-          if (count > 1)
+          if (count > 1) {
+            DBUG_INSTANT_PRINT("info", "more than one value returned by column XPath expression");
             ereport(ERROR,
                     (errcode(ERRCODE_CARDINALITY_VIOLATION),
                      errmsg("more than one value returned by column XPath expression")));
+          }
 
           str = xmlXPathCastNodeSetToString(xpathobj->nodesetval);
           cstr = str ? xml_pstrdup_and_free(str) : "";
@@ -5118,6 +5233,7 @@ XmlTableGetValue(TableFuncScanState *state, int colnum,
 static void
 XmlTableDestroyOpaque(TableFuncScanState *state)
 {
+  DBUG_TRACE;
 #ifdef USE_LIBXML
   XmlTableBuilderData *xtCxt;
 

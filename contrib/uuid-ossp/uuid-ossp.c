@@ -12,6 +12,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "common/cryptohash.h"
 #include "common/sha1.h"
@@ -123,6 +124,7 @@ PG_FUNCTION_INFO_V1(uuid_generate_v5);
 static void
 pguuid_complain(uuid_rc_t rc)
 {
+  DBUG_TRACE;
   char     *err = uuid_error(rc);
 
   if (err != NULL)
@@ -155,6 +157,7 @@ pguuid_complain(uuid_rc_t rc)
 static uuid_t *
 get_cached_uuid_t(int which)
 {
+  DBUG_TRACE;
   static uuid_t *cached_uuid[2] = {NULL, NULL};
 
   if (cached_uuid[which] == NULL) {
@@ -174,6 +177,7 @@ get_cached_uuid_t(int which)
 static char *
 uuid_to_string(const uuid_t *uuid)
 {
+  DBUG_TRACE;
   char     *buf = palloc(UUID_LEN_STR + 1);
   void     *ptr = buf;
   size_t    len = UUID_LEN_STR + 1;
@@ -191,6 +195,7 @@ uuid_to_string(const uuid_t *uuid)
 static void
 string_to_uuid(const char *str, uuid_t *uuid)
 {
+  DBUG_TRACE;
   uuid_rc_t rc;
 
   rc = uuid_import(uuid, UUID_FMT_STR, str, UUID_LEN_STR + 1);
@@ -203,6 +208,7 @@ string_to_uuid(const char *str, uuid_t *uuid)
 static Datum
 special_uuid_value(const char *name)
 {
+  DBUG_TRACE;
   uuid_t     *uuid = get_cached_uuid_t(0);
   char     *str;
   uuid_rc_t rc;
@@ -221,6 +227,7 @@ special_uuid_value(const char *name)
 static Datum
 uuid_generate_internal(int mode, const uuid_t *ns, const char *name, int len)
 {
+  DBUG_TRACE;
   uuid_t     *uuid = get_cached_uuid_t(0);
   char     *str;
   uuid_rc_t rc;
@@ -239,6 +246,7 @@ uuid_generate_internal(int mode, const uuid_t *ns, const char *name, int len)
 static Datum
 uuid_generate_v35_internal(int mode, pg_uuid_t *ns, text *name)
 {
+  DBUG_TRACE;
   uuid_t     *ns_uuid = get_cached_uuid_t(1);
 
   string_to_uuid(DatumGetCString(DirectFunctionCall1(uuid_out,
@@ -256,6 +264,7 @@ uuid_generate_v35_internal(int mode, pg_uuid_t *ns, text *name)
 static Datum
 uuid_generate_internal(int v, unsigned char *ns, const char *ptr, int len)
 {
+  DBUG_TRACE;
   char    strbuf[40];
 
   switch (v) {
@@ -430,6 +439,7 @@ uuid_generate_internal(int v, unsigned char *ns, const char *ptr, int len)
 Datum
 uuid_nil(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   return special_uuid_value("nil");
 #else
@@ -442,6 +452,7 @@ uuid_nil(PG_FUNCTION_ARGS)
 Datum
 uuid_ns_dns(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   return special_uuid_value("ns:DNS");
 #else
@@ -454,6 +465,7 @@ uuid_ns_dns(PG_FUNCTION_ARGS)
 Datum
 uuid_ns_url(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   return special_uuid_value("ns:URL");
 #else
@@ -466,6 +478,7 @@ uuid_ns_url(PG_FUNCTION_ARGS)
 Datum
 uuid_ns_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   return special_uuid_value("ns:OID");
 #else
@@ -478,6 +491,7 @@ uuid_ns_oid(PG_FUNCTION_ARGS)
 Datum
 uuid_ns_x500(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   return special_uuid_value("ns:X500");
 #else
@@ -490,6 +504,7 @@ uuid_ns_x500(PG_FUNCTION_ARGS)
 Datum
 uuid_generate_v1(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return uuid_generate_internal(UUID_MAKE_V1, NULL, NULL, 0);
 }
 
@@ -497,6 +512,7 @@ uuid_generate_v1(PG_FUNCTION_ARGS)
 Datum
 uuid_generate_v1mc(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #ifdef HAVE_UUID_OSSP
   char     *buf = NULL;
 #elif defined(HAVE_UUID_E2FS)
@@ -528,6 +544,7 @@ uuid_generate_v1mc(PG_FUNCTION_ARGS)
 Datum
 uuid_generate_v3(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *ns = PG_GETARG_UUID_P(0);
   text     *name = PG_GETARG_TEXT_PP(1);
 
@@ -543,6 +560,7 @@ uuid_generate_v3(PG_FUNCTION_ARGS)
 Datum
 uuid_generate_v4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   return uuid_generate_internal(UUID_MAKE_V4, NULL, NULL, 0);
 }
 
@@ -550,6 +568,7 @@ uuid_generate_v4(PG_FUNCTION_ARGS)
 Datum
 uuid_generate_v5(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   pg_uuid_t  *ns = PG_GETARG_UUID_P(0);
   text     *name = PG_GETARG_TEXT_PP(1);
 

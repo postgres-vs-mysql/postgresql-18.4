@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
@@ -259,6 +260,7 @@ findsubquery(QTNode *root, QTNode *ex, QTNode *subs, bool *isfind)
 Datum
 tsquery_rewrite_query(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY_COPY(0);
   text     *in = PG_GETARG_TEXT_PP(1);
   TSQuery   rewritten = query;
@@ -385,6 +387,7 @@ tsquery_rewrite_query(PG_FUNCTION_ARGS)
 Datum
 tsquery_rewrite(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   TSQuery   query = PG_GETARG_TSQUERY_COPY(0);
   TSQuery   ex = PG_GETARG_TSQUERY(1);
   TSQuery   subst = PG_GETARG_TSQUERY(2);

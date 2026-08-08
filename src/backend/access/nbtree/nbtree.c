@@ -17,6 +17,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/relscan.h"
@@ -112,8 +113,11 @@ static BTVacuumPosting btreevacuumposting(BTVacState *vstate,
 Datum
 bthandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
+  DBUG_PRINT("info", "btree handler function: return IndexAmRoutine with access method parameters and callbacks");
   amroutine->amstrategies = BTMaxStrategyNumber;
   amroutine->amsupport = BTNProcs;
   amroutine->amoptsprocnum = BTOPTIONS_PROC;
@@ -176,6 +180,7 @@ bthandler(PG_FUNCTION_ARGS)
 void
 btbuildempty(Relation index)
 {
+  DBUG_TRACE;
   bool    allequalimage = _bt_allequalimage(index, false);
   BulkWriteState *bulkstate;
   BulkWriteBuffer metabuf;
@@ -203,6 +208,7 @@ btinsert(Relation rel, Datum *values, bool *isnull,
          bool indexUnchanged,
          IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   bool    result;
   IndexTuple  itup;
 
@@ -223,6 +229,7 @@ btinsert(Relation rel, Datum *values, bool *isnull,
 bool
 btgettuple(IndexScanDesc scan, ScanDirection dir)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   bool    res;
 
@@ -269,11 +276,19 @@ btgettuple(IndexScanDesc scan, ScanDirection dir)
     }
 
     /* If we have a tuple, return it ... */
-    if (res)
+    if (res) {
+      DBUG_PRINT("info", "if we have a tuple, return it");
       break;
+    }
 
     /* ... otherwise see if we need another primitive index scan */
   } while (so->numArrayKeys && _bt_start_prim_scan(scan, dir));
+
+  if (res) {
+    DBUG_PRINT("info", "now we have a tuple and return true");
+  } else {
+    DBUG_PRINT("info", "we have not a tuple and return false");
+  }
 
   return res;
 }
@@ -284,6 +299,7 @@ btgettuple(IndexScanDesc scan, ScanDirection dir)
 int64
 btgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   int64   ntids = 0;
   ItemPointer heapTid;
@@ -320,6 +336,7 @@ btgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
     /* Now see if we need another primitive index scan */
   } while (so->numArrayKeys && _bt_start_prim_scan(scan, ForwardScanDirection));
 
+  DBUG_PRINT("info", "gets all matching tuples:%ld, and adds them to a bitmap", ntids);
   return ntids;
 }
 
@@ -329,9 +346,11 @@ btgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 IndexScanDesc
 btbeginscan(Relation rel, int nkeys, int norderbys)
 {
+  DBUG_TRACE;
   IndexScanDesc scan;
   BTScanOpaque so;
 
+  DBUG_PRINT("info", "start a scan on a btree index");
   /* no order by operators allowed */
   Assert(norderbys == 0);
 
@@ -380,7 +399,10 @@ void
 btrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
          ScanKey orderbys, int norderbys)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
+
+  DBUG_PRINT("info", "rescan an index relation");
 
   /* we aren't holding any read locks, but gotta drop the pins */
   if (BTScanPosIsValid(so->currPos)) {
@@ -504,8 +526,10 @@ btendscan(IndexScanDesc scan)
 void
 btmarkpos(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
+  DBUG_PRINT("info", "save current scan position");
   /* There may be an old mark with a pin (but no lock). */
   BTScanPosUnpinIfPinned(so->markPos);
 
@@ -529,7 +553,10 @@ btmarkpos(IndexScanDesc scan)
 void
 btrestrpos(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
+
+  DBUG_PRINT("info", "restore scan to last saved position");
 
   if (so->markItemIndex >= 0) {
     /*
@@ -754,7 +781,7 @@ btinitparallelscan(void *target)
   BTParallelScanDesc bt_target = (BTParallelScanDesc) target;
 
   LWLockInitialize(&bt_target->btps_lock,
-                   LWTRANCHE_PARALLEL_BTREE_SCAN);
+                   LWTRANCHE_PARALLEL_BTREE_SCAN, 0);
   bt_target->btps_nextScanPage = InvalidBlockNumber;
   bt_target->btps_lastCurrPage = InvalidBlockNumber;
   bt_target->btps_pageStatus = BTPARALLEL_NOT_INITIALIZED;
@@ -811,6 +838,7 @@ bool
 _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
                    BlockNumber *last_curr_page, bool first)
 {
+  DBUG_TRACE;
   Relation  rel = scan->indexRelation;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   bool    exit_loop = false,
@@ -819,6 +847,7 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
   ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
   BTParallelScanDesc btscan;
 
+  DBUG_PRINT("info", "begin the process of advancing the scan to a new page for index:%s",  RelationGetRelationName(scan->indexRelation));
   *next_scan_page = InvalidBlockNumber;
   *last_curr_page = InvalidBlockNumber;
 
@@ -844,8 +873,11 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
      * Don't attempt to seize the scan when it requires another primitive
      * index scan, since caller's backend cannot start it right now
      */
-    if (so->needPrimScan)
+    if (so->needPrimScan) {
+      DBUG_PRINT("info", "don't attempt to seize the scan when it requires another primitive index scan,");
+      DBUG_PRINT("info", "since caller's backend cannot start it right now");
       return false;
+    }
   }
 
   btscan = (BTParallelScanDesc) OffsetToPointer(parallel_scan,
@@ -855,6 +887,7 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
     LWLockAcquire(&btscan->btps_lock, LW_EXCLUSIVE);
 
     if (btscan->btps_pageStatus == BTPARALLEL_DONE) {
+      DBUG_PRINT("info", "we're done with this parallel index scan");
       /* We're done with this parallel index scan */
       status = false;
     } else if (btscan->btps_pageStatus == BTPARALLEL_IDLE &&
@@ -878,6 +911,8 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
          * primitive index scan, since caller's backend cannot start
          * it right now
          */
+        DBUG_PRINT("info", "don't attempt to seize the scan when it requires another primitive index scan,");
+        DBUG_PRINT("info", "since caller's backend cannot start it right now");
         status = false;
       }
 
@@ -897,6 +932,10 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *next_scan_page,
       Assert(btscan->btps_nextScanPage != P_NONE);
       *next_scan_page = btscan->btps_nextScanPage;
       *last_curr_page = btscan->btps_lastCurrPage;
+
+      DBUG_PRINT("info", "we have seized control of the scan for the purpose of advancing it to a new page(last_curr_page:%u, next_scan_page:%u)",
+                 *last_curr_page, *next_scan_page);
+
       exit_loop = true;
     }
 
@@ -939,9 +978,13 @@ void
 _bt_parallel_release(IndexScanDesc scan, BlockNumber next_scan_page,
                      BlockNumber curr_page)
 {
+  DBUG_TRACE;
   ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
   BTParallelScanDesc btscan;
 
+
+  DBUG_PRINT("info", "complete the process of advancing the scan to a new page(curr_page:%u, next_scan_page:%u) of index:%s",
+             curr_page, next_scan_page, RelationGetRelationName(scan->indexRelation));
   Assert(BlockNumberIsValid(next_scan_page));
 
   btscan = (BTParallelScanDesc) OffsetToPointer(parallel_scan,
@@ -965,6 +1008,7 @@ _bt_parallel_release(IndexScanDesc scan, BlockNumber next_scan_page,
 void
 _bt_parallel_done(IndexScanDesc scan)
 {
+  DBUG_TRACE;
   BTScanOpaque so = (BTScanOpaque) scan->opaque;
   ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
   BTParallelScanDesc btscan;
@@ -1052,6 +1096,7 @@ IndexBulkDeleteResult *
 btbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
              IndexBulkDeleteCallback callback, void *callback_state)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   BTCycleId cycleid;
 
@@ -1081,11 +1126,14 @@ btbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 IndexBulkDeleteResult *
 btvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
+  DBUG_TRACE;
   BlockNumber num_delpages;
 
   /* No-op in ANALYZE ONLY mode */
-  if (info->analyze_only)
+  if (info->analyze_only) {
+    DBUG_PRINT("info", "no-op in ANALYZE ONLY mode");
     return stats;
+  }
 
   /*
    * If btbulkdelete was called, we need not do anything (we just maintain
@@ -1117,6 +1165,8 @@ btvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
      * We handle the problem by making num_index_tuples an estimate in
      * cleanup-only case.
      */
+    DBUG_PRINT("info", "since we aren't going to actually delete any leaf items,");
+    DBUG_PRINT("info", "there's no need to go through all the vacuum-cycle-ID pushups here");
     stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
     btvacuumscan(info, stats, NULL, NULL, 0);
     stats->estimated_count = true;
@@ -1136,6 +1186,8 @@ btvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
    */
   Assert(stats->pages_deleted >= stats->pages_free);
   num_delpages = stats->pages_deleted - stats->pages_free;
+  DBUG_PRINT("info", "stats->pages_deleted:%u, stats->pages_free:%u, num_delpages:%u",
+             stats->pages_deleted, stats->pages_free, num_delpages);
   _bt_set_cleanup_info(info->index, num_delpages);
 
   /*
@@ -1169,6 +1221,7 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
              IndexBulkDeleteCallback callback, void *callback_state,
              BTCycleId cycleid)
 {
+  DBUG_TRACE;
   Relation  rel = info->index;
   BTVacState  vstate;
   BlockNumber num_pages;
@@ -1176,6 +1229,8 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
   BlockRangeReadStreamPrivate p;
   ReadStream *stream = NULL;
 
+  bool    tmp_trace_disabled = false;
+  size_t count = 0;
   /*
    * Reset fields that track information about the entire index now.  This
    * avoids double-counting in the case where a single VACUUM command
@@ -1260,6 +1315,8 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                                       0);
 
   for (;;) {
+
+
     /* Get the current relation length */
     if (needLock)
       LockRelationForExtension(rel, ExclusiveLock);
@@ -1274,15 +1331,27 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
                                    num_pages);
 
     /* Quit if we've scanned the whole relation */
-    if (p.current_blocknum >= num_pages)
+    if (p.current_blocknum >= num_pages) {
+      DBUG_PRINT("info", "quit if we've scanned the whole relation");
       break;
+    }
 
+    count++;
     p.last_exclusive = num_pages;
 
     /* Iterate over pages, then loop back to recheck relation length */
     while (true) {
       BlockNumber current_block;
       Buffer    buf;
+
+      if (count >= min_trace_iterations) {
+        if (!trace_disabled) {
+          if (!tmp_trace_disabled) {
+            tmp_trace_disabled = true;
+            set_trace_disabled();
+          }
+        }
+      }
 
       /* call vacuum_delay_point while not holding any buffer lock */
       vacuum_delay_point(false);
@@ -1292,6 +1361,7 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
       if (!BufferIsValid(buf))
         break;
 
+      count++;
       current_block = btvacuumpage(&vstate, buf);
 
       if (info->report_progress)
@@ -1309,7 +1379,16 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 
   read_stream_end(stream);
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+    DBUG_PRINT("info", "total btvacuumpage calls:%lu", count);
+  }
+
   /* Set statistics num_pages field to final size of index */
+  DBUG_PRINT("info", "set statistics num_pages field to final size of index:%u", num_pages);
   stats->num_pages = num_pages;
 
   MemoryContextDelete(vstate.pagedelcontext);
@@ -1344,6 +1423,7 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 static BlockNumber
 btvacuumpage(BTVacState *vstate, Buffer buf)
 {
+  DBUG_TRACE;
   IndexVacuumInfo *info = vstate->info;
   IndexBulkDeleteResult *stats = vstate->stats;
   IndexBulkDeleteCallback callback = vstate->callback;
@@ -1358,6 +1438,7 @@ btvacuumpage(BTVacState *vstate, Buffer buf)
   BTPageOpaque opaque;
 
   blkno = scanblkno;
+  DBUG_PRINT("info", "vacuum one page:%u", blkno);
 
 backtrack:
 
@@ -1393,6 +1474,8 @@ backtrack:
      */
     if (!opaque || !P_ISLEAF(opaque) || P_ISHALFDEAD(opaque)) {
       Assert(false);
+      DBUG_PRINT("info", "right sibling %u of scanblkno %u unexpectedly in an inconsistent state in index \"%s\"",
+                 blkno, scanblkno, RelationGetRelationName(rel));
       ereport(LOG,
               (errcode(ERRCODE_INDEX_CORRUPTED),
                errmsg_internal("right sibling %u of scanblkno %u unexpectedly in an inconsistent state in index \"%s\"",
@@ -1423,6 +1506,7 @@ backtrack:
 
   if (!opaque || BTPageIsRecyclable(page, heaprel)) {
     /* Okay to recycle this page (which could be leaf or internal) */
+    DBUG_PRINT("info", "okay to recycle this page (which could be leaf or internal)");
     RecordFreeIndexPage(rel, blkno);
     stats->pages_deleted++;
     stats->pages_free++;
@@ -1431,6 +1515,8 @@ backtrack:
      * Already deleted page (which could be leaf or internal).  Can't
      * recycle yet.
      */
+    DBUG_PRINT("info", "already deleted page (which could be leaf or internal)");
+    DBUG_PRINT("info", "can't recycle yet");
     stats->pages_deleted++;
   } else if (P_ISHALFDEAD(opaque)) {
     /* Half-dead leaf page (from interrupted VACUUM) -- finish deleting */

@@ -247,6 +247,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/parallel.h"
@@ -276,6 +277,7 @@
 #include "utils/memutils_memorychunk.h"
 #include "utils/syscache.h"
 #include "utils/tuplesort.h"
+#include "utils/lsyscache.h"
 
 /*
  * Control how many partitions are created when spilling HashAgg to
@@ -539,6 +541,7 @@ initialize_phase(AggState *aggstate, int newphase)
 static TupleTableSlot *
 fetch_input_tuple(AggState *aggstate)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
 
   if (aggstate->sort_in) {
@@ -546,8 +549,10 @@ fetch_input_tuple(AggState *aggstate)
     CHECK_FOR_INTERRUPTS();
 
     if (!tuplesort_gettupleslot(aggstate->sort_in, true, false,
-                                aggstate->sort_slot, NULL))
+                                aggstate->sort_slot, NULL)) {
+      DBUG_PRINT("info", "return null");
       return NULL;
+    }
 
     slot = aggstate->sort_slot;
   } else
@@ -571,10 +576,14 @@ static void
 initialize_aggregate(AggState *aggstate, AggStatePerTrans pertrans,
                      AggStatePerGroup pergroupstate)
 {
+  DBUG_TRACE;
+
   /*
    * Start a fresh sort operation for each DISTINCT/ORDER BY aggregate.
    */
   if (pertrans->aggsortrequired) {
+    DBUG_PRINT("info", "start a fresh sort operation for each DISTINCT/ORDER BY aggregate");
+
     /*
      * In case of rescan, maybe there could be an uncompleted sort
      * operation?  Clean it up if so.
@@ -591,13 +600,15 @@ initialize_aggregate(AggState *aggstate, AggStatePerTrans pertrans,
     if (pertrans->numInputs == 1) {
       Form_pg_attribute attr = TupleDescAttr(pertrans->sortdesc, 0);
 
+      DBUG_PRINT("info", "we use a plain Datum sorter when there's a single input column");
       pertrans->sortstates[aggstate->current_set] =
         tuplesort_begin_datum(attr->atttypid,
                               pertrans->sortOperators[0],
                               pertrans->sortCollations[0],
                               pertrans->sortNullsFirst[0],
                               work_mem, NULL, TUPLESORT_NONE);
-    } else
+    } else {
+      DBUG_PRINT("info", "sort the full tuple");
       pertrans->sortstates[aggstate->current_set] =
         tuplesort_begin_heap(pertrans->sortdesc,
                              pertrans->numSortCols,
@@ -606,6 +617,7 @@ initialize_aggregate(AggState *aggstate, AggStatePerTrans pertrans,
                              pertrans->sortCollations,
                              pertrans->sortNullsFirst,
                              work_mem, NULL, TUPLESORT_NONE);
+    }
   }
 
   /*
@@ -656,6 +668,7 @@ initialize_aggregates(AggState *aggstate,
                       AggStatePerGroup *pergroups,
                       int numReset)
 {
+  DBUG_TRACE;
   int     transno;
   int     numGroupingSets = Max(aggstate->phase->numsets, 1);
   int     setno = 0;
@@ -665,6 +678,8 @@ initialize_aggregates(AggState *aggstate,
   if (numReset == 0)
     numReset = numGroupingSets;
 
+  DBUG_PRINT("info", "numTrans:%d, numGroupingSets:%d, numReset:%d", numTrans, numGroupingSets, numReset);
+
   for (setno = 0; setno < numReset; setno++) {
     AggStatePerGroup pergroup = pergroups[setno];
 
@@ -673,6 +688,12 @@ initialize_aggregates(AggState *aggstate,
     for (transno = 0; transno < numTrans; transno++) {
       AggStatePerTrans pertrans = &transstates[transno];
       AggStatePerGroup pergroupstate = &pergroup[transno];
+
+      if (pertrans->aggref) {
+        char *funcname = get_func_name(pertrans->aggref->aggfnoid);
+        DBUG_PRINT("info", "initializing aggregate:%s (transno:%d, setno:%d)",
+                   funcname != NULL ? funcname : "unknown", transno, setno);
+      }
 
       initialize_aggregate(aggstate, pertrans, pergroupstate);
     }
@@ -695,9 +716,13 @@ advance_transition_function(AggState *aggstate,
                             AggStatePerTrans pertrans,
                             AggStatePerGroup pergroupstate)
 {
+  DBUG_TRACE;
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   MemoryContext oldContext;
   Datum   newVal;
+
+  DBUG_PRINT("info", "given new input value, advance the transition function");
+  DBUG_PRINT("info", "of one aggregate state within one grouping set only");
 
   if (pertrans->transfn.fn_strict) {
     /*
@@ -752,6 +777,7 @@ advance_transition_function(AggState *aggstate,
   /*
    * OK to call the transition function
    */
+  DBUG_PRINT("info", "ok to call the transition function");
   fcinfo->args[0].value = pergroupstate->transValue;
   fcinfo->args[0].isnull = pergroupstate->transValueIsNull;
   fcinfo->isnull = false;   /* just in case transfn doesn't set it */
@@ -801,6 +827,8 @@ advance_transition_function(AggState *aggstate,
 static void
 advance_aggregates(AggState *aggstate)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "advance each aggregate transition state for one input tuple");
   ExecEvalExprNoReturnSwitchContext(aggstate->phase->evaltrans,
                                     aggstate->tmpcontext);
 }
@@ -832,6 +860,7 @@ process_ordered_aggregate_single(AggState *aggstate,
                                  AggStatePerTrans pertrans,
                                  AggStatePerGroup pergroupstate)
 {
+  DBUG_TRACE;
   Datum   oldVal = (Datum) 0;
   bool    oldIsNull = true;
   bool    haveOldVal = false;
@@ -843,6 +872,12 @@ process_ordered_aggregate_single(AggState *aggstate,
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   Datum    *newVal;
   bool     *isNull;
+
+  if (isDistinct) {
+    DBUG_PRINT("info", "run the transition function for a DISTINCT aggregate with only one input");
+  } else {
+    DBUG_PRINT("info", "run the transition function for an ORDER BY aggregate with only one input");
+  }
 
   Assert(pertrans->numDistinctCols < 2);
 
@@ -929,6 +964,7 @@ process_ordered_aggregate_multi(AggState *aggstate,
                                 AggStatePerTrans pertrans,
                                 AggStatePerGroup pergroupstate)
 {
+  DBUG_TRACE;
   ExprContext *tmpcontext = aggstate->tmpcontext;
   FunctionCallInfo fcinfo = pertrans->transfn_fcinfo;
   TupleTableSlot *slot1 = pertrans->sortslot;
@@ -1024,6 +1060,7 @@ finalize_aggregate(AggState *aggstate,
                    AggStatePerGroup pergroupstate,
                    Datum *resultVal, bool *resultIsNull)
 {
+  DBUG_TRACE;
   LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
   bool    anynull = false;
   MemoryContext oldContext;
@@ -1031,6 +1068,7 @@ finalize_aggregate(AggState *aggstate,
   ListCell   *lc;
   AggStatePerTrans pertrans = &aggstate->pertrans[peragg->transno];
 
+  DBUG_PRINT("info", "compute the final value of one aggregate");
   oldContext = MemoryContextSwitchTo(aggstate->ss.ps.ps_ExprContext->ecxt_per_tuple_memory);
 
   /*
@@ -1057,6 +1095,7 @@ finalize_aggregate(AggState *aggstate,
   if (OidIsValid(peragg->finalfn_oid)) {
     int     numFinalArgs = peragg->numFinalArgs;
 
+    DBUG_PRINT("info", "apply the agg's finalfn");
     /* set up aggstate->curperagg for AggGetAggref() */
     aggstate->curperagg = peragg;
 
@@ -1082,6 +1121,7 @@ finalize_aggregate(AggState *aggstate,
 
     if (fcinfo->flinfo->fn_strict && anynull) {
       /* don't call a strict function with NULL inputs */
+      DBUG_PRINT("info", "don't call a strict function with NULL inputs");
       *resultVal = (Datum) 0;
       *resultIsNull = true;
     } else {
@@ -1103,6 +1143,22 @@ finalize_aggregate(AggState *aggstate,
     *resultIsNull = pergroupstate->transValueIsNull;
   }
 
+  if (!(*resultIsNull)) {
+
+    Oid   rettype = peragg->aggref->aggtype;
+    Oid   typoutput;
+    bool  typIsVarlena;
+    char *valstr;
+
+    getTypeOutputInfo(rettype, &typoutput, &typIsVarlena);
+    valstr = OidOutputFunctionCall(typoutput, *resultVal);
+
+    if (valstr) {
+      char *format_str = format_type_be(rettype);
+      DBUG_PRINT("info", "final aggregate result (%s): %s", format_str, valstr);
+    }
+  }
+
   MemoryContextSwitchTo(oldContext);
 }
 
@@ -1118,6 +1174,7 @@ finalize_partialaggregate(AggState *aggstate,
                           AggStatePerGroup pergroupstate,
                           Datum *resultVal, bool *resultIsNull)
 {
+  DBUG_TRACE;
   AggStatePerTrans pertrans = &aggstate->pertrans[peragg->transno];
   MemoryContext oldContext;
 
@@ -1169,6 +1226,7 @@ prepare_hash_slot(AggStatePerHash perhash,
                   TupleTableSlot *inputslot,
                   TupleTableSlot *hashslot)
 {
+  DBUG_TRACE;
   int     i;
 
   /* transfer just the needed columns into hashslot */
@@ -1212,6 +1270,8 @@ prepare_hash_slot(AggStatePerHash perhash,
 static void
 prepare_projection_slot(AggState *aggstate, TupleTableSlot *slot, int currentSet)
 {
+  DBUG_TRACE;
+
   if (aggstate->phase->grouped_cols) {
     Bitmapset  *grouped_cols = aggstate->phase->grouped_cols[currentSet];
 
@@ -1254,10 +1314,13 @@ finalize_aggregates(AggState *aggstate,
                     AggStatePerAgg peraggs,
                     AggStatePerGroup pergroup)
 {
+  DBUG_TRACE;
   ExprContext *econtext = aggstate->ss.ps.ps_ExprContext;
   Datum    *aggvalues = econtext->ecxt_aggvalues;
   bool     *aggnulls = econtext->ecxt_aggnulls;
   int     aggno;
+
+  DBUG_PRINT("info", "compute the final value of all aggregates for one group");
 
   /*
    * If there were any DISTINCT and/or ORDER BY aggregates, sort their
@@ -1298,6 +1361,8 @@ finalize_aggregates(AggState *aggstate,
   /*
    * Run the final functions.
    */
+  DBUG_PRINT("info", "number of pertrans items:%d and length of list(num aggs):%d", aggstate->numtrans, aggstate->numaggs);
+
   for (aggno = 0; aggno < aggstate->numaggs; aggno++) {
     AggStatePerAgg peragg = &peraggs[aggno];
     int     transno = peragg->transno;
@@ -1322,6 +1387,7 @@ finalize_aggregates(AggState *aggstate,
 static TupleTableSlot *
 project_aggregates(AggState *aggstate)
 {
+  DBUG_TRACE;
   ExprContext *econtext = aggstate->ss.ps.ps_ExprContext;
 
   /*
@@ -1346,6 +1412,7 @@ project_aggregates(AggState *aggstate)
 static void
 find_cols(AggState *aggstate, Bitmapset **aggregated, Bitmapset **unaggregated)
 {
+  DBUG_TRACE;
   Agg      *agg = (Agg *) aggstate->ss.ps.plan;
   FindColsContext context;
 
@@ -1419,6 +1486,7 @@ find_cols_walker(Node *node, FindColsContext *context)
 static void
 build_hash_tables(AggState *aggstate)
 {
+  DBUG_TRACE;
   int     setno;
 
   for (setno = 0; setno < aggstate->num_hashes; ++setno) {
@@ -1461,6 +1529,7 @@ build_hash_tables(AggState *aggstate)
 static void
 build_hash_table(AggState *aggstate, int setno, long nbuckets)
 {
+  DBUG_TRACE;
   AggStatePerHash perhash = &aggstate->perhash[setno];
   MemoryContext metacxt = aggstate->hash_metacxt;
   MemoryContext tablecxt = aggstate->hash_tablecxt;
@@ -1522,6 +1591,7 @@ build_hash_table(AggState *aggstate, int setno, long nbuckets)
 static void
 find_hash_columns(AggState *aggstate)
 {
+  DBUG_TRACE;
   Bitmapset  *base_colnos;
   Bitmapset  *aggregated_colnos;
   TupleDesc scanDesc = aggstate->ss.ss_ScanTupleSlot->tts_tupleDescriptor;
@@ -1698,6 +1768,7 @@ hash_agg_entry_size(int numTrans, Size tupleWidth, Size transitionSpace)
 static void
 hashagg_recompile_expressions(AggState *aggstate, bool minslot, bool nullcheck)
 {
+  DBUG_TRACE;
   AggStatePerPhase phase;
   int     i = minslot ? 1 : 0;
   int     j = nullcheck ? 1 : 0;
@@ -1812,6 +1883,7 @@ hash_agg_set_limits(double hashentrysize, double input_groups, int used_bits,
 static void
 hash_agg_check_limits(AggState *aggstate)
 {
+  DBUG_TRACE;
   uint64    ngroups = aggstate->hash_ngroups_current;
   Size    meta_mem = MemoryContextMemAllocated(aggstate->hash_metacxt,
                      true);
@@ -1855,6 +1927,8 @@ hash_agg_check_limits(AggState *aggstate)
 static void
 hash_agg_enter_spill_mode(AggState *aggstate)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "enter spill mode, meaning that no new groups are added to any of the hash tables");
   INJECTION_POINT("hash-aggregate-enter-spill-mode", NULL);
   aggstate->hash_spill_mode = true;
   hashagg_recompile_expressions(aggstate, aggstate->table_filled, true);
@@ -1889,6 +1963,7 @@ hash_agg_enter_spill_mode(AggState *aggstate)
 static void
 hash_agg_update_metrics(AggState *aggstate, bool from_tape, int npartitions)
 {
+  DBUG_TRACE;
   Size    meta_mem;
   Size    entry_mem;
   Size    hashkey_mem;
@@ -2000,6 +2075,7 @@ hash_create_memory(AggState *aggstate)
 static long
 hash_choose_num_buckets(double hashentrysize, long ngroups, Size memory)
 {
+  DBUG_TRACE;
   long    max_nbuckets;
   long    nbuckets = ngroups;
 
@@ -2026,6 +2102,7 @@ static int
 hash_choose_num_partitions(double input_groups, double hashentrysize,
                            int used_bits, int *log2_npartitions)
 {
+  DBUG_TRACE;
   Size    hash_mem_limit = get_hash_memory_limit();
   double    partition_limit;
   double    mem_wanted;
@@ -2081,6 +2158,7 @@ static void
 initialize_hash_entry(AggState *aggstate, TupleHashTable hashtable,
                       TupleHashEntry entry)
 {
+  DBUG_TRACE;
   AggStatePerGroup pergroup;
   int     transno;
 
@@ -2097,6 +2175,8 @@ initialize_hash_entry(AggState *aggstate, TupleHashTable hashtable,
    * Initialize aggregates for new tuple group, lookup_hash_entries()
    * already has selected the relevant grouping set.
    */
+  DBUG_PRINT("info", "initialize aggregates for new tuple group (numtrans:%d)", aggstate->numtrans);
+
   for (transno = 0; transno < aggstate->numtrans; transno++) {
     AggStatePerTrans pertrans = &aggstate->pertrans[transno];
     AggStatePerGroup pergroupstate = &pergroup[transno];
@@ -2123,6 +2203,7 @@ initialize_hash_entry(AggState *aggstate, TupleHashTable hashtable,
 static void
 lookup_hash_entries(AggState *aggstate)
 {
+  DBUG_TRACE;
   AggStatePerGroup *pergroup = aggstate->hash_pergroup;
   TupleTableSlot *outerslot = aggstate->tmpcontext->ecxt_outertuple;
   int     setno;
@@ -2183,6 +2264,7 @@ lookup_hash_entries(AggState *aggstate)
 static TupleTableSlot *
 ExecAgg(PlanState *pstate)
 {
+  DBUG_TRACE;
   AggState   *node = castNode(AggState, pstate);
   TupleTableSlot *result = NULL;
 
@@ -2192,22 +2274,35 @@ ExecAgg(PlanState *pstate)
     /* Dispatch based on strategy */
     switch (node->phase->aggstrategy) {
       case AGG_HASHED:
+        DBUG_PRINT("info", "dispatch based on strategy:AGG_HASHED");
+
         if (!node->table_filled)
           agg_fill_hash_table(node);
 
-      /* FALLTHROUGH */
+        result = agg_retrieve_hash_table(node);
+        break;
+
       case AGG_MIXED:
+        DBUG_PRINT("info", "dispatch based on strategy:AGG_MIXED");
         result = agg_retrieve_hash_table(node);
         break;
 
       case AGG_PLAIN:
+        DBUG_PRINT("info", "dispatch based on strategy:AGG_PLAIN");
+        result = agg_retrieve_direct(node);
+        break;
+
       case AGG_SORTED:
+        DBUG_PRINT("info", "dispatch based on strategy:AGG_SORTED");
         result = agg_retrieve_direct(node);
         break;
     }
 
-    if (!TupIsNull(result))
+    if (!TupIsNull(result)) {
       return result;
+    }
+  } else {
+    DBUG_PRINT("info", "agg done");
   }
 
   return NULL;
@@ -2219,6 +2314,7 @@ ExecAgg(PlanState *pstate)
 static TupleTableSlot *
 agg_retrieve_direct(AggState *aggstate)
 {
+  DBUG_TRACE;
   Agg      *node = aggstate->phase->aggnode;
   ExprContext *econtext;
   ExprContext *tmpcontext;
@@ -2228,12 +2324,17 @@ agg_retrieve_direct(AggState *aggstate)
   TupleTableSlot *firstSlot;
   TupleTableSlot *result;
   bool    hasGroupingSets = aggstate->phase->numsets > 0;
+  bool    tmp_trace_disabled = false;
+  bool    tmp_inner_trace_disabled = false;
   int     numGroupingSets = Max(aggstate->phase->numsets, 1);
   int     currentSet;
   int     nextSetSize;
   int     numReset;
   int     i;
+  size_t        count = 0;
+  size_t        inner_count = 0;
 
+  DBUG_PRINT("info", "ExecAgg for non-hashed case");
   /*
    * get state info from node
    *
@@ -2258,6 +2359,15 @@ agg_retrieve_direct(AggState *aggstate)
    * row or by discarding it in the qual).
    */
   while (!aggstate->agg_done) {
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     /*
      * Clear the per-output-tuple context for each group, as well as
      * aggcontext (which contains any pass-by-ref transvalues of the old
@@ -2281,6 +2391,7 @@ agg_retrieve_direct(AggState *aggstate)
     else
       numReset = numGroupingSets;
 
+    DBUG_PRINT("info", "determine how many grouping sets need to be reset at this boundary:%d", numReset);
     /*
      * numReset can change on a phase boundary, but that's OK; we want to
      * reset the contexts used in _this_ phase, and later, after possibly
@@ -2310,13 +2421,25 @@ agg_retrieve_direct(AggState *aggstate)
          * Mixed mode; we've output all the grouped stuff and have
          * full hashtables, so switch to outputting those.
          */
+        DBUG_PRINT("info", "we've output all the grouped stuff and have full hashtables, so switch to outputting those");
         initialize_phase(aggstate, 0);
         aggstate->table_filled = true;
         ResetTupleHashIterator(aggstate->perhash[0].hashtable,
                                &aggstate->perhash[0].hashiter);
         select_current_set(aggstate, 0, true);
+
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        }
+
+        DBUG_PRINT("info", "total processed:%lu (outer loop)", count);
+
         return agg_retrieve_hash_table(aggstate);
       } else {
+        DBUG_PRINT("info", "set agg done true");
         aggstate->agg_done = true;
         break;
       }
@@ -2385,6 +2508,8 @@ agg_retrieve_direct(AggState *aggstate)
            */
           aggstate->grp_firstTuple = ExecCopySlotHeapTuple(outerslot);
         } else {
+          DBUG_PRINT("info", "outer plan produced no tuples at all");
+
           /* outer plan produced no tuples at all */
           if (hasGroupingSets) {
             /*
@@ -2419,8 +2544,18 @@ agg_retrieve_direct(AggState *aggstate)
             aggstate->agg_done = true;
 
             /* If we are grouping, we should produce no tuples too */
-            if (node->aggstrategy != AGG_PLAIN)
+            if (node->aggstrategy != AGG_PLAIN) {
+              if (tmp_trace_disabled) {
+                set_trace_enabled();
+                tmp_trace_disabled = false;
+                DBUG_PRINT("info", "...");
+                DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+              }
+
+              DBUG_PRINT("info", "total processed:%lu (outer loop)", count);
+              DBUG_PRINT("info", "while we are grouping, we should produce no tuples too");
               return NULL;
+            }
           }
         }
       }
@@ -2429,6 +2564,7 @@ agg_retrieve_direct(AggState *aggstate)
        * Initialize working state for a new input tuple group.
        */
       initialize_aggregates(aggstate, pergroups, numReset);
+      count++;
 
       if (aggstate->grp_firstTuple != NULL) {
         /*
@@ -2440,6 +2576,7 @@ agg_retrieve_direct(AggState *aggstate)
                                 firstSlot, true);
         aggstate->grp_firstTuple = NULL;  /* don't keep two pointers */
 
+        DBUG_PRINT("info", "set up for first advance_aggregates call");
         /* set up for first advance_aggregates call */
         tmpcontext->ecxt_outertuple = firstSlot;
 
@@ -2447,18 +2584,35 @@ agg_retrieve_direct(AggState *aggstate)
          * Process each outer-plan tuple, and then fetch the next one,
          * until we exhaust the outer plan or cross a group boundary.
          */
+        DBUG_PRINT("info", "process each outer-plan tuple, and then fetch the next one,");
+        DBUG_PRINT("info", "until we exhaust the outer plan or cross a group boundary");
+        inner_count = 0;
+
         for (;;) {
+          if (inner_count >= max_trace_iterations) {
+            if (!trace_disabled) {
+              if (!tmp_inner_trace_disabled) {
+                tmp_inner_trace_disabled = true;
+                set_trace_disabled();
+              }
+            }
+          }
+
           /*
            * During phase 1 only of a mixed agg, we need to update
            * hashtables as well in advance_aggregates.
            */
           if (aggstate->aggstrategy == AGG_MIXED &&
               aggstate->current_phase == 1) {
+            DBUG_PRINT("info", "we need to update hashtables as well in advance_aggregates");
             lookup_hash_entries(aggstate);
           }
 
           /* Advance the aggregates (or combine functions) */
+          DBUG_PRINT("info", "advance the aggregates");
           advance_aggregates(aggstate);
+          inner_count++;
+
 
           /* Reset per-input-tuple context after each tuple */
           ResetExprContext(tmpcontext);
@@ -2467,6 +2621,8 @@ agg_retrieve_direct(AggState *aggstate)
 
           if (TupIsNull(outerslot)) {
             /* no more outer-plan tuples available */
+
+            DBUG_PRINT("info", "no more outer-plan tuples available");
 
             /* if we built hash tables, finalize any spills */
             if (aggstate->aggstrategy == AGG_MIXED &&
@@ -2480,6 +2636,8 @@ agg_retrieve_direct(AggState *aggstate)
               aggstate->agg_done = true;
               break;
             }
+          } else {
+            DBUG_PRINT("info", "fetch total tuples:%lu", inner_count);
           }
 
           /* set up for next advance_aggregates call */
@@ -2490,6 +2648,7 @@ agg_retrieve_direct(AggState *aggstate)
            * boundary.
            */
           if (node->aggstrategy != AGG_PLAIN && node->numCols > 0) {
+            DBUG_PRINT("info", "while we are grouping, check whether we've crossed a group boundary");
             tmpcontext->ecxt_innertuple = firstSlot;
 
             if (!ExecQual(aggstate->phase->eqfunctions[node->numCols - 1],
@@ -2499,6 +2658,15 @@ agg_retrieve_direct(AggState *aggstate)
             }
           }
         }
+
+        if (tmp_inner_trace_disabled) {
+          set_trace_enabled();
+          tmp_inner_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", inner_count - max_trace_iterations);
+        }
+
+        DBUG_PRINT("info", "total processed:%lu (inner loop)", inner_count);
       }
 
       /*
@@ -2530,9 +2698,28 @@ agg_retrieve_direct(AggState *aggstate)
      */
     result = project_aggregates(aggstate);
 
-    if (result)
+    if (result) {
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+      }
+
+      DBUG_PRINT("info", "total processed:%lu (outer loop)", count);
+
       return result;
+    }
   }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+  }
+
+  DBUG_PRINT("info", "total processed:%lu (outer loop)", count);
 
   /* No more groups */
   return NULL;
@@ -2544,14 +2731,29 @@ agg_retrieve_direct(AggState *aggstate)
 static void
 agg_fill_hash_table(AggState *aggstate)
 {
+  DBUG_TRACE;
   TupleTableSlot *outerslot;
   ExprContext *tmpcontext = aggstate->tmpcontext;
+  bool tmp_trace_disabled = false;
+  size_t count = 0;
 
+  DBUG_PRINT("info", "execAgg for hashed case: read input and build hash table");
   /*
    * Process each outer-plan tuple, and then fetch the next one, until we
    * exhaust the outer plan.
    */
+  DBUG_PRINT("info", "process each outer-plan tuple, and then fetch the next one, until we exhaust the outer plan");
+
   for (;;) {
+    if (count >= max_trace_iterations) {
+      if(!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     outerslot = fetch_input_tuple(aggstate);
 
     if (TupIsNull(outerslot))
@@ -2565,12 +2767,21 @@ agg_fill_hash_table(AggState *aggstate)
 
     /* Advance the aggregates (or combine functions) */
     advance_aggregates(aggstate);
+    count++;
 
     /*
      * Reset per-input-tuple context after each tuple, but note that the
      * hash lookups do this too
      */
     ResetExprContext(aggstate->tmpcontext);
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /* finalize spills, if any */
@@ -2598,15 +2809,19 @@ agg_fill_hash_table(AggState *aggstate)
 static bool
 agg_refill_hash_table(AggState *aggstate)
 {
+  DBUG_TRACE;
   HashAggBatch *batch;
   AggStatePerHash perhash;
   HashAggSpill spill;
   LogicalTapeSet *tapeset = aggstate->hash_tapeset;
   bool    spill_initialized = false;
+  bool    tmp_trace_disabled = false;
+  size_t count = 0;
 
   if (aggstate->hash_batches == NIL)
     return false;
 
+  DBUG_PRINT("info", "if any data was spilled during hash aggregation, reset the hash table and reprocess one batch of spilled data");
   /* hash_batches is a stack, with the top item at the end of the list */
   batch = llast(aggstate->hash_batches);
   aggstate->hash_batches = list_delete_last(aggstate->hash_batches);
@@ -2667,9 +2882,18 @@ agg_refill_hash_table(AggState *aggstate)
     TupleHashTable hashtable = perhash->hashtable;
     TupleHashEntry entry;
     MinimalTuple tuple;
-    uint32    hash;
+    uint32    hash = 0;
     bool    isnew = false;
     bool     *p_isnew = aggstate->hash_spill_mode ? NULL : &isnew;
+
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
 
     CHECK_FOR_INTERRUPTS();
 
@@ -2717,6 +2941,14 @@ agg_refill_hash_table(AggState *aggstate)
     ResetExprContext(aggstate->tmpcontext);
   }
 
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
+  }
+
   LogicalTapeClose(batch->input_tape);
 
   /* change back to phase 0 */
@@ -2751,7 +2983,10 @@ agg_refill_hash_table(AggState *aggstate)
 static TupleTableSlot *
 agg_retrieve_hash_table(AggState *aggstate)
 {
+  DBUG_TRACE;
   TupleTableSlot *result = NULL;
+
+  DBUG_PRINT("info", "retrieving groups from hash table");
 
   while (result == NULL) {
     result = agg_retrieve_hash_table_in_memory(aggstate);
@@ -2774,6 +3009,7 @@ agg_retrieve_hash_table(AggState *aggstate)
 static TupleTableSlot *
 agg_retrieve_hash_table_in_memory(AggState *aggstate)
 {
+  DBUG_TRACE;
   ExprContext *econtext;
   AggStatePerAgg peragg;
   AggStatePerGroup pergroup;
@@ -2781,7 +3017,10 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
   TupleTableSlot *firstSlot;
   TupleTableSlot *result;
   AggStatePerHash perhash;
+  bool    tmp_trace_disabled = false;
+  size_t count = 0;
 
+  DBUG_PRINT("info", "retrieve the groups from the in-memory hash tables without considering any spilled tuples");
   /*
    * get state info from node.
    *
@@ -2806,6 +3045,15 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
     TupleHashTable hashtable = perhash->hashtable;
     int     i;
 
+    if (count >= max_trace_iterations) {
+      if (!trace_disabled) {
+        if (!tmp_trace_disabled) {
+          tmp_trace_disabled = true;
+          set_trace_disabled();
+        }
+      }
+    }
+
     CHECK_FOR_INTERRUPTS();
 
     /*
@@ -2829,10 +3077,19 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
 
         continue;
       } else {
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          tmp_trace_disabled = false;
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+          DBUG_PRINT("info", "total processed:%lu", count);
+        }
+
         return NULL;
       }
     }
 
+    count++;
     /*
      * Clear the per-output-tuple context for each group
      *
@@ -2878,8 +3135,25 @@ agg_retrieve_hash_table_in_memory(AggState *aggstate)
 
     result = project_aggregates(aggstate);
 
-    if (result)
+    if (result) {
+      if (tmp_trace_disabled) {
+        set_trace_enabled();
+        tmp_trace_disabled = false;
+        DBUG_PRINT("info", "...");
+        DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+        DBUG_PRINT("info", "total processed:%lu", count);
+      }
+
       return result;
+    }
+  }
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+    tmp_trace_disabled = false;
+    DBUG_PRINT("info", "...");
+    DBUG_PRINT("info", "similar things have been processed %lu times", count - max_trace_iterations);
+    DBUG_PRINT("info", "total processed:%lu", count);
   }
 
   /* No more groups */
@@ -2896,6 +3170,7 @@ static void
 hashagg_spill_init(HashAggSpill *spill, LogicalTapeSet *tapeset, int used_bits,
                    double input_groups, double hashentrysize)
 {
+  DBUG_TRACE;
   int     npartitions;
   int     partition_bits;
 
@@ -2942,6 +3217,7 @@ static Size
 hashagg_spill_tuple(AggState *aggstate, HashAggSpill *spill,
                     TupleTableSlot *inputslot, uint32 hash)
 {
+  DBUG_TRACE;
   TupleTableSlot *spillslot;
   int     partition;
   MinimalTuple tuple;
@@ -2950,6 +3226,8 @@ hashagg_spill_tuple(AggState *aggstate, HashAggSpill *spill,
   bool    shouldFree;
 
   Assert(spill->partitions != NULL);
+
+  DBUG_PRINT("info", "save for later in the appropriate partition");
 
   /* spill only attributes that we actually need */
   if (!aggstate->all_cols_needed) {
@@ -3009,6 +3287,7 @@ static HashAggBatch *
 hashagg_batch_new(LogicalTape *input_tape, int setno,
                   int64 input_tuples, double input_card, int used_bits)
 {
+  DBUG_TRACE;
   HashAggBatch *batch = palloc0(sizeof(HashAggBatch));
 
   batch->setno = setno;
@@ -3027,12 +3306,14 @@ hashagg_batch_new(LogicalTape *input_tape, int setno,
 static MinimalTuple
 hashagg_batch_read(HashAggBatch *batch, uint32 *hashp)
 {
+  DBUG_TRACE;
   LogicalTape *tape = batch->input_tape;
   MinimalTuple tuple;
   uint32    t_len;
   size_t    nread;
   uint32    hash;
 
+  DBUG_PRINT("info", "read the next tuple from a batch's tape");
   nread = LogicalTapeRead(tape, &hash, sizeof(uint32));
 
   if (nread == 0)
@@ -3081,6 +3362,7 @@ hashagg_batch_read(HashAggBatch *batch, uint32 *hashp)
 static void
 hashagg_finish_initial_spills(AggState *aggstate)
 {
+  DBUG_TRACE;
   int     setno;
   int     total_npartitions = 0;
 
@@ -3113,6 +3395,7 @@ hashagg_finish_initial_spills(AggState *aggstate)
 static void
 hashagg_spill_finish(AggState *aggstate, HashAggSpill *spill, int setno)
 {
+  DBUG_TRACE;
   int     i;
   int     used_bits = 32 - spill->shift;
 
@@ -3152,6 +3435,8 @@ hashagg_spill_finish(AggState *aggstate, HashAggSpill *spill, int setno)
 static void
 hashagg_reset_spill_state(AggState *aggstate)
 {
+  DBUG_TRACE;
+
   /* free spills from initial pass */
   if (aggstate->hash_spills != NULL) {
     int     setno;
@@ -3190,6 +3475,7 @@ hashagg_reset_spill_state(AggState *aggstate)
 AggState *
 ExecInitAgg(Agg *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   AggState   *aggstate;
   AggStatePerAgg peraggs;
   AggStatePerTrans pertransstates;
@@ -3840,6 +4126,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
       Datum   initValue;
       bool    initValueIsNull;
       Oid     transfn_oid;
+      char     *func_name;
 
       /*
        * If this aggregation is performing state combines, then instead
@@ -3848,12 +4135,17 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
        */
       if (DO_AGGSPLIT_COMBINE(aggstate->aggsplit)) {
         transfn_oid = aggform->aggcombinefn;
+        func_name = get_func_name(transfn_oid);
+        DBUG_PRINT("info", "this aggregation is performing state combines, use the transition function:%s", func_name);
 
         /* If not set then the planner messed up */
         if (!OidIsValid(transfn_oid))
           elog(ERROR, "combinefn not set for aggregate function");
-      } else
+      } else {
         transfn_oid = aggform->aggtransfn;
+        func_name = get_func_name(transfn_oid);
+        DBUG_PRINT("info", "use the transition function:%s", func_name);
+      }
 
       aclresult = object_aclcheck(ProcedureRelationId, transfn_oid, aggOwner, ACL_EXECUTE);
 
@@ -4029,6 +4321,7 @@ build_pertrans_for_aggref(AggStatePerTrans pertrans,
                           Datum initValue, bool initValueIsNull,
                           Oid *inputTypes, int numArguments)
 {
+  DBUG_TRACE;
   int     numGroupingSets = Max(aggstate->maxsets, 1);
   Expr     *transfnexpr;
   int     numTransArgs;
@@ -4042,6 +4335,7 @@ build_pertrans_for_aggref(AggStatePerTrans pertrans,
   int     numDistinctCols;
   int     i;
 
+  DBUG_PRINT("info", "build the state needed to calculate a state value for an aggregate");
   /* Begin filling in the pertrans data */
   pertrans->aggref = aggref;
   pertrans->aggshared = false;
@@ -4067,6 +4361,7 @@ build_pertrans_for_aggref(AggStatePerTrans pertrans,
    * Set up infrastructure for calling the transfn.  Note that invtransfn is
    * not needed here.
    */
+  DBUG_PRINT("info", "set up infrastructure for calling the transfn");
   build_aggregate_transfn_expr(inputTypes,
                                numArguments,
                                numDirectArgs,
@@ -4261,6 +4556,7 @@ build_pertrans_for_aggref(AggStatePerTrans pertrans,
 static Datum
 GetAggInitVal(Datum textInitVal, Oid transtype)
 {
+  DBUG_TRACE;
   Oid     typinput,
           typioparam;
   char     *strInitVal;
@@ -4277,6 +4573,7 @@ GetAggInitVal(Datum textInitVal, Oid transtype)
 void
 ExecEndAgg(AggState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan;
   int     transno;
   int     numGroupingSets = Max(node->maxsets, 1);
@@ -4341,6 +4638,7 @@ ExecEndAgg(AggState *node)
 void
 ExecReScanAgg(AggState *node)
 {
+  DBUG_TRACE;
   ExprContext *econtext = node->ss.ps.ps_ExprContext;
   PlanState  *outerPlan = outerPlanState(node);
   Agg      *aggnode = (Agg *) node->ss.ps.plan;
@@ -4480,6 +4778,8 @@ ExecReScanAgg(AggState *node)
 int
 AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
 {
+  DBUG_TRACE;
+
   if (fcinfo->context && IsA(fcinfo->context, AggState)) {
     if (aggcontext) {
       AggState   *aggstate = ((AggState *) fcinfo->context);
@@ -4488,6 +4788,7 @@ AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
       *aggcontext = cxt->ecxt_per_tuple_memory;
     }
 
+    DBUG_PRINT("info", "result: AGG_CONTEXT_AGGREGATE");
     return AGG_CONTEXT_AGGREGATE;
   }
 
@@ -4495,6 +4796,7 @@ AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
     if (aggcontext)
       *aggcontext = ((WindowAggState *) fcinfo->context)->curaggcontext;
 
+    DBUG_PRINT("info", "result: AGG_CONTEXT_WINDOW");
     return AGG_CONTEXT_WINDOW;
   }
 
@@ -4502,6 +4804,7 @@ AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
   if (aggcontext)
     *aggcontext = NULL;
 
+  DBUG_PRINT("info", "result: 0");
   return 0;
 }
 
@@ -4525,6 +4828,8 @@ AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
 Aggref *
 AggGetAggref(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
+
   if (fcinfo->context && IsA(fcinfo->context, AggState)) {
     AggState   *aggstate = (AggState *) fcinfo->context;
     AggStatePerAgg curperagg;
@@ -4559,6 +4864,8 @@ AggGetAggref(FunctionCallInfo fcinfo)
 MemoryContext
 AggGetTempMemoryContext(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
+
   if (fcinfo->context && IsA(fcinfo->context, AggState)) {
     AggState   *aggstate = (AggState *) fcinfo->context;
 
@@ -4585,6 +4892,8 @@ AggGetTempMemoryContext(FunctionCallInfo fcinfo)
 bool
 AggStateIsShared(FunctionCallInfo fcinfo)
 {
+  DBUG_TRACE;
+
   if (fcinfo->context && IsA(fcinfo->context, AggState)) {
     AggState   *aggstate = (AggState *) fcinfo->context;
     AggStatePerAgg curperagg;
@@ -4626,6 +4935,8 @@ AggRegisterCallback(FunctionCallInfo fcinfo,
                     ExprContextCallbackFunction func,
                     Datum arg)
 {
+  DBUG_TRACE;
+
   if (fcinfo->context && IsA(fcinfo->context, AggState)) {
     AggState   *aggstate = (AggState *) fcinfo->context;
     ExprContext *cxt = aggstate->curaggcontext;
@@ -4645,14 +4956,15 @@ AggRegisterCallback(FunctionCallInfo fcinfo,
  */
 
 /* ----------------------------------------------------------------
- *   ExecAggEstimate
+ *    ExecAggEstimate
  *
- *   Estimate space required to propagate aggregate statistics.
+ *    Estimate space required to propagate aggregate statistics.
  * ----------------------------------------------------------------
  */
 void
 ExecAggEstimate(AggState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -4674,6 +4986,7 @@ ExecAggEstimate(AggState *node, ParallelContext *pcxt)
 void
 ExecAggInitializeDSM(AggState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -4712,6 +5025,7 @@ ExecAggInitializeWorker(AggState *node, ParallelWorkerContext *pwcxt)
 void
 ExecAggRetrieveInstrumentation(AggState *node)
 {
+  DBUG_TRACE;
   Size    size;
   SharedAggInfo *si;
 

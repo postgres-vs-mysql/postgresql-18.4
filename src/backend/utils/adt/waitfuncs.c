@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_type.h"
 #include "storage/predicate_internals.h"
@@ -38,6 +39,7 @@
 Datum
 pg_isolation_test_session_is_blocked(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     blocked_pid = PG_GETARG_INT32(0);
   ArrayType  *interesting_pids_a = PG_GETARG_ARRAYTYPE_P(1);
   PGPROC     *proc;
@@ -77,6 +79,7 @@ pg_isolation_test_session_is_blocked(PG_FUNCTION_ARGS)
    * Get the PIDs of all sessions blocking the given session's attempt to
    * acquire heavyweight locks.
    */
+  DBUG_PRINT("info", "get  the PIDs of all sessions blocking the given session's attempt to acquire heavyweight locks");
   blocking_pids_a =
     DatumGetArrayTypeP(DirectFunctionCall1(pg_blocking_pids, blocked_pid));
 

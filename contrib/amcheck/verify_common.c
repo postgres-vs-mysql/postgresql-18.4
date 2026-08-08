@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/table.h"
@@ -35,15 +36,20 @@ static bool amcheck_index_mainfork_expected(Relation rel);
 static bool
 amcheck_index_mainfork_expected(Relation rel)
 {
+  DBUG_TRACE;
   if (rel->rd_rel->relpersistence != RELPERSISTENCE_UNLOGGED ||
-      !RecoveryInProgress())
+      !RecoveryInProgress()) {
+    DBUG_PRINT("amcheck", "return true");
     return true;
+  }
 
+  DBUG_PRINT("amcheck", "cannot verify unlogged index \"%s\" during recovery, skipping", RelationGetRelationName(rel));
   ereport(NOTICE,
           (errcode(ERRCODE_READ_ONLY_SQL_TRANSACTION),
            errmsg("cannot verify unlogged index \"%s\" during recovery, skipping",
                   RelationGetRelationName(rel))));
 
+  DBUG_PRINT("amcheck", "return false");
   return false;
 }
 
@@ -63,6 +69,7 @@ amcheck_lock_relation_and_check(Oid indrelid,
                                 LOCKMODE lockmode,
                                 void *state)
 {
+  DBUG_TRACE;
   Oid     heapid;
   Relation  indrel;
   Relation  heaprel;
@@ -119,11 +126,13 @@ amcheck_lock_relation_and_check(Oid indrelid,
    * barely possible that a race against an index drop/recreation could have
    * netted us the wrong table.
    */
-  if (heaprel == NULL || heapid != IndexGetRelation(indrelid, false))
+  if (heaprel == NULL || heapid != IndexGetRelation(indrelid, false)) {
+    DBUG_INSTANT_PRINT("amcheck", "could not open parent table of index \"%s\"", RelationGetRelationName(indrel));
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_TABLE),
              errmsg("could not open parent table of index \"%s\"",
                     RelationGetRelationName(indrel))));
+  }
 
   /* Check that relation suitable for checking */
   if (index_checkable(indrel, am_id))
@@ -157,6 +166,7 @@ amcheck_lock_relation_and_check(Oid indrelid,
 bool
 index_checkable(Relation rel, Oid am_id)
 {
+  DBUG_TRACE;
   if (rel->rd_rel->relkind != RELKIND_INDEX ||
       rel->rd_rel->relam != am_id) {
     HeapTuple amtup;
@@ -164,6 +174,7 @@ index_checkable(Relation rel, Oid am_id)
 
     amtup = SearchSysCache1(AMOID, ObjectIdGetDatum(am_id));
     amtuprel = SearchSysCache1(AMOID, ObjectIdGetDatum(rel->rd_rel->relam));
+    DBUG_INSTANT_PRINT("amcheck", "expected \"%s\" index as targets for verification", NameStr(((Form_pg_am) GETSTRUCT(amtup))->amname));
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("expected \"%s\" index as targets for verification", NameStr(((Form_pg_am) GETSTRUCT(amtup))->amname)),
@@ -171,19 +182,23 @@ index_checkable(Relation rel, Oid am_id)
                        RelationGetRelationName(rel), NameStr(((Form_pg_am) GETSTRUCT(amtuprel))->amname))));
   }
 
-  if (RELATION_IS_OTHER_TEMP(rel))
+  if (RELATION_IS_OTHER_TEMP(rel)) {
+    DBUG_INSTANT_PRINT("amcheck", "cannot access temporary tables of other sessions");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot access temporary tables of other sessions"),
              errdetail("Index \"%s\" is associated with temporary relation.",
                        RelationGetRelationName(rel))));
+  }
 
-  if (!rel->rd_index->indisvalid)
+  if (!rel->rd_index->indisvalid) {
+    DBUG_INSTANT_PRINT("amcheck", "index is not valid");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot check index \"%s\"",
                     RelationGetRelationName(rel)),
              errdetail("Index is not valid.")));
+  }
 
   return amcheck_index_mainfork_expected(rel);
 }

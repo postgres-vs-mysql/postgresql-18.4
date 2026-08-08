@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/nbtree.h"
 #include "access/nbtxlog.h"
@@ -106,6 +107,7 @@ _bt_initmetapage(Page page, BlockNumber rootbknum, uint32 level,
 void
 _bt_upgrademetapage(Page page)
 {
+  DBUG_TRACE;
   BTMetaPageData *metad;
   BTPageOpaque metaopaque PG_USED_FOR_ASSERTS_ONLY;
 
@@ -151,20 +153,27 @@ _bt_getmeta(Relation rel, Buffer metabuf)
 
   /* sanity-check the metapage */
   if (!P_ISMETA(metaopaque) ||
-      metad->btm_magic != BTREE_MAGIC)
+      metad->btm_magic != BTREE_MAGIC) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "index \"%s\" is not a btree", rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("index \"%s\" is not a btree",
-                    RelationGetRelationName(rel))));
+                    rel_name)));
+  }
 
   if (metad->btm_version < BTREE_MIN_VERSION ||
-      metad->btm_version > BTREE_VERSION)
+      metad->btm_version > BTREE_VERSION) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "version mismatch in index \"%s\": file version %d,current version %d, minimal supported version %d",
+                       rel_name, metad->btm_version, BTREE_VERSION, BTREE_MIN_VERSION);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("version mismatch in index \"%s\": file version %d, "
                     "current version %d, minimal supported version %d",
-                    RelationGetRelationName(rel),
+                    rel_name,
                     metad->btm_version, BTREE_VERSION, BTREE_MIN_VERSION)));
+  }
 
   return metad;
 }
@@ -178,6 +187,7 @@ _bt_getmeta(Relation rel, Buffer metabuf)
 bool
 _bt_vacuum_needs_cleanup(Relation rel)
 {
+  DBUG_TRACE;
   Buffer    metabuf;
   Page    metapg;
   BTMetaPageData *metad;
@@ -200,6 +210,9 @@ _bt_vacuum_needs_cleanup(Relation rel)
      * only present when btm_version >= BTREE_NOVAC_VERSION
      */
     _bt_relbuf(rel, metabuf);
+    DBUG_PRINT("info", "metapage needs to be dynamically upgraded to store fields that are");
+    DBUG_PRINT("info", "only present when btm_version >= BTREE_NOVAC_VERSION");
+    DBUG_PRINT("info", "return true");
     return true;
   }
 
@@ -215,9 +228,13 @@ _bt_vacuum_needs_cleanup(Relation rel)
    * FSM.
    */
   if (prev_num_delpages > 0 &&
-      prev_num_delpages > RelationGetNumberOfBlocks(rel) / 20)
+      prev_num_delpages > RelationGetNumberOfBlocks(rel) / 20) {
+    DBUG_PRINT("info", "trigger cleanup in rare cases where prev_num_delpages exceeds 5 percent of the total size of the index");
+    DBUG_PRINT("info", "prev_num_delpages:%u and return true", prev_num_delpages);
     return true;
+  }
 
+  DBUG_PRINT("info", "prev_num_delpages:%u and return false", prev_num_delpages);
   return false;
 }
 
@@ -230,10 +247,12 @@ _bt_vacuum_needs_cleanup(Relation rel)
 void
 _bt_set_cleanup_info(Relation rel, BlockNumber num_delpages)
 {
+  DBUG_TRACE;
   Buffer    metabuf;
   Page    metapg;
   BTMetaPageData *metad;
 
+  DBUG_PRINT("info", "update metapage for btvacuumcleanup:%u", num_delpages);
   /*
    * On-disk compatibility note: The btm_last_cleanup_num_delpages metapage
    * field started out as a TransactionId field called btm_oldest_btpo_xact.
@@ -534,17 +553,23 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
         break;
 
       /* it's dead, Jim.  step right one page */
-      if (P_RIGHTMOST(rootopaque))
-        elog(ERROR, "no live root page found in index \"%s\"",
-             RelationGetRelationName(rel));
+      if (P_RIGHTMOST(rootopaque)) {
+        char *rel_name = RelationGetRelationName(rel);
+        DBUG_INSTANT_PRINT("info", "no live root page found in index \"%s\"", rel_name);
+        elog(ERROR, "no live root page found in index \"%s\"", rel_name);
+      }
 
       rootblkno = rootopaque->btpo_next;
     }
 
-    if (rootopaque->btpo_level != rootlevel)
+    if (rootopaque->btpo_level != rootlevel) {
+      char *rel_name = RelationGetRelationName(rel);
+      DBUG_INSTANT_PRINT("info", "root page %u of index \"%s\" has level %u, expected %u",
+                         rootblkno, rel_name, rootopaque->btpo_level, rootlevel);
       elog(ERROR, "root page %u of index \"%s\" has level %u, expected %u",
-           rootblkno, RelationGetRelationName(rel),
+           rootblkno, rel_name,
            rootopaque->btpo_level, rootlevel);
+    }
   }
 
   /*
@@ -598,20 +623,27 @@ _bt_gettrueroot(Relation rel)
   metad = BTPageGetMeta(metapg);
 
   if (!P_ISMETA(metaopaque) ||
-      metad->btm_magic != BTREE_MAGIC)
+      metad->btm_magic != BTREE_MAGIC) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "index \"%s\" is not a btree", rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("index \"%s\" is not a btree",
-                    RelationGetRelationName(rel))));
+                    rel_name)));
+  }
 
   if (metad->btm_version < BTREE_MIN_VERSION ||
-      metad->btm_version > BTREE_VERSION)
+      metad->btm_version > BTREE_VERSION) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "version mismatch in index \"%s\": file version %d,current version %d, minimal supported version %d",
+                       rel_name, metad->btm_version, BTREE_VERSION, BTREE_MIN_VERSION);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("version mismatch in index \"%s\": file version %d, "
                     "current version %d, minimal supported version %d",
-                    RelationGetRelationName(rel),
+                    rel_name,
                     metad->btm_version, BTREE_VERSION, BTREE_MIN_VERSION)));
+  }
 
   /* if no root page initialized yet, fail */
   if (metad->btm_root == P_NONE) {
@@ -637,17 +669,23 @@ _bt_gettrueroot(Relation rel)
       break;
 
     /* it's dead, Jim.  step right one page */
-    if (P_RIGHTMOST(rootopaque))
-      elog(ERROR, "no live root page found in index \"%s\"",
-           RelationGetRelationName(rel));
+    if (P_RIGHTMOST(rootopaque)) {
+      char *rel_name = RelationGetRelationName(rel);
+      DBUG_INSTANT_PRINT("info", "no live root page found in index \"%s\"", rel_name);
+      elog(ERROR, "no live root page found in index \"%s\"", rel_name);
+    }
 
     rootblkno = rootopaque->btpo_next;
   }
 
-  if (rootopaque->btpo_level != rootlevel)
+  if (rootopaque->btpo_level != rootlevel) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "root page %u of index \"%s\" has level %u, expected %u",
+                       rootblkno, rel_name, rootopaque->btpo_level, rootlevel);
     elog(ERROR, "root page %u of index \"%s\" has level %u, expected %u",
-         rootblkno, RelationGetRelationName(rel),
+         rootblkno, rel_name,
          rootopaque->btpo_level, rootlevel);
+  }
 
   return rootbuf;
 }
@@ -666,6 +704,7 @@ _bt_gettrueroot(Relation rel)
 int
 _bt_getrootheight(Relation rel)
 {
+  DBUG_TRACE;
   BTMetaPageData *metad;
 
   if (rel->rd_amcache == NULL) {
@@ -703,6 +742,7 @@ _bt_getrootheight(Relation rel)
          metad->btm_version > BTREE_NOVAC_VERSION);
   Assert(metad->btm_fastroot != P_NONE);
 
+  DBUG_PRINT("info", "get the height of the btree search tree:%d, root level:%d", metad->btm_fastlevel, metad->btm_level);
   return metad->btm_fastlevel;
 }
 
@@ -792,24 +832,30 @@ _bt_checkpage(Relation rel, Buffer buf)
    * page header or is all-zero.  We have to defend against the all-zero
    * case, however.
    */
-  if (PageIsNew(page))
+  if (PageIsNew(page)) {
+    DBUG_INSTANT_PRINT("info", "index \"%s\" contains unexpected zero page at block %u",
+                       RelationGetRelationName(rel), BufferGetBlockNumber(buf));
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("index \"%s\" contains unexpected zero page at block %u",
                     RelationGetRelationName(rel),
                     BufferGetBlockNumber(buf)),
              errhint("Please REINDEX it.")));
+  }
 
   /*
    * Additionally check that the special area looks sane.
    */
-  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BTPageOpaqueData)))
+  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BTPageOpaqueData))) {
+    DBUG_INSTANT_PRINT("info", "index \"%s\" contains corrupted page at block %u",
+                       RelationGetRelationName(rel), BufferGetBlockNumber(buf));
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg("index \"%s\" contains corrupted page at block %u",
                     RelationGetRelationName(rel),
                     BufferGetBlockNumber(buf)),
              errhint("Please REINDEX it.")));
+  }
 }
 
 /*
@@ -944,9 +990,11 @@ _bt_allocbuf(Relation rel, Relation heaprel)
         return buf;
       }
 
+      DBUG_PRINT("info", "FSM returned nonrecyclable page");
       elog(DEBUG2, "FSM returned nonrecyclable page");
       _bt_relbuf(rel, buf);
     } else {
+      DBUG_PRINT("info", "FSM returned nonlockable page");
       elog(DEBUG2, "FSM returned nonlockable page");
       /* couldn't get lock, so just drop pin */
       ReleaseBuffer(buf);
@@ -1143,6 +1191,7 @@ _bt_delitems_vacuum(Relation rel, Buffer buf,
                     OffsetNumber *deletable, int ndeletable,
                     BTVacuumPosting *updatable, int nupdatable)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   BTPageOpaque opaque;
   bool    needswal = RelationNeedsWAL(rel);
@@ -1183,9 +1232,12 @@ _bt_delitems_vacuum(Relation rel, Buffer buf,
     itemsz = MAXALIGN(IndexTupleSize(itup));
 
     if (!PageIndexTupleOverwrite(page, updatedoffset, (Item) itup,
-                                 itemsz))
+                                 itemsz)) {
+      DBUG_INSTANT_PRINT("info", "failed to update partially dead item in block %u of index \"%s\"",
+                         BufferGetBlockNumber(buf), RelationGetRelationName(rel));
       elog(PANIC, "failed to update partially dead item in block %u of index \"%s\"",
            BufferGetBlockNumber(buf), RelationGetRelationName(rel));
+    }
   }
 
   /* Now handle simple deletes of entire tuples */
@@ -1273,6 +1325,7 @@ _bt_delitems_delete(Relation rel, Buffer buf,
                     OffsetNumber *deletable, int ndeletable,
                     BTVacuumPosting *updatable, int nupdatable)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   BTPageOpaque opaque;
   bool    needswal = RelationNeedsWAL(rel);
@@ -1302,9 +1355,12 @@ _bt_delitems_delete(Relation rel, Buffer buf,
     itemsz = MAXALIGN(IndexTupleSize(itup));
 
     if (!PageIndexTupleOverwrite(page, updatedoffset, (Item) itup,
-                                 itemsz))
+                                 itemsz)) {
+      DBUG_INSTANT_PRINT("info", "failed to update partially dead item in block %u of index \"%s\"",
+                         BufferGetBlockNumber(buf), RelationGetRelationName(rel));
       elog(PANIC, "failed to update partially dead item in block %u of index \"%s\"",
            BufferGetBlockNumber(buf), RelationGetRelationName(rel));
+    }
   }
 
   if (ndeletable > 0)
@@ -1392,6 +1448,7 @@ _bt_delitems_update(BTVacuumPosting *updatable, int nupdatable,
                     OffsetNumber *updatedoffsets, Size *updatedbuflen,
                     bool needswal)
 {
+  DBUG_TRACE;
   char     *updatedbuf = NULL;
   Size    buflen = 0;
 
@@ -1497,6 +1554,7 @@ void
 _bt_delitems_delete_check(Relation rel, Buffer buf, Relation heapRel,
                           TM_IndexDeleteOp *delstate)
 {
+  DBUG_TRACE;
   Page    page = BufferGetPage(buf);
   TransactionId snapshotConflictHorizon;
   bool    isCatalogRel;
@@ -1672,6 +1730,7 @@ _bt_delitems_delete_check(Relation rel, Buffer buf, Relation heapRel,
 static bool
 _bt_leftsib_splitflag(Relation rel, BlockNumber leftsib, BlockNumber target)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
   BTPageOpaque opaque;
@@ -1729,6 +1788,7 @@ _bt_leftsib_splitflag(Relation rel, BlockNumber leftsib, BlockNumber target)
 static bool
 _bt_rightsib_halfdeadflag(Relation rel, BlockNumber leafrightsib)
 {
+  DBUG_TRACE;
   Buffer    buf;
   Page    page;
   BTPageOpaque opaque;
@@ -1779,6 +1839,7 @@ _bt_rightsib_halfdeadflag(Relation rel, BlockNumber leafrightsib)
 void
 _bt_pagedel(Relation rel, Buffer leafbuf, BTVacState *vstate)
 {
+  DBUG_TRACE;
   BlockNumber rightsib;
   bool    rightsib_empty;
   Page    page;
@@ -1832,20 +1893,26 @@ _bt_pagedel(Relation rel, Buffer leafbuf, BTVacState *vstate)
        * the upper levels. Log a notice, hopefully the admin will notice
        * and reindex.
        */
-      if (P_ISHALFDEAD(opaque))
+      if (P_ISHALFDEAD(opaque)) {
+        DBUG_INSTANT_PRINT("info", "index \"%s\" contains a half-dead internal page",
+                           RelationGetRelationName(rel));
         ereport(LOG,
                 (errcode(ERRCODE_INDEX_CORRUPTED),
                  errmsg("index \"%s\" contains a half-dead internal page",
                         RelationGetRelationName(rel)),
                  errhint("This can be caused by an interrupted VACUUM in version 9.3 or older, before upgrade. Please REINDEX it.")));
+      }
 
-      if (P_ISDELETED(opaque))
+      if (P_ISDELETED(opaque)) {
+        DBUG_INSTANT_PRINT("info", "found deleted block %u while following right link from block %u in index \"%s\"",
+                           BufferGetBlockNumber(leafbuf), scanblkno, RelationGetRelationName(rel));
         ereport(LOG,
                 (errcode(ERRCODE_INDEX_CORRUPTED),
                  errmsg_internal("found deleted block %u while following right link from block %u in index \"%s\"",
                                  BufferGetBlockNumber(leafbuf),
                                  scanblkno,
                                  RelationGetRelationName(rel))));
+      }
 
       _bt_relbuf(rel, leafbuf);
       return;
@@ -2061,6 +2128,7 @@ static bool
 _bt_mark_page_halfdead(Relation rel, Relation heaprel, Buffer leafbuf,
                        BTStack stack)
 {
+  DBUG_TRACE;
   BlockNumber leafblkno;
   BlockNumber leafrightsib;
   BlockNumber topparent;
@@ -2096,6 +2164,8 @@ _bt_mark_page_halfdead(Relation rel, Relation heaprel, Buffer leafbuf,
    * is also the next child in parent page" cross-check below.
    */
   if (_bt_rightsib_halfdeadflag(rel, leafrightsib)) {
+    DBUG_PRINT("info", "could not delete page %u because its right sibling %u is half-dead",
+               leafblkno, leafrightsib);
     elog(DEBUG1, "could not delete page %u because its right sibling %u is half-dead",
          leafblkno, leafrightsib);
     return false;
@@ -2150,13 +2220,16 @@ _bt_mark_page_halfdead(Relation rel, Relation heaprel, Buffer leafbuf,
    * where _bt_lock_subtree_parent() cannot "re-find" leafbuf's downlink.)
    */
   if (BTreeTupleGetDownLink(itup) != topparentrightsib) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "right sibling %u of block %u is not next child %u of block %u in index \"%s\"",
+                       topparentrightsib, topparent, BTreeTupleGetDownLink(itup), BufferGetBlockNumber(subtreeparent), rel_name);
     ereport(LOG,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("right sibling %u of block %u is not next child %u of block %u in index \"%s\"",
                              topparentrightsib, topparent,
                              BTreeTupleGetDownLink(itup),
                              BufferGetBlockNumber(subtreeparent),
-                             RelationGetRelationName(rel))));
+                             rel_name)));
 
     _bt_relbuf(rel, subtreeparent);
     Assert(false);
@@ -2213,8 +2286,10 @@ _bt_mark_page_halfdead(Relation rel, Relation heaprel, Buffer leafbuf,
     BTreeTupleSetTopParent(&trunctuple, InvalidBlockNumber);
 
   if (!PageIndexTupleOverwrite(page, P_HIKEY, (Item) &trunctuple,
-                               IndexTupleSize(&trunctuple)))
+                               IndexTupleSize(&trunctuple))) {
+    DBUG_INSTANT_PRINT("info", "could not overwrite high key in half-dead page");
     elog(ERROR, "could not overwrite high key in half-dead page");
+  }
 
   /* Must mark buffers dirty before XLogInsert */
   MarkBufferDirty(subtreeparent);
@@ -2287,6 +2362,7 @@ static bool
 _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
                          bool *rightsib_empty, BTVacState *vstate)
 {
+  DBUG_TRACE;
   BlockNumber leafblkno = BufferGetBlockNumber(leafbuf);
   IndexBulkDeleteResult *stats = vstate->stats;
   BlockNumber leafleftsib;
@@ -2400,12 +2476,14 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
          * is relatively common.  Press on with vacuuming rather than
          * just throwing an ERROR.
          */
+        char *rel_name = RelationGetRelationName(rel);
+        DBUG_INSTANT_PRINT("info", "valid left sibling for deletion target could not be located");
         ereport(LOG,
                 (errcode(ERRCODE_INDEX_CORRUPTED),
                  errmsg_internal("valid left sibling for deletion target could not be located: "
                                  "left sibling %u of target %u with leafblkno %u and scanblkno %u on level %u of index \"%s\"",
                                  leftsib, target, leafblkno, scanblkno,
-                                 targetlevel, RelationGetRelationName(rel))));
+                                 targetlevel, rel_name)));
 
         /* Must release all pins and locks on failure exit */
         ReleaseBuffer(buf);
@@ -2436,22 +2514,34 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
    * paranoia's sake; a half-dead page cannot resurrect because there can be
    * only one vacuum process running at a time.
    */
-  if (P_RIGHTMOST(opaque) || P_ISROOT(opaque) || P_ISDELETED(opaque))
+  if (P_RIGHTMOST(opaque) || P_ISROOT(opaque) || P_ISDELETED(opaque)) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "target page changed status unexpectedly in block %u of index \"%s\"",
+                       target, rel_name);
     elog(ERROR, "target page changed status unexpectedly in block %u of index \"%s\"",
-         target, RelationGetRelationName(rel));
+         target, rel_name);
+  }
 
-  if (opaque->btpo_prev != leftsib)
+  if (opaque->btpo_prev != leftsib) {
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "target page left link unexpectedly changed from %u to %u in block %u of index \"%s\"",
+                       leftsib, opaque->btpo_prev, target, rel_name);
     ereport(ERROR,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("target page left link unexpectedly changed from %u to %u in block %u of index \"%s\"",
                              leftsib, opaque->btpo_prev, target,
-                             RelationGetRelationName(rel))));
+                             rel_name)));
+  }
 
   if (target == leafblkno) {
     if (P_FIRSTDATAKEY(opaque) <= PageGetMaxOffsetNumber(page) ||
-        !P_ISLEAF(opaque) || !P_ISHALFDEAD(opaque))
+        !P_ISLEAF(opaque) || !P_ISHALFDEAD(opaque)) {
+      char *rel_name = RelationGetRelationName(rel);
+      DBUG_INSTANT_PRINT("info", "target leaf page changed status unexpectedly in block %u of index \"%s\"",
+                         target, rel_name);
       elog(ERROR, "target leaf page changed status unexpectedly in block %u of index \"%s\"",
-           target, RelationGetRelationName(rel));
+           target, rel_name);
+    }
 
     /* Leaf page is also target page: don't set leaftopparent */
     leaftopparent = InvalidBlockNumber;
@@ -2459,9 +2549,13 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
     IndexTuple  finaldataitem;
 
     if (P_FIRSTDATAKEY(opaque) != PageGetMaxOffsetNumber(page) ||
-        P_ISLEAF(opaque))
+        P_ISLEAF(opaque)) {
+      char *rel_name = RelationGetRelationName(rel);
+      DBUG_INSTANT_PRINT("info", "target internal page on level %u changed status unexpectedly in block %u of index \"%s\"",
+                         targetlevel, target, rel_name);
       elog(ERROR, "target internal page on level %u changed status unexpectedly in block %u of index \"%s\"",
-           targetlevel, target, RelationGetRelationName(rel));
+           targetlevel, target, rel_name);
+    }
 
     /* Target is internal: set leaftopparent for next call here...  */
     itemid = PageGetItemId(page, P_FIRSTDATAKEY(opaque));
@@ -2495,6 +2589,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
      * throwing an ERROR (same approach used for left-sibling's-right-link
      * validation check a moment ago).
      */
+    DBUG_INSTANT_PRINT("info", "right sibling's left-link doesn't match");
     ereport(LOG,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("right sibling's left-link doesn't match: "
@@ -2785,6 +2880,7 @@ _bt_lock_subtree_parent(Relation rel, Relation heaprel, BlockNumber child,
                         OffsetNumber *poffset, BlockNumber *topparent,
                         BlockNumber *topparentrightsib)
 {
+  DBUG_TRACE;
   BlockNumber parent,
               leftsibparent;
   OffsetNumber parentoffset,
@@ -2812,10 +2908,13 @@ _bt_lock_subtree_parent(Relation rel, Relation heaprel, BlockNumber child,
      * recovering in the event of a buggy or inconsistent opclass.  But we
      * don't rely on that here.
      */
+    char *rel_name = RelationGetRelationName(rel);
+    DBUG_INSTANT_PRINT("info", "failed to re-find parent key in index \"%s\" for deletion target page %u",
+                       rel_name, child);
     ereport(LOG,
             (errcode(ERRCODE_INDEX_CORRUPTED),
              errmsg_internal("failed to re-find parent key in index \"%s\" for deletion target page %u",
-                             RelationGetRelationName(rel), child)));
+                             rel_name, child)));
     Assert(false);
     return false;
   }
@@ -3031,6 +3130,7 @@ _bt_pendingfsm_add(BTVacState *vstate,
                    BlockNumber target,
                    FullTransactionId safexid)
 {
+  DBUG_TRACE;
   Assert(vstate->npendingpages <= vstate->bufsize);
   Assert(vstate->bufsize <= vstate->maxbufsize);
 

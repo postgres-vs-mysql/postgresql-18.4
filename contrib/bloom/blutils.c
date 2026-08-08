@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amapi.h"
 #include "access/generic_xlog.h"
@@ -48,6 +49,7 @@ static void mySrand(uint32 seed);
 void
 _PG_init(void)
 {
+  DBUG_TRACE;
   int     i;
   char    buf[16];
 
@@ -82,6 +84,7 @@ _PG_init(void)
 static BloomOptions *
 makeDefaultBloomOptions(void)
 {
+  DBUG_TRACE;
   BloomOptions *opts;
   int     i;
 
@@ -103,8 +106,10 @@ makeDefaultBloomOptions(void)
 Datum
 blhandler(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
+  DBUG_PRINT("bloom", "return IndexAmRoutine with access method parameters and callbacks");
   amroutine->amstrategies = BLOOM_NSTRATEGIES;
   amroutine->amsupport = BLOOM_NPROC;
   amroutine->amoptsprocnum = BLOOM_OPTIONS_PROC;
@@ -166,6 +171,7 @@ blhandler(PG_FUNCTION_ARGS)
 void
 initBloomState(BloomState *state, Relation index)
 {
+  DBUG_TRACE;
   int     i;
 
   state->nColumns = index->rd_att->natts;
@@ -298,6 +304,7 @@ signValue(BloomState *state, BloomSignatureWord *sign, Datum value, int attno)
 BloomTuple *
 BloomFormTuple(BloomState *state, ItemPointer iptr, Datum *values, bool *isnull)
 {
+  DBUG_TRACE;
   int     i;
   BloomTuple *res = (BloomTuple *) palloc0(state->sizeOfBloomTuple);
 
@@ -322,6 +329,7 @@ BloomFormTuple(BloomState *state, ItemPointer iptr, Datum *values, bool *isnull)
 bool
 BloomPageAddItem(BloomState *state, Page page, BloomTuple *tuple)
 {
+  DBUG_TRACE;
   BloomTuple *itup;
   BloomPageOpaque opaque;
   Pointer   ptr;
@@ -330,8 +338,10 @@ BloomPageAddItem(BloomState *state, Page page, BloomTuple *tuple)
   Assert(!PageIsNew(page) && !BloomPageIsDeleted(page));
 
   /* Does new tuple fit on the page? */
-  if (BloomPageGetFreeSpace(state, page) < state->sizeOfBloomTuple)
+  if (BloomPageGetFreeSpace(state, page) < state->sizeOfBloomTuple) {
+    DBUG_PRINT("bloom", "return false if it doesn't fit on the page");
     return false;
+  }
 
   /* Copy new tuple to the end of page */
   opaque = BloomPageGetOpaque(page);
@@ -345,6 +355,7 @@ BloomPageAddItem(BloomState *state, Page page, BloomTuple *tuple)
 
   /* Assert we didn't overrun available space */
   Assert(((PageHeader) page)->pd_lower <= ((PageHeader) page)->pd_upper);
+  DBUG_PRINT("bloom", "return true if new tuple was successfully added to the page");
 
   return true;
 }
@@ -357,9 +368,12 @@ BloomPageAddItem(BloomState *state, Page page, BloomTuple *tuple)
 Buffer
 BloomNewBuffer(Relation index)
 {
+  DBUG_TRACE;
   Buffer    buffer;
 
   /* First, try to get a page from FSM */
+  DBUG_PRINT("bloom", "first, try to get a page from FSM");
+
   for (;;) {
     BlockNumber blkno = GetFreeIndexPage(index);
 
@@ -389,6 +403,7 @@ BloomNewBuffer(Relation index)
   }
 
   /* Must extend the file */
+  DBUG_PRINT("bloom", "must extend the file");
   buffer = ExtendBufferedRel(BMR_REL(index), MAIN_FORKNUM, NULL,
                              EB_LOCK_FIRST);
 
@@ -401,8 +416,10 @@ BloomNewBuffer(Relation index)
 void
 BloomInitPage(Page page, uint16 flags)
 {
+  DBUG_TRACE;
   BloomPageOpaque opaque;
 
+  DBUG_PRINT("bloom", "initialize any page of a bloom index");
   PageInit(page, BLCKSZ, sizeof(BloomPageOpaqueData));
 
   opaque = BloomPageGetOpaque(page);
@@ -416,9 +433,11 @@ BloomInitPage(Page page, uint16 flags)
 void
 BloomFillMetapage(Relation index, Page metaPage)
 {
+  DBUG_TRACE;
   BloomOptions *opts;
   BloomMetaPageData *metadata;
 
+  DBUG_PRINT("bloom", "fill in metapage for bloom index");
   /*
    * Choose the index's options.  If reloptions have been assigned, use
    * those, otherwise create default options.
@@ -449,10 +468,12 @@ BloomFillMetapage(Relation index, Page metaPage)
 void
 BloomInitMetapage(Relation index, ForkNumber forknum)
 {
+  DBUG_TRACE;
   Buffer    metaBuffer;
   Page    metaPage;
   GenericXLogState *state;
 
+  DBUG_PRINT("bloom", "initialize metapage for bloom index");
   /*
    * Make a new page; since it is first page it should be associated with
    * block number 0 (BLOOM_METAPAGE_BLKNO).  No need to hold the extension
@@ -478,6 +499,7 @@ BloomInitMetapage(Relation index, ForkNumber forknum)
 bytea *
 bloptions(Datum reloptions, bool validate)
 {
+  DBUG_TRACE;
   BloomOptions *rdopts;
 
   /* Parse the user-given reloptions */

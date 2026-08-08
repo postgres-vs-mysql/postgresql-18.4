@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <unistd.h>
@@ -120,6 +121,8 @@ static const SyncOps syncsw[] = {
 void
 InitSync(void)
 {
+  DBUG_TRACE;
+
   /*
    * Create pending-operations hashtable if we need it.  Currently, we need
    * it if we are standalone (not under a postmaster) or if we are a
@@ -172,6 +175,7 @@ InitSync(void)
 void
 SyncPreCheckpoint(void)
 {
+  DBUG_TRACE;
   /*
    * Operations such as DROP TABLESPACE assume that the next checkpoint will
    * process all recently forwarded unlink requests, but if they aren't
@@ -197,6 +201,7 @@ SyncPreCheckpoint(void)
 void
 SyncPostCheckpoint(void)
 {
+  DBUG_TRACE;
   int     absorb_counter;
   ListCell   *lc;
 
@@ -276,6 +281,7 @@ SyncPostCheckpoint(void)
 void
 ProcessSyncRequests(void)
 {
+  DBUG_TRACE;
   static bool sync_in_progress = false;
 
   HASH_SEQ_STATUS hstat;
@@ -475,6 +481,7 @@ ProcessSyncRequests(void)
 void
 RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 {
+  DBUG_TRACE;
   Assert(pendingOps);
 
   if (type == SYNC_FORGET_REQUEST) {
@@ -562,6 +569,7 @@ bool
 RegisterSyncRequest(const FileTag *ftag, SyncRequestType type,
                     bool retryOnError)
 {
+  DBUG_TRACE;
   bool    ret;
 
   if (pendingOps != NULL) {

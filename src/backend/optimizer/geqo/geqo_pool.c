@@ -22,6 +22,7 @@
 /* -- parts of this are adapted from D. Whitley's Genitor algorithm -- */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <float.h>
 #include <limits.h>
@@ -92,6 +93,7 @@ free_pool(PlannerInfo *root, Pool *pool)
 void
 random_init_pool(PlannerInfo *root, Pool *pool)
 {
+  DBUG_TRACE;
   Chromosome *chromo = (Chromosome *) pool->data;
   int     i;
   int     bad = 0;
@@ -139,6 +141,8 @@ random_init_pool(PlannerInfo *root, Pool *pool)
 void
 sort_pool(PlannerInfo *root, Pool *pool)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "qsort input pool according to worth, from smallest to largest");
   qsort(pool->data, pool->size, sizeof(Chromosome), compare);
 }
 
@@ -191,6 +195,7 @@ free_chromo(PlannerInfo *root, Chromosome *chromo)
 void
 spread_chromo(PlannerInfo *root, Chromosome *chromo, Pool *pool)
 {
+  DBUG_TRACE;
   int     top,
           mid,
           bot;
@@ -200,8 +205,13 @@ spread_chromo(PlannerInfo *root, Chromosome *chromo, Pool *pool)
               tmp_chromo;
 
   /* new chromo is so bad we can't use it */
-  if (chromo->worth > pool->data[pool->size - 1].worth)
+  if (chromo->worth > pool->data[pool->size - 1].worth) {
+    DBUG_PRINT("info", "new chromo is so bad we can't use it");
     return;
+  }
+
+  DBUG_PRINT("info", "inserts a new chromosome into the pool");
+  DBUG_PRINT("info", "displacing worst gene in pool assumes best->worst = smallest->largest");
 
   /* do a binary search to find the index of the new chromo */
 
@@ -238,6 +248,7 @@ spread_chromo(PlannerInfo *root, Chromosome *chromo, Pool *pool)
     }
   }             /* ... while */
 
+  DBUG_PRINT("info", "do a binary search to find the index of the new chromo and now we have index:%d", index);
   /* now we have index for chromo */
 
   /*
@@ -248,10 +259,13 @@ spread_chromo(PlannerInfo *root, Chromosome *chromo, Pool *pool)
    * copy new gene into pool storage; always replace worst gene in pool
    */
 
+  DBUG_PRINT("info", "copy new gene into pool storage; always replace worst gene in pool");
   geqo_copy(root, &pool->data[pool->size - 1], chromo, pool->string_length);
 
   swap_chromo.string = pool->data[pool->size - 1].string;
   swap_chromo.worth = pool->data[pool->size - 1].worth;
+  DBUG_PRINT("info", "pool size:%d, pool string_length:%d", pool->size, pool->string_length);
+  DBUG_PRINT("info", "swap chromo worth:%g", swap_chromo.worth);
 
   for (i = index; i < pool->size; i++) {
     tmp_chromo.string = pool->data[i].string;

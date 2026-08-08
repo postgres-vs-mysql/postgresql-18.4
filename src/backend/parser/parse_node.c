@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "access/table.h"
@@ -38,6 +39,7 @@ static void pcb_error_callback(void *arg);
 ParseState *
 make_parsestate(ParseState *parentParseState)
 {
+  DBUG_TRACE;
   ParseState *pstate;
 
   pstate = palloc0(sizeof(ParseState));
@@ -51,6 +53,7 @@ make_parsestate(ParseState *parentParseState)
   if (parentParseState) {
     pstate->p_sourcetext = parentParseState->p_sourcetext;
     /* all hooks are copied from parent */
+    DBUG_PRINT("info", "all hooks are copied from parent");
     pstate->p_pre_columnref_hook = parentParseState->p_pre_columnref_hook;
     pstate->p_post_columnref_hook = parentParseState->p_post_columnref_hook;
     pstate->p_paramref_hook = parentParseState->p_paramref_hook;
@@ -75,11 +78,13 @@ free_parsestate(ParseState *pstate)
    * cannot allow more than 2^16, since that would exceed the range of a
    * AttrNumber. It seems safest to use MaxTupleAttributeNumber.
    */
-  if (pstate->p_next_resno - 1 > MaxTupleAttributeNumber)
+  if (pstate->p_next_resno - 1 > MaxTupleAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "target lists can have at most %d entries", MaxTupleAttributeNumber);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("target lists can have at most %d entries",
                     MaxTupleAttributeNumber)));
+  }
 
   if (pstate->p_target_relation != NULL)
     table_close(pstate->p_target_relation, NoLock);
@@ -189,6 +194,8 @@ pcb_error_callback(void *arg)
 void
 transformContainerType(Oid *containerType, int32 *containerTypmod)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("info", "identify the actual container type for a subscripting operation");
   /*
    * If the input is a domain, smash to base type, and extract the actual
    * typmod to be applied to the base type. Subscripting a domain is an
@@ -254,6 +261,8 @@ transformContainerSubscripts(ParseState *pstate,
   bool    isSlice = false;
   ListCell   *idx;
 
+  DBUG_PRINT("info", "transform container (array, etc) subscripting");
+
   /*
    * Determine the actual container type, smashing any domain.  In the
    * assignment case the caller already did this, since it also needs to
@@ -268,12 +277,15 @@ transformContainerSubscripts(ParseState *pstate,
    */
   sbsroutines = getSubscriptingRoutines(containerType, &elementType);
 
-  if (!sbsroutines)
+  if (!sbsroutines) {
+    char *format1 = format_type_be(containerType);
+    DBUG_INSTANT_PRINT("info", "cannot subscript type %s because it does not support subscripting", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("cannot subscript type %s because it does not support subscripting",
-                    format_type_be(containerType)),
+                    format1),
              parser_errposition(pstate, exprLocation(containerBase))));
+  }
 
   /*
    * Detect whether any of the indirection items are slice specifiers.
@@ -316,11 +328,14 @@ transformContainerSubscripts(ParseState *pstate,
    * Verify we got a valid type (this defends, for example, against someone
    * using array_subscript_handler as typsubscript without setting typelem).
    */
-  if (!OidIsValid(sbsref->refrestype))
+  if (!OidIsValid(sbsref->refrestype)) {
+    char *format1 = format_type_be(containerType);
+    DBUG_INSTANT_PRINT("info", "cannot subscript type %s because it does not support subscripting", format1);
     ereport(ERROR,
             (errcode(ERRCODE_DATATYPE_MISMATCH),
              errmsg("cannot subscript type %s because it does not support subscripting",
-                    format_type_be(containerType))));
+                    format1)));
+  }
 
   return sbsref;
 }
@@ -346,12 +361,15 @@ transformContainerSubscripts(ParseState *pstate,
 Const *
 make_const(ParseState *pstate, A_Const *aconst)
 {
+  DBUG_TRACE;
   Const    *con;
   Datum   val;
   Oid     typeid;
   int     typelen;
   bool    typebyval;
   ParseCallbackState pcbstate;
+
+  DBUG_PRINT("info", "convert an A_Const node (as returned by the grammar) to a Const node of the 'natural' type for the constant");
 
   if (aconst->isnull) {
     /* return a null const */

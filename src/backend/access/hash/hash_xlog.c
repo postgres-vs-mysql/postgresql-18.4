@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/bufmask.h"
 #include "access/hash.h"
@@ -26,6 +27,7 @@
 static void
 hash_xlog_init_meta_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Page    page;
   Buffer    metabuf;
@@ -63,6 +65,7 @@ hash_xlog_init_meta_page(XLogReaderState *record)
 static void
 hash_xlog_init_bitmap_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    bitmapbuf;
   Buffer    metabuf;
@@ -128,6 +131,7 @@ hash_xlog_init_bitmap_page(XLogReaderState *record)
 static void
 hash_xlog_insert(XLogReaderState *record)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_insert *xlrec = (xl_hash_insert *) XLogRecGetData(record);
@@ -176,6 +180,7 @@ hash_xlog_insert(XLogReaderState *record)
 static void
 hash_xlog_add_ovfl_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_add_ovfl_page *xlrec = (xl_hash_add_ovfl_page *) XLogRecGetData(record);
   Buffer    leftbuf;
@@ -310,6 +315,7 @@ hash_xlog_add_ovfl_page(XLogReaderState *record)
 static void
 hash_xlog_split_allocate_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_split_allocate_page *xlrec = (xl_hash_split_allocate_page *) XLogRecGetData(record);
   Buffer    oldbuf;
@@ -424,6 +430,7 @@ hash_xlog_split_allocate_page(XLogReaderState *record)
 static void
 hash_xlog_split_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   if (XLogReadBufferForRedo(record, 0, &buf) != BLK_RESTORED)
@@ -438,6 +445,7 @@ hash_xlog_split_page(XLogReaderState *record)
 static void
 hash_xlog_split_complete(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_split_complete *xlrec = (xl_hash_split_complete *) XLogRecGetData(record);
   Buffer    oldbuf;
@@ -497,6 +505,7 @@ hash_xlog_split_complete(XLogReaderState *record)
 static void
 hash_xlog_move_page_contents(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_move_page_contents *xldata = (xl_hash_move_page_contents *) XLogRecGetData(record);
   Buffer    bucketbuf = InvalidBuffer;
@@ -618,6 +627,7 @@ hash_xlog_move_page_contents(XLogReaderState *record)
 static void
 hash_xlog_squeeze_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_squeeze_page *xldata = (xl_hash_squeeze_page *) XLogRecGetData(record);
   Buffer    bucketbuf = InvalidBuffer;
@@ -843,6 +853,7 @@ hash_xlog_squeeze_page(XLogReaderState *record)
 static void
 hash_xlog_delete(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_delete *xldata = (xl_hash_delete *) XLogRecGetData(record);
   Buffer    bucketbuf = InvalidBuffer;
@@ -943,6 +954,7 @@ hash_xlog_split_cleanup(XLogReaderState *record)
 static void
 hash_xlog_update_meta_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   HashMetaPage metap;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_update_meta_page *xldata = (xl_hash_update_meta_page *) XLogRecGetData(record);
@@ -970,6 +982,7 @@ hash_xlog_update_meta_page(XLogReaderState *record)
 static void
 hash_xlog_vacuum_one_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_hash_vacuum_one_page *xldata;
   Buffer    buffer;
@@ -1045,58 +1058,72 @@ hash_xlog_vacuum_one_page(XLogReaderState *record)
 void
 hash_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   switch (info) {
     case XLOG_HASH_INIT_META_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_INIT_META_PAGE");
       hash_xlog_init_meta_page(record);
       break;
 
     case XLOG_HASH_INIT_BITMAP_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_INIT_BITMAP_PAGE");
       hash_xlog_init_bitmap_page(record);
       break;
 
     case XLOG_HASH_INSERT:
+      DBUG_PRINT("info", "XLOG_HASH_INSERT");
       hash_xlog_insert(record);
       break;
 
     case XLOG_HASH_ADD_OVFL_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_ADD_OVFL_PAGE");
       hash_xlog_add_ovfl_page(record);
       break;
 
     case XLOG_HASH_SPLIT_ALLOCATE_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_SPLIT_ALLOCATE_PAGE");
       hash_xlog_split_allocate_page(record);
       break;
 
     case XLOG_HASH_SPLIT_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_SPLIT_PAGE");
       hash_xlog_split_page(record);
       break;
 
     case XLOG_HASH_SPLIT_COMPLETE:
+      DBUG_PRINT("info", "XLOG_HASH_SPLIT_COMPLETE");
       hash_xlog_split_complete(record);
       break;
 
     case XLOG_HASH_MOVE_PAGE_CONTENTS:
+      DBUG_PRINT("info", "XLOG_HASH_MOVE_PAGE_CONTENTS");
       hash_xlog_move_page_contents(record);
       break;
 
     case XLOG_HASH_SQUEEZE_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_SQUEEZE_PAGE");
       hash_xlog_squeeze_page(record);
       break;
 
     case XLOG_HASH_DELETE:
+      DBUG_PRINT("info", "XLOG_HASH_DELETE");
       hash_xlog_delete(record);
       break;
 
     case XLOG_HASH_SPLIT_CLEANUP:
+      DBUG_PRINT("info", "XLOG_HASH_SPLIT_CLEANUP");
       hash_xlog_split_cleanup(record);
       break;
 
     case XLOG_HASH_UPDATE_META_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_UPDATE_META_PAGE");
       hash_xlog_update_meta_page(record);
       break;
 
     case XLOG_HASH_VACUUM_ONE_PAGE:
+      DBUG_PRINT("info", "XLOG_HASH_VACUUM_ONE_PAGE");
       hash_xlog_vacuum_one_page(record);
       break;
 
@@ -1111,6 +1138,7 @@ hash_redo(XLogReaderState *record)
 void
 hash_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
   HashPageOpaque opaque;
   int     pagetype;

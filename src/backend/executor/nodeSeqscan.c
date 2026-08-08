@@ -26,6 +26,7 @@
  *    ExecSeqScanInitializeWorker attach to DSM info in parallel worker
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relscan.h"
 #include "access/tableam.h"
@@ -206,6 +207,7 @@ ExecSeqScanEPQ(PlanState *pstate)
 SeqScanState *
 ExecInitSeqScan(SeqScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   SeqScanState *scanstate;
 
   /*
@@ -285,6 +287,7 @@ ExecInitSeqScan(SeqScan *node, EState *estate, int eflags)
 void
 ExecEndSeqScan(SeqScanState *node)
 {
+  DBUG_TRACE;
   TableScanDesc scanDesc;
 
   /*
@@ -319,7 +322,7 @@ ExecReScanSeqScan(SeqScanState *node)
 
   if (scan != NULL)
     table_rescan(scan,    /* scan desc */
-                 NULL);   /* new scan keys */
+                 NULL);    /* new scan keys */
 
   ExecScanReScan((ScanState *) node);
 }
@@ -340,6 +343,7 @@ void
 ExecSeqScanEstimate(SeqScanState *node,
                     ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
 
   node->pscan_len = table_parallelscan_estimate(node->ss.ss_currentRelation,
@@ -358,6 +362,7 @@ void
 ExecSeqScanInitializeDSM(SeqScanState *node,
                          ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   EState     *estate = node->ss.ps.state;
   ParallelTableScanDesc pscan;
 
@@ -380,6 +385,7 @@ void
 ExecSeqScanReInitializeDSM(SeqScanState *node,
                            ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   ParallelTableScanDesc pscan;
 
   pscan = node->ss.ss_currentScanDesc->rs_parallel;
@@ -396,6 +402,7 @@ void
 ExecSeqScanInitializeWorker(SeqScanState *node,
                             ParallelWorkerContext *pwcxt)
 {
+  DBUG_TRACE;
   ParallelTableScanDesc pscan;
 
   pscan = shm_toc_lookup(pwcxt->toc, node->ss.ps.plan->plan_node_id, false);

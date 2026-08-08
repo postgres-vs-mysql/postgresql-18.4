@@ -23,6 +23,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/detoast.h"
 #include "access/genam.h"
@@ -42,10 +43,12 @@
 void
 heap_toast_delete(Relation rel, HeapTuple oldtup, bool is_speculative)
 {
+  DBUG_TRACE;
   TupleDesc tupleDesc;
   Datum   toast_values[MaxHeapAttributeNumber];
   bool    toast_isnull[MaxHeapAttributeNumber];
 
+  DBUG_PRINT("info", "cascaded delete toast-entries on DELETE");
   /*
    * We should only ever be called for tuples of plain relations or
    * materialized views --- recursing on a toast rel is bad news.
@@ -96,6 +99,7 @@ HeapTuple
 heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
                             int options)
 {
+  DBUG_TRACE;
   HeapTuple result_tuple;
   TupleDesc tupleDesc;
   int     numAttrs;
@@ -110,6 +114,8 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
   ToastAttrInfo toast_attr[MaxHeapAttributeNumber];
   ToastTupleContext ttc;
 
+  DBUG_PRINT("info", "delete no-longer-used toast-entries and create new ones");
+  DBUG_PRINT("info", "to make the new tuple fit on INSERT or UPDATE");
   /*
    * Ignore the INSERT_SPECULATIVE option. Speculative insertions/super
    * deletions just normally insert/delete the toast values. It seems
@@ -156,6 +162,7 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
   ttc.ttc_attr = toast_attr;
   toast_tuple_init(&ttc);
 
+  DBUG_PRINT("info", "compress and/or save external until data fits into target length");
   /* ----------
    * Compress and/or save external until data fits into target length
    *
@@ -177,20 +184,25 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
   hoff = MAXALIGN(hoff);
   /* now convert to a limit on the tuple data size */
   maxDataLen = RelationGetToastTupleTarget(rel, TOAST_TUPLE_TARGET) - hoff;
+  DBUG_PRINT("info", "now convert to a limit on the tuple data size:%lu", maxDataLen);
 
   /*
    * Look for attributes with attstorage EXTENDED to compress.  Also find
    * large attributes with attstorage EXTENDED or EXTERNAL, and store them
    * external.
    */
+  DBUG_PRINT("info", "look for attributes with attstorage EXTENDED to compress");
+
   while (heap_compute_data_size(tupleDesc,
                                 toast_values, toast_isnull) > maxDataLen) {
     int     biggest_attno;
 
     biggest_attno = toast_tuple_find_biggest_attribute(&ttc, true, false);
 
-    if (biggest_attno < 0)
+    if (biggest_attno < 0) {
+      DBUG_PRINT("info", "biggest_attno is less than zero:%d and break here", biggest_attno);
       break;
+    }
 
     /*
      * Attempt to compress it inline, if it has attstorage EXTENDED
@@ -214,8 +226,11 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
      * XXX maybe the threshold should be less than maxDataLen?
      */
     if (toast_attr[biggest_attno].tai_size > maxDataLen &&
-        rel->rd_rel->reltoastrelid != InvalidOid)
+        rel->rd_rel->reltoastrelid != InvalidOid) {
+      DBUG_PRINT("info", "this value is by itself more than maxDataLen.");
+      DBUG_PRINT("info", "push it out to the toast table immediately");
       toast_tuple_externalize(&ttc, biggest_attno, options);
+    }
   }
 
   /*
@@ -223,6 +238,8 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
    * are still inline, and make them external.  But skip this if there's no
    * toast table to push them to.
    */
+  DBUG_PRINT("info", "look for attributes of attstorage EXTENDED or EXTERNAL that are still inline");
+
   while (heap_compute_data_size(tupleDesc,
                                 toast_values, toast_isnull) > maxDataLen &&
          rel->rd_rel->reltoastrelid != InvalidOid) {
@@ -230,9 +247,12 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
 
     biggest_attno = toast_tuple_find_biggest_attribute(&ttc, false, false);
 
-    if (biggest_attno < 0)
+    if (biggest_attno < 0) {
+      DBUG_PRINT("info", "biggest_attno is less than zero:%d and break here", biggest_attno);
       break;
+    }
 
+    DBUG_PRINT("info", "make them external");
     toast_tuple_externalize(&ttc, biggest_attno, options);
   }
 
@@ -240,14 +260,18 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
    * Round 3 - this time we take attributes with storage MAIN into
    * compression
    */
+  DBUG_PRINT("info", "this time we take attributes with storage MAIN into compression");
+
   while (heap_compute_data_size(tupleDesc,
                                 toast_values, toast_isnull) > maxDataLen) {
     int     biggest_attno;
 
     biggest_attno = toast_tuple_find_biggest_attribute(&ttc, true, true);
 
-    if (biggest_attno < 0)
+    if (biggest_attno < 0) {
+      DBUG_PRINT("info", "biggest_attno is less than zero:%d and break here", biggest_attno);
       break;
+    }
 
     toast_tuple_try_compression(&ttc, biggest_attno);
   }
@@ -258,6 +282,7 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
    * externally unless really necessary.
    */
   maxDataLen = TOAST_TUPLE_TARGET_MAIN - hoff;
+  DBUG_PRINT("info", "finally we store attributes of type MAIN externally and maxDataLen:%lu", maxDataLen);
 
   while (heap_compute_data_size(tupleDesc,
                                 toast_values, toast_isnull) > maxDataLen &&
@@ -266,9 +291,12 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
 
     biggest_attno = toast_tuple_find_biggest_attribute(&ttc, false, true);
 
-    if (biggest_attno < 0)
+    if (biggest_attno < 0) {
+      DBUG_PRINT("info", "biggest_attno is less than zero:%d and break here", biggest_attno);
       break;
+    }
 
+    DBUG_PRINT("info", "MAIN attributes are stored externally");
     toast_tuple_externalize(&ttc, biggest_attno, options);
   }
 
@@ -282,6 +310,8 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
     int32   new_header_len;
     int32   new_data_len;
     int32   new_tuple_len;
+
+    DBUG_PRINT("info", "build a new heap tuple with the changed values");
 
     /*
      * Calculate the new size of the tuple.
@@ -303,6 +333,7 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
                                           toast_values, toast_isnull);
     new_tuple_len = new_header_len + new_data_len;
 
+    DBUG_PRINT("info", "calculate the new size of the tuple:%d", new_tuple_len);
     /*
      * Allocate and zero the space needed, and fill HeapTupleData fields.
      */
@@ -351,6 +382,7 @@ heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup,
 HeapTuple
 toast_flatten_tuple(HeapTuple tup, TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   HeapTuple new_tuple;
   int     numAttrs = tupleDesc->natts;
   int     i;
@@ -358,6 +390,7 @@ toast_flatten_tuple(HeapTuple tup, TupleDesc tupleDesc)
   bool    toast_isnull[MaxTupleAttributeNumber];
   bool    toast_free[MaxTupleAttributeNumber];
 
+  DBUG_PRINT("info", "flatten a tuple to contain no out-of-line toasted fields");
   /*
    * Break down the tuple into fields.
    */
@@ -450,6 +483,7 @@ toast_flatten_tuple_to_datum(HeapTupleHeader tup,
                              uint32 tup_len,
                              TupleDesc tupleDesc)
 {
+  DBUG_TRACE;
   HeapTupleHeader new_data;
   int32   new_header_len;
   int32   new_data_len;
@@ -462,6 +496,7 @@ toast_flatten_tuple_to_datum(HeapTupleHeader tup,
   bool    toast_isnull[MaxTupleAttributeNumber];
   bool    toast_free[MaxTupleAttributeNumber];
 
+  DBUG_PRINT("info", "flatten a tuple containing out-of-line toasted fields into a Datum");
   /* Build a temporary HeapTuple control structure */
   tmptup.t_len = tup_len;
   ItemPointerSetInvalid(&(tmptup.t_self));
@@ -564,6 +599,7 @@ toast_build_flattened_tuple(TupleDesc tupleDesc,
                             Datum *values,
                             bool *isnull)
 {
+  DBUG_TRACE;
   HeapTuple new_tuple;
   int     numAttrs = tupleDesc->natts;
   int     num_to_free;
@@ -571,6 +607,7 @@ toast_build_flattened_tuple(TupleDesc tupleDesc,
   Datum   new_values[MaxTupleAttributeNumber];
   Pointer   freeable_values[MaxTupleAttributeNumber];
 
+  DBUG_PRINT("info", "build a tuple containing no out-of-line toasted fields");
   /*
    * We can pass the caller's isnull array directly to heap_form_tuple, but
    * we potentially need to modify the values array.
@@ -626,6 +663,7 @@ heap_fetch_toast_slice(Relation toastrel, Oid valueid, int32 attrsize,
                        int32 sliceoffset, int32 slicelength,
                        struct varlena *result)
 {
+  DBUG_TRACE;
   Relation   *toastidxs;
   ScanKeyData toastkey[3];
   TupleDesc toasttupDesc = toastrel->rd_att;
@@ -639,6 +677,7 @@ heap_fetch_toast_slice(Relation toastrel, Oid valueid, int32 attrsize,
   int     num_indexes;
   int     validIndex;
 
+  DBUG_PRINT("info", "fetch a TOAST slice from a heap table");
   /* Look for the valid index of toast relation */
   validIndex = toast_open_indexes(toastrel,
                                   AccessShareLock,

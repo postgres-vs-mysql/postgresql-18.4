@@ -25,13 +25,13 @@ extern int  compare_path_costs(Path *path1, Path *path2,
                                CostSelector criterion);
 extern int  compare_fractional_path_costs(Path *path1, Path *path2,
     double fraction);
-extern void set_cheapest(RelOptInfo *parent_rel);
-extern void add_path(RelOptInfo *parent_rel, Path *new_path);
-extern bool add_path_precheck(RelOptInfo *parent_rel, int disabled_nodes,
+extern void set_cheapest(PlannerInfo *root, RelOptInfo *parent_rel);
+extern void add_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path);
+extern bool add_path_precheck(PlannerInfo *root, RelOptInfo *parent_rel, int disabled_nodes,
                               Cost startup_cost, Cost total_cost,
                               List *pathkeys, Relids required_outer);
-extern void add_partial_path(RelOptInfo *parent_rel, Path *new_path);
-extern bool add_partial_path_precheck(RelOptInfo *parent_rel,
+extern void add_partial_path(PlannerInfo *root, RelOptInfo *parent_rel, Path *new_path);
+extern bool add_partial_path_precheck(PlannerInfo *root, RelOptInfo *parent_rel,
                                       int disabled_nodes,
                                       Cost total_cost, List *pathkeys);
 
@@ -317,14 +317,14 @@ extern RelOptInfo *build_simple_rel(PlannerInfo *root, int relid,
 extern RelOptInfo *find_base_rel(PlannerInfo *root, int relid);
 extern RelOptInfo *find_base_rel_noerr(PlannerInfo *root, int relid);
 extern RelOptInfo *find_base_rel_ignore_join(PlannerInfo *root, int relid);
-extern RelOptInfo *find_join_rel(PlannerInfo *root, Relids relids);
+extern RelOptInfo *find_join_rel(PlannerInfo *root, Relids relids, int *dp_cache_visits);
 extern RelOptInfo *build_join_rel(PlannerInfo *root,
                                   Relids joinrelids,
                                   RelOptInfo *outer_rel,
                                   RelOptInfo *inner_rel,
                                   SpecialJoinInfo *sjinfo,
                                   List *pushed_down_joins,
-                                  List **restrictlist_ptr);
+                                  List **restrictlist_ptr, int *total_create_rel, int *dp_cache_visits);
 extern Relids min_join_parameterization(PlannerInfo *root,
                                         Relids joinrelids,
                                         RelOptInfo *outer_rel,

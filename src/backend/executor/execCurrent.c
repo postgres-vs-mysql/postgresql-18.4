@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/relscan.h"
@@ -46,6 +47,7 @@ execCurrentOf(CurrentOfExpr *cexpr,
               Oid table_oid,
               ItemPointer current_tid)
 {
+  DBUG_TRACE;
   char     *cursor_name;
   char     *table_name;
   Portal    portal;
@@ -259,6 +261,7 @@ execCurrentOf(CurrentOfExpr *cexpr,
 static char *
 fetch_cursor_param_value(ExprContext *econtext, int paramId)
 {
+  DBUG_TRACE;
   ParamListInfo paramInfo = econtext->ecxt_param_list_info;
 
   if (paramInfo &&
@@ -314,6 +317,7 @@ static ScanState *
 search_plan_tree(PlanState *node, Oid table_oid,
                  bool *pending_rescan)
 {
+  DBUG_TRACE;
   ScanState  *result = NULL;
 
   if (node == NULL)

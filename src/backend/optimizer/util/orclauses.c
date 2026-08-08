@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -74,6 +75,7 @@ static void consider_new_or_clause(PlannerInfo *root, RelOptInfo *rel,
 void
 extract_restriction_or_clauses(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Index   rti;
 
   /* Examine each baserel for potential join OR clauses */
@@ -122,6 +124,8 @@ extract_restriction_or_clauses(PlannerInfo *root)
 static bool
 is_safe_restriction_clause_for(RestrictInfo *rinfo, RelOptInfo *rel)
 {
+  DBUG_TRACE;
+
   /*
    * We want clauses that mention the rel, and only the rel.  So in
    * particular pseudoconstant clauses can be rejected quickly.  Then check
@@ -153,6 +157,7 @@ is_safe_restriction_clause_for(RestrictInfo *rinfo, RelOptInfo *rel)
 static Expr *
 extract_or_clause(RestrictInfo *or_rinfo, RelOptInfo *rel)
 {
+  DBUG_TRACE;
   List     *clauselist = NIL;
   ListCell   *lc;
 
@@ -250,6 +255,7 @@ static void
 consider_new_or_clause(PlannerInfo *root, RelOptInfo *rel,
                        Expr *orclause, RestrictInfo *join_or_rinfo)
 {
+  DBUG_TRACE;
   RestrictInfo *or_rinfo;
   Selectivity or_selec,
               orig_selec;
@@ -332,6 +338,7 @@ consider_new_or_clause(PlannerInfo *root, RelOptInfo *rel,
 
     /* And hack cached selectivity so join size remains the same */
     join_or_rinfo->norm_selec = orig_selec / or_selec;
+    DBUG_PRINT("info", "norm_selec:%g = orig_selec:%g / or_selec:%g", join_or_rinfo->norm_selec, orig_selec, or_selec);
 
     /* ensure result stays in sane range */
     if (join_or_rinfo->norm_selec > 1)

@@ -31,6 +31,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -175,6 +176,7 @@ static BlockNumber gistGetParent(GISTBuildState *buildstate, BlockNumber child);
 IndexBuildResult *
 gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
+  DBUG_TRACE;
   IndexBuildResult *result;
   double    reltuples;
   GISTBuildState buildstate;
@@ -182,6 +184,8 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
   int     fillfactor;
   Oid     SortSupportFnOids[INDEX_MAX_KEYS];
   GiSTOptions *options = (GiSTOptions *) index->rd_options;
+
+  DBUG_PRINT("info", "main entry point to GiST index build");
 
   /*
    * We expect to be called exactly once for any index relation. If that's
@@ -236,8 +240,10 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
       }
     }
 
-    if (hasallsortsupports)
+    if (hasallsortsupports) {
+      DBUG_PRINT("info", "bottom-up build by sorting");
       buildstate.buildMode = GIST_SORTED_BUILD;
+    }
   }
 
   /*
@@ -245,6 +251,7 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
    */
   fillfactor = options ? options->fillfactor : GIST_DEFAULT_FILLFACTOR;
   buildstate.freespace = BLCKSZ * (100 - fillfactor) / 100;
+  DBUG_PRINT("info", "calculate target amount of free space to leave on pages(fillfactor:%d, freespace:%lu)", fillfactor, buildstate.freespace);
 
   /*
    * Build the index using the chosen strategy.
@@ -256,6 +263,7 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
     /*
      * Sort all data, build the index from bottom up.
      */
+    DBUG_PRINT("info", "sort all data, build the index from bottom up");
     buildstate.sortstate = tuplesort_begin_index_gist(heap,
                            index,
                            maintenance_work_mem,
@@ -270,6 +278,7 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
     /*
      * Perform the sort and build index pages.
      */
+    DBUG_PRINT("info", "perform the sort and build index pages");
     tuplesort_performsort(buildstate.sortstate);
 
     gist_indexsortbuild(&buildstate);
@@ -326,6 +335,7 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
   }
 
   /* okay, all heap tuples are indexed */
+  DBUG_PRINT("info", "okay, all heap tuples are indexed");
   MemoryContextSwitchTo(oldcxt);
   MemoryContextDelete(buildstate.giststate->tempCxt);
 
@@ -338,6 +348,7 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 
   result->heap_tuples = reltuples;
   result->index_tuples = (double) buildstate.indtuples;
+  DBUG_PRINT("info", "return statistics(heap_tuples:%g, index_tuples:%g)", reltuples,  result->index_tuples);
 
   return result;
 }
@@ -358,6 +369,7 @@ gistSortedBuildCallback(Relation index,
                         bool tupleIsAlive,
                         void *state)
 {
+  DBUG_TRACE;
   GISTBuildState *buildstate = (GISTBuildState *) state;
   MemoryContext oldCtx;
   Datum   compressed_values[INDEX_MAX_KEYS];
@@ -387,10 +399,12 @@ gistSortedBuildCallback(Relation index,
 static void
 gist_indexsortbuild(GISTBuildState *state)
 {
+  DBUG_TRACE;
   IndexTuple  itup;
   GistSortedBuildLevelState *levelstate;
   BulkWriteBuffer rootbuf;
 
+  DBUG_PRINT("info", "build GiST index from bottom up from pre-sorted tuples");
   /* Reserve block 0 for the root page */
   state->pages_allocated = 1;
 
@@ -405,6 +419,8 @@ gist_indexsortbuild(GISTBuildState *state)
   /*
    * Fill index pages with tuples in the sorted order.
    */
+  DBUG_PRINT("info", "fill index pages with tuples in the sorted order");
+
   while ((itup = tuplesort_getindextuple(state->sortstate, true)) != NULL) {
     gist_indexsortbuild_levelstate_add(state, levelstate, itup);
     MemoryContextReset(state->giststate->tempCxt);
@@ -416,6 +432,8 @@ gist_indexsortbuild(GISTBuildState *state)
    * Keep in mind that flush can build a new root. If number of pages is > 1
    * then new root is required.
    */
+  DBUG_PRINT("info", "wWrite out the partially full non-root pages");
+
   while (levelstate->parent != NULL || levelstate->current_page != 0) {
     GistSortedBuildLevelState *parent;
 
@@ -431,6 +449,7 @@ gist_indexsortbuild(GISTBuildState *state)
   }
 
   /* Write out the root */
+  DBUG_PRINT("info", "write out the root");
   PageSetLSN(levelstate->pages[0], GistBuildLSN);
   rootbuf = smgr_bulk_get_buf(state->bulkstate);
   memcpy(rootbuf, levelstate->pages[0], BLCKSZ);
@@ -450,6 +469,7 @@ gist_indexsortbuild_levelstate_add(GISTBuildState *state,
                                    GistSortedBuildLevelState *levelstate,
                                    IndexTuple itup)
 {
+  DBUG_TRACE;
   Size    sizeNeeded;
 
   /* Check if tuple can be added to the current page */
@@ -479,6 +499,7 @@ static void
 gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
                                      GistSortedBuildLevelState *levelstate)
 {
+  DBUG_TRACE;
   GistSortedBuildLevelState *parent;
   BlockNumber blkno;
   MemoryContext oldCtx;
@@ -493,6 +514,7 @@ gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
   oldCtx = MemoryContextSwitchTo(state->giststate->tempCxt);
 
   /* Get index tuples from first page */
+  DBUG_PRINT("info", "get index tuples from first page");
   itvec = gistextractpage(levelstate->pages[0], &vect_len);
 
   if (levelstate->current_page > 0) {
@@ -509,6 +531,7 @@ gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
     dist = gistSplit(state->indexrel, levelstate->pages[0], itvec, vect_len, state->giststate);
   } else {
     /* Create split layout from single page */
+    DBUG_PRINT("info", "create split layout from single page");
     dist = (SplitPageLayout *) palloc0(sizeof(SplitPageLayout));
     union_tuple = gistunion(state->indexrel, itvec, vect_len,
                             state->giststate);
@@ -521,6 +544,8 @@ gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
 
   /* Reset page counter */
   levelstate->current_page = 0;
+
+  DBUG_PRINT("info", "create pages for all partitions in split result");
 
   /* Create pages for all partitions in split result */
   for (; dist != NULL; dist = dist->next) {
@@ -609,6 +634,7 @@ gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
 static void
 gistInitBuffering(GISTBuildState *buildstate)
 {
+  DBUG_TRACE;
   Relation  index = buildstate->indexrel;
   int     pagesPerBuffer;
   Size    pageFreeSpace;
@@ -771,6 +797,7 @@ gistInitBuffering(GISTBuildState *buildstate)
 static int
 calculatePagesPerBuffer(GISTBuildState *buildstate, int levelStep)
 {
+  DBUG_TRACE;
   double    pagesPerBuffer;
   double    avgIndexTuplesPerPage;
   double    itupAvgSize;
@@ -809,6 +836,7 @@ gistBuildCallback(Relation index,
                   bool tupleIsAlive,
                   void *state)
 {
+  DBUG_TRACE;
   GISTBuildState *buildstate = (GISTBuildState *) state;
   IndexTuple  itup;
   MemoryContext oldCtx;
@@ -886,6 +914,7 @@ gistBuildCallback(Relation index,
 static void
 gistBufferingBuildInsert(GISTBuildState *buildstate, IndexTuple itup)
 {
+  DBUG_TRACE;
   /* Insert the tuple to buffers. */
   gistProcessItup(buildstate, itup, 0, buildstate->gfbb->rootlevel);
 
@@ -903,6 +932,7 @@ static bool
 gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
                 BlockNumber startblkno, int startlevel)
 {
+  DBUG_TRACE;
   GISTSTATE  *giststate = buildstate->giststate;
   GISTBuildBuffers *gfbb = buildstate->gfbb;
   Relation  indexrel = buildstate->indexrel;
@@ -1031,6 +1061,7 @@ gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
                           IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
                           BlockNumber parentblk, OffsetNumber downlinkoffnum)
 {
+  DBUG_TRACE;
   GISTBuildBuffers *gfbb = buildstate->gfbb;
   List     *splitinfo;
   bool    is_split;
@@ -1197,6 +1228,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
                                BlockNumber *parentblkno,
                                OffsetNumber *downlinkoffnum)
 {
+  DBUG_TRACE;
   BlockNumber parent;
   Buffer    buffer;
   Page    page;
@@ -1264,6 +1296,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 static void
 gistProcessEmptyingQueue(GISTBuildState *buildstate)
 {
+  DBUG_TRACE;
   GISTBuildBuffers *gfbb = buildstate->gfbb;
 
   /* Iterate while we have elements in buffers emptying stack. */
@@ -1334,6 +1367,7 @@ gistProcessEmptyingQueue(GISTBuildState *buildstate)
 static void
 gistEmptyAllBuffers(GISTBuildState *buildstate)
 {
+  DBUG_TRACE;
   GISTBuildBuffers *gfbb = buildstate->gfbb;
   MemoryContext oldCtx;
   int     i;
@@ -1387,6 +1421,7 @@ gistEmptyAllBuffers(GISTBuildState *buildstate)
 static int
 gistGetMaxLevel(Relation index)
 {
+  DBUG_TRACE;
   int     maxLevel;
   BlockNumber blkno;
 
@@ -1475,6 +1510,7 @@ typedef struct {
 static void
 gistInitParentMap(GISTBuildState *buildstate)
 {
+  DBUG_TRACE;
   HASHCTL   hashCtl;
 
   hashCtl.keysize = sizeof(BlockNumber);
@@ -1489,6 +1525,7 @@ gistInitParentMap(GISTBuildState *buildstate)
 static void
 gistMemorizeParent(GISTBuildState *buildstate, BlockNumber child, BlockNumber parent)
 {
+  DBUG_TRACE;
   ParentMapEntry *entry;
   bool    found;
 
@@ -1505,6 +1542,7 @@ gistMemorizeParent(GISTBuildState *buildstate, BlockNumber child, BlockNumber pa
 static void
 gistMemorizeAllDownlinks(GISTBuildState *buildstate, Buffer parentbuf)
 {
+  DBUG_TRACE;
   OffsetNumber maxoff;
   OffsetNumber off;
   BlockNumber parentblkno = BufferGetBlockNumber(parentbuf);
@@ -1526,6 +1564,7 @@ gistMemorizeAllDownlinks(GISTBuildState *buildstate, Buffer parentbuf)
 static BlockNumber
 gistGetParent(GISTBuildState *buildstate, BlockNumber child)
 {
+  DBUG_TRACE;
   ParentMapEntry *entry;
   bool    found;
 

@@ -21,6 +21,7 @@
  *    ExecReScanValuesScan  rescans the values list
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/executor.h"
 #include "executor/nodeValuesscan.h"
@@ -46,6 +47,7 @@ static TupleTableSlot *ValuesNext(ValuesScanState *node);
 static TupleTableSlot *
 ValuesNext(ValuesScanState *node)
 {
+  DBUG_TRACE;
   TupleTableSlot *slot;
   EState     *estate;
   ExprContext *econtext;
@@ -191,6 +193,7 @@ ValuesRecheck(ValuesScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecValuesScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   ValuesScanState *node = castNode(ValuesScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -205,6 +208,7 @@ ExecValuesScan(PlanState *pstate)
 ValuesScanState *
 ExecInitValuesScan(ValuesScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   ValuesScanState *scanstate;
   TupleDesc tupdesc;
   ListCell   *vtl;
@@ -323,6 +327,8 @@ ExecInitValuesScan(ValuesScan *node, EState *estate, int eflags)
 void
 ExecReScanValuesScan(ValuesScanState *node)
 {
+  DBUG_TRACE;
+
   if (node->ss.ps.ps_ResultTupleSlot)
     ExecClearTuple(node->ss.ps.ps_ResultTupleSlot);
 

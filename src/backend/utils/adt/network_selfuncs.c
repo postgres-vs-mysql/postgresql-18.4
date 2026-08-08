@@ -16,6 +16,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include <math.h>
@@ -78,6 +79,7 @@ static int  inet_hist_match_divider(inet *boundary, inet *query,
 Datum
 networksel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -168,13 +170,17 @@ networksel(PG_FUNCTION_ARGS)
     non_mcv_selec = DEFAULT_SEL(operator);
 
   /* Combine selectivities for MCV and non-MCV populations */
+  DBUG_PRINT("info", "combine selectivities for MCV and non-MCV populations");
+  DBUG_PRINT("info", "selec = mcv_selec:%g + (1.0 - nullfrac:%g - sumcommon:%g) * non_mcv_selec:%g", mcv_selec, nullfrac, sumcommon, non_mcv_selec );
   selec = mcv_selec + (1.0 - nullfrac - sumcommon) * non_mcv_selec;
 
+  DBUG_PRINT("info", "new selectivity:%g", selec);
   /* Result should be in range, but make sure... */
   CLAMP_PROBABILITY(selec);
 
   ReleaseVariableStats(vardata);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   PG_RETURN_FLOAT8(selec);
 }
 
@@ -199,6 +205,7 @@ networksel(PG_FUNCTION_ARGS)
 Datum
 networkjoinsel(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
   Oid     operator = PG_GETARG_OID(1);
   List     *args = (List *) PG_GETARG_POINTER(2);
@@ -234,19 +241,23 @@ networkjoinsel(PG_FUNCTION_ARGS)
        */
       selec = networkjoinsel_inner(operator, opr_codenum,
                                    &vardata1, &vardata2);
+      DBUG_PRINT("info", "selectivity for left/full join is not exactly the same as inner join, but we neglect the difference, as eqjoinsel does");
       break;
 
     case JOIN_SEMI:
     case JOIN_ANTI:
 
       /* Here, it's important that we pass the outer var on the left. */
-      if (!join_is_reversed)
+      DBUG_PRINT("info", "here, it's important that we pass the outer var on the left");
+
+      if (!join_is_reversed) {
         selec = networkjoinsel_semi(operator, opr_codenum,
                                     &vardata1, &vardata2);
-      else
+      } else {
         selec = networkjoinsel_semi(get_commutator(operator),
                                     -opr_codenum,
                                     &vardata2, &vardata1);
+      }
 
       break;
 
@@ -263,6 +274,7 @@ networkjoinsel(PG_FUNCTION_ARGS)
 
   CLAMP_PROBABILITY(selec);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   PG_RETURN_FLOAT8((float8) selec);
 }
 
@@ -282,6 +294,7 @@ static Selectivity
 networkjoinsel_inner(Oid operator, int opr_codenum,
                      VariableStatData *vardata1, VariableStatData *vardata2)
 {
+  DBUG_TRACE;
   Form_pg_statistic stats;
   double    nullfrac1 = 0.0,
             nullfrac2 = 0.0;
@@ -390,6 +403,7 @@ networkjoinsel_inner(Oid operator, int opr_codenum,
   free_attstatsslot(&hist1_slot);
   free_attstatsslot(&hist2_slot);
 
+  DBUG_PRINT("info", "inner join selectivity estimation for subnet inclusion/overlap operators:%g", selec);
   return selec;
 }
 
@@ -403,6 +417,7 @@ static Selectivity
 networkjoinsel_semi(Oid operator, int opr_codenum,
                     VariableStatData *vardata1, VariableStatData *vardata2)
 {
+  DBUG_TRACE;
   Form_pg_statistic stats;
   Selectivity selec = 0.0,
               sumcommon1 = 0.0,
@@ -422,6 +437,8 @@ networkjoinsel_semi(Oid operator, int opr_codenum,
   AttStatsSlot mcv2_slot;
   AttStatsSlot hist1_slot;
   AttStatsSlot hist2_slot;
+
+  DBUG_PRINT("info", "semi join selectivity estimation for subnet inclusion/overlap operators");
 
   if (HeapTupleIsValid(vardata1->statsTuple)) {
     stats = (Form_pg_statistic) GETSTRUCT(vardata1->statsTuple);
@@ -532,6 +549,7 @@ networkjoinsel_semi(Oid operator, int opr_codenum,
   free_attstatsslot(&hist1_slot);
   free_attstatsslot(&hist2_slot);
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -542,6 +560,7 @@ networkjoinsel_semi(Oid operator, int opr_codenum,
 static Selectivity
 mcv_population(float4 *mcv_numbers, int mcv_nvalues)
 {
+  DBUG_TRACE;
   Selectivity sumcommon = 0.0;
   int     i;
 
@@ -549,6 +568,7 @@ mcv_population(float4 *mcv_numbers, int mcv_nvalues)
     sumcommon += mcv_numbers[i];
   }
 
+  DBUG_PRINT("info", "mcv_nvalues:%d and sumcommon:%g", mcv_nvalues, sumcommon);
   return sumcommon;
 }
 
@@ -607,6 +627,7 @@ static Selectivity
 inet_hist_value_sel(Datum *values, int nvalues, Datum constvalue,
                     int opr_codenum)
 {
+  DBUG_TRACE;
   Selectivity match = 0.0;
   inet     *query,
            *left,
@@ -660,6 +681,7 @@ inet_hist_value_sel(Datum *values, int nvalues, Datum constvalue,
     n++;
   }
 
+  DBUG_PRINT("info", "match:%g, n:%d and selectivity:%g", match, n, match / n);
   return match / n;
 }
 
@@ -674,6 +696,7 @@ inet_mcv_join_sel(Datum *mcv1_values, float4 *mcv1_numbers, int mcv1_nvalues,
                   Datum *mcv2_values, float4 *mcv2_numbers, int mcv2_nvalues,
                   Oid operator)
 {
+  DBUG_TRACE;
   Selectivity selec = 0.0;
   FmgrInfo  proc;
   int     i,
@@ -689,6 +712,7 @@ inet_mcv_join_sel(Datum *mcv1_values, float4 *mcv1_numbers, int mcv1_nvalues,
         selec += mcv1_numbers[i] * mcv2_numbers[j];
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -706,6 +730,7 @@ inet_mcv_hist_sel(Datum *mcv_values, float4 *mcv_numbers, int mcv_nvalues,
                   Datum *hist_values, int hist_nvalues,
                   int opr_codenum)
 {
+  DBUG_TRACE;
   Selectivity selec = 0.0;
   int     i;
 
@@ -721,6 +746,7 @@ inet_mcv_hist_sel(Datum *mcv_values, float4 *mcv_numbers, int mcv_nvalues,
                                  opr_codenum);
   }
 
+  DBUG_PRINT("info", "return selectivity:%g", selec);
   return selec;
 }
 
@@ -743,6 +769,7 @@ inet_hist_inclusion_join_sel(Datum *hist1_values, int hist1_nvalues,
                              Datum *hist2_values, int hist2_nvalues,
                              int opr_codenum)
 {
+  DBUG_TRACE;
   double    match = 0.0;
   int     i,
           k,
@@ -762,6 +789,7 @@ inet_hist_inclusion_join_sel(Datum *hist1_values, int hist1_nvalues,
     n++;
   }
 
+  DBUG_PRINT("info", "match:%g, n:%d and selectivity:%g", match, n, match / n);
   return match / n;
 }
 
@@ -796,14 +824,19 @@ inet_semi_join_sel(Datum lhs_value,
                    double hist_weight,
                    FmgrInfo *proc, int opr_codenum)
 {
+  DBUG_TRACE;
+  Selectivity result;
+
   if (mcv_exists) {
     int     i;
 
     for (i = 0; i < mcv_nvalues; i++) {
       if (DatumGetBool(FunctionCall2(proc,
                                      lhs_value,
-                                     mcv_values[i])))
+                                     mcv_values[i]))) {
+        DBUG_PRINT("info", "return selectivity:1.0");
         return 1.0;
+      }
     }
   }
 
@@ -814,10 +847,16 @@ inet_semi_join_sel(Datum lhs_value,
     hist_selec = inet_hist_value_sel(hist_values, hist_nvalues,
                                      lhs_value, -opr_codenum);
 
-    if (hist_selec > 0)
-      return Min(1.0, hist_weight * hist_selec);
+    DBUG_PRINT("info", "hist_selec:%g, hist_weight:%g", hist_selec, hist_weight);
+
+    if (hist_selec > 0) {
+      result = Min(1.0, hist_weight * hist_selec);
+      DBUG_PRINT("info", "return selectivity:%g", result);
+      return result;
+    }
   }
 
+  DBUG_PRINT("info", "return selectivity:0.0");
   return 0.0;
 }
 

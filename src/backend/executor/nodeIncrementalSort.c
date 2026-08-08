@@ -69,14 +69,15 @@
  *  the entire result set is available.
  *
  *  The hybrid mode approach allows us to optimize for both very small
- *  groups (where the overhead of a new tuplesort is high) and very large
- *  groups (where we can lower cost by not having to sort on already sorted
- *  columns), albeit at some extra cost while switching between modes.
- *
- *-------------------------------------------------------------------------
- */
+* groups (where the overhead of a new tuplesort is high) and very large
+* groups (where we can lower cost by not having to sort on already sorted
+    * columns), albeit at some extra cost while switching between modes.
+*
+*-------------------------------------------------------------------------
+*/
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "executor/execdebug.h"
 #include "executor/nodeIncrementalSort.h"
@@ -104,12 +105,12 @@
         Assert(IsParallelWorker()); \
         Assert(ParallelWorkerNumber < (node)->shared_info->num_workers); \
         instrumentSortedGroup(&(node)->shared_info->sinfo[ParallelWorkerNumber].groupName##GroupInfo, \
-                    (node)->groupName##_state); \
+            (node)->groupName##_state); \
       } \
       else \
       { \
         instrumentSortedGroup(&(node)->incsort_info.groupName##GroupInfo, \
-                    (node)->groupName##_state); \
+            (node)->groupName##_state); \
       } \
     } \
   } while (0)
@@ -127,6 +128,7 @@ static void
 instrumentSortedGroup(IncrementalSortGroupInfo *groupInfo,
                       Tuplesortstate *sortState)
 {
+  DBUG_TRACE;
   TuplesortInstrumentation sort_instr;
 
   groupInfo->groupCount++;
@@ -165,6 +167,7 @@ instrumentSortedGroup(IncrementalSortGroupInfo *groupInfo,
 static void
 preparePresortedCols(IncrementalSortState *node)
 {
+  DBUG_TRACE;
   IncrementalSort *plannode = castNode(IncrementalSort, node->ss.ps.plan);
 
   node->presorted_keys =
@@ -214,6 +217,7 @@ preparePresortedCols(IncrementalSortState *node)
 static bool
 isCurrentGroup(IncrementalSortState *node, TupleTableSlot *pivot, TupleTableSlot *tuple)
 {
+  DBUG_TRACE;
   int     nPresortedCols;
 
   nPresortedCols = castNode(IncrementalSort, node->ss.ps.plan)->nPresortedCols;
@@ -287,6 +291,7 @@ isCurrentGroup(IncrementalSortState *node, TupleTableSlot *pivot, TupleTableSlot
 static void
 switchToPresortedPrefixMode(PlanState *pstate)
 {
+  DBUG_TRACE;
   IncrementalSortState *node = castNode(IncrementalSortState, pstate);
   ScanDirection dir;
   int64   nTuples;
@@ -481,6 +486,7 @@ switchToPresortedPrefixMode(PlanState *pstate)
 static TupleTableSlot *
 ExecIncrementalSort(PlanState *pstate)
 {
+  DBUG_TRACE;
   IncrementalSortState *node = castNode(IncrementalSortState, pstate);
   EState     *estate;
   ScanDirection dir;
@@ -933,6 +939,7 @@ ExecIncrementalSort(PlanState *pstate)
 IncrementalSortState *
 ExecInitIncrementalSort(IncrementalSort *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   IncrementalSortState *incrsortstate;
 
   SO_printf("ExecInitIncrementalSort: initializing sort node\n");
@@ -1033,6 +1040,7 @@ ExecInitIncrementalSort(IncrementalSort *node, EState *estate, int eflags)
 void
 ExecEndIncrementalSort(IncrementalSortState *node)
 {
+  DBUG_TRACE;
   SO_printf("ExecEndIncrementalSort: shutting down sort node\n");
 
   ExecDropSingleTupleTableSlot(node->group_pivot);
@@ -1062,6 +1070,7 @@ ExecEndIncrementalSort(IncrementalSortState *node)
 void
 ExecReScanIncrementalSort(IncrementalSortState *node)
 {
+  DBUG_TRACE;
   PlanState  *outerPlan = outerPlanState(node);
 
   /*
@@ -1151,6 +1160,7 @@ ExecIncrementalSortEstimate(IncrementalSortState *node, ParallelContext *pcxt)
 void
 ExecIncrementalSortInitializeDSM(IncrementalSortState *node, ParallelContext *pcxt)
 {
+  DBUG_TRACE;
   Size    size;
 
   /* don't need this if not instrumenting or no workers */
@@ -1190,6 +1200,7 @@ ExecIncrementalSortInitializeWorker(IncrementalSortState *node, ParallelWorkerCo
 void
 ExecIncrementalSortRetrieveInstrumentation(IncrementalSortState *node)
 {
+  DBUG_TRACE;
   Size    size;
   SharedIncrementalSortInfo *si;
 

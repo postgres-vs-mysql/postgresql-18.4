@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "executor/tqueue.h"
@@ -51,6 +52,7 @@ struct TupleQueueReader {
 static bool
 tqueueReceiveSlot(TupleTableSlot *slot, DestReceiver *self)
 {
+  DBUG_TRACE;
   TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
   MinimalTuple tuple;
   shm_mq_result result;
@@ -89,6 +91,7 @@ tqueueStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 static void
 tqueueShutdownReceiver(DestReceiver *self)
 {
+  DBUG_TRACE;
   TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
 
   if (tqueue->queue != NULL)
@@ -103,6 +106,7 @@ tqueueShutdownReceiver(DestReceiver *self)
 static void
 tqueueDestroyReceiver(DestReceiver *self)
 {
+  DBUG_TRACE;
   TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
 
   /* We probably already detached from queue, but let's be sure */
@@ -118,6 +122,7 @@ tqueueDestroyReceiver(DestReceiver *self)
 DestReceiver *
 CreateTupleQueueDestReceiver(shm_mq_handle *handle)
 {
+  DBUG_TRACE;
   TQueueDestReceiver *self;
 
   self = (TQueueDestReceiver *) palloc0(sizeof(TQueueDestReceiver));
@@ -175,6 +180,7 @@ DestroyTupleQueueReader(TupleQueueReader *reader)
 MinimalTuple
 TupleQueueReaderNext(TupleQueueReader *reader, bool nowait, bool *done)
 {
+  DBUG_TRACE;
   MinimalTuple tuple;
   shm_mq_result result;
   Size    nbytes;

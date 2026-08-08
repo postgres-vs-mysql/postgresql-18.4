@@ -26,8 +26,7 @@
  *    typedef struct FormData_pg_database
  * ----------------
  */
-CATALOG(pg_database, 1262, DatabaseRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(1248, DatabaseRelation_Rowtype_Id) BKI_SCHEMA_MACRO
-{
+CATALOG(pg_database, 1262, DatabaseRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(1248, DatabaseRelation_Rowtype_Id) BKI_SCHEMA_MACRO {
   /* oid */
   Oid     oid;
 

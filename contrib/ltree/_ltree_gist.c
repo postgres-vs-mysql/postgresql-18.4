@@ -6,6 +6,7 @@
  * Teodor Sigaev <teodor@stack.net>
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <math.h>
 
@@ -49,6 +50,7 @@ hashing(BITVECP sign, ltree *t, int siglen)
 Datum
 _ltree_compress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY  *retval = entry;
   int     siglen = LTREE_GET_ASIGLEN();
@@ -105,6 +107,7 @@ _ltree_compress(PG_FUNCTION_ARGS)
 Datum
 _ltree_same(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree_gist *a = (ltree_gist *) PG_GETARG_POINTER(0);
   ltree_gist *b = (ltree_gist *) PG_GETARG_POINTER(1);
   bool     *result = (bool *) PG_GETARG_POINTER(2);
@@ -130,6 +133,12 @@ _ltree_same(PG_FUNCTION_ARGS)
     }
   }
 
+  if (*result) {
+    DBUG_PRINT("ltree", "result is true");
+  } else {
+    DBUG_PRINT("ltree", "result is false");
+  }
+
   PG_RETURN_POINTER(result);
 }
 
@@ -150,6 +159,7 @@ unionkey(BITVECP sbase, ltree_gist *add, int siglen)
 Datum
 _ltree_union(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   int      *size = (int *) PG_GETARG_POINTER(1);
   int     siglen = LTREE_GET_ASIGLEN();
@@ -166,6 +176,7 @@ _ltree_union(PG_FUNCTION_ARGS)
   }
 
   *size = VARSIZE(result);
+  DBUG_PRINT("ltree", "size:%d", *size);
 
   PG_RETURN_POINTER(result);
 }
@@ -179,6 +190,7 @@ sizebitvec(BITVECP sign, int siglen)
 static int
 hemdistsign(BITVECP a, BITVECP b, int siglen)
 {
+  DBUG_TRACE;
   int     i,
           diff,
           dist = 0;
@@ -188,33 +200,48 @@ hemdistsign(BITVECP a, BITVECP b, int siglen)
     /* Using the popcount functions here isn't likely to win */
     dist += pg_number_of_ones[diff];
   }
+  DBUG_PRINT("ltree", "dist:%d", dist);
   return dist;
 }
 
 static int
 hemdist(ltree_gist *a, ltree_gist *b, int siglen)
 {
-  if (LTG_ISALLTRUE(a)) {
-    if (LTG_ISALLTRUE(b))
-      return 0;
-    else
-      return ASIGLENBIT(siglen) - sizebitvec(LTG_SIGN(b), siglen);
-  } else if (LTG_ISALLTRUE(b))
-    return ASIGLENBIT(siglen) - sizebitvec(LTG_SIGN(a), siglen);
+  DBUG_TRACE;
+  int result;
 
-  return hemdistsign(LTG_SIGN(a), LTG_SIGN(b), siglen);
+  if (LTG_ISALLTRUE(a)) {
+    if (LTG_ISALLTRUE(b)) {
+      DBUG_PRINT("ltree", "result:0");
+      return 0;
+    } else {
+      result = ASIGLENBIT(siglen) - sizebitvec(LTG_SIGN(b), siglen);
+      DBUG_PRINT("ltree", "result:%d", result);
+      return result;
+    }
+  } else if (LTG_ISALLTRUE(b)) {
+    result = ASIGLENBIT(siglen) - sizebitvec(LTG_SIGN(a), siglen);
+    DBUG_PRINT("ltree", "result:%d", result);
+    return result;
+  }
+
+  result = hemdistsign(LTG_SIGN(a), LTG_SIGN(b), siglen);
+  DBUG_PRINT("ltree", "result:%d", result);
+  return result;
 }
 
 
 Datum
 _ltree_penalty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ltree_gist *origval = (ltree_gist *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(0))->key);
   ltree_gist *newval = (ltree_gist *) DatumGetPointer(((GISTENTRY *) PG_GETARG_POINTER(1))->key);
   float    *penalty = (float *) PG_GETARG_POINTER(2);
   int     siglen = LTREE_GET_ASIGLEN();
 
   *penalty = hemdist(origval, newval, siglen);
+  DBUG_PRINT("ltree", "penalty:%g", *penalty);
   PG_RETURN_POINTER(penalty);
 }
 
@@ -232,6 +259,7 @@ comparecost(const void *a, const void *b)
 Datum
 _ltree_picksplit(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
   GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
   int     siglen = LTREE_GET_ASIGLEN();
@@ -367,24 +395,30 @@ _ltree_picksplit(PG_FUNCTION_ARGS)
 static bool
 gist_te(ltree_gist *key, ltree *query, int siglen)
 {
+  DBUG_TRACE;
   ltree_level *curq = LTREE_FIRST(query);
   BITVECP   sign = LTG_SIGN(key);
   int     qlen = query->numlevel;
   unsigned int hv;
 
-  if (LTG_ISALLTRUE(key))
+  if (LTG_ISALLTRUE(key)) {
+    DBUG_PRINT("ltree", "return true");
     return true;
+  }
 
   while (qlen > 0) {
     hv = ltree_crc32_sz(curq->name, curq->len);
 
-    if (!GETBIT(sign, AHASHVAL(hv, siglen)))
+    if (!GETBIT(sign, AHASHVAL(hv, siglen))) {
+      DBUG_PRINT("ltree", "return false");
       return false;
+    }
 
     curq = LEVEL_NEXT(curq);
     qlen--;
   }
 
+  DBUG_PRINT("ltree", "return true");
   return true;
 }
 
@@ -404,28 +438,43 @@ checkcondition_bit(void *cxt, ITEM *val)
 static bool
 gist_qtxt(ltree_gist *key, ltxtquery *query, int siglen)
 {
+  DBUG_TRACE;
   LtreeSignature sig;
+  bool result;
 
-  if (LTG_ISALLTRUE(key))
+  if (LTG_ISALLTRUE(key)) {
+    DBUG_PRINT("ltree", "return true");
     return true;
+  }
 
   sig.sign = LTG_SIGN(key);
   sig.siglen = siglen;
 
-  return ltree_execute(GETQUERY(query),
-                       &sig, false,
-                       checkcondition_bit);
+  result = ltree_execute(GETQUERY(query),
+                         &sig, false,
+                         checkcondition_bit);
+
+  if (result) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
+  return result;
 }
 
 static bool
 gist_qe(ltree_gist *key, lquery *query, int siglen)
 {
+  DBUG_TRACE;
   lquery_level *curq = LQUERY_FIRST(query);
   BITVECP   sign = LTG_SIGN(key);
   int     qlen = query->numlevel;
 
-  if (LTG_ISALLTRUE(key))
+  if (LTG_ISALLTRUE(key)) {
+    DBUG_PRINT("ltree", "return true");
     return true;
+  }
 
   while (qlen > 0) {
     if (curq->numvar && LQL_CANLOOKSIGN(curq)) {
@@ -443,20 +492,24 @@ gist_qe(ltree_gist *key, lquery *query, int siglen)
         vlen--;
       }
 
-      if (!isexist)
+      if (!isexist) {
+        DBUG_PRINT("ltree", "return false");
         return false;
+      }
     }
 
     curq = LQL_NEXT(curq);
     qlen--;
   }
 
+  DBUG_PRINT("ltree", "return true");
   return true;
 }
 
 static bool
 _arrq_cons(ltree_gist *key, ArrayType *_query, int siglen)
 {
+  DBUG_TRACE;
   lquery     *query = (lquery *) ARR_DATA_PTR(_query);
   int     num = ArrayGetNItems(ARR_NDIM(_query), ARR_DIMS(_query));
 
@@ -471,19 +524,23 @@ _arrq_cons(ltree_gist *key, ArrayType *_query, int siglen)
              errmsg("array must not contain nulls")));
 
   while (num > 0) {
-    if (gist_qe(key, query, siglen))
+    if (gist_qe(key, query, siglen)) {
+      DBUG_PRINT("ltree", "return true");
       return true;
+    }
 
     num--;
     query = (lquery *) NEXTVAL(query);
   }
 
+  DBUG_PRINT("ltree", "return false");
   return false;
 }
 
 Datum
 _ltree_consistent(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   GISTENTRY  *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
   void     *query = PG_DETOAST_DATUM(PG_GETARG_DATUM(1));
   StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
@@ -524,12 +581,20 @@ _ltree_consistent(PG_FUNCTION_ARGS)
   }
 
   PG_FREE_IF_COPY(query, 1);
+
+  if (res) {
+    DBUG_PRINT("ltree", "return true");
+  } else {
+    DBUG_PRINT("ltree", "return false");
+  }
+
   PG_RETURN_BOOL(res);
 }
 
 Datum
 _ltree_gist_options(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
   init_local_reloptions(relopts, sizeof(LtreeGistOptions));

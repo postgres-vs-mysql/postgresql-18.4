@@ -34,6 +34,7 @@
 /*************************************************************/
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo.h"
 
 #if defined(OX2)
@@ -48,12 +49,15 @@
 void
 ox2(PlannerInfo *root, Gene *tour1, Gene *tour2, Gene *offspring, int num_gene, City * city_table)
 {
+  DBUG_TRACE;
   int     k,
           j,
           count,
           pos,
           select,
           num_positions;
+
+  DBUG_PRINT("info", "position crossover");
 
   /* initialize city table */
   for (k = 1; k <= num_gene; k++) {

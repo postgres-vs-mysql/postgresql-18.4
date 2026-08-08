@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/hash.h"
@@ -39,6 +40,7 @@
 bool
 hashvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;
@@ -257,6 +259,7 @@ hashadjustmembers(Oid opfamilyoid,
                   List *operators,
                   List *functions)
 {
+  DBUG_TRACE;
   Oid     opcintype;
   ListCell   *lc;
 

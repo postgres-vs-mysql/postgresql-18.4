@@ -69,22 +69,23 @@
  * buffer, pin the visibility map page, and relock the buffer.  This shouldn't
  * happen often, because only VACUUM currently sets visibility map bits,
  * and the race will only occur if VACUUM processes a given page at almost
- * exactly the same time that someone tries to further modify it.
- *
- * To set a bit, you need to hold a lock on the heap page. That prevents
- * the race condition where VACUUM sees that all tuples on the page are
- * visible to everyone, but another backend modifies the page before VACUUM
- * sets the bit in the visibility map.
- *
- * When a bit is set, the LSN of the visibility map page is updated to make
- * sure that the visibility map update doesn't get written to disk before the
- * WAL record of the changes that made it possible to set the bit is flushed.
- * But when a bit is cleared, we don't have to do that because it's always
- * safe to clear a bit in the map from correctness point of view.
- *
- *-------------------------------------------------------------------------
- */
+* exactly the same time that someone tries to further modify it.
+*
+* To set a bit, you need to hold a lock on the heap page. That prevents
+* the race condition where VACUUM sees that all tuples on the page are
+* visible to everyone, but another backend modifies the page before VACUUM
+* sets the bit in the visibility map.
+*
+* When a bit is set, the LSN of the visibility map page is updated to make
+* sure that the visibility map update doesn't get written to disk before the
+* WAL record of the changes that made it possible to set the bit is flushed.
+* But when a bit is cleared, we don't have to do that because it's always
+* safe to clear a bit in the map from correctness point of view.
+*
+*-------------------------------------------------------------------------
+*/
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/heapam_xlog.h"
 #include "access/visibilitymap.h"
@@ -139,6 +140,7 @@ static Buffer vm_extend(Relation rel, BlockNumber vm_nblocks);
 bool
 visibilitymap_clear(Relation rel, BlockNumber heapBlk, Buffer vmbuf, uint8 flags)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock = HEAPBLK_TO_MAPBLOCK(heapBlk);
   int     mapByte = HEAPBLK_TO_MAPBYTE(heapBlk);
   int     mapOffset = HEAPBLK_TO_OFFSET(heapBlk);
@@ -191,6 +193,7 @@ visibilitymap_clear(Relation rel, BlockNumber heapBlk, Buffer vmbuf, uint8 flags
 void
 visibilitymap_pin(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock = HEAPBLK_TO_MAPBLOCK(heapBlk);
 
   /* Reuse the old pinned buffer if possible */
@@ -215,6 +218,7 @@ visibilitymap_pin(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
 bool
 visibilitymap_pin_ok(BlockNumber heapBlk, Buffer vmbuf)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock = HEAPBLK_TO_MAPBLOCK(heapBlk);
 
   return BufferIsValid(vmbuf) && BufferGetBlockNumber(vmbuf) == mapBlock;
@@ -248,6 +252,7 @@ visibilitymap_set(Relation rel, BlockNumber heapBlk, Buffer heapBuf,
                   XLogRecPtr recptr, Buffer vmBuf, TransactionId cutoff_xid,
                   uint8 flags)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock = HEAPBLK_TO_MAPBLOCK(heapBlk);
   uint32    mapByte = HEAPBLK_TO_MAPBYTE(heapBlk);
   uint8   mapOffset = HEAPBLK_TO_OFFSET(heapBlk);
@@ -258,6 +263,7 @@ visibilitymap_set(Relation rel, BlockNumber heapBlk, Buffer heapBuf,
 #ifdef TRACE_VISIBILITYMAP
   elog(DEBUG1, "vm_set %s %d", RelationGetRelationName(rel), heapBlk);
 #endif
+  DBUG_PRINT("info", "vm_set %s heapblk:%d",  RelationGetRelationName(rel), heapBlk);
 
   Assert(InRecovery || XLogRecPtrIsInvalid(recptr));
   Assert(InRecovery || PageIsAllVisible((Page) BufferGetPage(heapBuf)));
@@ -339,6 +345,7 @@ visibilitymap_set(Relation rel, BlockNumber heapBlk, Buffer heapBuf,
 uint8
 visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock = HEAPBLK_TO_MAPBLOCK(heapBlk);
   uint32    mapByte = HEAPBLK_TO_MAPBYTE(heapBlk);
   uint8   mapOffset = HEAPBLK_TO_OFFSET(heapBlk);
@@ -348,6 +355,8 @@ visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
 #ifdef TRACE_VISIBILITYMAP
   elog(DEBUG1, "vm_get_status %s %d", RelationGetRelationName(rel), heapBlk);
 #endif
+
+  DBUG_PRINT("info", "vm_get_status %s heapblk:%d", RelationGetRelationName(rel), heapBlk);
 
   /* Reuse the old pinned buffer if possible */
   if (BufferIsValid(*vmbuf)) {
@@ -360,8 +369,10 @@ visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
   if (!BufferIsValid(*vmbuf)) {
     *vmbuf = vm_readbuf(rel, mapBlock, false);
 
-    if (!BufferIsValid(*vmbuf))
+    if (!BufferIsValid(*vmbuf)) {
+      DBUG_PRINT("info", "visibilitymap return false");
       return false;
+    }
   }
 
   map = PageGetContents(BufferGetPage(*vmbuf));
@@ -372,6 +383,15 @@ visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
    * about that.
    */
   result = ((map[mapByte] >> mapOffset) & VISIBILITYMAP_VALID_BITS);
+
+  if (!result) {
+    DBUG_PRINT("info", "visibilitymap return false, mapbyte:%u, map value:%u, map offset:%u",
+               mapByte, map[mapByte], mapOffset);
+  } else {
+    DBUG_PRINT("info", "visibilitymap return true, mapbyte:%u, map value:%u, map offset:%u",
+               mapByte, map[mapByte], mapOffset);
+  }
+
   return result;
 }
 
@@ -385,6 +405,7 @@ visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf)
 void
 visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_frozen)
 {
+  DBUG_TRACE;
   BlockNumber mapBlock;
   BlockNumber nvisible = 0;
   BlockNumber nfrozen = 0;
@@ -421,6 +442,7 @@ visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_fro
     ReleaseBuffer(mapBuffer);
   }
 
+  DBUG_PRINT("info", "count number of bits set in visibility map(nvisible:%u, nfrozen:%u, mapblock:%u)", nvisible, nfrozen, mapBlock);
   *all_visible = nvisible;
 
   if (all_frozen)
@@ -441,6 +463,7 @@ visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_fro
 BlockNumber
 visibilitymap_prepare_truncate(Relation rel, BlockNumber nheapblocks)
 {
+  DBUG_TRACE;
   BlockNumber newnblocks;
 
   /* last remaining block, byte, and bit */
@@ -554,6 +577,7 @@ visibilitymap_truncation_length(BlockNumber nheapblocks)
 static Buffer
 vm_readbuf(Relation rel, BlockNumber blkno, bool extend)
 {
+  DBUG_TRACE;
   Buffer    buf;
   SMgrRelation reln;
 
@@ -627,6 +651,7 @@ vm_readbuf(Relation rel, BlockNumber blkno, bool extend)
 static Buffer
 vm_extend(Relation rel, BlockNumber vm_nblocks)
 {
+  DBUG_TRACE;
   Buffer    buf;
 
   buf = ExtendBufferedRelTo(BMR_REL(rel), VISIBILITYMAP_FORKNUM, NULL,

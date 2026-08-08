@@ -11,6 +11,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "funcapi.h"
@@ -91,6 +92,7 @@ VXIDGetDatum(ProcNumber procNumber, LocalTransactionId lxid)
 Datum
 pg_lock_status(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   FuncCallContext *funcctx;
   PG_Lock_Status *mystatus;
   LockData   *lockData;
@@ -469,6 +471,7 @@ pg_lock_status(PG_FUNCTION_ARGS)
 Datum
 pg_blocking_pids(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     blocked_pid = PG_GETARG_INT32(0);
   Datum    *arrayelems;
   int     narrayelems;
@@ -569,6 +572,7 @@ pg_blocking_pids(PG_FUNCTION_ARGS)
 Datum
 pg_safe_snapshot_blocking_pids(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int     blocked_pid = PG_GETARG_INT32(0);
   int      *blockers;
   int     num_blockers;
@@ -621,6 +625,7 @@ pg_safe_snapshot_blocking_pids(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_lock_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
 
@@ -638,6 +643,7 @@ pg_advisory_lock_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_xact_lock_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
 
@@ -654,6 +660,7 @@ pg_advisory_xact_lock_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_lock_shared_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
 
@@ -671,6 +678,7 @@ pg_advisory_lock_shared_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_xact_lock_shared_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
 
@@ -689,6 +697,7 @@ pg_advisory_xact_lock_shared_int8(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_lock_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   LockAcquireResult res;
@@ -709,6 +718,7 @@ pg_try_advisory_lock_int8(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_xact_lock_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   LockAcquireResult res;
@@ -728,6 +738,7 @@ pg_try_advisory_xact_lock_int8(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_lock_shared_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   LockAcquireResult res;
@@ -748,6 +759,7 @@ pg_try_advisory_lock_shared_int8(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_xact_lock_shared_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   LockAcquireResult res;
@@ -767,6 +779,7 @@ pg_try_advisory_xact_lock_shared_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_unlock_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   bool    res;
@@ -786,6 +799,7 @@ pg_advisory_unlock_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_unlock_shared_int8(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   key = PG_GETARG_INT64(0);
   LOCKTAG   tag;
   bool    res;
@@ -803,6 +817,7 @@ pg_advisory_unlock_shared_int8(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_lock_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -821,6 +836,7 @@ pg_advisory_lock_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_xact_lock_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -838,6 +854,7 @@ pg_advisory_xact_lock_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_lock_shared_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -856,6 +873,7 @@ pg_advisory_lock_shared_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_xact_lock_shared_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -875,6 +893,7 @@ pg_advisory_xact_lock_shared_int4(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_lock_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -896,6 +915,7 @@ pg_try_advisory_lock_int4(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_xact_lock_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -916,6 +936,7 @@ pg_try_advisory_xact_lock_int4(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_lock_shared_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -937,6 +958,7 @@ pg_try_advisory_lock_shared_int4(PG_FUNCTION_ARGS)
 Datum
 pg_try_advisory_xact_lock_shared_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -957,6 +979,7 @@ pg_try_advisory_xact_lock_shared_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_unlock_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -977,6 +1000,7 @@ pg_advisory_unlock_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_unlock_shared_int4(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int32   key1 = PG_GETARG_INT32(0);
   int32   key2 = PG_GETARG_INT32(1);
   LOCKTAG   tag;
@@ -995,6 +1019,7 @@ pg_advisory_unlock_shared_int4(PG_FUNCTION_ARGS)
 Datum
 pg_advisory_unlock_all(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   LockReleaseSession(USER_LOCKMETHOD);
 
   PG_RETURN_VOID();

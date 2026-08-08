@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/brin_internal.h"
@@ -36,6 +37,7 @@
 bool
 brinvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;

@@ -32,6 +32,7 @@
 
 #include "pgp.h"
 #include "px.h"
+#include "debug_trace.h"
 
 /*
  * padded msg = 02 || PS || 00 || M
@@ -41,6 +42,7 @@
 static uint8 *
 check_eme_pkcs1_v15(uint8 *data, int len)
 {
+  DBUG_TRACE;
   uint8    *data_end = data + len;
   uint8    *p = data;
   int     rnd = 0;
@@ -75,6 +77,7 @@ check_eme_pkcs1_v15(uint8 *data, int len)
 static int
 control_cksum(uint8 *msg, int msglen)
 {
+  DBUG_TRACE;
   int     i;
   unsigned  my_cksum,
             got_cksum;
@@ -101,6 +104,7 @@ control_cksum(uint8 *msg, int msglen)
 static int
 decrypt_elgamal(PGP_PubKey *pk, PullFilter *pkt, PGP_MPI **m_p)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *c1 = NULL;
   PGP_MPI    *c2 = NULL;
@@ -131,6 +135,7 @@ out:
 static int
 decrypt_rsa(PGP_PubKey *pk, PullFilter *pkt, PGP_MPI **m_p)
 {
+  DBUG_TRACE;
   int     res;
   PGP_MPI    *c;
 
@@ -158,6 +163,7 @@ any_key[] = {0, 0, 0, 0, 0, 0, 0, 0};
 int
 pgp_parse_pubenc_sesskey(PGP_Context *ctx, PullFilter *pkt)
 {
+  DBUG_TRACE;
   int     ver;
   int     algo;
   int     res;

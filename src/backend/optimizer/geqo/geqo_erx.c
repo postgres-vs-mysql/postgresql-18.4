@@ -32,6 +32,7 @@
 
 
 #include "postgres.h"
+#include "debug_trace.h"
 #include "optimizer/geqo.h"
 
 #if defined(ERX)
@@ -45,6 +46,26 @@ static Gene gimme_gene(PlannerInfo *root, Edge edge, Edge *edge_table);
 
 static Gene edge_failure(PlannerInfo *root, Gene *gene, int index, Edge *edge_table, int num_gene);
 
+static void
+trace_tour(Gene *tour, int num_gene, const char *message)
+{
+  char output[1024];
+  char *p;
+  int         i;
+
+  p = output;
+  {
+    /* write gene sequence */
+    for (i = 0; i < (num_gene - 1); i++) {
+      p += sprintf(p, "%d-", tour[i]);
+    }
+
+    p += sprintf(p, "%d ", tour[i]);
+
+    *p = '\0';
+    DBUG_PRINT("info", "%s:%s", message, output);
+  }
+}
 
 /* alloc_edge_table
  *
@@ -95,10 +116,16 @@ float
 gimme_edge_table(PlannerInfo *root, Gene *tour1, Gene *tour2,
                  int num_gene, Edge *edge_table)
 {
+  DBUG_TRACE;
   int     i,
           index1,
           index2;
   int     edge_total;   /* total number of unique edges in two genes */
+  float       result;
+
+  DBUG_PRINT("info", "fill a data structure which represents the set of explicit edges between points in the two input genes");
+  trace_tour(tour1, num_gene, "parent tour1");
+  trace_tour(tour2, num_gene, "parent tour2");
 
   /* at first clear the edge table's old data */
   for (i = 1; i <= num_gene; i++) {
@@ -131,7 +158,9 @@ gimme_edge_table(PlannerInfo *root, Gene *tour1, Gene *tour2,
   }
 
   /* return average number of edges per index */
-  return ((float) (edge_total * 2) / (float) num_gene);
+  result = ((float) (edge_total * 2) / (float) num_gene);
+  DBUG_PRINT("info", "return average number of edges per index:%g", result);
+  return result;
 }
 
 /* gimme_edge
@@ -165,7 +194,6 @@ gimme_edge(PlannerInfo *root, Gene gene1, Gene gene2, Edge *edge_table)
 
       /* mark shared edges as negative */
       edge_table[city1].edge_list[i] = 0 - city2;
-
       return 0;
     }
   }
@@ -191,11 +219,15 @@ gimme_edge(PlannerInfo *root, Gene gene1, Gene gene2, Edge *edge_table)
 int
 gimme_tour(PlannerInfo *root, Edge *edge_table, Gene *new_gene, int num_gene)
 {
+  DBUG_TRACE;
   int     i;
   int     edge_failures = 0;
 
+  DBUG_PRINT("info", "create a new tour using edges from the edge table");
   /* choose int between 1 and num_gene */
   new_gene[0] = (Gene) geqo_randint(root, num_gene, 1);
+
+  DBUG_PRINT("info", "choose the first new gene:%d", new_gene[0]);
 
   for (i = 1; i < num_gene; i++) {
     /*
@@ -217,10 +249,12 @@ gimme_tour(PlannerInfo *root, Edge *edge_table, Gene *new_gene, int num_gene)
       new_gene[i] = edge_failure(root, new_gene, i - 1, edge_table, num_gene);
     }
 
+    DBUG_PRINT("info", "choose the new gene:%d for index:%d", new_gene[i], i);
     /* mark this node as incorporated */
     edge_table[(int) new_gene[i - 1]].unused_edges = -1;
   }             /* for (i=1; i<num_gene; i++) */
 
+  trace_tour(new_gene, num_gene, "crossover tour(new gene)");
   return edge_failures;
 }
 
@@ -234,11 +268,13 @@ gimme_tour(PlannerInfo *root, Edge *edge_table, Gene *new_gene, int num_gene)
 static void
 remove_gene(PlannerInfo *root, Gene gene, Edge edge, Edge *edge_table)
 {
+  DBUG_TRACE;
   int     i,
           j;
   int     possess_edge;
   int     genes_remaining;
 
+  DBUG_PRINT("info", "removes input gene:%d from edge_table", gene);
   /*
    * do for every gene known to have an edge to input gene (i.e. in
    * edge_list for input edge)
@@ -273,12 +309,14 @@ remove_gene(PlannerInfo *root, Gene gene, Edge edge, Edge *edge_table)
 static Gene
 gimme_gene(PlannerInfo *root, Edge edge, Edge *edge_table)
 {
+  DBUG_TRACE;
   int     i;
   Gene    friend;
   int     minimum_edges;
   int     minimum_count = -1;
   int     rand_decision;
 
+  DBUG_PRINT("info", "priority is given to 'shared' edges");
   /*
    * no point has edges to more than 4 other points thus, this contrived
    * minimum will be replaced

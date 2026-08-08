@@ -12,6 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/skey.h"
@@ -38,6 +39,7 @@ ScanKeyEntryInitialize(ScanKey entry,
                        RegProcedure procedure,
                        Datum argument)
 {
+  DBUG_TRACE;
   entry->sk_flags = flags;
   entry->sk_attno = attributeNumber;
   entry->sk_strategy = strategy;
@@ -77,6 +79,7 @@ ScanKeyInit(ScanKey entry,
             RegProcedure procedure,
             Datum argument)
 {
+  DBUG_TRACE;
   entry->sk_flags = 0;
   entry->sk_attno = attributeNumber;
   entry->sk_strategy = strategy;

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "catalog/pg_constraint.h"
 #include "catalog/pg_type.h"
@@ -62,21 +63,21 @@ typedef struct JoinTreeItem {
   Node     *jtnode;     /* jointree node to examine */
   JoinDomain *jdomain;    /* join domain for its ON/WHERE clauses */
   struct JoinTreeItem *jti_parent;  /* JoinTreeItem for this node's
-                     * parent, or NULL if it's the top */
+                                     * parent, or NULL if it's the top */
   Relids    qualscope;    /* base+OJ Relids syntactically included in
-                 * this jointree node */
+                           * this jointree node */
   Relids    inner_join_rels;  /* base+OJ Relids syntactically included
-                   * in inner joins appearing at or below
-                   * this jointree node */
+                               * in inner joins appearing at or below
+                               * this jointree node */
   Relids    left_rels;    /* if join node, Relids of the left side */
   Relids    right_rels;   /* if join node, Relids of the right side */
   Relids    nonnullable_rels; /* if outer join, Relids of the
-                   * non-nullable side */
+                               * non-nullable side */
   /* Fields filled during deconstruct_distribute: */
   SpecialJoinInfo *sjinfo;  /* if outer join, its SpecialJoinInfo */
   List     *oj_joinclauses; /* outer join quals not yet distributed */
   List     *lateral_clauses;  /* quals postponed from children due to
-                   * lateral references */
+                               * lateral references */
 } JoinTreeItem;
 
 /*
@@ -167,6 +168,8 @@ static void check_memoizable(RestrictInfo *restrictinfo);
 void
 add_base_rels_to_query(PlannerInfo *root, Node *jtnode)
 {
+  DBUG_TRACE;
+
   if (jtnode == NULL)
     return;
 
@@ -200,6 +203,7 @@ add_base_rels_to_query(PlannerInfo *root, Node *jtnode)
 void
 add_other_rels_to_query(PlannerInfo *root)
 {
+  DBUG_TRACE;
   int     rti;
 
   for (rti = 1; rti < root->simple_rel_array_size; rti++) {
@@ -215,8 +219,10 @@ add_other_rels_to_query(PlannerInfo *root)
       continue;
 
     /* If it's marked as inheritable, look for children. */
-    if (rte->inh)
+    if (rte->inh) {
+      DBUG_PRINT("info", "it's marked as inheritable and look for children");
       expand_inherited_rtentry(root, rel, rte, rti);
+    }
   }
 }
 
@@ -238,6 +244,7 @@ add_other_rels_to_query(PlannerInfo *root)
 void
 build_base_rel_tlists(PlannerInfo *root, List *final_tlist)
 {
+  DBUG_TRACE;
   List     *tlist_vars = pull_var_clause((Node *) final_tlist,
                                          PVC_RECURSE_AGGREGATES |
                                          PVC_RECURSE_WINDOWFUNCS |
@@ -258,6 +265,7 @@ build_base_rel_tlists(PlannerInfo *root, List *final_tlist)
                                             PVC_INCLUDE_PLACEHOLDERS);
 
     if (having_vars != NIL) {
+      DBUG_PRINT("info", "there's a HAVING clause and we'll need the Vars it uses");
       add_vars_to_targetlist(root, having_vars,
                              bms_make_singleton(0));
       list_free(having_vars);
@@ -283,6 +291,7 @@ void
 add_vars_to_targetlist(PlannerInfo *root, List *vars,
                        Relids where_needed)
 {
+  DBUG_TRACE;
   ListCell   *temp;
 
   Assert(!bms_is_empty(where_needed));
@@ -294,6 +303,8 @@ add_vars_to_targetlist(PlannerInfo *root, List *vars,
       Var      *var = (Var *) node;
       RelOptInfo *rel = find_base_rel(root, var->varno);
       int     attno = var->varattno;
+
+      DBUG_PRINT("info", "attno:%d", attno);
 
       if (bms_is_subset(where_needed, rel->relids))
         continue;
@@ -685,6 +696,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 void
 find_lateral_references(PlannerInfo *root)
 {
+  DBUG_TRACE;
   Index   rti;
 
   /* We need do nothing if the query contains no LATERAL RTEs */
@@ -732,6 +744,7 @@ find_lateral_references(PlannerInfo *root)
 static void
 extract_lateral_references(PlannerInfo *root, RelOptInfo *brel, Index rtindex)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = root->simple_rte_array[rtindex];
   List     *vars;
   List     *newvars;
@@ -868,9 +881,12 @@ rebuild_lateral_attr_needed(PlannerInfo *root)
 void
 create_lateral_join_info(PlannerInfo *root)
 {
+  DBUG_TRACE;
   bool    found_laterals = false;
   Index   rti;
   ListCell   *lc;
+
+  DBUG_PRINT("info", "fill in the per-base-relation direct_lateral_relids, lateral_relids and lateral_referencers sets");
 
   /* We need do nothing if the query contains no LATERAL RTEs */
   if (!root->hasLateralRTEs)
@@ -1003,6 +1019,8 @@ create_lateral_join_info(PlannerInfo *root)
    * The outer loop considers each baserel, and propagates its lateral
    * dependencies to those baserels that have a lateral dependency on it.
    */
+  DBUG_PRINT("info", "calculate the transitive closure of the lateral_relids sets");
+
   for (rti = 1; rti < root->simple_rel_array_size; rti++) {
     RelOptInfo *brel = root->simple_rel_array[rti];
     Relids    outer_lateral_relids;
@@ -1096,11 +1114,13 @@ create_lateral_join_info(PlannerInfo *root)
 List *
 deconstruct_jointree(PlannerInfo *root)
 {
+  DBUG_TRACE;
   List     *result;
   JoinDomain *top_jdomain;
   List     *item_list = NIL;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "recursively scan the query's join tree for WHERE and JOIN/ON qual clauses");
   /*
    * After this point, no more PlaceHolderInfos may be made, because
    * make_outerjoininfo requires all active placeholders to be present in
@@ -1178,9 +1198,11 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
                     JoinTreeItem *parent_jtitem,
                     List **item_list)
 {
+  DBUG_TRACE;
   List     *joinlist;
   JoinTreeItem *jtitem;
 
+  DBUG_PRINT("info", "one recursion level of deconstruct_jointree's initial jointree scan");
   Assert(jtnode != NULL);
 
   /* Make the new JoinTreeItem, but don't add it to item_list yet */
@@ -1190,6 +1212,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
 
   if (IsA(jtnode, RangeTblRef)) {
     int     varno = ((RangeTblRef *) jtnode)->rtindex;
+    DBUG_PRINT("info", "reference to an entry in the query's rangetable");
 
     /* Fill all_baserels as we encounter baserel jointree nodes */
     root->all_baserels = bms_add_member(root->all_baserels, varno);
@@ -1207,6 +1230,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
     int     remaining;
     ListCell   *l;
 
+    DBUG_PRINT("info", "represents a FROM ... WHERE ... construct");
     /* This node belongs to parent_domain, as do its children */
     jtitem->jdomain = parent_domain;
 
@@ -1239,10 +1263,15 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
       remaining--;
 
       if (sub_members <= 1 ||
-          list_length(joinlist) + sub_members + remaining <= from_collapse_limit)
+          list_length(joinlist) + sub_members + remaining <= from_collapse_limit) {
+        DBUG_PRINT("info", "list concat and list length:%d, sub_members:%d, remaining:%d, from_collapse_limit:%d",
+                   list_length(joinlist), sub_members, remaining, from_collapse_limit);
         joinlist = list_concat(joinlist, sub_joinlist);
-      else
+      } else {
+        DBUG_PRINT("info", "lappend and list length:%d, sub_members:%d, remaining:%d, from_collapse_limit:%d",
+                   list_length(joinlist), sub_members, remaining, from_collapse_limit);
         joinlist = lappend(joinlist, sub_joinlist);
+      }
     }
 
     /*
@@ -1263,8 +1292,11 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
     List     *leftjoinlist,
              *rightjoinlist;
 
+    DBUG_PRINT("info", "SQL JOIN expressions");
+
     switch (j->jointype) {
       case JOIN_INNER:
+        DBUG_PRINT("info", "inner join type");
         /* This node belongs to parent_domain, as do its children */
         jtitem->jdomain = parent_domain;
         /* Recurse */
@@ -1290,6 +1322,12 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
 
       case JOIN_LEFT:
       case JOIN_ANTI:
+        if (j->jointype == JOIN_LEFT) {
+          DBUG_PRINT("info", "left join type");
+        } else {
+          DBUG_PRINT("info", "anti join type");
+        }
+
         /* Make new join domain for my quals and the RHS */
         child_domain = makeNode(JoinDomain);
         child_domain->jd_relids = NULL; /* filled by recursion */
@@ -1334,6 +1372,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
         break;
 
       case JOIN_SEMI:
+        DBUG_PRINT("info", "semi join type");
         /* This node belongs to parent_domain, as do its children */
         jtitem->jdomain = parent_domain;
         /* Recurse */
@@ -1361,6 +1400,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
         break;
 
       case JOIN_FULL:
+        DBUG_PRINT("info", "full join type");
         /* The FULL JOIN's quals need their very own domain */
         fj_domain = makeNode(JoinDomain);
         root->join_domains = lappend(root->join_domains, fj_domain);
@@ -1422,10 +1462,14 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
      * at a FULL JOIN or where join_collapse_limit would be exceeded.
      */
     if (j->jointype == JOIN_FULL) {
+      DBUG_PRINT("info", "force the join order exactly at this node");
       /* force the join order exactly at this node */
       joinlist = list_make1(list_make2(leftjoinlist, rightjoinlist));
     } else if (list_length(leftjoinlist) + list_length(rightjoinlist) <=
                join_collapse_limit) {
+      DBUG_PRINT("info", "ok to combine subproblems and join_collapse_limit:%d", join_collapse_limit);
+      DBUG_PRINT("info", "left join list length:%d", list_length(leftjoinlist));
+      DBUG_PRINT("info", "right join list length:%d", list_length(rightjoinlist));
       /* OK to combine subproblems */
       joinlist = list_concat(leftjoinlist, rightjoinlist);
     } else {
@@ -1433,11 +1477,16 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
       Node     *leftpart,
                *rightpart;
 
+      DBUG_PRINT("info", "can't combine, but needn't force join order above here");
+      DBUG_PRINT("info", "left join list length:%d", list_length(leftjoinlist));
+      DBUG_PRINT("info", "right join list length:%d", list_length(rightjoinlist));
+
       /* avoid creating useless 1-element sublists */
-      if (list_length(leftjoinlist) == 1)
+      if (list_length(leftjoinlist) == 1) {
         leftpart = (Node *) linitial(leftjoinlist);
-      else
+      } else {
         leftpart = (Node *) leftjoinlist;
+      }
 
       if (list_length(rightjoinlist) == 1)
         rightpart = (Node *) linitial(rightjoinlist);
@@ -1445,6 +1494,7 @@ deconstruct_recurse(PlannerInfo *root, Node *jtnode,
         rightpart = (Node *) rightjoinlist;
 
       joinlist = list_make2(leftpart, rightpart);
+      DBUG_PRINT("info", "joinlist length:%d", joinlist->length);
     }
   } else {
     elog(ERROR, "unrecognized node type: %d",
@@ -1579,9 +1629,9 @@ deconstruct_distribute(PlannerInfo *root, JoinTreeItem *jtitem)
                              root->qual_security_level,
                              jtitem->qualscope,
                              ojscope, jtitem->nonnullable_rels,
-                             NULL,  /* incompatible_relids */
-                             true,  /* allow_equivalence */
-                             false, false,  /* not clones */
+                             NULL, /* incompatible_relids */
+                             true, /* allow_equivalence */
+                             false, false, /* not clones */
                              postponed_oj_qual_list);
 
     /* And add the SpecialJoinInfo to join_info_list */
@@ -1610,6 +1660,7 @@ static void
 process_security_barrier_quals(PlannerInfo *root,
                                int rti, JoinTreeItem *jtitem)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = root->simple_rte_array[rti];
   Index   security_level = 0;
   ListCell   *lc;
@@ -1638,7 +1689,7 @@ process_security_barrier_quals(PlannerInfo *root,
                              NULL,
                              NULL,
                              true,
-                             false, false,  /* not clones */
+                             false, false, /* not clones */
                              NULL);
     security_level++;
   }
@@ -1659,6 +1710,7 @@ static void
 mark_rels_nulled_by_join(PlannerInfo *root, Index ojrelid,
                          Relids lower_rels)
 {
+  DBUG_TRACE;
   int     relid = -1;
 
   while ((relid = bms_next_member(lower_rels, relid)) > 0) {
@@ -1703,6 +1755,7 @@ make_outerjoininfo(PlannerInfo *root,
                    JoinType jointype, Index ojrelid,
                    List *clause)
 {
+  DBUG_TRACE;
   SpecialJoinInfo *sjinfo = makeNode(SpecialJoinInfo);
   Relids    clause_relids;
   Relids    strict_relids;
@@ -1738,13 +1791,16 @@ make_outerjoininfo(PlannerInfo *root,
     RowMarkClause *rc = (RowMarkClause *) lfirst(l);
 
     if (bms_is_member(rc->rti, right_rels) ||
-        (jointype == JOIN_FULL && bms_is_member(rc->rti, left_rels)))
+        (jointype == JOIN_FULL && bms_is_member(rc->rti, left_rels))) {
+      DBUG_INSTANT_PRINT("info", "%s cannot be applied to the nullable side of an outer join",
+          LCS_asString(rc->strength));
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                /*------
-                translator: %s is a SQL row locking clause such as FOR UPDATE */
+                 translator: %s is a SQL row locking clause such as FOR UPDATE */
                errmsg("%s cannot be applied to the nullable side of an outer join",
                       LCS_asString(rc->strength))));
+    }
   }
 
   sjinfo->syn_lefthand = left_rels;
@@ -2030,6 +2086,7 @@ make_outerjoininfo(PlannerInfo *root,
 static void
 compute_semijoin_info(PlannerInfo *root, SpecialJoinInfo *sjinfo, List *clause)
 {
+  DBUG_TRACE;
   List     *semi_operators;
   List     *semi_rhs_exprs;
   bool    all_btree;
@@ -2208,6 +2265,7 @@ deconstruct_distribute_oj_quals(PlannerInfo *root,
                                 List *jtitems,
                                 JoinTreeItem *jtitem)
 {
+  DBUG_TRACE;
   SpecialJoinInfo *sjinfo = jtitem->sjinfo;
   Relids    qualscope,
             ojscope,
@@ -2415,9 +2473,9 @@ deconstruct_distribute_oj_quals(PlannerInfo *root,
                              root->qual_security_level,
                              qualscope,
                              ojscope, nonnullable_rels,
-                             NULL,  /* incompatible_relids */
-                             true,  /* allow_equivalence */
-                             false, false,  /* not clones */
+                             NULL, /* incompatible_relids */
+                             true, /* allow_equivalence */
+                             false, false, /* not clones */
                              NULL); /* no more postponement */
   }
 }
@@ -2525,6 +2583,7 @@ distribute_qual_to_rels(PlannerInfo *root, Node *clause,
                         bool is_clone,
                         List **postponed_oj_qual_list)
 {
+  DBUG_TRACE;
   Relids    relids;
   bool    is_pushed_down;
   bool    pseudoconstant = false;
@@ -2891,6 +2950,7 @@ distribute_qual_to_rels(PlannerInfo *root, Node *clause,
 static bool
 check_redundant_nullability_qual(PlannerInfo *root, Node *clause)
 {
+  DBUG_TRACE;
   Var      *forced_null_var;
   ListCell   *lc;
 
@@ -2937,6 +2997,7 @@ static void
 add_base_clause_to_rel(PlannerInfo *root, Index relid,
                        RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   RelOptInfo *rel = find_base_rel(root, relid);
   RangeTblEntry *rte = root->simple_rte_array[relid];
 
@@ -3009,6 +3070,7 @@ add_base_clause_to_rel(PlannerInfo *root, Index relid,
 static bool
 expr_is_nonnullable(PlannerInfo *root, Expr *expr)
 {
+  DBUG_TRACE;
   RelOptInfo *rel;
   Var      *var;
 
@@ -3047,6 +3109,8 @@ bool
 restriction_is_always_true(PlannerInfo *root,
                            RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
+
   /*
    * For a clone clause, we don't have a reliable way to determine if the
    * input expression of a NullTest is non-nullable: nullingrel bits in
@@ -3109,6 +3173,8 @@ bool
 restriction_is_always_false(PlannerInfo *root,
                             RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
+
   /*
    * For a clone clause, we don't have a reliable way to determine if the
    * input expression of a NullTest is non-nullable: nullingrel bits in
@@ -3178,6 +3244,7 @@ void
 distribute_restrictinfo_to_rels(PlannerInfo *root,
                                 RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   Relids    relids = restrictinfo->required_relids;
 
   if (!bms_is_empty(relids)) {
@@ -3263,6 +3330,7 @@ process_implied_equality(PlannerInfo *root,
                          Index security_level,
                          bool both_const)
 {
+  DBUG_TRACE;
   RestrictInfo *restrictinfo;
   Node     *clause;
   Relids    relids;
@@ -3325,13 +3393,13 @@ process_implied_equality(PlannerInfo *root,
    */
   restrictinfo = make_restrictinfo(root,
                                    (Expr *) clause,
-                                   true,  /* is_pushed_down */
+                                   true, /* is_pushed_down */
                                    false, /* !has_clone */
                                    false, /* !is_clone */
                                    pseudoconstant,
                                    security_level,
                                    relids,
-                                   NULL,  /* incompatible_relids */
+                                   NULL, /* incompatible_relids */
                                    NULL); /* outer_relids */
 
   /*
@@ -3403,16 +3471,18 @@ build_implied_join_equality(PlannerInfo *root,
                             Relids qualscope,
                             Index security_level)
 {
+  DBUG_TRACE;
   RestrictInfo *restrictinfo;
   Expr     *clause;
 
+  DBUG_PRINT("info", "build a RestrictInfo for a derived equality");
   /*
    * Build the new clause.  Copy to ensure it shares no substructure with
    * original (this is necessary in case there are subselects in there...)
    */
   clause = make_opclause(opno,
                          BOOLOID, /* opresulttype */
-                         false, /* opretset */
+                         false,  /* opretset */
                          copyObject(item1),
                          copyObject(item2),
                          InvalidOid,
@@ -3423,13 +3493,13 @@ build_implied_join_equality(PlannerInfo *root,
    */
   restrictinfo = make_restrictinfo(root,
                                    clause,
-                                   true,  /* is_pushed_down */
+                                   true, /* is_pushed_down */
                                    false, /* !has_clone */
                                    false, /* !is_clone */
                                    false, /* pseudoconstant */
-                                   security_level,  /* security_level */
+                                   security_level, /* security_level */
                                    qualscope, /* required_relids */
-                                   NULL,  /* incompatible_relids */
+                                   NULL, /* incompatible_relids */
                                    NULL); /* outer_relids */
 
   /* Set mergejoinability/hashjoinability flags */
@@ -3466,6 +3536,7 @@ build_implied_join_equality(PlannerInfo *root,
 static Relids
 get_join_domain_min_rels(PlannerInfo *root, Relids domain_relids)
 {
+  DBUG_TRACE;
   Relids    result = bms_copy(domain_relids);
   ListCell   *lc;
 
@@ -3570,6 +3641,7 @@ rebuild_joinclause_attr_needed(PlannerInfo *root)
 void
 match_foreign_keys_to_quals(PlannerInfo *root)
 {
+  DBUG_TRACE;
   List     *newlist = NIL;
   ListCell   *lc;
 
@@ -3740,6 +3812,7 @@ match_foreign_keys_to_quals(PlannerInfo *root)
 static void
 check_mergejoinable(RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   Expr     *clause = restrictinfo->clause;
   Oid     opno;
   Node     *leftarg;
@@ -3779,6 +3852,7 @@ check_mergejoinable(RestrictInfo *restrictinfo)
 static void
 check_hashjoinable(RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   Expr     *clause = restrictinfo->clause;
   Oid     opno;
   Node     *leftarg;
@@ -3809,6 +3883,7 @@ check_hashjoinable(RestrictInfo *restrictinfo)
 static void
 check_memoizable(RestrictInfo *restrictinfo)
 {
+  DBUG_TRACE;
   TypeCacheEntry *typentry;
   Expr     *clause = restrictinfo->clause;
   Oid     lefttype;

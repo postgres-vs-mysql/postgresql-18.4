@@ -16,6 +16,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -150,7 +151,18 @@ SB_lower_char(unsigned char c, pg_locale_t locale)
 static inline int
 GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation)
 {
+  DBUG_TRACE;
   pg_locale_t locale;
+  char buffer1[64], buffer2[64];
+
+  if (slen < 64 && plen < 64) {
+    strncpy(buffer1, s, slen);
+    buffer1[slen] = '\0';
+    strncpy(buffer2, p, plen);
+    buffer2[plen] = '\0';
+    DBUG_PRINT("info", "pattern:%s, source:%s, slen:%d, plen:%d", buffer2, buffer1, slen, plen);
+  }
+
 
   if (!OidIsValid(collation)) {
     /*
@@ -176,6 +188,7 @@ GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation
 static inline int
 Generic_Text_IC_like(text *str, text *pat, Oid collation)
 {
+  DBUG_TRACE;
   char     *s,
            *p;
   int     slen,
@@ -238,6 +251,7 @@ Generic_Text_IC_like(text *str, text *pat, Oid collation)
 Datum
 namelike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    str = PG_GETARG_NAME(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -259,6 +273,7 @@ namelike(PG_FUNCTION_ARGS)
 Datum
 namenlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    str = PG_GETARG_NAME(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -280,6 +295,7 @@ namenlike(PG_FUNCTION_ARGS)
 Datum
 textlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -301,6 +317,7 @@ textlike(PG_FUNCTION_ARGS)
 Datum
 textnlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -322,6 +339,7 @@ textnlike(PG_FUNCTION_ARGS)
 Datum
 bytealike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *str = PG_GETARG_BYTEA_PP(0);
   bytea    *pat = PG_GETARG_BYTEA_PP(1);
   bool    result;
@@ -343,6 +361,7 @@ bytealike(PG_FUNCTION_ARGS)
 Datum
 byteanlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *str = PG_GETARG_BYTEA_PP(0);
   bytea    *pat = PG_GETARG_BYTEA_PP(1);
   bool    result;
@@ -368,6 +387,7 @@ byteanlike(PG_FUNCTION_ARGS)
 Datum
 nameiclike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    str = PG_GETARG_NAME(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -383,6 +403,7 @@ nameiclike(PG_FUNCTION_ARGS)
 Datum
 nameicnlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    str = PG_GETARG_NAME(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -398,6 +419,7 @@ nameicnlike(PG_FUNCTION_ARGS)
 Datum
 texticlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -410,6 +432,7 @@ texticlike(PG_FUNCTION_ARGS)
 Datum
 texticnlike(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *str = PG_GETARG_TEXT_PP(0);
   text     *pat = PG_GETARG_TEXT_PP(1);
   bool    result;
@@ -426,6 +449,7 @@ texticnlike(PG_FUNCTION_ARGS)
 Datum
 like_escape(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *pat = PG_GETARG_TEXT_PP(0);
   text     *esc = PG_GETARG_TEXT_PP(1);
   text     *result;
@@ -445,6 +469,7 @@ like_escape(PG_FUNCTION_ARGS)
 Datum
 like_escape_bytea(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   bytea    *pat = PG_GETARG_BYTEA_PP(0);
   bytea    *esc = PG_GETARG_BYTEA_PP(1);
   bytea    *result = SB_do_like_escape((text *) pat, (text *) esc);

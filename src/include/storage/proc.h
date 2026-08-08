@@ -205,8 +205,8 @@ struct PGPROC
    * is not atomically assignable as whole, and we want to enforce code to
    * consider both parts separately.  See comments at VirtualTransactionId.
    */
-  struct
-  {
+struct
+{
     ProcNumber  procNumber; /* For regular backends, equal to
                  * GetNumberFromPGProc(proc).  For prepared
                  * xacts, ID of the original backend that

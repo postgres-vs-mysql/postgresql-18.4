@@ -18,6 +18,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/htup_details.h"
 #include "catalog/pg_language.h"
@@ -179,6 +180,8 @@ contain_agg_clause(Node *clause)
 static bool
 contain_agg_clause_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -224,8 +227,10 @@ contain_window_function(Node *clause)
 WindowFuncLists *
 find_window_functions(Node *clause, Index maxWinRef)
 {
+  DBUG_TRACE;
   WindowFuncLists *lists = palloc(sizeof(WindowFuncLists));
 
+  DBUG_PRINT("info", "locate all the WindowFunc nodes in an expression tree");
   lists->numWindowFuncs = 0;
   lists->maxWinRef = maxWinRef;
   lists->windowFuncs = (List **) palloc0((maxWinRef + 1) * sizeof(List *));
@@ -236,6 +241,8 @@ find_window_functions(Node *clause, Index maxWinRef)
 static bool
 find_window_functions_walker(Node *node, WindowFuncLists *lists)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -378,6 +385,8 @@ contain_mutable_functions_checker(Oid func_id, void *context)
 static bool
 contain_mutable_functions_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -676,6 +685,8 @@ contain_volatile_functions_not_nextval_checker(Oid func_id, void *context)
 static bool
 contain_volatile_functions_not_nextval_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -744,9 +755,11 @@ max_parallel_hazard(Query *parse)
 bool
 is_parallel_safe(PlannerInfo *root, Node *node)
 {
+  DBUG_TRACE;
   max_parallel_hazard_context context;
   PlannerInfo *proot;
   ListCell   *l;
+  bool result = false;
 
   /*
    * Even if the original querytree contained nothing unsafe, we need to
@@ -755,8 +768,10 @@ is_parallel_safe(PlannerInfo *root, Node *node)
    * in this expression.  But otherwise we don't need to look.
    */
   if (root->glob->maxParallelHazard == PROPARALLEL_SAFE &&
-      root->glob->paramExecTypes == NIL)
+      root->glob->paramExecTypes == NIL) {
+    DBUG_PRINT("info", "parallel safe");
     return true;
+  }
 
   /* Else use max_parallel_hazard's search logic, but stop on RESTRICTED */
   context.max_hazard = PROPARALLEL_SAFE;
@@ -777,15 +792,26 @@ is_parallel_safe(PlannerInfo *root, Node *node)
     }
   }
 
-  return !max_parallel_hazard_walker(node, &context);
+  result = !max_parallel_hazard_walker(node, &context);
+
+  if (result) {
+    DBUG_PRINT("info", "parallel safe after max_parallel_hazard_walker");
+  } else {
+    DBUG_PRINT("info", "parallel unsafe");
+  }
+
+  return result;
 }
 
 /* core logic for all parallel-hazard checks */
 static bool
 max_parallel_hazard_test(char proparallel, max_parallel_hazard_context *context)
 {
+  DBUG_TRACE;
+
   switch (proparallel) {
     case PROPARALLEL_SAFE:
+      DBUG_PRINT("info", "nothing to see here, move along");
       /* nothing to see here, move along */
       break;
 
@@ -795,13 +821,16 @@ max_parallel_hazard_test(char proparallel, max_parallel_hazard_context *context)
       context->max_hazard = proparallel;
 
       /* done if we are not expecting any unsafe functions */
-      if (context->max_interesting == proparallel)
+      if (context->max_interesting == proparallel) {
+        DBUG_PRINT("info", "done if we are not expecting any unsafe functions");
         return true;
+      }
 
       break;
 
     case PROPARALLEL_UNSAFE:
       context->max_hazard = proparallel;
+      DBUG_PRINT("info", "we're always done at the first unsafe construct");
       /* we're always done at the first unsafe construct */
       return true;
 
@@ -996,6 +1025,8 @@ contain_nonstrict_functions_checker(Oid func_id, void *context)
 static bool
 contain_nonstrict_functions_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -1152,6 +1183,8 @@ contain_exec_param(Node *clause, List *param_ids)
 static bool
 contain_exec_param_walker(Node *node, List *param_ids)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -1199,6 +1232,8 @@ contain_context_dependent_node(Node *clause)
 static bool
 contain_context_dependent_node_walker(Node *node, int *flags)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -1280,11 +1315,348 @@ contain_leaked_vars_checker(Oid func_id, void *context)
   return !get_func_leakproof(func_id);
 }
 
+static void trace_node_type(int type)
+{
+  switch (type) {
+    case T_Var:
+      DBUG_PRINT("info", "node type(var)");
+      break;
+
+    case T_Const:
+      DBUG_PRINT("info", "node type(const)");
+      break;
+
+    case T_Param:
+      DBUG_PRINT("info", "node type(param)");
+      break;
+
+    case T_CaseTestExpr:
+      DBUG_PRINT("info", "node type(case test expr)");
+      break;
+
+    case T_SQLValueFunction:
+      DBUG_PRINT("info", "node type(SQL value function)");
+      break;
+
+    case T_CoerceToDomainValue:
+      DBUG_PRINT("info", "node type(coerce to domain value)");
+      break;
+
+    case T_SetToDefault:
+      DBUG_PRINT("info", "node type(set to default)");
+      break;
+
+    case T_CurrentOfExpr:
+      DBUG_PRINT("info", "node type(current of expr)");
+      break;
+
+    case T_NextValueExpr:
+      DBUG_PRINT("info", "node type(next value expr)");
+      break;
+
+    case T_RangeTblRef:
+      DBUG_PRINT("info", "node type(range table ref)");
+      break;
+
+    case T_SortGroupClause:
+      DBUG_PRINT("info", "node type(sort group clause)");
+      break;
+
+    case T_CTESearchClause:
+      DBUG_PRINT("info", "node type(cte search clause)");
+      break;
+
+    case T_MergeSupportFunc:
+      DBUG_PRINT("info", "node type(merge support func)");
+      break;
+
+    case T_WithCheckOption:
+      DBUG_PRINT("info", "node type(with check option)");
+      break;
+
+    case T_Aggref:
+      DBUG_PRINT("info", "node type(aggref)");
+      break;
+
+    case T_GroupingFunc:
+      DBUG_PRINT("info", "node type(grouping func)");
+      break;
+
+    case T_WindowFunc:
+      DBUG_PRINT("info", "node type(window func)");
+      break;
+
+    case T_WindowFuncRunCondition:
+      DBUG_PRINT("info", "node type(window func run condition)");
+      break;
+
+    case T_SubscriptingRef:
+      DBUG_PRINT("info", "node type(subscripting ref)");
+      break;
+
+    case T_FuncExpr:
+      DBUG_PRINT("info", "node type(func expr)");
+      break;
+
+    case T_NamedArgExpr:
+      DBUG_PRINT("info", "node type(named arg expr)");
+      break;
+
+    case T_OpExpr:
+      DBUG_PRINT("info", "node type(op expr)");
+      break;
+
+    case T_DistinctExpr:  /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(distinct expr)");
+      break;
+
+    case T_NullIfExpr:    /* struct-equivalent to OpExpr */
+      DBUG_PRINT("info", "node type(null if expr)");
+      break;
+
+    case T_ScalarArrayOpExpr:
+      DBUG_PRINT("info", "node type(scalar array op expr)");
+      break;
+
+    case T_BoolExpr:
+      DBUG_PRINT("info", "node type(bool expr)");
+      break;
+
+    case T_SubLink:
+      DBUG_PRINT("info", "node type(sub link)");
+      break;
+
+    case T_SubPlan:
+      DBUG_PRINT("info", "node type(sub plan)");
+      break;
+
+    case T_AlternativeSubPlan:
+      DBUG_PRINT("info", "node type(alternative sub plan)");
+      break;
+
+    case T_FieldSelect:
+      DBUG_PRINT("info", "node type(field select)");
+      break;
+
+    case T_FieldStore:
+      DBUG_PRINT("info", "node type(field store)");
+      break;
+
+    case T_RelabelType:
+      DBUG_PRINT("info", "node type(relabel type)");
+      break;
+
+    case T_CoerceViaIO:
+      DBUG_PRINT("info", "node type(coerce via io)");
+      break;
+
+    case T_ArrayCoerceExpr:
+      DBUG_PRINT("info", "node type(array coerce expr)");
+      break;
+
+    case T_ConvertRowtypeExpr:
+      DBUG_PRINT("info", "node type(convert row type expr)");
+      break;
+
+    case T_CollateExpr:
+      DBUG_PRINT("info", "node type(collate expr)");
+      break;
+
+    case T_CaseExpr:
+      DBUG_PRINT("info", "node type(case expr)");
+      break;
+
+    case T_ArrayExpr:
+      DBUG_PRINT("info", "node type(array expr)");
+      break;
+
+    case T_RowExpr:
+      DBUG_PRINT("info", "node type(row expr)");
+      break;
+
+    case T_RowCompareExpr:
+      DBUG_PRINT("info", "node type(row compare expr)");
+      break;
+
+    case T_CoalesceExpr:
+      DBUG_PRINT("info", "node type(coalesce expr)");
+      break;
+
+    case T_MinMaxExpr:
+      DBUG_PRINT("info", "node type(min max expr)");
+      break;
+
+    case T_XmlExpr:
+      DBUG_PRINT("info", "node type(xml expr)");
+      break;
+
+    case T_JsonValueExpr:
+      DBUG_PRINT("info", "node type(json value expr)");
+      break;
+
+    case T_JsonConstructorExpr:
+      DBUG_PRINT("info", "node type(json constructor expr)");
+      break;
+
+    case T_JsonIsPredicate:
+      DBUG_PRINT("info", "node type(json is predicate)");
+      break;
+
+    case T_JsonExpr:
+      DBUG_PRINT("info", "node type(json expr)");
+      break;
+
+    case T_JsonBehavior:
+      DBUG_PRINT("info", "node type(json behavior)");
+      break;
+
+    case T_NullTest:
+      DBUG_PRINT("info", "node type(null test)");
+      break;
+
+    case T_BooleanTest:
+      DBUG_PRINT("info", "node type(boolean test)");
+      break;
+
+    case T_CoerceToDomain:
+      DBUG_PRINT("info", "node type(coerce to domain)");
+      break;
+
+    case T_TargetEntry:
+      DBUG_PRINT("info", "node type(target entry)");
+      break;
+
+    case T_Query:
+      DBUG_PRINT("info", "node type(query)");
+      break;
+
+    case T_WindowClause:
+      DBUG_PRINT("info", "node type(window clause)");
+      break;
+
+    case T_CTECycleClause:
+      DBUG_PRINT("info", "node type(cte cycle clause)");
+      break;
+
+    case T_CommonTableExpr:
+      DBUG_PRINT("info", "node type(common table expr)");
+      break;
+
+    case T_JsonKeyValue:
+      DBUG_PRINT("info", "node type(json key value)");
+      break;
+
+    case T_JsonObjectConstructor:
+      DBUG_PRINT("info", "node type(json Object constructor)");
+      break;
+
+    case T_JsonArrayConstructor:
+      DBUG_PRINT("info", "node type(json array constructor)");
+      break;
+
+    case T_JsonArrayQueryConstructor:
+      DBUG_PRINT("info", "node type(json array query constructor)");
+      break;
+
+    case T_JsonAggConstructor:
+      DBUG_PRINT("info", "node type(json agg constructor)");
+      break;
+
+    case T_JsonObjectAgg:
+      DBUG_PRINT("info", "node type(json object agg)");
+      break;
+
+    case T_JsonArrayAgg:
+      DBUG_PRINT("info", "node type(json array agg)");
+      break;
+
+    case T_PartitionBoundSpec:
+      DBUG_PRINT("info", "node type(partition bound spec)");
+      break;
+
+    case T_PartitionRangeDatum:
+      DBUG_PRINT("info", "node type(partition range datum)");
+      break;
+
+    case T_List:
+      DBUG_PRINT("info", "node type(list)");
+      break;
+
+    case T_FromExpr:
+      DBUG_PRINT("info", "node type(from expr)");
+      break;
+
+    case T_OnConflictExpr:
+      DBUG_PRINT("info", "node type(on conflict expr)");
+      break;
+
+    case T_MergeAction:
+      DBUG_PRINT("info", "node type(merge action)");
+      break;
+
+    case T_PartitionPruneStepOp:
+      DBUG_PRINT("info", "node type(partition prune step op)");
+      break;
+
+    case T_PartitionPruneStepCombine:
+      DBUG_PRINT("info", "node type(partition prune step combine)");
+      break;
+
+    case T_JoinExpr:
+      DBUG_PRINT("info", "node type(join expr)");
+      break;
+
+    case T_SetOperationStmt:
+      DBUG_PRINT("info", "node type(set operation stmt)");
+      break;
+
+    case T_IndexClause:
+      DBUG_PRINT("info", "node type(index clause)");
+      break;
+
+    case T_PlaceHolderVar:
+      DBUG_PRINT("info", "node type(place holder var)");
+      break;
+
+    case T_InferenceElem:
+      DBUG_PRINT("info", "node type(inference elem)");
+      break;
+
+    case T_AppendRelInfo:
+      DBUG_PRINT("info", "node type(append rel info)");
+      break;
+
+    case T_PlaceHolderInfo:
+      DBUG_PRINT("info", "node type(place holder info)");
+      break;
+
+    case T_RangeTblFunction:
+      DBUG_PRINT("info", "node type(range table function)");
+      break;
+
+    case T_TableSampleClause:
+      DBUG_PRINT("info", "node type(table sample clause)");
+      break;
+
+    case T_TableFunc:
+      DBUG_PRINT("info", "node type(table func)");
+      break;
+
+    default:
+      DBUG_PRINT("info", "node tag:%d", type);
+      break;
+  }
+}
+
 static bool
 contain_leaked_vars_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
+
+  trace_node_type(nodeTag(node));
 
   switch (nodeTag(node)) {
     case T_Var:
@@ -1468,6 +1840,7 @@ find_nonnullable_rels(Node *clause)
 static Relids
 find_nonnullable_rels_walker(Node *node, bool top_level)
 {
+  DBUG_TRACE;
   Relids    result = NULL;
   ListCell   *l;
 
@@ -1694,6 +2067,7 @@ find_nonnullable_vars(Node *clause)
 static List *
 find_nonnullable_vars_walker(Node *node, bool top_level)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   ListCell   *l;
 
@@ -1871,6 +2245,7 @@ find_nonnullable_vars_walker(Node *node, bool top_level)
 List *
 find_forced_null_vars(Node *node)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   Var      *var;
   ListCell   *l;
@@ -1929,6 +2304,8 @@ find_forced_null_vars(Node *node)
 Var *
 find_forced_null_var(Node *node)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -1975,6 +2352,7 @@ find_forced_null_var(Node *node)
 static bool
 is_strict_saop(ScalarArrayOpExpr *expr, bool falseOK)
 {
+  DBUG_TRACE;
   Node     *rightop;
 
   /* The contained operator must be strict. */
@@ -2085,6 +2463,7 @@ is_pseudo_constant_clause_relids(Node *clause, Relids relids)
 int
 NumRelids(PlannerInfo *root, Node *clause)
 {
+  DBUG_TRACE;
   int     result;
   Relids    varnos = pull_varnos(root, clause);
 
@@ -2102,6 +2481,7 @@ NumRelids(PlannerInfo *root, Node *clause)
 void
 CommuteOpExpr(OpExpr *clause)
 {
+  DBUG_TRACE;
   Oid     opoid;
   Node     *temp;
 
@@ -2143,6 +2523,7 @@ rowtype_field_matches(Oid rowtypeid, int fieldnum,
                       Oid expectedtype, int32 expectedtypmod,
                       Oid expectedcollation)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   Form_pg_attribute attr;
 
@@ -2212,6 +2593,7 @@ rowtype_field_matches(Oid rowtypeid, int fieldnum,
 Node *
 eval_const_expressions(PlannerInfo *root, Node *node)
 {
+  DBUG_TRACE;
   eval_const_expressions_context context;
 
   if (root)
@@ -2347,6 +2729,7 @@ convert_saop_to_hashed_saop_walker(Node *node, void *context)
 Node *
 estimate_expression_value(PlannerInfo *root, Node *node)
 {
+  DBUG_TRACE;
   eval_const_expressions_context context;
 
   context.boundParams = root->glob->boundParams;  /* bound Params */
@@ -2382,9 +2765,9 @@ estimate_expression_value(PlannerInfo *root, Node *node)
 /* Generic macro for applying evaluate_expr */
 #define ece_evaluate_expr(node) \
   ((Node *) evaluate_expr((Expr *) (node), \
-              exprType((Node *) (node)), \
-              exprTypmod((Node *) (node)), \
-              exprCollation((Node *) (node))))
+    exprType((Node *) (node)), \
+    exprTypmod((Node *) (node)), \
+    exprCollation((Node *) (node))))
 
 /*
  * Recursive guts of eval_const_expressions/estimate_expression_value
@@ -2393,7 +2776,7 @@ static Node *
 eval_const_expressions_mutator(Node *node,
                                eval_const_expressions_context *context)
 {
-
+  DBUG_TRACE;
   /* since this function recurses, it could be driven to stack overflow */
   check_stack_depth();
 
@@ -2684,7 +3067,7 @@ eval_const_expressions_mutator(Node *node,
          * scribble on input to this extent.
          */
         set_opfuncid((OpExpr *) expr);  /* rely on struct
-                         * equivalence */
+                       * equivalence */
 
         /*
          * Code for op/func reduction is pretty bulky, so split it
@@ -3709,6 +4092,8 @@ eval_const_expressions_mutator(Node *node,
 static bool
 contain_non_const_walker(Node *node, void *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -3728,6 +4113,7 @@ contain_non_const_walker(Node *node, void *context)
 static bool
 ece_function_is_safe(Oid funcid, eval_const_expressions_context *context)
 {
+  DBUG_TRACE;
   char    provolatile = func_volatile(funcid);
 
   /*
@@ -3770,6 +4156,7 @@ simplify_or_arguments(List *args,
                       eval_const_expressions_context *context,
                       bool *haveNull, bool *forceTrue)
 {
+  DBUG_TRACE;
   List     *newargs = NIL;
   List     *unprocessed_args;
 
@@ -3873,6 +4260,7 @@ simplify_and_arguments(List *args,
                        eval_const_expressions_context *context,
                        bool *haveNull, bool *forceFalse)
 {
+  DBUG_TRACE;
   List     *newargs = NIL;
   List     *unprocessed_args;
 
@@ -3962,6 +4350,7 @@ simplify_and_arguments(List *args,
 static Node *
 simplify_boolean_equality(Oid opno, List *args)
 {
+  DBUG_TRACE;
   Node     *leftop;
   Node     *rightop;
 
@@ -4031,6 +4420,7 @@ simplify_function(Oid funcid, Oid result_type, int32 result_typmod,
                   bool funcvariadic, bool process_args, bool allow_non_const,
                   eval_const_expressions_context *context)
 {
+  DBUG_TRACE;
   List     *args = *args_p;
   HeapTuple func_tuple;
   Form_pg_proc func_form;
@@ -4221,6 +4611,7 @@ expand_function_arguments(List *args, bool include_out_arguments,
 static List *
 reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 {
+  DBUG_TRACE;
   Form_pg_proc funcform = (Form_pg_proc) GETSTRUCT(func_tuple);
   int     nargsprovided = list_length(args);
   Node     *argarray[FUNC_MAX_ARGS];
@@ -4290,6 +4681,7 @@ reorder_function_arguments(List *args, int pronargs, HeapTuple func_tuple)
 static List *
 add_function_defaults(List *args, int pronargs, HeapTuple func_tuple)
 {
+  DBUG_TRACE;
   int     nargsprovided = list_length(args);
   List     *defaults;
   int     ndelete;
@@ -4316,6 +4708,7 @@ add_function_defaults(List *args, int pronargs, HeapTuple func_tuple)
 static List *
 fetch_function_defaults(HeapTuple func_tuple)
 {
+  DBUG_TRACE;
   List     *defaults;
   Datum   proargdefaults;
   char     *str;
@@ -4348,6 +4741,7 @@ recheck_cast_function_args(List *args, Oid result_type,
                            Oid *proargtypes, int pronargs,
                            HeapTuple func_tuple)
 {
+  DBUG_TRACE;
   Form_pg_proc funcform = (Form_pg_proc) GETSTRUCT(func_tuple);
   int     nargs;
   Oid     actual_arg_types[FUNC_MAX_ARGS];
@@ -4877,6 +5271,7 @@ static Node *
 substitute_actual_parameters(Node *expr, int nargs, List *args,
                              int *usecounts)
 {
+  DBUG_TRACE;
   substitute_actual_parameters_context context;
 
   context.nargs = nargs;
@@ -4890,6 +5285,8 @@ static Node *
 substitute_actual_parameters_mutator(Node *node,
                                      substitute_actual_parameters_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return NULL;
 
@@ -4919,6 +5316,7 @@ substitute_actual_parameters_mutator(Node *node,
 static void
 sql_inline_error_callback(void *arg)
 {
+  DBUG_TRACE;
   inline_error_callback_arg *callback_arg = (inline_error_callback_arg *) arg;
   int     syntaxerrposition;
 
@@ -4944,6 +5342,7 @@ Expr *
 evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
               Oid result_collation)
 {
+  DBUG_TRACE;
   EState     *estate;
   ExprState  *exprstate;
   MemoryContext oldcontext;
@@ -5034,6 +5433,7 @@ evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
 Query *
 inline_set_returning_function(PlannerInfo *root, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   RangeTblFunction *rtfunc;
   FuncExpr   *fexpr;
   Oid     func_oid;
@@ -5334,6 +5734,7 @@ fail:
 static Query *
 substitute_actual_srf_parameters(Query *expr, int nargs, List *args)
 {
+  DBUG_TRACE;
   substitute_actual_srf_parameters_context context;
 
   context.nargs = nargs;
@@ -5350,6 +5751,7 @@ static Node *
 substitute_actual_srf_parameters_mutator(Node *node,
     substitute_actual_srf_parameters_context *context)
 {
+  DBUG_TRACE;
   Node     *result;
 
   if (node == NULL)
@@ -5404,6 +5806,8 @@ pull_paramids(Expr *expr)
 static bool
 pull_paramids_walker(Node *node, Bitmapset **context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 

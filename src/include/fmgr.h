@@ -64,6 +64,7 @@ typedef struct FmgrInfo
   void     *fn_extra;   /* extra space for use by handler */
   MemoryContext fn_mcxt;    /* memory context to store fn_extra in */
   fmNodePtr fn_expr;    /* expression parse tree for call, or NULL */
+  int trace_disabled: 1;
 } FmgrInfo;
 
 /*
@@ -82,7 +83,7 @@ typedef struct FmgrInfo
  * that allocated FunctionCallInfoData itself, as it'd often silently break
  * old code due to no space for arguments being provided.
  */
-typedef struct FunctionCallInfoBaseData
+typedef struct FunctionCallInfoBaseData 
 {
   FmgrInfo   *flinfo;     /* ptr to lookup info used for this call */
   fmNodePtr context;    /* pass info about context of call */
@@ -109,13 +110,13 @@ typedef struct FunctionCallInfoBaseData
  */
 #define LOCAL_FCINFO(name, nargs) \
   /* use union with FunctionCallInfoBaseData to guarantee alignment */ \
-  union \
-  { \
-    FunctionCallInfoBaseData fcinfo; \
-    /* ensure enough space for nargs args is available */ \
-    char fcinfo_data[SizeForFunctionCallInfo(nargs)]; \
-  } name##data; \
-  FunctionCallInfo name = &name##data.fcinfo
+union \
+{ \
+  FunctionCallInfoBaseData fcinfo; \
+  /* ensure enough space for nargs args is available */ \
+  char fcinfo_data[SizeForFunctionCallInfo(nargs)]; \
+} name##data; \
+FunctionCallInfo name = &name##data.fcinfo
 
 /*
  * This routine fills a FmgrInfo struct, given the OID
@@ -242,8 +243,8 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena *datum);
 #define PG_DETOAST_DATUM_COPY(datum) \
   pg_detoast_datum_copy((struct varlena *) DatumGetPointer(datum))
 #define PG_DETOAST_DATUM_SLICE(datum,f,c) \
-    pg_detoast_datum_slice((struct varlena *) DatumGetPointer(datum), \
-    (int32) (f), (int32) (c))
+  pg_detoast_datum_slice((struct varlena *) DatumGetPointer(datum), \
+      (int32) (f), (int32) (c))
 /* WARNING -- unaligned pointer */
 #define PG_DETOAST_DATUM_PACKED(datum) \
   pg_detoast_datum_packed((struct varlena *) DatumGetPointer(datum))
@@ -260,7 +261,7 @@ extern struct varlena *pg_detoast_datum_packed(struct varlena *datum);
 #define PG_FREE_IF_COPY(ptr,n) \
   do { \
     if ((Pointer) (ptr) != PG_GETARG_POINTER(n)) \
-      pfree(ptr); \
+    pfree(ptr); \
   } while (0)
 
 /* Macros for fetching arguments of standard types */
@@ -413,7 +414,7 @@ typedef const Pg_finfo_record *(*PGFInfoFunction) (void);
  *  info function, since authors shouldn't need to be explicitly aware of it.
  */
 #define PG_FUNCTION_INFO_V1(funcname) \
-extern PGDLLEXPORT Datum funcname(PG_FUNCTION_ARGS); \
+  extern PGDLLEXPORT Datum funcname(PG_FUNCTION_ARGS); \
 extern PGDLLEXPORT const Pg_finfo_record * CppConcat(pg_finfo_,funcname)(void); \
 const Pg_finfo_record * \
 CppConcat(pg_finfo_,funcname) (void) \
@@ -518,7 +519,7 @@ typedef const Pg_magic_struct *(*PGModuleMagicFunction) (void);
 #define PG_MAGIC_FUNCTION_NAME_STRING "Pg_magic_func"
 
 #define PG_MODULE_MAGIC \
-extern PGDLLEXPORT const Pg_magic_struct *PG_MAGIC_FUNCTION_NAME(void); \
+  extern PGDLLEXPORT const Pg_magic_struct *PG_MAGIC_FUNCTION_NAME(void); \
 const Pg_magic_struct * \
 PG_MAGIC_FUNCTION_NAME(void) \
 { \
@@ -610,6 +611,9 @@ extern Datum FunctionCall1Coll(FmgrInfo *flinfo, Oid collation,
                                Datum arg1);
 extern Datum FunctionCall2Coll(FmgrInfo *flinfo, Oid collation,
                                Datum arg1, Datum arg2);
+extern Datum FunctionCall2Coll_not_traced(FmgrInfo *flinfo, Oid collation,
+    Datum arg1, Datum arg2);
+
 extern Datum FunctionCall3Coll(FmgrInfo *flinfo, Oid collation,
                                Datum arg1, Datum arg2,
                                Datum arg3);

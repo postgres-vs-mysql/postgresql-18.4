@@ -9,6 +9,7 @@
  *    src/backend/access/brin/brin_xlog.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/brin_page.h"
 #include "access/brin_pageops.h"
@@ -23,6 +24,7 @@
 static void
 brin_xlog_createidx(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_brin_createidx *xlrec = (xl_brin_createidx *) XLogRecGetData(record);
   Buffer    buf;
@@ -46,6 +48,7 @@ static void
 brin_xlog_insert_update(XLogReaderState *record,
                         xl_brin_insert *xlrec)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   Buffer    buffer;
   BlockNumber regpgno;
@@ -123,6 +126,7 @@ brin_xlog_insert_update(XLogReaderState *record,
 static void
 brin_xlog_insert(XLogReaderState *record)
 {
+  DBUG_TRACE;
   xl_brin_insert *xlrec = (xl_brin_insert *) XLogRecGetData(record);
 
   brin_xlog_insert_update(record, xlrec);
@@ -134,6 +138,7 @@ brin_xlog_insert(XLogReaderState *record)
 static void
 brin_xlog_update(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_brin_update *xlrec = (xl_brin_update *) XLogRecGetData(record);
   Buffer    buffer;
@@ -169,6 +174,7 @@ brin_xlog_update(XLogReaderState *record)
 static void
 brin_xlog_samepage_update(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_brin_samepage_update *xlrec;
   Buffer    buffer;
@@ -208,6 +214,7 @@ brin_xlog_samepage_update(XLogReaderState *record)
 static void
 brin_xlog_revmap_extend(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_brin_revmap_extend *xlrec;
   Buffer    metabuf;
@@ -270,6 +277,7 @@ brin_xlog_revmap_extend(XLogReaderState *record)
 static void
 brin_xlog_desummarize_page(XLogReaderState *record)
 {
+  DBUG_TRACE;
   XLogRecPtr  lsn = record->EndRecPtr;
   xl_brin_desummarize *xlrec;
   Buffer    buffer;
@@ -312,30 +320,37 @@ brin_xlog_desummarize_page(XLogReaderState *record)
 void
 brin_redo(XLogReaderState *record)
 {
+  DBUG_TRACE;
   uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
   switch (info & XLOG_BRIN_OPMASK) {
     case XLOG_BRIN_CREATE_INDEX:
+      DBUG_PRINT("info", "XLOG_BRIN_CREATE_INDEX");
       brin_xlog_createidx(record);
       break;
 
     case XLOG_BRIN_INSERT:
+      DBUG_PRINT("info", "XLOG_BRIN_INSERT");
       brin_xlog_insert(record);
       break;
 
     case XLOG_BRIN_UPDATE:
+      DBUG_PRINT("info", "XLOG_BRIN_UPDATE");
       brin_xlog_update(record);
       break;
 
     case XLOG_BRIN_SAMEPAGE_UPDATE:
+      DBUG_PRINT("info", "XLOG_BRIN_SAMEPAGE_UPDATE");
       brin_xlog_samepage_update(record);
       break;
 
     case XLOG_BRIN_REVMAP_EXTEND:
+      DBUG_PRINT("info", "XLOG_BRIN_REVMAP_EXTEND");
       brin_xlog_revmap_extend(record);
       break;
 
     case XLOG_BRIN_DESUMMARIZE:
+      DBUG_PRINT("info", "XLOG_BRIN_DESUMMARIZE");
       brin_xlog_desummarize_page(record);
       break;
 
@@ -350,6 +365,7 @@ brin_redo(XLogReaderState *record)
 void
 brin_mask(char *pagedata, BlockNumber blkno)
 {
+  DBUG_TRACE;
   Page    page = (Page) pagedata;
   PageHeader  pagehdr = (PageHeader) page;
 

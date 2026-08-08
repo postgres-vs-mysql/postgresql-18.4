@@ -40,8 +40,7 @@
  * here, be sure to update that (or, if the new column is not to be publicly
  * readable, update associated comments and catalogs.sgml instead).
  */
-CATALOG(pg_subscription, 6100, SubscriptionRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(6101, SubscriptionRelation_Rowtype_Id) BKI_SCHEMA_MACRO
-{
+CATALOG(pg_subscription, 6100, SubscriptionRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(6101, SubscriptionRelation_Rowtype_Id) BKI_SCHEMA_MACRO {
   Oid     oid;      /* oid */
 
   Oid     subdbid BKI_LOOKUP(pg_database);  /* Database the

@@ -9,6 +9,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "lib/stringinfo.h"
@@ -648,10 +649,15 @@ sepgsql_set_mode(int new_mode)
 bool
 sepgsql_getenforce(void)
 {
-  if (sepgsql_mode == SEPGSQL_MODE_DEFAULT &&
-      selinux_status_getenforce() > 0)
-    return true;
+  DBUG_TRACE;
 
+  if (sepgsql_mode == SEPGSQL_MODE_DEFAULT &&
+      selinux_status_getenforce() > 0) {
+    DBUG_PRINT("sepgsql", "return true");
+    return true;
+  }
+
+  DBUG_PRINT("sepgsql", "return false");
   return false;
 }
 
@@ -681,6 +687,7 @@ sepgsql_audit_log(bool denied,
                   uint32 audited,
                   const char *audit_name)
 {
+  DBUG_TRACE;
   StringInfoData buf;
   const char *class_name;
   const char *av_name;
@@ -740,6 +747,7 @@ sepgsql_compute_avd(const char *scontext,
                     uint16 tclass,
                     struct av_decision *avd)
 {
+  DBUG_TRACE;
   const char *tclass_name;
   security_class_t tclass_ex;
   struct av_decision avd_ex;
@@ -844,6 +852,7 @@ sepgsql_compute_create(const char *scontext,
                        uint16 tclass,
                        const char *objname)
 {
+  DBUG_TRACE;
   char     *ncontext;
   security_class_t tclass_ex;
   const char *tclass_name;

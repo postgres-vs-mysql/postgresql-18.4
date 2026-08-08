@@ -196,6 +196,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/parallel.h"
 #include "access/slru.h"
@@ -496,8 +497,17 @@ static void ReleasePredicateLocksLocal(void);
 static inline bool
 PredicateLockingNeededForRelation(Relation relation)
 {
-  return !(relation->rd_id < FirstUnpinnedObjectId ||
-           RelationUsesLocalBuffers(relation));
+  DBUG_TRACE;
+  bool result = !(relation->rd_id < FirstUnpinnedObjectId ||
+                  RelationUsesLocalBuffers(relation));
+
+  if (result) {
+    DBUG_PRINT("info", "this relation participates in predicate locking");
+  } else {
+    DBUG_PRINT("info", "this relation does not participate in predicate locking");
+  }
+
+  return result;
 }
 
 /*
@@ -514,9 +524,13 @@ PredicateLockingNeededForRelation(Relation relation)
 static inline bool
 SerializationNeededForRead(Relation relation, Snapshot snapshot)
 {
+  DBUG_TRACE;
+
   /* Nothing to do if this is not a serializable transaction */
-  if (MySerializableXact == InvalidSerializableXact)
+  if (MySerializableXact == InvalidSerializableXact) {
+    DBUG_PRINT("info", "nothing to do if this is not a serializable transaction");
     return false;
+  }
 
   /*
    * Don't acquire locks or conflict when scanning with a special snapshot.
@@ -525,8 +539,10 @@ SerializationNeededForRead(Relation relation, Snapshot snapshot)
    * CheckTableForSerializableConflictIn() to participate in serialization,
    * but the scans involved don't need serialization.
    */
-  if (!IsMVCCSnapshot(snapshot))
+  if (!IsMVCCSnapshot(snapshot)) {
+    DBUG_PRINT("info", "don't acquire locks or conflict when scanning with a special snapshot");
     return false;
+  }
 
   /*
    * Check if we have just become "RO-safe". If we have, immediately release
@@ -540,13 +556,17 @@ SerializationNeededForRead(Relation relation, Snapshot snapshot)
    */
   if (SxactIsROSafe(MySerializableXact)) {
     ReleasePredicateLocks(false, true);
+    DBUG_PRINT("info", "no conflicts are possible for this transaction");
     return false;
   }
 
   /* Check if the relation doesn't participate in predicate locking */
-  if (!PredicateLockingNeededForRelation(relation))
+  if (!PredicateLockingNeededForRelation(relation)) {
+    DBUG_PRINT("info", "the relation doesn't participate in predicate locking");
     return false;
+  }
 
+  DBUG_PRINT("info", "no excuse to skip predicate locking");
   return true;        /* no excuse to skip predicate locking */
 }
 
@@ -557,14 +577,21 @@ SerializationNeededForRead(Relation relation, Snapshot snapshot)
 static inline bool
 SerializationNeededForWrite(Relation relation)
 {
+  DBUG_TRACE;
+
   /* Nothing to do if this is not a serializable transaction */
-  if (MySerializableXact == InvalidSerializableXact)
+  if (MySerializableXact == InvalidSerializableXact) {
+    DBUG_PRINT("info", "nothing to do if this is not a serializable transaction");
     return false;
+  }
 
   /* Check if the relation doesn't participate in predicate locking */
-  if (!PredicateLockingNeededForRelation(relation))
+  if (!PredicateLockingNeededForRelation(relation)) {
+    DBUG_PRINT("info", "the relation doesn't participate in predicate locking");
     return false;
+  }
 
+  DBUG_PRINT("info", "no excuse to skip predicate locking");
   return true;        /* no excuse to skip predicate locking */
 }
 
@@ -579,6 +606,7 @@ SerializationNeededForWrite(Relation relation)
 static SERIALIZABLEXACT *
 CreatePredXact(void)
 {
+  DBUG_TRACE;
   SERIALIZABLEXACT *sxact;
 
   if (dlist_is_empty(&PredXact->availableList))
@@ -593,6 +621,7 @@ CreatePredXact(void)
 static void
 ReleasePredXact(SERIALIZABLEXACT *sxact)
 {
+  DBUG_TRACE;
   Assert(ShmemAddrIsValid(sxact));
 
   dlist_delete(&sxact->xactLink);
@@ -607,6 +636,7 @@ ReleasePredXact(SERIALIZABLEXACT *sxact)
 static bool
 RWConflictExists(const SERIALIZABLEXACT *reader, const SERIALIZABLEXACT *writer)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   Assert(reader != writer);
@@ -615,8 +645,10 @@ RWConflictExists(const SERIALIZABLEXACT *reader, const SERIALIZABLEXACT *writer)
   if (SxactIsDoomed(reader)
       || SxactIsDoomed(writer)
       || dlist_is_empty(&reader->outConflicts)
-      || dlist_is_empty(&writer->inConflicts))
+      || dlist_is_empty(&writer->inConflicts)) {
+    DBUG_PRINT("info", "no conflict found");
     return false;
+  }
 
   /*
    * A conflict is possible; walk the list to find out.
@@ -628,27 +660,34 @@ RWConflictExists(const SERIALIZABLEXACT *reader, const SERIALIZABLEXACT *writer)
     RWConflict  conflict =
       dlist_container(RWConflictData, outLink, iter.cur);
 
-    if (conflict->sxactIn == writer)
+    if (conflict->sxactIn == writer) {
+      DBUG_PRINT("info", "conflict found");
       return true;
+    }
   }
 
   /* No conflict found. */
+
+  DBUG_PRINT("info", "no conflict found");
   return false;
 }
 
 static void
 SetRWConflict(SERIALIZABLEXACT *reader, SERIALIZABLEXACT *writer)
 {
+  DBUG_TRACE;
   RWConflict  conflict;
 
   Assert(reader != writer);
   Assert(!RWConflictExists(reader, writer));
 
-  if (dlist_is_empty(&RWConflictPool->availableList))
+  if (dlist_is_empty(&RWConflictPool->availableList)) {
+    DBUG_INSTANT_PRINT("info", "not enough elements in RWConflictPool to record a read/write conflict");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("not enough elements in RWConflictPool to record a read/write conflict"),
              errhint("You might need to run fewer transactions at a time or increase \"max_connections\".")));
+  }
 
   conflict = dlist_head_element(RWConflictData, outLink, &RWConflictPool->availableList);
   dlist_delete(&conflict->outLink);
@@ -663,17 +702,20 @@ static void
 SetPossibleUnsafeConflict(SERIALIZABLEXACT *roXact,
                           SERIALIZABLEXACT *activeXact)
 {
+  DBUG_TRACE;
   RWConflict  conflict;
 
   Assert(roXact != activeXact);
   Assert(SxactIsReadOnly(roXact));
   Assert(!SxactIsReadOnly(activeXact));
 
-  if (dlist_is_empty(&RWConflictPool->availableList))
+  if (dlist_is_empty(&RWConflictPool->availableList)) {
+    DBUG_INSTANT_PRINT("info", "not enough elements in RWConflictPool to record a potential read/write conflict");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("not enough elements in RWConflictPool to record a potential read/write conflict"),
              errhint("You might need to run fewer transactions at a time or increase \"max_connections\".")));
+  }
 
   conflict = dlist_head_element(RWConflictData, outLink, &RWConflictPool->availableList);
   dlist_delete(&conflict->outLink);
@@ -687,6 +729,7 @@ SetPossibleUnsafeConflict(SERIALIZABLEXACT *roXact,
 static void
 ReleaseRWConflict(RWConflict conflict)
 {
+  DBUG_TRACE;
   dlist_delete(&conflict->inLink);
   dlist_delete(&conflict->outLink);
   dlist_push_tail(&RWConflictPool->availableList, &conflict->outLink);
@@ -695,6 +738,7 @@ ReleaseRWConflict(RWConflict conflict)
 static void
 FlagSxactUnsafe(SERIALIZABLEXACT *sxact)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   Assert(SxactIsReadOnly(sxact));
@@ -726,6 +770,7 @@ FlagSxactUnsafe(SERIALIZABLEXACT *sxact)
 static bool
 SerialPagePrecedesLogically(int64 page1, int64 page2)
 {
+  DBUG_TRACE;
   TransactionId xid1;
   TransactionId xid2;
 
@@ -801,6 +846,7 @@ SerialPagePrecedesLogicallyUnitTests(void)
 static void
 SerialInit(void)
 {
+  DBUG_TRACE;
   bool    found;
 
   /*
@@ -853,6 +899,7 @@ check_serial_buffers(int *newval, void **extra, GucSource source)
 static void
 SerialAdd(TransactionId xid, SerCommitSeqNo minConflictCommitSeqNo)
 {
+  DBUG_TRACE;
   TransactionId tailXid;
   int64   targetPage;
   int     slotno;
@@ -940,6 +987,7 @@ SerialAdd(TransactionId xid, SerCommitSeqNo minConflictCommitSeqNo)
 static SerCommitSeqNo
 SerialGetMinConflictCommitSeqNo(TransactionId xid)
 {
+  DBUG_TRACE;
   TransactionId headXid;
   TransactionId tailXid;
   SerCommitSeqNo val;
@@ -952,14 +1000,18 @@ SerialGetMinConflictCommitSeqNo(TransactionId xid)
   tailXid = serialControl->tailXid;
   LWLockRelease(SerialControlLock);
 
-  if (!TransactionIdIsValid(headXid))
+  if (!TransactionIdIsValid(headXid)) {
+    DBUG_PRINT("info", "return 0");
     return 0;
+  }
 
   Assert(TransactionIdIsValid(tailXid));
 
   if (TransactionIdPrecedes(xid, tailXid)
-      || TransactionIdFollows(xid, headXid))
+      || TransactionIdFollows(xid, headXid)) {
+    DBUG_PRINT("info", "return 0");
     return 0;
+  }
 
   /*
    * The following function must be called without holding SLRU bank lock,
@@ -969,6 +1021,7 @@ SerialGetMinConflictCommitSeqNo(TransactionId xid)
                                       SerialPage(xid), xid);
   val = SerialValue(slotno, xid);
   LWLockRelease(SimpleLruGetBankLock(SerialSlruCtl, SerialPage(xid)));
+  DBUG_PRINT("info", "get the minimum commitSeqNo:%lu for any conflict out for the given xid:%u", val, xid);
   return val;
 }
 
@@ -981,6 +1034,7 @@ SerialGetMinConflictCommitSeqNo(TransactionId xid)
 static void
 SerialSetActiveSerXmin(TransactionId xid)
 {
+  DBUG_TRACE;
   LWLockAcquire(SerialControlLock, LW_EXCLUSIVE);
 
   /*
@@ -1007,6 +1061,7 @@ SerialSetActiveSerXmin(TransactionId xid)
 
     if (!TransactionIdIsValid(serialControl->tailXid)
         || TransactionIdPrecedes(xid, serialControl->tailXid)) {
+      DBUG_PRINT("info", "when we're recovering prepared transaction, set tailXid:%u", xid);
       serialControl->tailXid = xid;
     }
 
@@ -1018,6 +1073,8 @@ SerialSetActiveSerXmin(TransactionId xid)
          || TransactionIdFollows(xid, serialControl->tailXid));
 
   serialControl->tailXid = xid;
+
+  DBUG_PRINT("info", "set tailXid:%u", xid);
 
   LWLockRelease(SerialControlLock);
 }
@@ -1031,6 +1088,7 @@ SerialSetActiveSerXmin(TransactionId xid)
 void
 CheckPointPredicate(void)
 {
+  DBUG_TRACE;
   int64   truncateCutoffPage;
 
   LWLockAcquire(SerialControlLock, LW_EXCLUSIVE);
@@ -1129,6 +1187,7 @@ CheckPointPredicate(void)
 void
 PredicateLockShmemInit(void)
 {
+  DBUG_TRACE;
   HASHCTL   info;
   long    max_table_size;
   Size    requestSize;
@@ -1237,9 +1296,11 @@ PredicateLockShmemInit(void)
       = (SERIALIZABLEXACT *) ((char *) PredXact + PredXactListDataSize);
 
     /* Add all elements to available list, clean. */
+    DBUG_PRINT("info", "add all elements to available list");
+    DBUG_PRINT("info", "max_table_size:%ld", max_table_size);
     for (i = 0; i < max_table_size; i++) {
       LWLockInitialize(&PredXact->element[i].perXactPredicateListLock,
-                       LWTRANCHE_PER_XACT_PREDICATE_LIST);
+                       LWTRANCHE_PER_XACT_PREDICATE_LIST, i);
       dlist_push_tail(&PredXact->availableList, &PredXact->element[i].xactLink);
     }
 
@@ -1303,6 +1364,7 @@ PredicateLockShmemInit(void)
   if (!found) {
     int     i;
 
+    DBUG_PRINT("info", "clean everything, including the elements");
     /* clean everything, including the elements */
     memset(RWConflictPool, 0, requestSize);
 
@@ -1311,6 +1373,7 @@ PredicateLockShmemInit(void)
                                             RWConflictPoolHeaderDataSize);
 
     /* Add all elements to available list, clean. */
+    DBUG_PRINT("info", "max_table_size:%ld", max_table_size);
     for (i = 0; i < max_table_size; i++) {
       dlist_push_tail(&RWConflictPool->availableList,
                       &RWConflictPool->element[i].outLink);
@@ -1343,6 +1406,7 @@ PredicateLockShmemInit(void)
 Size
 PredicateLockShmemSize(void)
 {
+  DBUG_TRACE;
   Size    size = 0;
   long    max_table_size;
 
@@ -1386,6 +1450,7 @@ PredicateLockShmemSize(void)
   size = add_size(size, sizeof(SerialControlData));
   size = add_size(size, SimpleLruShmemSize(serializable_buffers, 0));
 
+  DBUG_PRINT("info", "estimate shared-memory space used for predicate lock table:%lu", size);
   return size;
 }
 
@@ -1405,6 +1470,7 @@ PredicateLockShmemSize(void)
 static uint32
 predicatelock_hash(const void *key, Size keysize)
 {
+  DBUG_TRACE;
   const PREDICATELOCKTAG *predicatelocktag = (const PREDICATELOCKTAG *) key;
   uint32    targethash;
 
@@ -1431,6 +1497,7 @@ predicatelock_hash(const void *key, Size keysize)
 PredicateLockData *
 GetPredicateLockStatusData(void)
 {
+  DBUG_TRACE;
   PredicateLockData *data;
   int     i;
   int     els,
@@ -1490,6 +1557,7 @@ GetPredicateLockStatusData(void)
 static void
 SummarizeOldestCommittedSxact(void)
 {
+  DBUG_TRACE;
   SERIALIZABLEXACT *sxact;
 
   LWLockAcquire(SerializableFinishedListLock, LW_EXCLUSIVE);
@@ -1544,9 +1612,12 @@ SummarizeOldestCommittedSxact(void)
 static Snapshot
 GetSafeSnapshot(Snapshot origSnapshot)
 {
+  DBUG_TRACE;
   Snapshot  snapshot;
 
   Assert(XactReadOnly && XactDeferrable);
+
+  DBUG_PRINT("info", "obtain and register a snapshot for a READ ONLY DEFERRABLE transaction");
 
   while (true) {
     /*
@@ -1558,8 +1629,10 @@ GetSafeSnapshot(Snapshot origSnapshot)
     snapshot = GetSerializableTransactionSnapshotInt(origSnapshot,
                NULL, InvalidPid);
 
-    if (MySerializableXact == InvalidSerializableXact)
+    if (MySerializableXact == InvalidSerializableXact) {
+      DBUG_PRINT("info", "no concurrent r/w xacts; it's safe");
       return snapshot;  /* no concurrent r/w xacts; it's safe */
+    }
 
     LWLockAcquire(SerializableXactHashLock, LW_EXCLUSIVE);
 
@@ -1585,6 +1658,7 @@ GetSafeSnapshot(Snapshot origSnapshot)
 
     LWLockRelease(SerializableXactHashLock);
 
+    DBUG_INSTANT_PRINT("info", "deferrable snapshot was unsafe; trying a new one");
     /* else, need to retry... */
     ereport(DEBUG2,
             (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
@@ -1598,6 +1672,8 @@ GetSafeSnapshot(Snapshot origSnapshot)
   Assert(SxactIsROSafe(MySerializableXact));
   ReleasePredicateLocks(false, true);
 
+
+  DBUG_PRINT("info", "now we have a safe snapshot, so we don't need to do any further checks");
   return snapshot;
 }
 
@@ -1613,6 +1689,7 @@ GetSafeSnapshot(Snapshot origSnapshot)
 int
 GetSafeSnapshotBlockingPids(int blocked_pid, int *output, int output_size)
 {
+  DBUG_TRACE;
   int     num_written = 0;
   dlist_iter  iter;
   SERIALIZABLEXACT *blocking_sxact = NULL;
@@ -1620,6 +1697,7 @@ GetSafeSnapshotBlockingPids(int blocked_pid, int *output, int output_size)
   LWLockAcquire(SerializableXactHashLock, LW_SHARED);
 
   /* Find blocked_pid's SERIALIZABLEXACT by linear search. */
+  DBUG_PRINT("info", "blocked_pid:%d", blocked_pid);
   dlist_foreach(iter, &PredXact->activeList) {
     SERIALIZABLEXACT *sxact =
       dlist_container(SERIALIZABLEXACT, xactLink, iter.cur);
@@ -1663,6 +1741,7 @@ GetSafeSnapshotBlockingPids(int blocked_pid, int *output, int output_size)
 Snapshot
 GetSerializableTransactionSnapshot(Snapshot snapshot)
 {
+  DBUG_TRACE;
   Assert(IsolationIsSerializable());
 
   /*
@@ -1671,12 +1750,14 @@ GetSerializableTransactionSnapshot(Snapshot snapshot)
    * check_transaction_isolation() if default_transaction_isolation is set
    * to serializable, so phrase the hint accordingly.
    */
-  if (RecoveryInProgress())
+  if (RecoveryInProgress()) {
+    DBUG_INSTANT_PRINT("info", "cannot use serializable mode in a hot standby");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("cannot use serializable mode in a hot standby"),
              errdetail("\"default_transaction_isolation\" is set to \"serializable\"."),
              errhint("You can use \"SET default_transaction_isolation = 'repeatable read'\" to change the default.")));
+  }
 
   /*
    * A special optimization is available for SERIALIZABLE READ ONLY
@@ -1705,6 +1786,7 @@ SetSerializableTransactionSnapshot(Snapshot snapshot,
                                    VirtualTransactionId *sourcevxid,
                                    int sourcepid)
 {
+  DBUG_TRACE;
   Assert(IsolationIsSerializable());
 
   /*
@@ -1724,10 +1806,12 @@ SetSerializableTransactionSnapshot(Snapshot snapshot,
    * we're using the snap we're told to.  (XXX instead of throwing an error,
    * we could just ignore the XactDeferrable flag?)
    */
-  if (XactReadOnly && XactDeferrable)
+  if (XactReadOnly && XactDeferrable) {
+    DBUG_INSTANT_PRINT("info", "a snapshot-importing transaction must not be READ ONLY DEFERRABLE");
     ereport(ERROR,
             (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
              errmsg("a snapshot-importing transaction must not be READ ONLY DEFERRABLE")));
+  }
 
   (void) GetSerializableTransactionSnapshotInt(snapshot, sourcevxid,
       sourcepid);
@@ -1747,6 +1831,7 @@ GetSerializableTransactionSnapshotInt(Snapshot snapshot,
                                       VirtualTransactionId *sourcevxid,
                                       int sourcepid)
 {
+  DBUG_TRACE;
   PGPROC     *proc;
   VirtualTransactionId vxid;
   SERIALIZABLEXACT *sxact,
@@ -1803,6 +1888,7 @@ GetSerializableTransactionSnapshotInt(Snapshot snapshot,
   else if (!ProcArrayInstallImportedXmin(snapshot->xmin, sourcevxid)) {
     ReleasePredXact(sxact);
     LWLockRelease(SerializableXactHashLock);
+    DBUG_INSTANT_PRINT("info", "could not import the requested snapshot");
     ereport(ERROR,
             (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
              errmsg("could not import the requested snapshot"),
@@ -1909,6 +1995,7 @@ GetSerializableTransactionSnapshotInt(Snapshot snapshot,
 static void
 CreateLocalPredicateLockHash(void)
 {
+  DBUG_TRACE;
   HASHCTL   hash_ctl;
 
   /* Initialize the backend-local hash table of parent locks */
@@ -1928,6 +2015,7 @@ CreateLocalPredicateLockHash(void)
 void
 RegisterPredicateLockingXid(TransactionId xid)
 {
+  DBUG_TRACE;
   SERIALIZABLEXIDTAG sxidtag;
   SERIALIZABLEXID *sxid;
   bool    found;
@@ -1936,12 +2024,15 @@ RegisterPredicateLockingXid(TransactionId xid)
    * If we're not tracking predicate lock data for this transaction, we
    * should ignore the request and return quickly.
    */
-  if (MySerializableXact == InvalidSerializableXact)
+  if (MySerializableXact == InvalidSerializableXact) {
+    DBUG_PRINT("info", "ignore the request and return quickly");
     return;
+  }
 
   /* We should have a valid XID and be at the top level. */
   Assert(TransactionIdIsValid(xid));
 
+  DBUG_PRINT("info", "acquire a lightweight SerializableXactHashLock in the LW_EXCLUSIVE mode");
   LWLockAcquire(SerializableXactHashLock, LW_EXCLUSIVE);
 
   /* This should only be done once per transaction. */
@@ -1977,6 +2068,7 @@ RegisterPredicateLockingXid(TransactionId xid)
 bool
 PageIsPredicateLocked(Relation relation, BlockNumber blkno)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG targettag;
   uint32    targettaghash;
   LWLock     *partitionLock;
@@ -2014,6 +2106,7 @@ PageIsPredicateLocked(Relation relation, BlockNumber blkno)
 static bool
 PredicateLockExists(const PREDICATELOCKTARGETTAG *targettag)
 {
+  DBUG_TRACE;
   LOCALPREDICATELOCK *lock;
 
   /* check local hash table */
@@ -2042,6 +2135,8 @@ static bool
 GetParentPredicateLockTag(const PREDICATELOCKTARGETTAG *tag,
                           PREDICATELOCKTARGETTAG *parent)
 {
+  DBUG_TRACE;
+
   switch (GET_PREDICATELOCKTARGETTAG_TYPE(*tag)) {
     case PREDLOCKTAG_RELATION:
       /* relation locks have no parent lock */
@@ -2079,6 +2174,7 @@ GetParentPredicateLockTag(const PREDICATELOCKTARGETTAG *tag,
 static bool
 CoarserLockCovers(const PREDICATELOCKTARGETTAG *newtargettag)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG targettag,
                          parenttag;
 
@@ -2108,6 +2204,7 @@ CoarserLockCovers(const PREDICATELOCKTARGETTAG *newtargettag)
 static void
 RemoveScratchTarget(bool lockheld)
 {
+  DBUG_TRACE;
   bool    found;
 
   Assert(LWLockHeldByMe(SerializablePredicateListLock));
@@ -2131,6 +2228,7 @@ RemoveScratchTarget(bool lockheld)
 static void
 RestoreScratchTarget(bool lockheld)
 {
+  DBUG_TRACE;
   bool    found;
 
   Assert(LWLockHeldByMe(SerializablePredicateListLock));
@@ -2155,6 +2253,7 @@ RestoreScratchTarget(bool lockheld)
 static void
 RemoveTargetIfNoLongerUsed(PREDICATELOCKTARGET *target, uint32 targettaghash)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGET *rmtarget PG_USED_FOR_ASSERTS_ONLY;
 
   Assert(LWLockHeldByMe(SerializablePredicateListLock));
@@ -2186,6 +2285,7 @@ RemoveTargetIfNoLongerUsed(PREDICATELOCKTARGET *target, uint32 targettaghash)
 static void
 DeleteChildTargetLocks(const PREDICATELOCKTARGETTAG *newtargettag)
 {
+  DBUG_TRACE;
   SERIALIZABLEXACT *sxact;
   PREDICATELOCK *predlock;
   dlist_mutable_iter iter;
@@ -2262,6 +2362,8 @@ DeleteChildTargetLocks(const PREDICATELOCKTARGETTAG *newtargettag)
 static int
 MaxPredicateChildLocks(const PREDICATELOCKTARGETTAG *tag)
 {
+  DBUG_TRACE;
+
   switch (GET_PREDICATELOCKTARGETTAG_TYPE(*tag)) {
     case PREDLOCKTAG_RELATION:
       return max_predicate_locks_per_relation < 0
@@ -2298,6 +2400,7 @@ MaxPredicateChildLocks(const PREDICATELOCKTARGETTAG *tag)
 static bool
 CheckAndPromotePredicateLockRequest(const PREDICATELOCKTARGETTAG *reqtag)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG targettag,
                          nexttag,
                          promotiontag;
@@ -2358,6 +2461,7 @@ CheckAndPromotePredicateLockRequest(const PREDICATELOCKTARGETTAG *reqtag)
 static void
 DecrementParentLocks(const PREDICATELOCKTARGETTAG *targettag)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG parenttag,
                          nexttag;
 
@@ -2419,6 +2523,7 @@ CreatePredicateLock(const PREDICATELOCKTARGETTAG *targettag,
                     uint32 targettaghash,
                     SERIALIZABLEXACT *sxact)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGET *target;
   PREDICATELOCKTAG locktag;
   PREDICATELOCK *lock;
@@ -2440,11 +2545,13 @@ CreatePredicateLock(const PREDICATELOCKTARGETTAG *targettag,
                                        targettag, targettaghash,
                                        HASH_ENTER_NULL, &found);
 
-  if (!target)
+  if (!target) {
+    DBUG_INSTANT_PRINT("info", "out of shared memory");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("out of shared memory"),
              errhint("You might need to increase \"%s\".", "max_pred_locks_per_transaction")));
+  }
 
   if (!found)
     dlist_init(&target->predicateLocks);
@@ -2457,11 +2564,13 @@ CreatePredicateLock(const PREDICATELOCKTARGETTAG *targettag,
                                      PredicateLockHashCodeFromTargetHashCode(&locktag, targettaghash),
                                      HASH_ENTER_NULL, &found);
 
-  if (!lock)
+  if (!lock) {
+    DBUG_INSTANT_PRINT("info", "out of shared memory");
     ereport(ERROR,
             (errcode(ERRCODE_OUT_OF_MEMORY),
              errmsg("out of shared memory"),
              errhint("You might need to increase \"%s\".", "max_pred_locks_per_transaction")));
+  }
 
   if (!found) {
     dlist_push_tail(&target->predicateLocks, &lock->targetLink);
@@ -2487,17 +2596,22 @@ CreatePredicateLock(const PREDICATELOCKTARGETTAG *targettag,
 static void
 PredicateLockAcquire(const PREDICATELOCKTARGETTAG *targettag)
 {
+  DBUG_TRACE;
   uint32    targettaghash;
   bool    found;
   LOCALPREDICATELOCK *locallock;
 
   /* Do we have the lock already, or a covering lock? */
-  if (PredicateLockExists(targettag))
+  if (PredicateLockExists(targettag)) {
+    DBUG_PRINT("info", "we have the lock already");
     return;
+  }
 
-  if (CoarserLockCovers(targettag))
+  if (CoarserLockCovers(targettag)) {
     return;
+  }
 
+  DBUG_PRINT("info", "acquire a predicate lock on the specified target");
   /* the same hash and LW lock apply to the lock target and the local lock. */
   targettaghash = PredicateLockTargetTagHashCode(targettag);
 
@@ -2544,6 +2658,7 @@ PredicateLockAcquire(const PREDICATELOCKTARGETTAG *targettag)
 void
 PredicateLockRelation(Relation relation, Snapshot snapshot)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG tag;
 
   if (!SerializationNeededForRead(relation, snapshot))
@@ -2567,6 +2682,7 @@ PredicateLockRelation(Relation relation, Snapshot snapshot)
 void
 PredicateLockPage(Relation relation, BlockNumber blkno, Snapshot snapshot)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG tag;
 
   if (!SerializationNeededForRead(relation, snapshot))
@@ -2590,6 +2706,7 @@ void
 PredicateLockTID(Relation relation, ItemPointer tid, Snapshot snapshot,
                  TransactionId tuple_xid)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG tag;
 
   if (!SerializationNeededForRead(relation, snapshot))
@@ -2637,6 +2754,7 @@ PredicateLockTID(Relation relation, ItemPointer tid, Snapshot snapshot,
 static void
 DeleteLockTarget(PREDICATELOCKTARGET *target, uint32 targettaghash)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   Assert(LWLockHeldByMeInMode(SerializablePredicateListLock,
@@ -2699,6 +2817,7 @@ TransferPredicateLocksToNewTarget(PREDICATELOCKTARGETTAG oldtargettag,
                                   PREDICATELOCKTARGETTAG newtargettag,
                                   bool removeOld)
 {
+  DBUG_TRACE;
   uint32    oldtargettaghash;
   LWLock     *oldpartitionLock;
   PREDICATELOCKTARGET *oldtarget;
@@ -2888,6 +3007,7 @@ exit:
 static void
 DropAllPredicateLocksFromTable(Relation relation, bool transfer)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seqstat;
   PREDICATELOCKTARGET *oldtarget;
   PREDICATELOCKTARGET *heaptarget;
@@ -3074,6 +3194,7 @@ DropAllPredicateLocksFromTable(Relation relation, bool transfer)
 void
 TransferPredicateLocksToHeapRelation(Relation relation)
 {
+  DBUG_TRACE;
   DropAllPredicateLocksFromTable(relation, true);
 }
 
@@ -3096,6 +3217,7 @@ void
 PredicateLockPageSplit(Relation relation, BlockNumber oldblkno,
                        BlockNumber newblkno)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG oldtargettag;
   PREDICATELOCKTARGETTAG newtargettag;
   bool    success;
@@ -3180,6 +3302,7 @@ void
 PredicateLockPageCombine(Relation relation, BlockNumber oldblkno,
                          BlockNumber newblkno)
 {
+  DBUG_TRACE;
   /*
    * Page combines differ from page splits in that we ought to be able to
    * remove the locks on the old page after transferring them to the new
@@ -3201,6 +3324,7 @@ PredicateLockPageCombine(Relation relation, BlockNumber oldblkno,
 static void
 SetNewSxactGlobalXmin(void)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
 
   Assert(LWLockHeldByMe(SerializableXactHashLock));
@@ -3605,6 +3729,7 @@ ReleasePredicateLocks(bool isCommit, bool isReadOnlySafe)
 static void
 ReleasePredicateLocksLocal(void)
 {
+  DBUG_TRACE;
   MySerializableXact = InvalidSerializableXact;
   MyXactDidWrite = false;
 
@@ -3622,6 +3747,7 @@ ReleasePredicateLocksLocal(void)
 static void
 ClearOldPredicateLocks(void)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
 
   /*
@@ -3750,6 +3876,7 @@ static void
 ReleaseOneSerializableXact(SERIALIZABLEXACT *sxact, bool partial,
                            bool summarize)
 {
+  DBUG_TRACE;
   SERIALIZABLEXIDTAG sxidtag;
   dlist_mutable_iter iter;
 
@@ -3801,11 +3928,13 @@ ReleaseOneSerializableXact(SERIALIZABLEXACT *sxact, bool partial,
                                                  targettaghash),
                                              HASH_ENTER_NULL, &found);
 
-      if (!predlock)
+      if (!predlock) {
+        DBUG_INSTANT_PRINT("info", "out of shared memory");
         ereport(ERROR,
                 (errcode(ERRCODE_OUT_OF_MEMORY),
                  errmsg("out of shared memory"),
                  errhint("You might need to increase \"%s\".", "max_pred_locks_per_transaction")));
+      }
 
       if (found) {
         Assert(predlock->commitSeqNo != 0);
@@ -3886,6 +4015,7 @@ ReleaseOneSerializableXact(SERIALIZABLEXACT *sxact, bool partial,
 static bool
 XidIsConcurrent(TransactionId xid)
 {
+  DBUG_TRACE;
   Snapshot  snap;
 
   Assert(TransactionIdIsValid(xid));
@@ -3905,11 +4035,16 @@ XidIsConcurrent(TransactionId xid)
 bool
 CheckForSerializableConflictOutNeeded(Relation relation, Snapshot snapshot)
 {
-  if (!SerializationNeededForRead(relation, snapshot))
+  DBUG_TRACE;
+
+  if (!SerializationNeededForRead(relation, snapshot)) {
+    DBUG_PRINT("info", "return false");
     return false;
+  }
 
   /* Check if someone else has already decided that we need to die */
   if (SxactIsDoomed(MySerializableXact)) {
+    DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
     ereport(ERROR,
             (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
              errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -3917,6 +4052,7 @@ CheckForSerializableConflictOutNeeded(Relation relation, Snapshot snapshot)
              errhint("The transaction might succeed if retried.")));
   }
 
+  DBUG_PRINT("info", "return true");
   return true;
 }
 
@@ -3936,15 +4072,20 @@ CheckForSerializableConflictOutNeeded(Relation relation, Snapshot snapshot)
 void
 CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot snapshot)
 {
+  DBUG_TRACE;
   SERIALIZABLEXIDTAG sxidtag;
   SERIALIZABLEXID *sxid;
   SERIALIZABLEXACT *sxact;
 
-  if (!SerializationNeededForRead(relation, snapshot))
+  if (!SerializationNeededForRead(relation, snapshot)) {
+    DBUG_PRINT("info", "SerializationNeededForRead false and return");
     return;
+  }
 
   /* Check if someone else has already decided that we need to die */
   if (SxactIsDoomed(MySerializableXact)) {
+    DBUG_PRINT("info", "someone else has already decided that we need to die");
+    DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
     ereport(ERROR,
             (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
              errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -3954,23 +4095,30 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
 
   Assert(TransactionIdIsValid(xid));
 
-  if (TransactionIdEquals(xid, GetTopTransactionIdIfAny()))
+  if (TransactionIdEquals(xid, GetTopTransactionIdIfAny())) {
+    DBUG_PRINT("info", "TransactionIdEquals true and return");
     return;
+  }
 
   /*
    * Find sxact or summarized info for the top level xid.
    */
   sxidtag.xid = xid;
   LWLockAcquire(SerializableXactHashLock, LW_EXCLUSIVE);
+
+  DBUG_PRINT("info", "SerializableXactHashLock is acquired with LW_EXCLUSIVE mode");
   sxid = (SERIALIZABLEXID *)
          hash_search(SerializableXidHash, &sxidtag, HASH_FIND, NULL);
 
   if (!sxid) {
+
     /*
      * Transaction not found in "normal" SSI structures.  Check whether it
      * got pushed out to SLRU storage for "old committed" transactions.
      */
     SerCommitSeqNo conflictCommitSeqNo;
+
+    DBUG_PRINT("info", "transaction not found in normal SSI structures");
 
     conflictCommitSeqNo = SerialGetMinConflictCommitSeqNo(xid);
 
@@ -3978,24 +4126,29 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
       if (conflictCommitSeqNo != InvalidSerCommitSeqNo
           && (!SxactIsReadOnly(MySerializableXact)
               || conflictCommitSeqNo
-              <= MySerializableXact->SeqNo.lastCommitBeforeSnapshot))
+              <= MySerializableXact->SeqNo.lastCommitBeforeSnapshot)) {
+        DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
         ereport(ERROR,
                 (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                  errmsg("could not serialize access due to read/write dependencies among transactions"),
                  errdetail_internal("Reason code: Canceled on conflict out to old pivot %u.", xid),
                  errhint("The transaction might succeed if retried.")));
+      }
 
       if (SxactHasSummaryConflictIn(MySerializableXact)
-          || !dlist_is_empty(&MySerializableXact->inConflicts))
+          || !dlist_is_empty(&MySerializableXact->inConflicts)) {
+        DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
         ereport(ERROR,
                 (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                  errmsg("could not serialize access due to read/write dependencies among transactions"),
                  errdetail_internal("Reason code: Canceled on identification as a pivot, with conflict out to old committed transaction %u.", xid),
                  errhint("The transaction might succeed if retried.")));
+      }
 
       MySerializableXact->flags |= SXACT_FLAG_SUMMARY_CONFLICT_OUT;
     }
 
+    DBUG_PRINT("info", "it's not serializable or otherwise not important, conflictCommitSeqNo:%lu", conflictCommitSeqNo);
     /* It's not serializable or otherwise not important. */
     LWLockRelease(SerializableXactHashLock);
     return;
@@ -4005,6 +4158,7 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
   Assert(TransactionIdEquals(sxact->topXid, xid));
 
   if (sxact == MySerializableXact || SxactIsDoomed(sxact)) {
+    DBUG_PRINT("info", "can't conflict with ourself or a transaction that will roll back");
     /* Can't conflict with ourself or a transaction that will roll back. */
     LWLockRelease(SerializableXactHashLock);
     return;
@@ -4017,11 +4171,14 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
    * snapshot acquisition, so something needs to be canceled.
    */
   if (SxactHasSummaryConflictOut(sxact)) {
+    DBUG_PRINT("info", "SxactHasSummaryConflictOut true");
+
     if (!SxactIsPrepared(sxact)) {
       sxact->flags |= SXACT_FLAG_DOOMED;
       LWLockRelease(SerializableXactHashLock);
       return;
     } else {
+      DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
       LWLockRelease(SerializableXactHashLock);
       ereport(ERROR,
               (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
@@ -4041,18 +4198,22 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
       && !SxactHasSummaryConflictOut(sxact)
       && (!SxactHasConflictOut(sxact)
           || MySerializableXact->SeqNo.lastCommitBeforeSnapshot < sxact->SeqNo.earliestOutConflictCommit)) {
+
+    DBUG_PRINT("info", "read-only transaction will appear to run first and no conflict.");
     /* Read-only transaction will appear to run first.  No conflict. */
     LWLockRelease(SerializableXactHashLock);
     return;
   }
 
   if (!XidIsConcurrent(xid)) {
+    DBUG_PRINT("info", "this write was already in our snapshot; no conflict");
     /* This write was already in our snapshot; no conflict. */
     LWLockRelease(SerializableXactHashLock);
     return;
   }
 
   if (RWConflictExists(MySerializableXact, sxact)) {
+    DBUG_PRINT("info", "we don't want duplicate conflict records in the list");
     /* We don't want duplicate conflict records in the list. */
     LWLockRelease(SerializableXactHashLock);
     return;
@@ -4062,6 +4223,7 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
    * Flag the conflict.  But first, if this conflict creates a dangerous
    * structure, ereport an error.
    */
+  DBUG_PRINT("info", "flag the conflict");
   FlagRWConflict(MySerializableXact, sxact);
   LWLockRelease(SerializableXactHashLock);
 }
@@ -4073,6 +4235,7 @@ CheckForSerializableConflictOut(Relation relation, TransactionId xid, Snapshot s
 static void
 CheckTargetForConflictsIn(PREDICATELOCKTARGETTAG *targettag)
 {
+  DBUG_TRACE;
   uint32    targettaghash;
   LWLock     *partitionLock;
   PREDICATELOCKTARGET *target;
@@ -4239,18 +4402,21 @@ CheckTargetForConflictsIn(PREDICATELOCKTARGETTAG *targettag)
 void
 CheckForSerializableConflictIn(Relation relation, ItemPointer tid, BlockNumber blkno)
 {
+  DBUG_TRACE;
   PREDICATELOCKTARGETTAG targettag;
 
   if (!SerializationNeededForWrite(relation))
     return;
 
   /* Check if someone else has already decided that we need to die */
-  if (SxactIsDoomed(MySerializableXact))
+  if (SxactIsDoomed(MySerializableXact)) {
+    DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
     ereport(ERROR,
             (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
              errmsg("could not serialize access due to read/write dependencies among transactions"),
              errdetail_internal("Reason code: Canceled on identification as a pivot, during conflict in checking."),
              errhint("The transaction might succeed if retried.")));
+  }
 
   /*
    * We're doing a write which might cause rw-conflicts now or later.
@@ -4320,6 +4486,7 @@ CheckForSerializableConflictIn(Relation relation, ItemPointer tid, BlockNumber b
 void
 CheckTableForSerializableConflictIn(Relation relation)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS seqstat;
   PREDICATELOCKTARGET *target;
   Oid     dbId;
@@ -4404,6 +4571,7 @@ CheckTableForSerializableConflictIn(Relation relation)
 static void
 FlagRWConflict(SERIALIZABLEXACT *reader, SERIALIZABLEXACT *writer)
 {
+  DBUG_TRACE;
   Assert(reader != writer);
 
   /* First, see if this conflict causes failure. */
@@ -4440,6 +4608,7 @@ static void
 OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
                                         SERIALIZABLEXACT *writer)
 {
+  DBUG_TRACE;
   bool    failure;
 
   Assert(LWLockHeldByMe(SerializableXactHashLock));
@@ -4554,6 +4723,7 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
      */
     if (MySerializableXact == writer) {
       LWLockRelease(SerializableXactHashLock);
+      DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
       ereport(ERROR,
               (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -4564,6 +4734,7 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
 
       /* if we're not the writer, we have to be the reader */
       Assert(MySerializableXact == reader);
+      DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
       ereport(ERROR,
               (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -4594,7 +4765,10 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
 void
 PreCommit_CheckForSerializationFailure(void)
 {
+  DBUG_TRACE;
   dlist_iter  near_iter;
+
+  DBUG_PRINT("info", "check for dangerous structures in a serializable transaction at commit");
 
   if (MySerializableXact == InvalidSerializableXact)
     return;
@@ -4611,6 +4785,7 @@ PreCommit_CheckForSerializationFailure(void)
   if (SxactIsDoomed(MySerializableXact) &&
       !SxactIsPartiallyReleased(MySerializableXact)) {
     LWLockRelease(SerializableXactHashLock);
+    DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
     ereport(ERROR,
             (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
              errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -4642,6 +4817,7 @@ PreCommit_CheckForSerializationFailure(void)
            */
           if (SxactIsPrepared(nearConflict->sxactOut)) {
             LWLockRelease(SerializableXactHashLock);
+            DBUG_INSTANT_PRINT("info", "could not serialize access due to read/write dependencies among transactions");
             ereport(ERROR,
                     (errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
                      errmsg("could not serialize access due to read/write dependencies among transactions"),
@@ -4676,6 +4852,7 @@ PreCommit_CheckForSerializationFailure(void)
 void
 AtPrepare_PredicateLocks(void)
 {
+  DBUG_TRACE;
   SERIALIZABLEXACT *sxact;
   TwoPhasePredicateRecord record;
   TwoPhasePredicateXactRecord *xactRecord;
@@ -4744,6 +4921,8 @@ AtPrepare_PredicateLocks(void)
 void
 PostPrepare_PredicateLocks(TransactionId xid)
 {
+  DBUG_TRACE;
+
   if (MySerializableXact == InvalidSerializableXact)
     return;
 
@@ -4767,6 +4946,7 @@ PostPrepare_PredicateLocks(TransactionId xid)
 void
 PredicateLockTwoPhaseFinish(TransactionId xid, bool isCommit)
 {
+  DBUG_TRACE;
   SERIALIZABLEXID *sxid;
   SERIALIZABLEXIDTAG sxidtag;
 
@@ -4795,6 +4975,7 @@ void
 predicatelock_twophase_recover(TransactionId xid, uint16 info,
                                void *recdata, uint32 len)
 {
+  DBUG_TRACE;
   TwoPhasePredicateRecord *record;
 
   Assert(len == sizeof(TwoPhasePredicateRecord));
@@ -4817,10 +4998,12 @@ predicatelock_twophase_recover(TransactionId xid, uint16 info,
     LWLockAcquire(SerializableXactHashLock, LW_EXCLUSIVE);
     sxact = CreatePredXact();
 
-    if (!sxact)
+    if (!sxact) {
+      DBUG_INSTANT_PRINT("info", "out of shared memory");
       ereport(ERROR,
               (errcode(ERRCODE_OUT_OF_MEMORY),
                errmsg("out of shared memory")));
+    }
 
     /* vxid for a prepared xact is INVALID_PROC_NUMBER/xid; no pid */
     sxact->vxid.procNumber = INVALID_PROC_NUMBER;
@@ -4926,6 +5109,7 @@ predicatelock_twophase_recover(TransactionId xid, uint16 info,
 SerializableXactHandle
 ShareSerializableXact(void)
 {
+  DBUG_TRACE;
   return MySerializableXact;
 }
 
@@ -4935,6 +5119,7 @@ ShareSerializableXact(void)
 void
 AttachSerializableXact(SerializableXactHandle handle)
 {
+  DBUG_TRACE;
 
   Assert(MySerializableXact == InvalidSerializableXact);
 

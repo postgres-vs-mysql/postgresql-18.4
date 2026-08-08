@@ -26,8 +26,7 @@
  *    typedef struct FormData_pg_index.
  * ----------------
  */
-CATALOG(pg_index, 2610, IndexRelationId) BKI_SCHEMA_MACRO
-{
+CATALOG(pg_index, 2610, IndexRelationId) BKI_SCHEMA_MACRO {
   Oid     indexrelid BKI_LOOKUP(pg_class);  /* OID of the index */
   Oid     indrelid BKI_LOOKUP(pg_class);  /* OID of the relation it
                          * indexes */

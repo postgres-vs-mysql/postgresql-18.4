@@ -10,6 +10,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <sys/stat.h>
 
@@ -163,6 +164,7 @@ calculate_database_size(Oid dbOid)
 Datum
 pg_database_size_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     dbOid = PG_GETARG_OID(0);
   int64   size;
 
@@ -186,6 +188,7 @@ pg_database_size_oid(PG_FUNCTION_ARGS)
 Datum
 pg_database_size_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    dbName = PG_GETARG_NAME(0);
   Oid     dbOid = get_database_oid(NameStr(*dbName), false);
   int64   size;
@@ -274,6 +277,7 @@ calculate_tablespace_size(Oid tblspcOid)
 Datum
 pg_tablespace_size_oid(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     tblspcOid = PG_GETARG_OID(0);
   int64   size;
 
@@ -297,6 +301,7 @@ pg_tablespace_size_oid(PG_FUNCTION_ARGS)
 Datum
 pg_tablespace_size_name(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Name    tblspcName = PG_GETARG_NAME(0);
   Oid     tblspcOid = get_tablespace_oid(NameStr(*tblspcName), false);
   int64   size;
@@ -356,6 +361,7 @@ calculate_relation_size(RelFileLocator *rfn, ProcNumber backend, ForkNumber fork
 Datum
 pg_relation_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relOid = PG_GETARG_OID(0);
   text     *forkName = PG_GETARG_TEXT_PP(1);
   Relation  rel;
@@ -495,6 +501,7 @@ calculate_indexes_size(Relation rel)
 Datum
 pg_table_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relOid = PG_GETARG_OID(0);
   Relation  rel;
   int64   size;
@@ -514,6 +521,7 @@ pg_table_size(PG_FUNCTION_ARGS)
 Datum
 pg_indexes_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relOid = PG_GETARG_OID(0);
   Relation  rel;
   int64   size;
@@ -556,6 +564,7 @@ calculate_total_relation_size(Relation rel)
 Datum
 pg_total_relation_size(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relOid = PG_GETARG_OID(0);
   Relation  rel;
   int64   size;
@@ -578,6 +587,7 @@ pg_total_relation_size(PG_FUNCTION_ARGS)
 Datum
 pg_size_pretty(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   int64   size = PG_GETARG_INT64(0);
   char    buf[64];
   const struct size_pretty_unit *unit;
@@ -618,23 +628,38 @@ pg_size_pretty(PG_FUNCTION_ARGS)
 static char *
 numeric_to_cstring(Numeric n)
 {
+  DBUG_TRACE;
+  char *result;
   Datum   d = NumericGetDatum(n);
 
-  return DatumGetCString(DirectFunctionCall1(numeric_out, d));
+  result = DatumGetCString(DirectFunctionCall1(numeric_out, d));
+  DBUG_PRINT("info", "result:'%s'", result);
+  return result;
 }
 
 static bool
 numeric_is_less(Numeric a, Numeric b)
 {
+  DBUG_TRACE;
+  bool result;
   Datum   da = NumericGetDatum(a);
   Datum   db = NumericGetDatum(b);
 
-  return DatumGetBool(DirectFunctionCall2(numeric_lt, da, db));
+  result = DatumGetBool(DirectFunctionCall2(numeric_lt, da, db));
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
+  }
+
+  return result;
 }
 
 static Numeric
 numeric_absolute(Numeric n)
 {
+  DBUG_TRACE;
   Datum   d = NumericGetDatum(n);
   Datum   result;
 
@@ -645,6 +670,7 @@ numeric_absolute(Numeric n)
 static Numeric
 numeric_half_rounded(Numeric n)
 {
+  DBUG_TRACE;
   Datum   d = NumericGetDatum(n);
   Datum   zero;
   Datum   one;
@@ -667,6 +693,7 @@ numeric_half_rounded(Numeric n)
 static Numeric
 numeric_truncated_divide(Numeric n, int64 divisor)
 {
+  DBUG_TRACE;
   Datum   d = NumericGetDatum(n);
   Datum   divisor_numeric;
   Datum   result;
@@ -679,6 +706,7 @@ numeric_truncated_divide(Numeric n, int64 divisor)
 Datum
 pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Numeric   size = PG_GETARG_NUMERIC(0);
   char     *result = NULL;
   const struct size_pretty_unit *unit;
@@ -718,6 +746,7 @@ pg_size_pretty_numeric(PG_FUNCTION_ARGS)
 Datum
 pg_size_bytes(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   text     *arg = PG_GETARG_TEXT_PP(0);
   char     *str,
            *strptr,
@@ -882,6 +911,7 @@ pg_size_bytes(PG_FUNCTION_ARGS)
 Datum
 pg_relation_filenode(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   RelFileNumber result;
   HeapTuple tuple;
@@ -932,6 +962,7 @@ pg_relation_filenode(PG_FUNCTION_ARGS)
 Datum
 pg_filenode_relation(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     reltablespace = PG_GETARG_OID(0);
   RelFileNumber relfilenumber = PG_GETARG_OID(1);
   Oid     heaprel;
@@ -956,6 +987,7 @@ pg_filenode_relation(PG_FUNCTION_ARGS)
 Datum
 pg_relation_filepath(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     relid = PG_GETARG_OID(0);
   HeapTuple tuple;
   Form_pg_class relform;

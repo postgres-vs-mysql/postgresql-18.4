@@ -57,6 +57,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -304,7 +305,7 @@ SimpleLruInit(SlruCtl ctl, const char *name, int nslots, int nlsns,
 
     for (int slotno = 0; slotno < nslots; slotno++) {
       LWLockInitialize(&shared->buffer_locks[slotno].lock,
-                       buffer_tranche_id);
+                       buffer_tranche_id, slotno);
 
       shared->page_buffer[slotno] = ptr;
       shared->page_status[slotno] = SLRU_PAGE_EMPTY;
@@ -314,8 +315,10 @@ SimpleLruInit(SlruCtl ctl, const char *name, int nslots, int nlsns,
     }
 
     /* Initialize the slot banks. */
+    DBUG_PRINT("info", "initialize the slot banks");
+
     for (int bankno = 0; bankno < nbanks; bankno++) {
-      LWLockInitialize(&shared->bank_locks[bankno].lock, bank_tranche_id);
+      LWLockInitialize(&shared->bank_locks[bankno].lock, bank_tranche_id, bankno);
       shared->bank_cur_lru_count[bankno] = 0;
     }
 
@@ -434,6 +437,7 @@ SimpleLruZeroLSNs(SlruCtl ctl, int slotno)
 static void
 SimpleLruWaitIO(SlruCtl ctl, int slotno)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int     bankno = SlotGetBankNumber(slotno);
 
@@ -490,6 +494,7 @@ int
 SimpleLruReadPage(SlruCtl ctl, int64 pageno, bool write_ok,
                   TransactionId xid)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   LWLock     *banklock = SimpleLruGetBankLock(ctl, pageno);
 
@@ -590,6 +595,7 @@ SimpleLruReadPage(SlruCtl ctl, int64 pageno, bool write_ok,
 int
 SimpleLruReadPage_ReadOnly(SlruCtl ctl, int64 pageno, TransactionId xid)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   LWLock     *banklock = SimpleLruGetBankLock(ctl, pageno);
   int     bankno = pageno % ctl->nbanks;
@@ -597,6 +603,7 @@ SimpleLruReadPage_ReadOnly(SlruCtl ctl, int64 pageno, TransactionId xid)
   int     bankend = bankstart + SLRU_BANK_SIZE;
 
   /* Try to find the page while holding only shared lock */
+  DBUG_PRINT("info", "try to find the page while holding only shared lock");
   LWLockAcquire(banklock, LW_SHARED);
 
   /* See if page is already in a buffer */
@@ -610,11 +617,13 @@ SimpleLruReadPage_ReadOnly(SlruCtl ctl, int64 pageno, TransactionId xid)
       /* update the stats counter of pages found in the SLRU */
       pgstat_count_slru_page_hit(shared->slru_stats_idx);
 
+      DBUG_PRINT("info", "page is already in a buffer");
       return slotno;
     }
   }
 
   /* No luck, so switch to normal exclusive lock and do regular read */
+  DBUG_PRINT("info", "no luck, so switch to normal exclusive lock and do regular read");
   LWLockRelease(banklock);
   LWLockAcquire(banklock, LW_EXCLUSIVE);
 
@@ -635,6 +644,7 @@ SimpleLruReadPage_ReadOnly(SlruCtl ctl, int64 pageno, TransactionId xid)
 static void
 SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int64   pageno = shared->page_number[slotno];
   int     bankno = SlotGetBankNumber(slotno);
@@ -646,6 +656,7 @@ SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
   /* If a write is in progress, wait for it to finish */
   while (shared->page_status[slotno] == SLRU_PAGE_WRITE_IN_PROGRESS &&
          shared->page_number[slotno] == pageno) {
+    DBUG_PRINT("info", "a write is in progress and wait for it to finish");
     SimpleLruWaitIO(ctl, slotno);
   }
 
@@ -655,8 +666,10 @@ SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
    */
   if (!shared->page_dirty[slotno] ||
       shared->page_status[slotno] != SLRU_PAGE_VALID ||
-      shared->page_number[slotno] != pageno)
+      shared->page_number[slotno] != pageno) {
+    DBUG_PRINT("info", "do nothing");
     return;
+  }
 
   /*
    * Mark the slot write-busy, and clear the dirtybit.  After this point, a
@@ -664,6 +677,7 @@ SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
    */
   shared->page_status[slotno] = SLRU_PAGE_WRITE_IN_PROGRESS;
   shared->page_dirty[slotno] = false;
+  DBUG_PRINT("info", "mark the slot write-busy, and clear the dirtybit");
 
   /* Acquire per-buffer lock (cannot deadlock, see notes at top) */
   LWLockAcquire(&shared->buffer_locks[slotno].lock, LW_EXCLUSIVE);
@@ -671,6 +685,7 @@ SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
   /* Release bank lock while doing I/O */
   LWLockRelease(&shared->bank_locks[bankno].lock);
 
+  DBUG_PRINT("info", "release bank lock while doing I/O and do the write");
   /* Do the write */
   ok = SlruPhysicalWritePage(ctl, pageno, slotno, fdata);
 
@@ -687,8 +702,10 @@ SlruInternalWritePage(SlruCtl ctl, int slotno, SlruWriteAll fdata)
          shared->page_status[slotno] == SLRU_PAGE_WRITE_IN_PROGRESS);
 
   /* If we failed to write, mark the page dirty again */
-  if (!ok)
+  if (!ok) {
+    DBUG_PRINT("info", "we failed to write and mark the page dirty again");
     shared->page_dirty[slotno] = true;
+  }
 
   shared->page_status[slotno] = SLRU_PAGE_VALID;
 
@@ -726,6 +743,7 @@ SimpleLruWritePage(SlruCtl ctl, int slotno)
 bool
 SimpleLruDoesPhysicalPageExist(SlruCtl ctl, int64 pageno)
 {
+  DBUG_TRACE;
   int64   segno = pageno / SLRU_PAGES_PER_SEGMENT;
   int     rpageno = pageno % SLRU_PAGES_PER_SEGMENT;
   int     offset = rpageno * BLCKSZ;
@@ -782,6 +800,7 @@ SimpleLruDoesPhysicalPageExist(SlruCtl ctl, int64 pageno)
 static bool
 SlruPhysicalReadPage(SlruCtl ctl, int64 pageno, int slotno)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int64   segno = pageno / SLRU_PAGES_PER_SEGMENT;
   int     rpageno = pageno % SLRU_PAGES_PER_SEGMENT;
@@ -853,6 +872,7 @@ SlruPhysicalReadPage(SlruCtl ctl, int64 pageno, int slotno)
 static bool
 SlruPhysicalWritePage(SlruCtl ctl, int64 pageno, int slotno, SlruWriteAll fdata)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int64   segno = pageno / SLRU_PAGES_PER_SEGMENT;
   int     rpageno = pageno % SLRU_PAGES_PER_SEGMENT;
@@ -1018,6 +1038,7 @@ SlruPhysicalWritePage(SlruCtl ctl, int64 pageno, int slotno, SlruWriteAll fdata)
 static void
 SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
 {
+  DBUG_TRACE;
   int64   segno = pageno / SLRU_PAGES_PER_SEGMENT;
   int     rpageno = pageno % SLRU_PAGES_PER_SEGMENT;
   int     offset = rpageno * BLCKSZ;
@@ -1028,6 +1049,7 @@ SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
 
   switch (slru_errcause) {
     case SLRU_OPEN_FAILED:
+      DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not access status of transaction %u", xid),
@@ -1035,6 +1057,7 @@ SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
       break;
 
     case SLRU_SEEK_FAILED:
+      DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not access status of transaction %u", xid),
@@ -1043,35 +1066,42 @@ SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
       break;
 
     case SLRU_READ_FAILED:
-      if (errno)
+      if (errno) {
+        DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not access status of transaction %u", xid),
                  errdetail("Could not read from file \"%s\" at offset %d: %m.",
                            path, offset)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
         ereport(ERROR,
                 (errmsg("could not access status of transaction %u", xid),
                  errdetail("Could not read from file \"%s\" at offset %d: read too few bytes.", path, offset)));
+      }
 
       break;
 
     case SLRU_WRITE_FAILED:
-      if (errno)
+      if (errno) {
+        DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
         ereport(ERROR,
                 (errcode_for_file_access(),
                  errmsg("could not access status of transaction %u", xid),
                  errdetail("Could not write to file \"%s\" at offset %d: %m.",
                            path, offset)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
         ereport(ERROR,
                 (errmsg("could not access status of transaction %u", xid),
                  errdetail("Could not write to file \"%s\" at offset %d: wrote too few bytes.",
                            path, offset)));
+      }
 
       break;
 
     case SLRU_FSYNC_FAILED:
+      DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
       ereport(data_sync_elevel(ERROR),
               (errcode_for_file_access(),
                errmsg("could not access status of transaction %u", xid),
@@ -1080,6 +1110,7 @@ SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
       break;
 
     case SLRU_CLOSE_FAILED:
+      DBUG_INSTANT_PRINT("info", "could not access status of transaction %u", xid);
       ereport(ERROR,
               (errcode_for_file_access(),
                errmsg("could not access status of transaction %u", xid),
@@ -1101,6 +1132,7 @@ SlruReportIOError(SlruCtl ctl, int64 pageno, TransactionId xid)
 static inline void
 SlruRecentlyUsed(SlruShared shared, int slotno)
 {
+  DBUG_TRACE;
   int     bankno = SlotGetBankNumber(slotno);
   int     new_lru_count = shared->bank_cur_lru_count[bankno];
 
@@ -1146,6 +1178,7 @@ SlruRecentlyUsed(SlruShared shared, int slotno)
 static int
 SlruSelectLRUPage(SlruCtl ctl, int64 pageno)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
 
   /* Outer loop handles restart after I/O */
@@ -1292,6 +1325,7 @@ SlruSelectLRUPage(SlruCtl ctl, int64 pageno)
 void
 SimpleLruWriteAll(SlruCtl ctl, bool allow_redirtied)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   SlruWriteAllData fdata;
   int64   pageno = 0;
@@ -1376,6 +1410,7 @@ SimpleLruWriteAll(SlruCtl ctl, bool allow_redirtied)
 void
 SimpleLruTruncate(SlruCtl ctl, int64 cutoffPage)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int     prevbank;
 
@@ -1398,6 +1433,7 @@ restart:
    */
   if (ctl->PagePrecedes(pg_atomic_read_u64(&shared->latest_page_number),
                         cutoffPage)) {
+    DBUG_INSTANT_PRINT("info", "could not truncate directory \"%s\": apparent wraparound", ctl->Dir);
     ereport(LOG,
             (errmsg("could not truncate directory \"%s\": apparent wraparound",
                     ctl->Dir)));
@@ -1469,6 +1505,7 @@ restart:
 static void
 SlruInternalDeleteSegment(SlruCtl ctl, int64 segno)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
 
   /* Forget any fsync requests queued for this segment. */
@@ -1481,6 +1518,7 @@ SlruInternalDeleteSegment(SlruCtl ctl, int64 segno)
 
   /* Unlink the file. */
   SlruFileName(ctl, path, segno);
+  DBUG_PRINT("info", "removing file \"%s\"", path);
   ereport(DEBUG2, (errmsg_internal("removing file \"%s\"", path)));
   unlink(path);
 }
@@ -1491,6 +1529,7 @@ SlruInternalDeleteSegment(SlruCtl ctl, int64 segno)
 void
 SlruDeleteSegment(SlruCtl ctl, int64 segno)
 {
+  DBUG_TRACE;
   SlruShared  shared = ctl->shared;
   int     prevbank = SlotGetBankNumber(0);
   bool    did_write;
@@ -1567,6 +1606,7 @@ restart:
 static bool
 SlruMayDeleteSegment(SlruCtl ctl, int64 segpage, int64 cutoffPage)
 {
+  DBUG_TRACE;
   int64   seg_last_page = segpage + SLRU_PAGES_PER_SEGMENT - 1;
 
   Assert(segpage % SLRU_PAGES_PER_SEGMENT == 0);
@@ -1579,6 +1619,7 @@ SlruMayDeleteSegment(SlruCtl ctl, int64 segpage, int64 cutoffPage)
 static void
 SlruPagePrecedesTestOffset(SlruCtl ctl, int per_page, uint32 offset)
 {
+  DBUG_TRACE;
   TransactionId lhs,
                 rhs;
   int64   newestPage,
@@ -1693,6 +1734,7 @@ static bool
 SlruScanDirCbDeleteCutoff(SlruCtl ctl, char *filename, int64 segpage,
                           void *data)
 {
+  DBUG_TRACE;
   int64   cutoffPage = *(int64 *) data;
 
   if (SlruMayDeleteSegment(ctl, segpage, cutoffPage))
@@ -1708,6 +1750,7 @@ SlruScanDirCbDeleteCutoff(SlruCtl ctl, char *filename, int64 segpage,
 bool
 SlruScanDirCbDeleteAll(SlruCtl ctl, char *filename, int64 segpage, void *data)
 {
+  DBUG_TRACE;
   SlruInternalDeleteSegment(ctl, segpage / SLRU_PAGES_PER_SEGMENT);
 
   return false;       /* keep going */
@@ -1755,6 +1798,7 @@ SlruCorrectSegmentFilenameLength(SlruCtl ctl, size_t len)
 bool
 SlruScanDirectory(SlruCtl ctl, SlruScanCallback callback, void *data)
 {
+  DBUG_TRACE;
   bool    retval = false;
   DIR      *cldir;
   struct dirent *clde;
@@ -1796,6 +1840,7 @@ SlruScanDirectory(SlruCtl ctl, SlruScanCallback callback, void *data)
 int
 SlruSyncFileTag(SlruCtl ctl, const FileTag *ftag, char *path)
 {
+  DBUG_TRACE;
   int     fd;
   int     save_errno;
   int     result;

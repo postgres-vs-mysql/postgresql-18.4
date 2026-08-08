@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/genam.h"
 #include "access/htup_details.h"
@@ -180,6 +181,7 @@ static void
 deleteObjectsInList(ObjectAddresses *targetObjects, Relation *depRel,
                     int flags)
 {
+  DBUG_TRACE;
   int     i;
 
   /*
@@ -266,6 +268,7 @@ void
 performDeletion(const ObjectAddress *object,
                 DropBehavior behavior, int flags)
 {
+  DBUG_TRACE;
   Relation  depRel;
   ObjectAddresses *targetObjects;
 
@@ -325,6 +328,7 @@ void
 performMultipleDeletions(const ObjectAddresses *objects,
                          DropBehavior behavior, int flags)
 {
+  DBUG_TRACE;
   Relation  depRel;
   ObjectAddresses *targetObjects;
   int     i;
@@ -429,6 +433,7 @@ findDependentObjects(const ObjectAddress *object,
                      const ObjectAddresses *pendingObjects,
                      Relation *depRel)
 {
+  DBUG_TRACE;
   ScanKeyData key[3];
   int     nkeys;
   SysScanDesc scan;
@@ -510,12 +515,14 @@ findDependentObjects(const ObjectAddress *object,
 
   if (object->objectSubId != 0) {
     /* Consider only dependencies of this sub-object */
+    DBUG_PRINT("info", "consider only dependencies of this sub-object");
     ScanKeyInit(&key[2],
                 Anum_pg_depend_objsubid,
                 BTEqualStrategyNumber, F_INT4EQ,
                 Int32GetDatum(object->objectSubId));
     nkeys = 3;
   } else {
+    DBUG_PRINT("info", "consider dependencies of this object and any sub-objects it has");
     /* Consider dependencies of this object and any sub-objects it has */
     nkeys = 2;
   }
@@ -548,12 +555,24 @@ findDependentObjects(const ObjectAddress *object,
 
     switch (foundDep->deptype) {
       case DEPENDENCY_NORMAL:
+        DBUG_PRINT("info", "deptype:DEPENDENCY_NORMAL");
+        DBUG_PRINT("info", "no problem");
+        break;
+
       case DEPENDENCY_AUTO:
+        DBUG_PRINT("info", "deptype:DEPENDENCY_AUTO");
+        DBUG_PRINT("info", "no problem");
+        break;
+
       case DEPENDENCY_AUTO_EXTENSION:
+        DBUG_PRINT("info", "deptype:DEPENDENCY_AUTO_EXTENSION");
+        DBUG_PRINT("info", "no problem");
         /* no problem */
         break;
 
       case DEPENDENCY_EXTENSION:
+
+        DBUG_PRINT("info", "deptype:DEPENDENCY_EXTENSION");
 
         /*
          * If told to, ignore EXTENSION dependencies altogether.  This
@@ -561,8 +580,10 @@ findDependentObjects(const ObjectAddress *object,
          * temporary-object cleanup, even if a temp object was created
          * during an extension script.
          */
-        if (flags & PERFORM_DELETION_SKIP_EXTENSIONS)
+        if (flags & PERFORM_DELETION_SKIP_EXTENSIONS) {
+          DBUG_PRINT("info", "if told to, ignore EXTENSION dependencies altogether");
           break;
+        }
 
         /*
          * If the other object is the extension currently being
@@ -574,13 +595,23 @@ findDependentObjects(const ObjectAddress *object,
          */
         if (creating_extension &&
             otherObject.classId == ExtensionRelationId &&
-            otherObject.objectId == CurrentExtensionObject)
+            otherObject.objectId == CurrentExtensionObject) {
+
+          DBUG_PRINT("info", "if the other object is the extension currently being created/altered, ignore this dependency and continue with the deletion");
           break;
+        }
+
+
+        DBUG_PRINT("info", "otherwise, treat this like an internal dependency");
 
       /* Otherwise, treat this like an internal dependency */
       /* FALL THRU */
 
       case DEPENDENCY_INTERNAL:
+
+        if (foundDep->deptype == DEPENDENCY_INTERNAL) {
+          DBUG_PRINT("info", "deptype:DEPENDENCY_INTERNAL");
+        }
 
         /*
          * This object is part of the internal implementation of
@@ -600,11 +631,14 @@ findDependentObjects(const ObjectAddress *object,
          * level, there is no object depending on this one.
          */
         if (stack == NULL) {
+          DBUG_PRINT("info", "stack is null");
+
           if (pendingObjects &&
               object_address_present(&otherObject, pendingObjects)) {
             systable_endscan(scan);
             /* need to release caller's lock; see notes below */
             ReleaseDeletionLock(object);
+            DBUG_PRINT("info", "need to release caller's lock");
             return;
           }
 
@@ -622,6 +656,7 @@ findDependentObjects(const ObjectAddress *object,
               foundDep->deptype == DEPENDENCY_EXTENSION)
             owningObject = otherObject;
 
+
           break;
         }
 
@@ -633,8 +668,10 @@ findDependentObjects(const ObjectAddress *object,
          * than one "owning" object, we have to allow matches that are
          * more than one level down in the stack.
          */
-        if (stack_address_present_add_flags(&otherObject, 0, stack))
+        if (stack_address_present_add_flags(&otherObject, 0, stack)) {
+          DBUG_PRINT("info", "break when stack_address_present_add_flags() returns true");
           break;
+        }
 
         /*
          * 3. Not all the owning objects have been visited, so
@@ -709,10 +746,12 @@ findDependentObjects(const ObjectAddress *object,
                getObjectDescription(&otherObject, false),
                getObjectDescription(object, false));
 
+        DBUG_PRINT("info", "we're done here");
         /* And we're done here. */
         return;
 
       case DEPENDENCY_PARTITION_PRI:
+        DBUG_PRINT("info", "deptype:DEPENDENCY_PARTITION_PRI");
 
         /*
          * Remember that this object has a partition-type dependency.
@@ -730,6 +769,8 @@ findDependentObjects(const ObjectAddress *object,
         break;
 
       case DEPENDENCY_PARTITION_SEC:
+
+        DBUG_PRINT("info", "deptype:DEPENDENCY_PARTITION_SEC");
 
         /*
          * Only use secondary partition owners in error messages if we
@@ -825,12 +866,14 @@ findDependentObjects(const ObjectAddress *object,
      */
     if (otherObject.classId == object->classId &&
         otherObject.objectId == object->objectId &&
-        object->objectSubId == 0)
+        object->objectSubId == 0) {
       continue;
+    }
 
     /*
      * Must lock the dependent object before recursing to it.
      */
+    DBUG_PRINT("info", "must lock the dependent object before recursing to it");
     AcquireDeletionLock(&otherObject, 0);
 
     /*
@@ -851,34 +894,53 @@ findDependentObjects(const ObjectAddress *object,
      * We do need to delete it, so identify objflags to be passed down,
      * which depend on the dependency type.
      */
-    switch (foundDep->deptype) {
-      case DEPENDENCY_NORMAL:
-        subflags = DEPFLAG_NORMAL;
-        break;
+    DBUG_PRINT("info", "we do need to delete it, so identify objflags to be passed down which depend on the dependency type");
 
-      case DEPENDENCY_AUTO:
-      case DEPENDENCY_AUTO_EXTENSION:
-        subflags = DEPFLAG_AUTO;
-        break;
+    {
+      char *ojb_str = getObjectDescription(object, false);
 
-      case DEPENDENCY_INTERNAL:
-        subflags = DEPFLAG_INTERNAL;
-        break;
+      switch (foundDep->deptype) {
+        case DEPENDENCY_NORMAL:
+          subflags = DEPFLAG_NORMAL;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_NORMAL' for %s", ojb_str);
+          break;
 
-      case DEPENDENCY_PARTITION_PRI:
-      case DEPENDENCY_PARTITION_SEC:
-        subflags = DEPFLAG_PARTITION;
-        break;
+        case DEPENDENCY_AUTO:
+          subflags = DEPFLAG_AUTO;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_AUTO' for %s", ojb_str);
+          break;
 
-      case DEPENDENCY_EXTENSION:
-        subflags = DEPFLAG_EXTENSION;
-        break;
+        case DEPENDENCY_AUTO_EXTENSION:
+          subflags = DEPFLAG_AUTO;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_AUTO_EXTENSION' for %s", ojb_str);
+          break;
 
-      default:
-        elog(ERROR, "unrecognized dependency type '%c' for %s",
-             foundDep->deptype, getObjectDescription(object, false));
-        subflags = 0; /* keep compiler quiet */
-        break;
+        case DEPENDENCY_INTERNAL:
+          subflags = DEPFLAG_INTERNAL;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_INTERNAL' for %s", ojb_str);
+          break;
+
+        case DEPENDENCY_PARTITION_PRI:
+          subflags = DEPFLAG_PARTITION;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_PARTITION_PRI' for %s", ojb_str);
+          break;
+
+        case DEPENDENCY_PARTITION_SEC:
+          subflags = DEPFLAG_PARTITION;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_PARTITION_SEC' for %s", ojb_str);
+          break;
+
+        case DEPENDENCY_EXTENSION:
+          subflags = DEPFLAG_EXTENSION;
+          DBUG_PRINT("info", "dependency type 'DEPENDENCY_EXTENSION' for %s", ojb_str);
+          break;
+
+        default:
+          elog(ERROR, "unrecognized dependency type '%c' for %s",
+               foundDep->deptype, getObjectDescription(object, false));
+          subflags = 0; /* keep compiler quiet */
+          break;
+      }
     }
 
     /* And add it to the pending-objects list */
@@ -902,15 +964,21 @@ findDependentObjects(const ObjectAddress *object,
    * It's safe to use object_address_comparator here since the obj field is
    * first within ObjectAddressAndFlags.
    */
-  if (numDependentObjects > 1)
+  if (numDependentObjects > 1) {
+    DBUG_PRINT("info", "now we can sort the dependent objects(%d) into a stable visitation order", numDependentObjects);
     qsort(dependentObjects, numDependentObjects,
           sizeof(ObjectAddressAndFlags),
           object_address_comparator);
+  }
 
   /*
    * Now recurse to the dependent objects.  We must visit them first since
    * they have to be deleted before the current object.
    */
+  if (numDependentObjects) {
+    DBUG_PRINT("info", "now recurse to the dependent objects");
+  }
+
   mystack.object = object;  /* set up a new stack level */
   mystack.flags = objflags;
   mystack.next = stack;
@@ -968,6 +1036,7 @@ reportDependentObjects(const ObjectAddresses *targetObjects,
                        int flags,
                        const ObjectAddress *origObject)
 {
+  DBUG_TRACE;
   int     msglevel = (flags & PERFORM_DELETION_QUIETLY) ? DEBUG2 : NOTICE;
   bool    ok = true;
   StringInfoData clientdetail;
@@ -1162,6 +1231,7 @@ reportDependentObjects(const ObjectAddresses *targetObjects,
 static void
 DropObjectById(const ObjectAddress *object)
 {
+  DBUG_TRACE;
   int     cacheId;
   Relation  rel;
   HeapTuple tup;
@@ -1218,11 +1288,13 @@ DropObjectById(const ObjectAddress *object)
 static void
 deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 {
+  DBUG_TRACE;
   ScanKeyData key[3];
   int     nkeys;
   SysScanDesc scan;
   HeapTuple tup;
 
+  DBUG_PRINT("info", "DROP hook of the objects being removed");
   /* DROP hook of the objects being removed */
   InvokeObjectDropHookArg(object->classId, object->objectId,
                           object->objectSubId, flags);
@@ -1322,6 +1394,8 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 static void
 doDeletion(const ObjectAddress *object, int flags)
 {
+  DBUG_TRACE;
+
   switch (object->classId) {
     case RelationRelationId: {
       char    relKind = get_rel_relkind(object->objectId);
@@ -1462,6 +1536,8 @@ doDeletion(const ObjectAddress *object, int flags)
 void
 AcquireDeletionLock(const ObjectAddress *object, int flags)
 {
+  DBUG_TRACE;
+
   if (object->classId == RelationRelationId) {
     /*
      * In DROP INDEX CONCURRENTLY, take only ShareUpdateExclusiveLock on
@@ -1563,6 +1639,7 @@ recordDependencyOnSingleRelExpr(const ObjectAddress *depender,
                                 DependencyType self_behavior,
                                 bool reverse_self)
 {
+  DBUG_TRACE;
   find_expr_references_context context;
   RangeTblEntry rte = {0};
 
@@ -1657,6 +1734,8 @@ static bool
 find_expr_references_walker(Node *node,
                             find_expr_references_context *context)
 {
+  DBUG_TRACE;
+
   if (node == NULL)
     return false;
 
@@ -2268,6 +2347,7 @@ static void
 process_function_rte_ref(RangeTblEntry *rte, AttrNumber attnum,
                          find_expr_references_context *context)
 {
+  DBUG_TRACE;
   int     atts_done = 0;
   ListCell   *lc;
 
@@ -2331,6 +2411,7 @@ process_function_rte_ref(RangeTblEntry *rte, AttrNumber attnum,
 static void
 eliminate_duplicate_dependencies(ObjectAddresses *addrs)
 {
+  DBUG_TRACE;
   ObjectAddress *priorobj;
   int     oldref,
           newrefs;

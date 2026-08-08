@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/relscan.h"
 #include "access/tableam.h"
@@ -41,6 +42,8 @@ static TupleTableSlot *tablesample_getnext(SampleScanState *scanstate);
 static TupleTableSlot *
 SampleNext(SampleScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * if this is first call within a scan, initialize
    */
@@ -78,6 +81,7 @@ SampleRecheck(SampleScanState *node, TupleTableSlot *slot)
 static TupleTableSlot *
 ExecSampleScan(PlanState *pstate)
 {
+  DBUG_TRACE;
   SampleScanState *node = castNode(SampleScanState, pstate);
 
   return ExecScan(&node->ss,
@@ -92,6 +96,7 @@ ExecSampleScan(PlanState *pstate)
 SampleScanState *
 ExecInitSampleScan(SampleScan *node, EState *estate, int eflags)
 {
+  DBUG_TRACE;
   SampleScanState *scanstate;
   TableSampleClause *tsc = node->tablesample;
   TsmRoutine *tsm;
@@ -178,6 +183,8 @@ ExecInitSampleScan(SampleScan *node, EState *estate, int eflags)
 void
 ExecEndSampleScan(SampleScanState *node)
 {
+  DBUG_TRACE;
+
   /*
    * Tell sampling function that we finished the scan.
    */
@@ -201,6 +208,7 @@ ExecEndSampleScan(SampleScanState *node)
 void
 ExecReScanSampleScan(SampleScanState *node)
 {
+  DBUG_TRACE;
   /* Remember we need to do BeginSampleScan again (if we did it at all) */
   node->begun = false;
   node->done = false;
@@ -217,6 +225,7 @@ ExecReScanSampleScan(SampleScanState *node)
 static void
 tablesample_init(SampleScanState *scanstate)
 {
+  DBUG_TRACE;
   TsmRoutine *tsm = scanstate->tsmroutine;
   ExprContext *econtext = scanstate->ss.ps.ps_ExprContext;
   Datum    *params;
@@ -316,6 +325,7 @@ tablesample_init(SampleScanState *scanstate)
 static TupleTableSlot *
 tablesample_getnext(SampleScanState *scanstate)
 {
+  DBUG_TRACE;
   TableScanDesc scan = scanstate->ss.ss_currentScanDesc;
   TupleTableSlot *slot = scanstate->ss.ss_ScanTupleSlot;
 

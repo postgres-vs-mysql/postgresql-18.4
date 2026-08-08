@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/amvalidate.h"
 #include "access/gist_private.h"
@@ -31,6 +32,7 @@
 bool
 gistvalidate(Oid opclassoid)
 {
+  DBUG_TRACE;
   bool    result = true;
   HeapTuple classtup;
   Form_pg_opclass classform;
@@ -295,6 +297,7 @@ gistadjustmembers(Oid opfamilyoid,
                   List *operators,
                   List *functions)
 {
+  DBUG_TRACE;
   ListCell   *lc;
 
   /*

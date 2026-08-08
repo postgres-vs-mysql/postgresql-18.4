@@ -12,6 +12,7 @@
  *-------------------------------------------------------------------------
  */
 
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "tsearch/ts_cache.h"
@@ -165,6 +166,7 @@ setNewTmpRes(LexizeData *ld, ParsedLex *lex, TSLexeme *res)
 static TSLexeme *
 LexizeExec(LexizeData *ld, ParsedLex **correspondLexem)
 {
+  DBUG_TRACE;
   int     i;
   ListDictionary *map;
   TSDictionaryCacheEntry *dict;
@@ -335,6 +337,7 @@ LexizeExec(LexizeData *ld, ParsedLex **correspondLexem)
 void
 parsetext(Oid cfgId, ParsedText *prs, char *buf, int buflen)
 {
+  DBUG_TRACE;
   int     type,
           lenlemm = 0;  /* silence compiler warning */
   char     *lemm = NULL;
@@ -441,6 +444,7 @@ hladdword(HeadlineParsedText *prs, char *buf, int buflen, int type)
 static void
 hlfinditem(HeadlineParsedText *prs, TSQuery query, int32 pos, char *buf, int buflen)
 {
+  DBUG_TRACE;
   int     i;
   QueryItem  *item = GETQUERY(query);
   HeadlineWordEntry *word;
@@ -473,6 +477,7 @@ hlfinditem(HeadlineParsedText *prs, TSQuery query, int32 pos, char *buf, int buf
 static void
 addHLParsedLex(HeadlineParsedText *prs, TSQuery query, ParsedLex *lexs, TSLexeme *norms)
 {
+  DBUG_TRACE;
   ParsedLex  *tmplexs;
   TSLexeme   *ptr;
   int32   savedpos;
@@ -515,6 +520,7 @@ addHLParsedLex(HeadlineParsedText *prs, TSQuery query, ParsedLex *lexs, TSLexeme
 void
 hlparsetext(Oid cfgId, HeadlineParsedText *prs, TSQuery query, char *buf, int buflen)
 {
+  DBUG_TRACE;
   int     type,
           lenlemm = 0;  /* silence compiler warning */
   char     *lemm = NULL;
@@ -577,6 +583,7 @@ hlparsetext(Oid cfgId, HeadlineParsedText *prs, TSQuery query, char *buf, int bu
 text *
 generateHeadline(HeadlineParsedText *prs)
 {
+  DBUG_TRACE;
   text     *out;
   char     *ptr;
   int     len = 128;

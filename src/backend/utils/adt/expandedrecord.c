@@ -16,6 +16,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "debug_trace.h"
 #include "postgres.h"
 
 #include "access/detoast.h"
@@ -68,6 +69,7 @@ ExpandedRecordHeader *
 make_expanded_record_from_typeid(Oid type_id, int32 typmod,
                                  MemoryContext parentcontext)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh;
   int     flags = 0;
   TupleDesc tupdesc;
@@ -200,6 +202,7 @@ ExpandedRecordHeader *
 make_expanded_record_from_tupdesc(TupleDesc tupdesc,
                                   MemoryContext parentcontext)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh;
   uint64    tupdesc_id;
   MemoryContext objcxt;
@@ -320,6 +323,7 @@ ExpandedRecordHeader *
 make_expanded_record_from_exprecord(ExpandedRecordHeader *olderh,
                                     MemoryContext parentcontext)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh;
   TupleDesc tupdesc = expanded_record_get_tupdesc(olderh);
   MemoryContext objcxt;
@@ -428,6 +432,7 @@ expanded_record_set_tuple(ExpandedRecordHeader *erh,
                           bool copy,
                           bool expand_external)
 {
+  DBUG_TRACE;
   int     oldflags;
   HeapTuple oldtuple;
   char     *oldfstartptr;
@@ -555,6 +560,7 @@ expanded_record_set_tuple(ExpandedRecordHeader *erh,
 Datum
 make_expanded_record_from_datum(Datum recorddatum, MemoryContext parentcontext)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh;
   HeapTupleHeader tuphdr;
   HeapTupleData tmptup;
@@ -627,6 +633,7 @@ make_expanded_record_from_datum(Datum recorddatum, MemoryContext parentcontext)
 static Size
 ER_get_flat_size(ExpandedObjectHeader *eohptr)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh = (ExpandedRecordHeader *) eohptr;
   TupleDesc tupdesc;
   Size    len;
@@ -735,6 +742,7 @@ static void
 ER_flatten_into(ExpandedObjectHeader *eohptr,
                 void *result, Size allocated_size)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh = (ExpandedRecordHeader *) eohptr;
   HeapTupleHeader tuphdr = (HeapTupleHeader) result;
   TupleDesc tupdesc;
@@ -793,6 +801,7 @@ ER_flatten_into(ExpandedObjectHeader *eohptr,
 TupleDesc
 expanded_record_fetch_tupdesc(ExpandedRecordHeader *erh)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
 
   /* Easy if we already have it (but caller should have checked already) */
@@ -849,6 +858,8 @@ expanded_record_fetch_tupdesc(ExpandedRecordHeader *erh)
 HeapTuple
 expanded_record_get_tuple(ExpandedRecordHeader *erh)
 {
+  DBUG_TRACE;
+
   /* Easy case if we still have original tuple */
   if (erh->flags & ER_FLAG_FVALUE_VALID)
     return erh->fvalue;
@@ -867,6 +878,7 @@ expanded_record_get_tuple(ExpandedRecordHeader *erh)
 static void
 ER_mc_callback(void *arg)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh = (ExpandedRecordHeader *) arg;
   TupleDesc tupdesc = erh->er_tupdesc;
 
@@ -891,6 +903,8 @@ ER_mc_callback(void *arg)
 ExpandedRecordHeader *
 DatumGetExpandedRecord(Datum d)
 {
+  DBUG_TRACE;
+
   /* If it's a writable expanded record already, just return it */
   if (VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d))) {
     ExpandedRecordHeader *erh = (ExpandedRecordHeader *) DatumGetEOHP(d);
@@ -915,6 +929,7 @@ DatumGetExpandedRecord(Datum d)
 void
 deconstruct_expanded_record(ExpandedRecordHeader *erh)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   Datum    *dvalues;
   bool     *dnulls;
@@ -976,6 +991,7 @@ bool
 expanded_record_lookup_field(ExpandedRecordHeader *erh, const char *fieldname,
                              ExpandedRecordFieldInfo *finfo)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   int     fno;
   Form_pg_attribute attr;
@@ -1021,6 +1037,8 @@ Datum
 expanded_record_fetch_field(ExpandedRecordHeader *erh, int fnumber,
                             bool *isnull)
 {
+  DBUG_TRACE;
+
   if (fnumber > 0) {
     /* Empty record has null fields */
     if (ExpandedRecordIsEmpty(erh)) {
@@ -1070,6 +1088,7 @@ expanded_record_set_field_internal(ExpandedRecordHeader *erh, int fnumber,
                                    bool expand_external,
                                    bool check_constraints)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   CompactAttribute *attr;
   Datum    *dvalues;
@@ -1202,6 +1221,7 @@ expanded_record_set_fields(ExpandedRecordHeader *erh,
                            const Datum *newValues, const bool *isnulls,
                            bool expand_external)
 {
+  DBUG_TRACE;
   TupleDesc tupdesc;
   Datum    *dvalues;
   bool     *dnulls;
@@ -1321,6 +1341,8 @@ expanded_record_set_fields(ExpandedRecordHeader *erh,
 static MemoryContext
 get_short_term_cxt(ExpandedRecordHeader *erh)
 {
+  DBUG_TRACE;
+
   if (erh->er_short_term_cxt == NULL)
     erh->er_short_term_cxt =
       AllocSetContextCreate(erh->hdr.eoh_context,
@@ -1345,6 +1367,7 @@ get_short_term_cxt(ExpandedRecordHeader *erh)
 static void
 build_dummy_expanded_header(ExpandedRecordHeader *main_erh)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *erh;
   TupleDesc tupdesc = expanded_record_get_tupdesc(main_erh);
 
@@ -1438,6 +1461,7 @@ static pg_noinline void
 check_domain_for_new_field(ExpandedRecordHeader *erh, int fnumber,
                            Datum newValue, bool isnull)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *dummy_erh;
   MemoryContext oldcxt;
 
@@ -1515,6 +1539,7 @@ check_domain_for_new_field(ExpandedRecordHeader *erh, int fnumber,
 static pg_noinline void
 check_domain_for_new_tuple(ExpandedRecordHeader *erh, HeapTuple tuple)
 {
+  DBUG_TRACE;
   ExpandedRecordHeader *dummy_erh;
   MemoryContext oldcxt;
 

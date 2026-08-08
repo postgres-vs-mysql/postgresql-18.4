@@ -2,6 +2,7 @@
  * contrib/btree_gist/btree_gist.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "access/cmptype.h"
 #include "access/stratnum.h"
@@ -25,6 +26,7 @@ PG_FUNCTION_INFO_V1(gist_translate_cmptype_btree);
 Datum
 gbtreekey_in(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   Oid     typioparam = PG_GETARG_OID(1);
 
   ereport(ERROR,
@@ -39,6 +41,7 @@ gbtreekey_in(PG_FUNCTION_ARGS)
 Datum
 gbtreekey_out(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   /* Sadly, we do not receive any indication of the specific type */
   ereport(ERROR,
           (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -55,6 +58,8 @@ gbtreekey_out(PG_FUNCTION_ARGS)
 Datum
 gbt_decompress(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
+  DBUG_PRINT("btree_gist", "do not do anything");
   PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 

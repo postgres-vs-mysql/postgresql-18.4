@@ -10,6 +10,7 @@
  *    src/backend/postmaster/fork_process.c
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <fcntl.h>
 #include <signal.h>

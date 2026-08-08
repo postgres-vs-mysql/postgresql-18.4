@@ -85,6 +85,7 @@
  * -------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -425,6 +426,7 @@ ReorderBufferFree(ReorderBuffer *rb)
 static ReorderBufferTXN *
 ReorderBufferAllocTXN(ReorderBuffer *rb)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = (ReorderBufferTXN *)
@@ -449,6 +451,8 @@ ReorderBufferAllocTXN(ReorderBuffer *rb)
 static void
 ReorderBufferFreeTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
+
   /* clean the lookup cache if we were cached (quite likely) */
   if (rb->by_txn_last_xid == txn->xid) {
     rb->by_txn_last_xid = InvalidTransactionId;
@@ -646,6 +650,7 @@ static ReorderBufferTXN *
 ReorderBufferTXNByXid(ReorderBuffer *rb, TransactionId xid, bool create,
                       bool *is_new, XLogRecPtr lsn, bool create_as_top)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
   ReorderBufferTXNByIdEnt *ent;
   bool    found;
@@ -733,6 +738,7 @@ ReorderBufferProcessPartialChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
                                   ReorderBufferChange *change,
                                   bool toast_insert)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *toptxn;
 
   /*
@@ -801,6 +807,7 @@ void
 ReorderBufferQueueChange(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn,
                          ReorderBufferChange *change, bool toast_insert)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, true, NULL, lsn, true);
@@ -864,6 +871,8 @@ ReorderBufferQueueMessage(ReorderBuffer *rb, TransactionId xid,
                           bool transactional, const char *prefix,
                           Size message_size, const char *message)
 {
+  DBUG_TRACE;
+
   if (transactional) {
     MemoryContext oldcontext;
     ReorderBufferChange *change;
@@ -1054,6 +1063,7 @@ ReorderBufferGetOldestTXN(ReorderBuffer *rb)
 TransactionId
 ReorderBufferGetOldestXmin(ReorderBuffer *rb)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   AssertTXNLsnOrder(rb);
@@ -1082,6 +1092,7 @@ void
 ReorderBufferAssignChild(ReorderBuffer *rb, TransactionId xid,
                          TransactionId subxid, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
   ReorderBufferTXN *subtxn;
   bool    new_top;
@@ -1144,6 +1155,7 @@ static void
 ReorderBufferTransferSnapToParent(ReorderBufferTXN *txn,
                                   ReorderBufferTXN *subtxn)
 {
+  DBUG_TRACE;
   Assert(subtxn->toplevel_xid == txn->xid);
 
   if (subtxn->base_snapshot != NULL) {
@@ -1194,6 +1206,7 @@ ReorderBufferCommitChild(ReorderBuffer *rb, TransactionId xid,
                          TransactionId subxid, XLogRecPtr commit_lsn,
                          XLogRecPtr end_lsn)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *subtxn;
 
   subtxn = ReorderBufferTXNByXid(rb, subxid, false, NULL,
@@ -1259,6 +1272,7 @@ static void
 ReorderBufferIterTXNInit(ReorderBuffer *rb, ReorderBufferTXN *txn,
                          ReorderBufferIterTXNState *volatile *iter_state)
 {
+  DBUG_TRACE;
   Size    nr_txns = 0;
   ReorderBufferIterTXNState *state;
   dlist_iter  cur_txn_i;
@@ -1380,6 +1394,7 @@ ReorderBufferIterTXNInit(ReorderBuffer *rb, ReorderBufferTXN *txn,
 static ReorderBufferChange *
 ReorderBufferIterTXNNext(ReorderBuffer *rb, ReorderBufferIterTXNState *state)
 {
+  DBUG_TRACE;
   ReorderBufferChange *change;
   ReorderBufferIterTXNEntry *entry;
   int32   off;
@@ -1470,6 +1485,7 @@ static void
 ReorderBufferIterTXNFinish(ReorderBuffer *rb,
                            ReorderBufferIterTXNState *state)
 {
+  DBUG_TRACE;
   int32   off;
 
   for (off = 0; off < state->nr_txns; off++) {
@@ -1498,6 +1514,7 @@ ReorderBufferIterTXNFinish(ReorderBuffer *rb,
 static void
 ReorderBufferCleanupTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   bool    found;
   dlist_mutable_iter iter;
   Size    mem_freed = 0;
@@ -1615,6 +1632,7 @@ ReorderBufferCleanupTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 static void
 ReorderBufferTruncateTXN(ReorderBuffer *rb, ReorderBufferTXN *txn, bool txn_prepared)
 {
+  DBUG_TRACE;
   dlist_mutable_iter iter;
   Size    mem_freed = 0;
 
@@ -1788,6 +1806,7 @@ ReorderBufferCheckAndTruncateAbortedTXN(ReorderBuffer *rb, ReorderBufferTXN *txn
 static void
 ReorderBufferBuildTupleCidHash(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   HASHCTL   hash_ctl;
 
@@ -1859,6 +1878,7 @@ static Snapshot
 ReorderBufferCopySnap(ReorderBuffer *rb, Snapshot orig_snap,
                       ReorderBufferTXN *txn, CommandId cid)
 {
+  DBUG_TRACE;
   Snapshot  snap;
   dlist_iter  iter;
   int     i = 0;
@@ -1931,6 +1951,7 @@ ReorderBufferFreeSnap(ReorderBuffer *rb, Snapshot snap)
 static void
 ReorderBufferStreamCommit(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   /* we should only call this for previously streamed transactions */
   Assert(rbtxn_is_streamed(txn));
 
@@ -1994,6 +2015,8 @@ ReorderBufferStreamCommit(ReorderBuffer *rb, ReorderBufferTXN *txn)
 static inline void
 SetupCheckXidLive(TransactionId xid)
 {
+  DBUG_TRACE;
+
   /*
    * If the input transaction id is already set as a CheckXidAlive then
    * nothing to do.
@@ -2114,6 +2137,7 @@ ReorderBufferResetTXN(ReorderBuffer *rb, ReorderBufferTXN *txn,
                       XLogRecPtr last_lsn,
                       ReorderBufferChange *specinsert)
 {
+  DBUG_TRACE;
   /* Discard the changes that we just streamed */
   ReorderBufferTruncateTXN(rb, txn, rbtxn_is_prepared(txn));
 
@@ -2158,6 +2182,7 @@ ReorderBufferProcessTXN(ReorderBuffer *rb, ReorderBufferTXN *txn,
                         volatile CommandId command_id,
                         bool streaming)
 {
+  DBUG_TRACE;
   bool    using_subtxn;
   MemoryContext ccxt = CurrentMemoryContext;
   ReorderBufferIterTXNState *volatile iterstate = NULL;
@@ -2728,6 +2753,7 @@ ReorderBufferReplay(ReorderBufferTXN *txn,
                     TimestampTz commit_time,
                     RepOriginId origin_id, XLogRecPtr origin_lsn)
 {
+  DBUG_TRACE;
   Snapshot  snapshot_now;
   CommandId command_id = FirstCommandId;
 
@@ -2839,6 +2865,7 @@ ReorderBufferRememberPrepareInfo(ReorderBuffer *rb, TransactionId xid,
 void
 ReorderBufferSkipPrepare(ReorderBuffer *rb, TransactionId xid)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr, false);
@@ -2861,6 +2888,7 @@ void
 ReorderBufferPrepare(ReorderBuffer *rb, TransactionId xid,
                      char *gid)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
@@ -2904,6 +2932,7 @@ ReorderBufferFinishPrepared(ReorderBuffer *rb, TransactionId xid,
                             TimestampTz commit_time, RepOriginId origin_id,
                             XLogRecPtr origin_lsn, char *gid, bool is_commit)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
   XLogRecPtr  prepare_end_lsn;
   TimestampTz prepare_time;
@@ -2986,6 +3015,7 @@ void
 ReorderBufferAbort(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn,
                    TimestampTz abort_time)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
@@ -3030,6 +3060,7 @@ ReorderBufferAbort(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn,
 void
 ReorderBufferAbortOld(ReorderBuffer *rb, TransactionId oldestRunningXid)
 {
+  DBUG_TRACE;
   dlist_mutable_iter it;
 
   /*
@@ -3074,6 +3105,7 @@ ReorderBufferAbortOld(ReorderBuffer *rb, TransactionId oldestRunningXid)
 void
 ReorderBufferForget(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
@@ -3116,6 +3148,7 @@ ReorderBufferForget(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
 void
 ReorderBufferInvalidate(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
@@ -3148,6 +3181,7 @@ void
 ReorderBufferImmediateInvalidation(ReorderBuffer *rb, uint32 ninvalidations,
                                    SharedInvalidationMessage *invalidations)
 {
+  DBUG_TRACE;
   bool    use_subtxn = IsTransactionOrTransactionBlock();
   int     i;
 
@@ -3215,6 +3249,7 @@ void
 ReorderBufferSetBaseSnapshot(ReorderBuffer *rb, TransactionId xid,
                              XLogRecPtr lsn, Snapshot snap)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
   bool    is_new;
 
@@ -3278,6 +3313,7 @@ ReorderBufferChangeMemoryUpdate(ReorderBuffer *rb,
                                 ReorderBufferTXN *txn,
                                 bool addition, Size sz)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *toptxn;
 
   Assert(txn || change);
@@ -3433,6 +3469,7 @@ ReorderBufferAddInvalidations(ReorderBuffer *rb, TransactionId xid,
                               XLogRecPtr lsn, Size nmsgs,
                               SharedInvalidationMessage *msgs)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
   MemoryContext oldcontext;
 
@@ -3539,6 +3576,7 @@ void
 ReorderBufferXidSetCatalogChanges(ReorderBuffer *rb, TransactionId xid,
                                   XLogRecPtr lsn)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   txn = ReorderBufferTXNByXid(rb, xid, true, NULL, lsn, true);
@@ -3728,6 +3766,7 @@ ReorderBufferLargestTXN(ReorderBuffer *rb)
 static ReorderBufferTXN *
 ReorderBufferLargestStreamableTopTXN(ReorderBuffer *rb)
 {
+  DBUG_TRACE;
   dlist_iter  iter;
   Size    largest_size = 0;
   ReorderBufferTXN *largest = NULL;
@@ -3776,6 +3815,7 @@ ReorderBufferLargestStreamableTopTXN(ReorderBuffer *rb)
 static void
 ReorderBufferCheckMemoryLimit(ReorderBuffer *rb)
 {
+  DBUG_TRACE;
   ReorderBufferTXN *txn;
 
   /*
@@ -3852,6 +3892,7 @@ ReorderBufferCheckMemoryLimit(ReorderBuffer *rb)
 static void
 ReorderBufferSerializeTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   dlist_iter  subtxn_i;
   dlist_mutable_iter change_i;
   int     fd = -1;
@@ -3944,6 +3985,7 @@ static void
 ReorderBufferSerializeChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
                              int fd, ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   ReorderBufferDiskChange *ondisk;
   Size    sz = sizeof(ReorderBufferDiskChange);
 
@@ -4163,6 +4205,7 @@ ReorderBufferCanStream(ReorderBuffer *rb)
 static inline bool
 ReorderBufferCanStartStreaming(ReorderBuffer *rb)
 {
+  DBUG_TRACE;
   LogicalDecodingContext *ctx = rb->private_data;
   SnapBuild  *builder = ctx->snapshot_builder;
 
@@ -4189,6 +4232,7 @@ ReorderBufferCanStartStreaming(ReorderBuffer *rb)
 static void
 ReorderBufferStreamTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   Snapshot  snapshot_now;
   CommandId command_id;
   Size    stream_bytes;
@@ -4301,6 +4345,7 @@ ReorderBufferStreamTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 static Size
 ReorderBufferChangeSize(ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   Size    sz = sizeof(ReorderBufferChange);
 
   switch (change->action) {
@@ -4384,6 +4429,7 @@ static Size
 ReorderBufferRestoreChanges(ReorderBuffer *rb, ReorderBufferTXN *txn,
                             TXNEntryFile *file, XLogSegNo *segno)
 {
+  DBUG_TRACE;
   Size    restored = 0;
   XLogSegNo last_segno;
   dlist_mutable_iter cleanup_iter;
@@ -4520,6 +4566,7 @@ static void
 ReorderBufferRestoreChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
                            char *data)
 {
+  DBUG_TRACE;
   ReorderBufferDiskChange *ondisk;
   ReorderBufferChange *change;
 
@@ -4684,6 +4731,7 @@ ReorderBufferRestoreChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
 static void
 ReorderBufferRestoreCleanup(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   XLogSegNo first;
   XLogSegNo cur;
   XLogSegNo last;
@@ -4714,6 +4762,7 @@ ReorderBufferRestoreCleanup(ReorderBuffer *rb, ReorderBufferTXN *txn)
 static void
 ReorderBufferCleanupSerializedTXNs(const char *slotname)
 {
+  DBUG_TRACE;
   DIR      *spill_dir;
   struct dirent *spill_de;
   struct stat statbuf;
@@ -4827,6 +4876,7 @@ static void
 ReorderBufferToastAppendChunk(ReorderBuffer *rb, ReorderBufferTXN *txn,
                               Relation relation, ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   ReorderBufferToastEnt *ent;
   HeapTuple newtup;
   bool    found;
@@ -4908,6 +4958,7 @@ static void
 ReorderBufferToastReplace(ReorderBuffer *rb, ReorderBufferTXN *txn,
                           Relation relation, ReorderBufferChange *change)
 {
+  DBUG_TRACE;
   TupleDesc desc;
   int     natt;
   Datum    *attrs;
@@ -5099,6 +5150,7 @@ ReorderBufferToastReplace(ReorderBuffer *rb, ReorderBufferTXN *txn,
 static void
 ReorderBufferToastReset(ReorderBuffer *rb, ReorderBufferTXN *txn)
 {
+  DBUG_TRACE;
   HASH_SEQ_STATUS hstat;
   ReorderBufferToastEnt *ent;
 
@@ -5196,6 +5248,7 @@ DisplayMapping(HTAB *tuplecid_data)
 static void
 ApplyLogicalMappingFile(HTAB *tuplecid_data, Oid relid, const char *fname)
 {
+  DBUG_TRACE;
   char    path[MAXPGPATH];
   int     fd;
   int     readBytes;
@@ -5308,6 +5361,7 @@ file_sort_by_lsn(const ListCell *a_p, const ListCell *b_p)
 static void
 UpdateLogicalMappings(HTAB *tuplecid_data, Oid relid, Snapshot snapshot)
 {
+  DBUG_TRACE;
   DIR      *mapping_dir;
   struct dirent *mapping_de;
   List     *files = NIL;
@@ -5389,6 +5443,7 @@ ResolveCminCmaxDuringDecoding(HTAB *tuplecid_data,
                               HeapTuple htup, Buffer buffer,
                               CommandId *cmin, CommandId *cmax)
 {
+  DBUG_TRACE;
   ReorderBufferTupleCidKey key;
   ReorderBufferTupleCidEnt *ent;
   ForkNumber  forkno;

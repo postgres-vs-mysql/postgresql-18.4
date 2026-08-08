@@ -74,21 +74,20 @@ typedef enum spgChooseResultType
 typedef struct spgChooseOut
 {
   spgChooseResultType resultType; /* action code, see above */
-  union
-  {
-    struct          /* results for spgMatchNode */
-    {
+  union {
+struct
+{        /* results for spgMatchNode */
       int     nodeN;  /* descend to this node (index from 0) */
       int     levelAdd; /* increment level by this much */
       Datum   restDatum;  /* new leaf datum */
     }     matchNode;
-    struct          /* results for spgAddNode */
-    {
+struct
+{        /* results for spgAddNode */
       Datum   nodeLabel;  /* new node's label */
       int     nodeN;  /* where to insert it (index from 0) */
     }     addNode;
-    struct          /* results for spgSplitTuple */
-    {
+struct
+{        /* results for spgSplitTuple */
       /* Info to form new upper-level inner tuple with one child tuple */
       bool    prefixHasPrefix;  /* tuple should have a prefix? */
       Datum   prefixPrefixDatum;  /* if so, its value */

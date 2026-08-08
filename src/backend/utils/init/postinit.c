@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -193,6 +194,7 @@ GetDatabaseTupleByOid(Oid dboid)
 static void
 PerformAuthentication(Port *port)
 {
+  DBUG_TRACE;
   /* This should be set already, but let's make sure */
   ClientAuthInProgress = true;  /* limit visibility of log messages */
 
@@ -219,6 +221,7 @@ PerformAuthentication(Port *port)
      * It makes no sense to continue if we fail to load the HBA file,
      * since there is no way to connect to the database in this case.
      */
+    DBUG_INSTANT_PRINT("info", "could not load %s", HbaFileName);
     ereport(FATAL,
             /* translator: %s is a configuration file */
             (errmsg("could not load %s", HbaFileName)));
@@ -255,6 +258,7 @@ PerformAuthentication(Port *port)
    * Done with authentication.  Disable the timeout, and log if needed.
    */
   disable_timeout(STATEMENT_TIMEOUT, false);
+  DBUG_PRINT("info", "connection authorized: user=%s", port->user_name);
 
   /* Capture authentication end time for logging */
   conn_timing.auth_end = GetCurrentTimestamp();
@@ -325,6 +329,7 @@ PerformAuthentication(Port *port)
 static void
 CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connections)
 {
+  DBUG_TRACE;
   HeapTuple tup;
   Form_pg_database dbform;
   Datum   datum;
@@ -341,13 +346,15 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
   dbform = (Form_pg_database) GETSTRUCT(tup);
 
   /* This recheck is strictly paranoia */
-  if (strcmp(name, NameStr(dbform->datname)) != 0)
+  if (strcmp(name, NameStr(dbform->datname)) != 0) {
+    DBUG_INSTANT_PRINT("info", "database \"%s\" has disappeared from pg_database", name);
     ereport(FATAL,
             (errcode(ERRCODE_UNDEFINED_DATABASE),
              errmsg("database \"%s\" has disappeared from pg_database",
                     name),
              errdetail("Database OID %u now seems to belong to \"%s\".",
                        MyDatabaseId, NameStr(dbform->datname))));
+  }
 
   /*
    * Check permissions to connect to the database.
@@ -362,11 +369,13 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
      * (Background processes can override this test and the next one by
      * setting override_allow_connections.)
      */
-    if (!dbform->datallowconn && !override_allow_connections)
+    if (!dbform->datallowconn && !override_allow_connections) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" is not currently accepting connections", name);
       ereport(FATAL,
               (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                errmsg("database \"%s\" is not currently accepting connections",
                       name)));
+    }
 
     /*
      * Check privilege to connect to the database.  (The am_superuser test
@@ -375,11 +384,13 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
      */
     if (!am_superuser && !override_allow_connections &&
         object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(),
-                        ACL_CONNECT) != ACLCHECK_OK)
+                        ACL_CONNECT) != ACLCHECK_OK) {
+      DBUG_INSTANT_PRINT("info", "permission denied for database \"%s\"", name);
       ereport(FATAL,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied for database \"%s\"", name),
                errdetail("User does not have CONNECT privilege.")));
+    }
 
     /*
      * Check connection limit for this database.  We enforce the limit
@@ -396,11 +407,13 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
     if (dbform->datconnlimit >= 0 &&
         AmRegularBackendProcess() &&
         !am_superuser &&
-        CountDBConnections(MyDatabaseId) > dbform->datconnlimit)
+        CountDBConnections(MyDatabaseId) > dbform->datconnlimit) {
+      DBUG_INSTANT_PRINT("info", "too many connections for database \"%s\"", name);
       ereport(FATAL,
               (errcode(ERRCODE_TOO_MANY_CONNECTIONS),
                errmsg("too many connections for database \"%s\"",
                       name)));
+    }
   }
 
   /*
@@ -421,19 +434,23 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
   datum = SysCacheGetAttrNotNull(DATABASEOID, tup, Anum_pg_database_datctype);
   ctype = TextDatumGetCString(datum);
 
-  if (pg_perm_setlocale(LC_COLLATE, collate) == NULL)
+  if (pg_perm_setlocale(LC_COLLATE, collate) == NULL) {
+    DBUG_INSTANT_PRINT("info", "database locale is incompatible with operating system");
     ereport(FATAL,
             (errmsg("database locale is incompatible with operating system"),
              errdetail("The database was initialized with LC_COLLATE \"%s\", "
                        " which is not recognized by setlocale().", collate),
              errhint("Recreate the database with another locale or install the missing locale.")));
+  }
 
-  if (pg_perm_setlocale(LC_CTYPE, ctype) == NULL)
+  if (pg_perm_setlocale(LC_CTYPE, ctype) == NULL) {
+    DBUG_INSTANT_PRINT("info", "database locale is incompatible with operating system");
     ereport(FATAL,
             (errmsg("database locale is incompatible with operating system"),
              errdetail("The database was initialized with LC_CTYPE \"%s\", "
                        " which is not recognized by setlocale().", ctype),
              errhint("Recreate the database with another locale or install the missing locale.")));
+  }
 
   if (strcmp(ctype, "C") == 0 ||
       strcmp(ctype, "POSIX") == 0)
@@ -470,7 +487,8 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
       elog(WARNING,
            "database \"%s\" has no actual collation version, but a version was recorded",
            name);
-    else if (strcmp(actual_versionstr, collversionstr) != 0)
+    else if (strcmp(actual_versionstr, collversionstr) != 0) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" has a collation version mismatch", name);
       ereport(WARNING,
               (errmsg("database \"%s\" has a collation version mismatch",
                       name),
@@ -481,6 +499,7 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
                        "ALTER DATABASE %s REFRESH COLLATION VERSION, "
                        "or build PostgreSQL with the right library version.",
                        quote_identifier(name))));
+    }
   }
 
   ReleaseSysCache(tup);
@@ -555,13 +574,17 @@ pg_split_opts(char **argv, int *argcp, const char *optstr)
 void
 InitializeMaxBackends(void)
 {
+  DBUG_TRACE;
   Assert(MaxBackends == 0);
 
   /* Note that this does not include "auxiliary" processes */
   MaxBackends = MaxConnections + autovacuum_worker_slots +
                 max_worker_processes + max_wal_senders + NUM_SPECIAL_WORKER_PROCS;
 
-  if (MaxBackends > MAX_BACKENDS)
+  DBUG_PRINT("info", "initialize MaxBackends value from config options:%d", MaxBackends);
+
+  if (MaxBackends > MAX_BACKENDS) {
+    DBUG_INSTANT_PRINT("info", "too many server processes configured");
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
              errmsg("too many server processes configured"),
@@ -569,6 +592,7 @@ InitializeMaxBackends(void)
                        MaxConnections, autovacuum_worker_slots,
                        max_worker_processes, max_wal_senders,
                        MAX_BACKENDS - (NUM_SPECIAL_WORKER_PROCS - 1))));
+  }
 }
 
 /*
@@ -715,6 +739,7 @@ InitPostgres(const char *in_dbname, Oid dboid,
              bits32 flags,
              char *out_dbname)
 {
+  DBUG_TRACE;
   bool    bootstrap = IsBootstrapProcessingMode();
   bool    am_superuser;
   char     *fullpath;
@@ -866,12 +891,14 @@ InitPostgres(const char *in_dbname, Oid dboid,
     InitializeSessionUserIdStandalone();
     am_superuser = true;
 
-    if (!ThereIsAtLeastOneRole())
+    if (!ThereIsAtLeastOneRole()) {
+      DBUG_INSTANT_PRINT("info", "no roles are defined in this database system");
       ereport(WARNING,
               (errcode(ERRCODE_UNDEFINED_OBJECT),
                errmsg("no roles are defined in this database system"),
                errhint("You should immediately run CREATE USER \"%s\" SUPERUSER;.",
                        username != NULL ? username : "postgres")));
+    }
   } else if (AmBackgroundWorkerProcess()) {
     if (username == NULL && !OidIsValid(useroid)) {
       InitializeSessionUserIdStandalone();
@@ -906,6 +933,7 @@ InitPostgres(const char *in_dbname, Oid dboid,
    * Binary upgrades only allowed super-user connections
    */
   if (IsBinaryUpgrade && !am_superuser) {
+    DBUG_INSTANT_PRINT("info", "must be superuser to connect in binary upgrade mode");
     ereport(FATAL,
             (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
              errmsg("must be superuser to connect in binary upgrade mode")));
@@ -924,29 +952,35 @@ InitPostgres(const char *in_dbname, Oid dboid,
   if (AmRegularBackendProcess() && !am_superuser &&
       (SuperuserReservedConnections + ReservedConnections) > 0 &&
       !HaveNFreeProcs(SuperuserReservedConnections + ReservedConnections, &nfree)) {
-    if (nfree < SuperuserReservedConnections)
+    if (nfree < SuperuserReservedConnections) {
+      DBUG_INSTANT_PRINT("info", "remaining connection slots are reserved for roles with the SUPERUSER attribute");
       ereport(FATAL,
               (errcode(ERRCODE_TOO_MANY_CONNECTIONS),
                errmsg("remaining connection slots are reserved for roles with the %s attribute",
                       "SUPERUSER")));
+    }
 
-    if (!has_privs_of_role(GetUserId(), ROLE_PG_USE_RESERVED_CONNECTIONS))
+    if (!has_privs_of_role(GetUserId(), ROLE_PG_USE_RESERVED_CONNECTIONS)) {
+      DBUG_INSTANT_PRINT("info", "remaining connection slots are reserved for roles with privileges of the pg_use_reserved_connections role");
       ereport(FATAL,
               (errcode(ERRCODE_TOO_MANY_CONNECTIONS),
                errmsg("remaining connection slots are reserved for roles with privileges of the \"%s\" role",
                       "pg_use_reserved_connections")));
+    }
   }
 
   /* Check replication permissions needed for walsender processes. */
   if (am_walsender) {
     Assert(!bootstrap);
 
-    if (!has_rolreplication(GetUserId()))
+    if (!has_rolreplication(GetUserId())) {
+      DBUG_INSTANT_PRINT("info", "permission denied to start WAL sender");
       ereport(FATAL,
               (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                errmsg("permission denied to start WAL sender"),
                errdetail("Only roles with the %s attribute may start a WAL sender process.",
                          "REPLICATION")));
+    }
   }
 
   /*
@@ -992,10 +1026,12 @@ InitPostgres(const char *in_dbname, Oid dboid,
 
     tuple = GetDatabaseTuple(in_dbname);
 
-    if (!HeapTupleIsValid(tuple))
+    if (!HeapTupleIsValid(tuple)) {
+      DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", in_dbname);
       ereport(FATAL,
               (errcode(ERRCODE_UNDEFINED_DATABASE),
                errmsg("database \"%s\" does not exist", in_dbname)));
+    }
 
     dbform = (Form_pg_database) GETSTRUCT(tuple);
     dboid = dbform->oid;
@@ -1054,20 +1090,24 @@ InitPostgres(const char *in_dbname, Oid dboid,
 
     if (!HeapTupleIsValid(tuple) ||
         (in_dbname && namestrcmp(&datform->datname, in_dbname))) {
-      if (in_dbname)
+      if (in_dbname) {
+        DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", in_dbname);
         ereport(FATAL,
                 (errcode(ERRCODE_UNDEFINED_DATABASE),
                  errmsg("database \"%s\" does not exist", in_dbname),
                  errdetail("It seems to have just been dropped or renamed.")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "database %u does not exist", dboid);
         ereport(FATAL,
                 (errcode(ERRCODE_UNDEFINED_DATABASE),
                  errmsg("database %u does not exist", dboid)));
+      }
     }
 
     strlcpy(dbname, NameStr(datform->datname), sizeof(dbname));
 
     if (database_is_invalid_form(datform)) {
+      DBUG_INSTANT_PRINT("info", "cannot connect to invalid database \"%s\"", dbname);
       ereport(FATAL,
               errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
               errmsg("cannot connect to invalid database \"%s\"", dbname),
@@ -1125,18 +1165,21 @@ InitPostgres(const char *in_dbname, Oid dboid,
 
   if (!bootstrap) {
     if (access(fullpath, F_OK) == -1) {
-      if (errno == ENOENT)
+      if (errno == ENOENT) {
+        DBUG_INSTANT_PRINT("info", "database \"%s\" does not exist", dbname);
         ereport(FATAL,
                 (errcode(ERRCODE_UNDEFINED_DATABASE),
                  errmsg("database \"%s\" does not exist",
                         dbname),
                  errdetail("The database subdirectory \"%s\" is missing.",
                            fullpath)));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "could not access directory \"%s\"", fullpath);
         ereport(FATAL,
                 (errcode_for_file_access(),
                  errmsg("could not access directory \"%s\": %m",
                         fullpath)));
+      }
     }
 
     ValidatePgVersion(fullpath);
@@ -1336,6 +1379,7 @@ ShutdownPostgres(int code, Datum arg)
 static void
 StatementTimeoutHandler(void)
 {
+  DBUG_TRACE;
   int     sig = SIGINT;
 
   /*
@@ -1358,6 +1402,7 @@ StatementTimeoutHandler(void)
 static void
 LockTimeoutHandler(void)
 {
+  DBUG_TRACE;
 #ifdef HAVE_SETSID
   /* try to signal whole process group */
   kill(-MyProcPid, SIGINT);
@@ -1368,6 +1413,7 @@ LockTimeoutHandler(void)
 static void
 TransactionTimeoutHandler(void)
 {
+  DBUG_TRACE;
   TransactionTimeoutPending = true;
   InterruptPending = true;
   SetLatch(MyLatch);
@@ -1376,6 +1422,7 @@ TransactionTimeoutHandler(void)
 static void
 IdleInTransactionSessionTimeoutHandler(void)
 {
+  DBUG_TRACE;
   IdleInTransactionSessionTimeoutPending = true;
   InterruptPending = true;
   SetLatch(MyLatch);
@@ -1384,6 +1431,7 @@ IdleInTransactionSessionTimeoutHandler(void)
 static void
 IdleSessionTimeoutHandler(void)
 {
+  DBUG_TRACE;
   IdleSessionTimeoutPending = true;
   InterruptPending = true;
   SetLatch(MyLatch);
@@ -1392,6 +1440,7 @@ IdleSessionTimeoutHandler(void)
 static void
 IdleStatsUpdateTimeoutHandler(void)
 {
+  DBUG_TRACE;
   IdleStatsUpdateTimeoutPending = true;
   InterruptPending = true;
   SetLatch(MyLatch);
@@ -1400,6 +1449,7 @@ IdleStatsUpdateTimeoutHandler(void)
 static void
 ClientCheckTimeoutHandler(void)
 {
+  DBUG_TRACE;
   CheckClientConnectionPending = true;
   InterruptPending = true;
   SetLatch(MyLatch);

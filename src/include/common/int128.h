@@ -155,13 +155,10 @@ int128_add_int64(INT128 *i128, int64 v)
 
   i128->lo += v;
 
-  if (v >= 0)
-  {
+  if (v >= 0) {
     if ((int64) oldlo < 0 && (int64) i128->lo >= 0)
       i128->hi++;
-  }
-  else
-  {
+  } else {
     if (!((int64) oldlo < 0 || (int64) i128->lo >= 0))
       i128->hi--;
   }
@@ -203,8 +200,7 @@ int128_add_int64_mul_int64(INT128 *i128, int64 x, int64 y)
    */
 
   /* No need to work hard if product must be zero */
-  if (x != 0 && y != 0)
-  {
+  if (x != 0 && y != 0) {
     int64   x_u32 = INT64_AU32(x);
     uint64    x_l32 = INT64_AL32(x);
     int64   y_u32 = INT64_AU32(y);

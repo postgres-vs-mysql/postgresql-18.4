@@ -174,5 +174,10 @@ extern void assign_wal_sync_method(int new_wal_sync_method, void *extra);
 extern bool check_synchronized_standby_slots(char **newval, void **extra,
     GucSource source);
 extern void assign_synchronized_standby_slots(const char *newval, void *extra);
+extern void assign_enable_global_trace(int newval, void *extra);
+extern void assign_enable_session_trace(int newval, void *extra);
+extern void assign_enable_autovacuum_trace(int newval, void *extra);
+extern void assign_max_trace_iterations(int newval, void *extra);
+extern void assign_min_trace_iterations(int newval, void *extra);
 
 #endif              /* GUC_HOOKS_H */

@@ -15,6 +15,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -51,6 +52,7 @@
 bool
 check_datestyle(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   int     newDateStyle = DateStyle;
   int     newDateOrder = DateOrder;
   bool    have_style = false;
@@ -259,6 +261,7 @@ assign_datestyle(const char *newval, void *extra)
 bool
 check_timezone(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   pg_tz    *new_tz;
   long    gmtoffset;
   char     *endptr;
@@ -388,6 +391,7 @@ assign_timezone(const char *newval, void *extra)
 const char *
 show_timezone(void)
 {
+  DBUG_TRACE;
   const char *tzn;
 
   /* Always show the zone's canonical name */
@@ -414,6 +418,7 @@ show_timezone(void)
 bool
 check_log_timezone(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   pg_tz    *new_tz;
 
   /*
@@ -461,6 +466,7 @@ assign_log_timezone(const char *newval, void *extra)
 const char *
 show_log_timezone(void)
 {
+  DBUG_TRACE;
   const char *tzn;
 
   /* Always show the zone's canonical name */
@@ -483,6 +489,8 @@ show_log_timezone(void)
 bool
 check_timezone_abbreviations(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   /*
    * The boot_val for timezone_abbreviations is NULL.  When we see that we
    * just do nothing.  If the value isn't overridden from the config file
@@ -541,6 +549,8 @@ assign_timezone_abbreviations(const char *newval, void *extra)
 bool
 check_transaction_read_only(bool *newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   if (*newval == false && XactReadOnly && IsTransactionState() && !InitializingParallelWorker) {
     /* Can't go to r/w mode inside a r/o transaction */
     if (IsSubTransaction()) {
@@ -579,6 +589,7 @@ check_transaction_read_only(bool *newval, void **extra, GucSource source)
 bool
 check_transaction_isolation(int *newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   int     newXactIsoLevel = *newval;
 
   if (newXactIsoLevel != XactIsoLevel &&
@@ -615,6 +626,8 @@ check_transaction_isolation(int *newval, void **extra, GucSource source)
 bool
 check_transaction_deferrable(bool *newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   /* Just accept the value when restoring state in a parallel worker */
   if (InitializingParallelWorker)
     return true;
@@ -646,6 +659,7 @@ check_transaction_deferrable(bool *newval, void **extra, GucSource source)
 bool
 check_random_seed(double *newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   *extra = guc_malloc(LOG, sizeof(int));
 
   if (!*extra)
@@ -660,6 +674,8 @@ check_random_seed(double *newval, void **extra, GucSource source)
 void
 assign_random_seed(double newval, void *extra)
 {
+  DBUG_TRACE;
+
   /* We'll do this at most once for any setting of the GUC variable */
   if (*((int *) extra))
     DirectFunctionCall1(setseed, Float8GetDatum(newval));
@@ -681,6 +697,7 @@ show_random_seed(void)
 bool
 check_client_encoding(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   int     encoding;
   const char *canonical_name;
 
@@ -705,6 +722,7 @@ check_client_encoding(char **newval, void **extra, GucSource source)
    * do inside the worker to make it take effect.
    */
   if (IsParallelWorker() && !InitializingParallelWorker) {
+    DBUG_INSTANT_PRINT("info", "cannot change \"client_encoding\" during a parallel operation");
     GUC_check_errcode(ERRCODE_INVALID_TRANSACTION_STATE);
     GUC_check_errdetail("Cannot change \"client_encoding\" during a parallel operation.");
     return false;
@@ -778,6 +796,7 @@ check_client_encoding(char **newval, void **extra, GucSource source)
 void
 assign_client_encoding(const char *newval, void *extra)
 {
+  DBUG_TRACE;
   int     encoding = *((int *) extra);
 
   /*
@@ -806,6 +825,7 @@ typedef struct {
 bool
 check_session_authorization(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   HeapTuple roleTup;
   Form_pg_authid roleform;
   Oid     roleid;
@@ -900,6 +920,7 @@ check_session_authorization(char **newval, void **extra, GucSource source)
 void
 assign_session_authorization(const char *newval, void *extra)
 {
+  DBUG_TRACE;
   role_auth_extra *myextra = (role_auth_extra *) extra;
 
   /* Do nothing for the boot_val default of NULL */
@@ -921,6 +942,7 @@ assign_session_authorization(const char *newval, void *extra)
 bool
 check_role(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   HeapTuple roleTup;
   Oid     roleid;
   bool    is_superuser;
@@ -1017,6 +1039,8 @@ assign_role(const char *newval, void *extra)
 const char *
 show_role(void)
 {
+  DBUG_TRACE;
+
   /*
    * Check whether SET ROLE is active; if not return "none".  This is a
    * kluge to deal with the fact that SET SESSION AUTHORIZATION logically
@@ -1042,6 +1066,8 @@ show_role(void)
 bool
 check_canonical_path(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
+
   /*
    * Since canonicalize_path never enlarges the string, we can just modify
    * newval in-place.  But watch out for NULL, which is the default value
@@ -1064,6 +1090,7 @@ check_canonical_path(char **newval, void **extra, GucSource source)
 bool
 check_application_name(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   char     *clean;
   char     *ret;
 
@@ -1103,6 +1130,7 @@ assign_application_name(const char *newval, void *extra)
 bool
 check_cluster_name(char **newval, void **extra, GucSource source)
 {
+  DBUG_TRACE;
   char     *clean;
   char     *ret;
 

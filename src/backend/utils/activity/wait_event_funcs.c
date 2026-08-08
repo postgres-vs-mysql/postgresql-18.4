@@ -13,6 +13,7 @@
  *------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "funcapi.h"
 #include "utils/builtins.h"
@@ -43,6 +44,7 @@ waitEventData[] = {
 Datum
 pg_get_wait_events(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
 #define PG_GET_WAIT_EVENTS_COLS 3
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
   char    **waiteventnames;

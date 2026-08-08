@@ -1060,7 +1060,7 @@ config_sspi_auth(const char *pgdata, const char *superuser_name)
 #define CW(cond)  \
   do { \
     if (!(cond)) \
-      bail("could not write to file \"%s\": %m", fname); \
+    bail("could not write to file \"%s\": %m", fname); \
   } while (0)
 
   res = snprintf(fname, sizeof(fname), "%s/pg_hba.conf", pgdata);
@@ -1798,7 +1798,7 @@ run_schedule(const char *schedule, test_start_function startfunc,
        * length as the other two lists.
        */
       for (rl = resultfiles[i], el = expectfiles[i], tl = tags[i];
-           rl != NULL;  /* rl and el have the same length */
+           rl != NULL; /* rl and el have the same length */
            rl = rl->next, el = el->next,
            tl = tl ? tl->next : NULL) {
         bool    newdiff;
@@ -1870,7 +1870,7 @@ run_single_test(const char *test, test_start_function startfunc,
    * two lists.
    */
   for (rl = resultfiles, el = expectfiles, tl = tags;
-       rl != NULL;      /* rl and el have the same length */
+       rl != NULL;     /* rl and el have the same length */
        rl = rl->next, el = el->next,
        tl = tl ? tl->next : NULL) {
     bool    newdiff;

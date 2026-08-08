@@ -14,6 +14,7 @@
  */
 
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include "fmgr.h"
 #include "funcapi.h"
@@ -46,6 +47,7 @@ iov_byte_length(const struct iovec *iov, int cnt)
 Datum
 pg_get_aios(PG_FUNCTION_ARGS)
 {
+  DBUG_TRACE;
   ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 
   InitMaterializedSRF(fcinfo, 0);

@@ -13,6 +13,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "debug_trace.h"
 
 #include <ctype.h>
 
@@ -136,10 +137,13 @@ refnameNamespaceItem(ParseState *pstate,
                      int location,
                      int *sublevels_up)
 {
+  DBUG_TRACE;
   Oid     relId = InvalidOid;
 
   if (sublevels_up)
     *sublevels_up = 0;
+
+  DBUG_PRINT("info", "look to see if it matches any visible namespace item");
 
   if (schemaname != NULL) {
     Oid     namespaceId;
@@ -205,8 +209,11 @@ refnameNamespaceItem(ParseState *pstate,
 static ParseNamespaceItem *
 scanNameSpaceForRefname(ParseState *pstate, const char *refname, int location)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *result = NULL;
   ListCell   *l;
+
+  DBUG_PRINT("info", "search the query's table namespace for an item matching the given unqualified refname:%s", refname);
 
   foreach(l, pstate->p_namespace) {
     ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(l);
@@ -220,12 +227,14 @@ scanNameSpaceForRefname(ParseState *pstate, const char *refname, int location)
       continue;
 
     if (strcmp(nsitem->p_names->aliasname, refname) == 0) {
-      if (result)
+      if (result) {
+        DBUG_INSTANT_PRINT("info", "table reference \"%s\" is ambiguous", refname);
         ereport(ERROR,
                 (errcode(ERRCODE_AMBIGUOUS_ALIAS),
                  errmsg("table reference \"%s\" is ambiguous",
                         refname),
                  parser_errposition(pstate, location)));
+      }
 
       check_lateral_ref_ok(pstate, nsitem, location);
       result = nsitem;
@@ -246,8 +255,11 @@ scanNameSpaceForRefname(ParseState *pstate, const char *refname, int location)
 static ParseNamespaceItem *
 scanNameSpaceForRelid(ParseState *pstate, Oid relid, int location)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *result = NULL;
   ListCell   *l;
+
+  DBUG_PRINT("info", "search the query's table namespace for a relation item matching the given relation OID:%u", relid);
 
   foreach(l, pstate->p_namespace) {
     ParseNamespaceItem *nsitem = (ParseNamespaceItem *) lfirst(l);
@@ -269,12 +281,14 @@ scanNameSpaceForRelid(ParseState *pstate, Oid relid, int location)
     if (rte->rtekind == RTE_RELATION &&
         rte->relid == relid &&
         rte->alias == NULL) {
-      if (result)
+      if (result) {
+        DBUG_INSTANT_PRINT("info", "table reference %u is ambiguous", relid);
         ereport(ERROR,
                 (errcode(ERRCODE_AMBIGUOUS_ALIAS),
                  errmsg("table reference %u is ambiguous",
                         relid),
                  parser_errposition(pstate, location)));
+      }
 
       check_lateral_ref_ok(pstate, nsitem, location);
       result = nsitem;
@@ -294,7 +308,10 @@ CommonTableExpr *
 scanNameSpaceForCTE(ParseState *pstate, const char *refname,
                     Index *ctelevelsup)
 {
+  DBUG_TRACE;
   Index   levelsup;
+
+  DBUG_PRINT("info", "search the query's CTE namespace for a CTE matching the given unqualified refname:%s", refname);
 
   for (levelsup = 0;
        pstate != NULL;
@@ -322,17 +339,22 @@ scanNameSpaceForCTE(ParseState *pstate, const char *refname,
 static bool
 isFutureCTE(ParseState *pstate, const char *refname)
 {
+  DBUG_TRACE;
+
   for (; pstate != NULL; pstate = pstate->parentParseState) {
     ListCell   *lc;
 
     foreach(lc, pstate->p_future_ctes) {
       CommonTableExpr *cte = (CommonTableExpr *) lfirst(lc);
 
-      if (strcmp(cte->ctename, refname) == 0)
+      if (strcmp(cte->ctename, refname) == 0) {
+        DBUG_PRINT("info", "return true");
         return true;
+      }
     }
   }
 
+  DBUG_PRINT("info", "return false");
   return false;
 }
 
@@ -364,6 +386,7 @@ scanNameSpaceForENR(ParseState *pstate, const char *refname)
 static RangeTblEntry *
 searchRangeTableForRel(ParseState *pstate, RangeVar *relation)
 {
+  DBUG_TRACE;
   const char *refname = relation->relname;
   Oid     relId = InvalidOid;
   CommonTableExpr *cte = NULL;
@@ -445,6 +468,7 @@ void
 checkNameSpaceConflicts(ParseState *pstate, List *namespace1,
                         List *namespace2)
 {
+  DBUG_TRACE;
   ListCell   *l1;
 
   foreach(l1, namespace1) {
@@ -472,6 +496,7 @@ checkNameSpaceConflicts(ParseState *pstate, List *namespace1,
           rte1->relid != rte2->relid)
         continue;   /* no conflict per SQL rule */
 
+      DBUG_INSTANT_PRINT("info", "table name \"%s\" specified more than once", aliasname1);
       ereport(ERROR,
               (errcode(ERRCODE_DUPLICATE_ALIAS),
                errmsg("table name \"%s\" specified more than once",
@@ -495,11 +520,14 @@ static void
 check_lateral_ref_ok(ParseState *pstate, ParseNamespaceItem *nsitem,
                      int location)
 {
+  DBUG_TRACE;
+
   if (nsitem->p_lateral_only && !nsitem->p_lateral_ok) {
     /* SQL:2008 demands this be an error, not an invisible item */
     RangeTblEntry *rte = nsitem->p_rte;
     char     *refname = nsitem->p_names->aliasname;
 
+    DBUG_INSTANT_PRINT("info", "invalid reference to FROM-clause entry for table \"%s\"", refname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("invalid reference to FROM-clause entry for table \"%s\"",
@@ -567,9 +595,11 @@ GetRTEByRangeTablePosn(ParseState *pstate,
 CommonTableExpr *
 GetCTEForRTE(ParseState *pstate, RangeTblEntry *rte, int rtelevelsup)
 {
+  DBUG_TRACE;
   Index   levelsup;
   ListCell   *lc;
 
+  DBUG_PRINT("info", "fetch the CTE for a CTE-reference RTE");
   Assert(rte->rtekind == RTE_CTE);
   levelsup = rte->ctelevelsup + rtelevelsup;
 
@@ -601,6 +631,7 @@ updateFuzzyAttrMatchState(int fuzzy_rte_penalty,
                           FuzzyAttrMatchState *fuzzystate, RangeTblEntry *rte,
                           const char *actual, const char *match, int attnum)
 {
+  DBUG_TRACE;
   int     columndistance;
   int     matchlen;
 
@@ -685,10 +716,12 @@ Node *
 scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
                     int sublevels_up, const char *colname, int location)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = nsitem->p_rte;
   int     attnum;
   Var      *var;
 
+  DBUG_PRINT("info", "search the column names of a single namespace item for the given name:%s", colname);
   /*
    * Scan the nsitem's column names (or aliases) for a match.  Complain if
    * multiple matches.
@@ -702,12 +735,14 @@ scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
 
   /* In constraint check, no system column is allowed except tableOid */
   if (pstate->p_expr_kind == EXPR_KIND_CHECK_CONSTRAINT &&
-      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber)
+      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "system column \"%s\" reference in check constraint is invalid", colname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("system column \"%s\" reference in check constraint is invalid",
                     colname),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * In generated column, no system column is allowed except tableOid.
@@ -715,23 +750,27 @@ scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
    * for now for consistency.)
    */
   if (pstate->p_expr_kind == EXPR_KIND_GENERATED_COLUMN &&
-      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber)
+      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "cannot use system column \"%s\" in column generation expression", colname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("cannot use system column \"%s\" in column generation expression",
                     colname),
              parser_errposition(pstate, location)));
+  }
 
   /*
    * In a MERGE WHEN condition, no system column is allowed except tableOid
    */
   if (pstate->p_expr_kind == EXPR_KIND_MERGE_WHEN &&
-      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber)
+      attnum < InvalidAttrNumber && attnum != TableOidAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "cannot use system column \"%s\" in MERGE WHEN condition", colname);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("cannot use system column \"%s\" in MERGE WHEN condition",
                     colname),
              parser_errposition(pstate, location)));
+  }
 
   /* Found a valid match, so build a Var */
   if (attnum > InvalidAttrNumber) {
@@ -739,12 +778,14 @@ scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
     ParseNamespaceColumn *nscol = &nsitem->p_nscolumns[attnum - 1];
 
     /* Complain if dropped column.  See notes in scanRTEForColumn. */
-    if (nscol->p_varno == 0)
+    if (nscol->p_varno == 0) {
+      DBUG_INSTANT_PRINT("info", "column \"%s\" of relation \"%s\" does not exist", colname, nsitem->p_names->aliasname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column \"%s\" of relation \"%s\" does not exist",
                       colname,
                       nsitem->p_names->aliasname)));
+    }
 
     var = makeVar(nscol->p_varno,
                   nscol->p_varattno,
@@ -813,9 +854,12 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
                  int fuzzy_rte_penalty,
                  FuzzyAttrMatchState *fuzzystate)
 {
+  DBUG_TRACE;
   int     result = InvalidAttrNumber;
   int     attnum = 0;
   ListCell   *c;
+
+  DBUG_PRINT("info", "search the column names of a single RTE for the given name:%s", colname);
 
   /*
    * Scan the user column names (or aliases) for a match. Complain if
@@ -836,14 +880,17 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
     attnum++;
 
     if (strcmp(attcolname, colname) == 0) {
-      if (result)
+      if (result) {
+        DBUG_INSTANT_PRINT("info", "column reference \"%s\" is ambiguous", colname);
         ereport(ERROR,
                 (errcode(ERRCODE_AMBIGUOUS_COLUMN),
                  errmsg("column reference \"%s\" is ambiguous",
                         colname),
                  parser_errposition(pstate, location)));
+      }
 
       result = attnum;
+      DBUG_PRINT("info", "attnum:%d, attcolname:%s", attnum, attcolname);
     }
 
     /* Update fuzzy match state, if provided. */
@@ -856,8 +903,10 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
    * If we have a unique match, return it.  Note that this allows a user
    * alias to override a system column name (such as OID) without error.
    */
-  if (result)
+  if (result) {
+    DBUG_PRINT("info", "if we have a unique match, return it(%d)", result);
     return result;
+  }
 
   /*
    * If the RTE represents a real relation, consider system column names.
@@ -873,11 +922,15 @@ scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
       /* now check to see if column actually is defined */
       if (SearchSysCacheExists2(ATTNUM,
                                 ObjectIdGetDatum(rte->relid),
-                                Int16GetDatum(attnum)))
+                                Int16GetDatum(attnum))) {
+
+        DBUG_PRINT("info", "colname:%s(attnum:%d) is a system column", colname, attnum);
         result = attnum;
+      }
     }
   }
 
+  DBUG_PRINT("info", "result:%d", result);
   return result;
 }
 
@@ -916,12 +969,14 @@ colNameToVar(ParseState *pstate, const char *colname, bool localonly,
                                       colname, location);
 
       if (newresult) {
-        if (result)
+        if (result) {
+          DBUG_INSTANT_PRINT("info", "column reference \"%s\" is ambiguous", colname);
           ereport(ERROR,
                   (errcode(ERRCODE_AMBIGUOUS_COLUMN),
                    errmsg("column reference \"%s\" is ambiguous",
                           colname),
                    parser_errposition(pstate, location)));
+        }
 
         check_lateral_ref_ok(pstate, nsitem, location);
         result = newresult;
@@ -960,6 +1015,7 @@ static FuzzyAttrMatchState *
 searchRangeTableForCol(ParseState *pstate, const char *alias, const char *colname,
                        int location)
 {
+  DBUG_TRACE;
   ParseState *orig_pstate = pstate;
   FuzzyAttrMatchState *fuzzystate = palloc(sizeof(FuzzyAttrMatchState));
 
@@ -1170,6 +1226,7 @@ markVarForSelectPriv(ParseState *pstate, Var *var)
 static void
 buildRelationAliases(TupleDesc tupdesc, Alias *alias, Alias *eref)
 {
+  DBUG_TRACE;
   int     maxattrs = tupdesc->natts;
   List     *aliaslist;
   ListCell   *aliaslc;
@@ -1178,6 +1235,8 @@ buildRelationAliases(TupleDesc tupdesc, Alias *alias, Alias *eref)
   int     numdropped = 0;
 
   Assert(eref->colnames == NIL);
+
+  DBUG_PRINT("info", "construct the eref column name list for a relation RTE");
 
   if (alias) {
     aliaslist = alias->colnames;
@@ -1217,11 +1276,14 @@ buildRelationAliases(TupleDesc tupdesc, Alias *alias, Alias *eref)
   }
 
   /* Too many user-supplied aliases? */
-  if (aliaslc)
+  if (aliaslc) {
+    DBUG_INSTANT_PRINT("info", "table \"%s\" has %d columns available but %d columns specified",
+                       eref->aliasname, maxattrs - numdropped, numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("table \"%s\" has %d columns available but %d columns specified",
                     eref->aliasname, maxattrs - numdropped, numaliases)));
+  }
 }
 
 /*
@@ -1241,6 +1303,7 @@ static char *
 chooseScalarFunctionAlias(Node *funcexpr, char *funcname,
                           Alias *alias, int nfuncs)
 {
+  DBUG_TRACE;
   char     *pname;
 
   /*
@@ -1250,8 +1313,10 @@ chooseScalarFunctionAlias(Node *funcexpr, char *funcname,
   if (funcexpr && IsA(funcexpr, FuncExpr)) {
     pname = get_func_result_name(((FuncExpr *) funcexpr)->funcid);
 
-    if (pname)
+    if (pname) {
+      DBUG_PRINT("info", "select the column alias(%s) for a function(%s) in a function RTE", pname, funcname);
       return pname;
+    }
   }
 
   /*
@@ -1259,12 +1324,15 @@ chooseScalarFunctionAlias(Node *funcexpr, char *funcname,
    * name, use that name.  (This makes FROM func() AS foo use "foo" as the
    * column name as well as the table alias.)
    */
-  if (nfuncs == 1 && alias)
+  if (nfuncs == 1 && alias) {
+    DBUG_PRINT("info", "alias name:%s, function name:%s", alias->aliasname, funcname);
     return alias->aliasname;
+  }
 
   /*
    * Otherwise use the function name.
    */
+  DBUG_PRINT("info", "otherwise use the function name:%s", funcname);
   return funcname;
 }
 
@@ -1282,6 +1350,7 @@ buildNSItemFromTupleDesc(RangeTblEntry *rte, Index rtindex,
                          RTEPermissionInfo *perminfo,
                          TupleDesc tupdesc)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *nsitem;
   ParseNamespaceColumn *nscolumns;
   int     maxattrs = tupdesc->natts;
@@ -1341,6 +1410,7 @@ static ParseNamespaceItem *
 buildNSItemFromLists(RangeTblEntry *rte, Index rtindex,
                      List *coltypes, List *coltypmods, List *colcollations)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *nsitem;
   ParseNamespaceColumn *nscolumns;
   int     maxattrs = list_length(coltypes);
@@ -1404,6 +1474,7 @@ buildNSItemFromLists(RangeTblEntry *rte, Index rtindex,
 Relation
 parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
 {
+  DBUG_TRACE;
   Relation  rel;
   ParseCallbackState pcbstate;
 
@@ -1411,19 +1482,21 @@ parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
   rel = table_openrv_extended(relation, lockmode, true);
 
   if (rel == NULL) {
-    if (relation->schemaname)
+    if (relation->schemaname) {
+      DBUG_INSTANT_PRINT("info", "relation \"%s.%s\" does not exist", relation->schemaname, relation->relname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_TABLE),
                errmsg("relation \"%s.%s\" does not exist",
                       relation->schemaname, relation->relname)));
-    else {
+    } else {
       /*
        * An unqualified name might have been meant as a reference to
        * some not-yet-in-scope CTE.  The bare "does not exist" message
        * has proven remarkably unhelpful for figuring out such problems,
        * so we take pains to offer a specific hint.
        */
-      if (isFutureCTE(pstate, relation->relname))
+      if (isFutureCTE(pstate, relation->relname)) {
+        DBUG_INSTANT_PRINT("info", "relation \"%s\" does not exist", relation->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_TABLE),
                  errmsg("relation \"%s\" does not exist",
@@ -1431,11 +1504,13 @@ parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
                  errdetail("There is a WITH item named \"%s\", but it cannot be referenced from this part of the query.",
                            relation->relname),
                  errhint("Use WITH RECURSIVE, or re-order the WITH items to remove forward references.")));
-      else
+      } else {
+        DBUG_INSTANT_PRINT("info", "relation \"%s\" does not exist", relation->relname);
         ereport(ERROR,
                 (errcode(ERRCODE_UNDEFINED_TABLE),
                  errmsg("relation \"%s\" does not exist",
                         relation->relname)));
+      }
     }
   }
 
@@ -1460,6 +1535,7 @@ addRangeTableEntry(ParseState *pstate,
                    bool inh,
                    bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   RTEPermissionInfo *perminfo;
   char     *refname = alias ? alias->aliasname : relation->relname;
@@ -1489,6 +1565,11 @@ addRangeTableEntry(ParseState *pstate,
   rte->relid = RelationGetRelid(rel);
   rte->inh = inh;
   rte->relkind = rel->rd_rel->relkind;
+
+  if (rte->relkind == RELKIND_FOREIGN_TABLE ) {
+    DBUG_PRINT("info", "relation identified as foreign table");
+  }
+
   rte->rellockmode = lockmode;
 
   /*
@@ -1558,6 +1639,7 @@ addRangeTableEntryForRelation(ParseState *pstate,
                               bool inh,
                               bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   RTEPermissionInfo *perminfo;
   char     *refname = alias ? alias->aliasname : RelationGetRelationName(rel);
@@ -1628,6 +1710,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
                               bool lateral,
                               bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   Alias    *eref;
   int     numaliases;
@@ -1675,11 +1758,13 @@ addRangeTableEntryForSubquery(ParseState *pstate,
                                 exprCollation((Node *) te->expr));
   }
 
-  if (varattno < numaliases)
+  if (varattno < numaliases) {
+    DBUG_INSTANT_PRINT("info", "table \"%s\" has %d columns available but %d columns specified", eref->aliasname, varattno, numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("table \"%s\" has %d columns available but %d columns specified",
                     eref->aliasname, varattno, numaliases)));
+  }
 
   rte->eref = eref;
 
@@ -1729,6 +1814,7 @@ addRangeTableEntryForFunction(ParseState *pstate,
                               bool lateral,
                               bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   Alias    *alias = rangefunc->alias;
   Alias    *eref;
@@ -1815,22 +1901,26 @@ addRangeTableEntryForFunction(ParseState *pstate,
            * have resolved it using its OUT parameters.  Otherwise,
            * it must have a named composite type.
            */
-          if (exprType(funcexpr) == RECORDOID)
+          if (exprType(funcexpr) == RECORDOID) {
+            DBUG_INSTANT_PRINT("info", "a column definition list is redundant for a function with OUT parameters");
             ereport(ERROR,
                     (errcode(ERRCODE_SYNTAX_ERROR),
                      errmsg("a column definition list is redundant for a function with OUT parameters"),
                      parser_errposition(pstate,
                                         exprLocation((Node *) coldeflist))));
-          else
+          } else {
+            DBUG_INSTANT_PRINT("info", "a column definition list is redundant for a function returning a named composite type");
             ereport(ERROR,
                     (errcode(ERRCODE_SYNTAX_ERROR),
                      errmsg("a column definition list is redundant for a function returning a named composite type"),
                      parser_errposition(pstate,
                                         exprLocation((Node *) coldeflist))));
+          }
 
           break;
 
         default:
+          DBUG_INSTANT_PRINT("info", "a column definition list is only allowed for functions returning \"record\"");
           ereport(ERROR,
                   (errcode(ERRCODE_SYNTAX_ERROR),
                    errmsg("a column definition list is only allowed for functions returning \"record\""),
@@ -1839,11 +1929,13 @@ addRangeTableEntryForFunction(ParseState *pstate,
           break;
       }
     } else {
-      if (functypclass == TYPEFUNC_RECORD)
+      if (functypclass == TYPEFUNC_RECORD) {
+        DBUG_INSTANT_PRINT("info", "a column definition list is required for functions returning \"record\"");
         ereport(ERROR,
                 (errcode(ERRCODE_SYNTAX_ERROR),
                  errmsg("a column definition list is required for functions returning \"record\""),
                  parser_errposition(pstate, exprLocation(funcexpr))));
+      }
     }
 
     if (functypclass == TYPEFUNC_COMPOSITE ||
@@ -1871,13 +1963,15 @@ addRangeTableEntryForFunction(ParseState *pstate,
        * in the RangeTblFunction's lists.  Limit number of columns to
        * MaxHeapAttributeNumber, because CheckAttributeNamesTypes will.
        */
-      if (list_length(coldeflist) > MaxHeapAttributeNumber)
+      if (list_length(coldeflist) > MaxHeapAttributeNumber) {
+        DBUG_INSTANT_PRINT("info", "column definition lists can have at most %d entries", MaxHeapAttributeNumber);
         ereport(ERROR,
                 (errcode(ERRCODE_TOO_MANY_COLUMNS),
                  errmsg("column definition lists can have at most %d entries",
                         MaxHeapAttributeNumber),
                  parser_errposition(pstate,
                                     exprLocation((Node *) coldeflist))));
+      }
 
       tupdesc = CreateTemplateTupleDesc(list_length(coldeflist));
       i = 1;
@@ -1891,12 +1985,14 @@ addRangeTableEntryForFunction(ParseState *pstate,
 
         attrname = n->colname;
 
-        if (n->typeName->setof)
+        if (n->typeName->setof) {
+          DBUG_INSTANT_PRINT("info", "column \"%s\" cannot be declared SETOF", attrname);
           ereport(ERROR,
                   (errcode(ERRCODE_INVALID_TABLE_DEFINITION),
                    errmsg("column \"%s\" cannot be declared SETOF",
                           attrname),
                    parser_errposition(pstate, n->location)));
+        }
 
         typenameTypeIdAndMod(pstate, n->typeName,
                              &attrtype, &attrtypmod);
@@ -1933,12 +2029,15 @@ addRangeTableEntryForFunction(ParseState *pstate,
        */
       CheckAttributeNamesTypes(tupdesc, RELKIND_COMPOSITE_TYPE,
                                CHKATYPE_ANYRECORD);
-    } else
+    } else {
+      char *format1 = format_type_be(funcrettype);
+      DBUG_INSTANT_PRINT("info", "function \"%s\" in FROM has unsupported return type %s", funcname, format1);
       ereport(ERROR,
               (errcode(ERRCODE_DATATYPE_MISMATCH),
                errmsg("function \"%s\" in FROM has unsupported return type %s",
-                      funcname, format_type_be(funcrettype)),
+                      funcname, format1),
                parser_errposition(pstate, exprLocation(funcexpr))));
+    }
 
     /* Finish off the RangeTblFunction and add it to the RTE's list */
     rtfunc->funccolcount = tupdesc->natts;
@@ -1959,13 +2058,15 @@ addRangeTableEntryForFunction(ParseState *pstate,
       totalatts++;
 
     /* Disallow more columns than will fit in a tuple */
-    if (totalatts > MaxTupleAttributeNumber)
+    if (totalatts > MaxTupleAttributeNumber) {
+      DBUG_INSTANT_PRINT("info", "functions in FROM can return at most %d columns", MaxTupleAttributeNumber);
       ereport(ERROR,
               (errcode(ERRCODE_TOO_MANY_COLUMNS),
                errmsg("functions in FROM can return at most %d columns",
                       MaxTupleAttributeNumber),
                parser_errposition(pstate,
                                   exprLocation((Node *) funcexprs))));
+    }
 
     /* Merge the tuple descs of each function into a composite one */
     tupdesc = CreateTemplateTupleDesc(totalatts);
@@ -2033,6 +2134,7 @@ addRangeTableEntryForTableFunc(ParseState *pstate,
                                bool lateral,
                                bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   char     *refname;
   Alias    *eref;
@@ -2041,13 +2143,15 @@ addRangeTableEntryForTableFunc(ParseState *pstate,
   Assert(pstate != NULL);
 
   /* Disallow more columns than will fit in a tuple */
-  if (list_length(tf->colnames) > MaxTupleAttributeNumber)
+  if (list_length(tf->colnames) > MaxTupleAttributeNumber) {
+    DBUG_INSTANT_PRINT("info", "functions in FROM can return at most %d columns", MaxTupleAttributeNumber);
     ereport(ERROR,
             (errcode(ERRCODE_TOO_MANY_COLUMNS),
              errmsg("functions in FROM can return at most %d columns",
                     MaxTupleAttributeNumber),
              parser_errposition(pstate,
                                 exprLocation((Node *) tf))));
+  }
 
   Assert(list_length(tf->coltypes) == list_length(tf->colnames));
   Assert(list_length(tf->coltypmods) == list_length(tf->colnames));
@@ -2072,12 +2176,15 @@ addRangeTableEntryForTableFunc(ParseState *pstate,
     eref->colnames = list_concat(eref->colnames,
                                  list_copy_tail(tf->colnames, numaliases));
 
-  if (numaliases > list_length(tf->colnames))
+  if (numaliases > list_length(tf->colnames)) {
+    DBUG_INSTANT_PRINT("info", "%s function has %d columns available but %d columns specified",
+                       tf->functype == TFT_XMLTABLE ? "XMLTABLE" : "JSON_TABLE", list_length(tf->colnames), numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("%s function has %d columns available but %d columns specified",
                     tf->functype == TFT_XMLTABLE ? "XMLTABLE" : "JSON_TABLE",
                     list_length(tf->colnames), numaliases)));
+  }
 
   rte->eref = eref;
 
@@ -2122,6 +2229,7 @@ addRangeTableEntryForValues(ParseState *pstate,
                             bool lateral,
                             bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   char     *refname = alias ? alias->aliasname : pstrdup("*VALUES*");
   Alias    *eref;
@@ -2154,11 +2262,13 @@ addRangeTableEntryForValues(ParseState *pstate,
                              makeString(pstrdup(attrname)));
   }
 
-  if (numcolumns < numaliases)
+  if (numcolumns < numaliases) {
+    DBUG_INSTANT_PRINT("info", "VALUES lists \"%s\" have %d columns available but %d columns specified", refname, numcolumns, numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("VALUES lists \"%s\" have %d columns available but %d columns specified",
                     refname, numcolumns, numaliases)));
+  }
 
   rte->eref = eref;
 
@@ -2208,6 +2318,7 @@ addRangeTableEntryForJoin(ParseState *pstate,
                           Alias *alias,
                           bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   Alias    *eref;
   int     numaliases;
@@ -2219,11 +2330,13 @@ addRangeTableEntryForJoin(ParseState *pstate,
    * Fail if join has too many columns --- we must be able to reference any
    * of the columns with an AttrNumber.
    */
-  if (list_length(aliasvars) > MaxAttrNumber)
+  if (list_length(aliasvars) > MaxAttrNumber) {
+    DBUG_INSTANT_PRINT("info", "joins can have at most %d columns", MaxAttrNumber);
     ereport(ERROR,
             (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
              errmsg("joins can have at most %d columns",
                     MaxAttrNumber)));
+  }
 
   rte->rtekind = RTE_JOIN;
   rte->relid = InvalidOid;
@@ -2244,11 +2357,14 @@ addRangeTableEntryForJoin(ParseState *pstate,
     eref->colnames = list_concat(eref->colnames,
                                  list_copy_tail(colnames, numaliases));
 
-  if (numaliases > list_length(colnames))
+  if (numaliases > list_length(colnames)) {
+    DBUG_INSTANT_PRINT("info", "join expression \"%s\" has %d columns available but %d columns specified",
+                       eref->aliasname, list_length(colnames), numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("join expression \"%s\" has %d columns available but %d columns specified",
                     eref->aliasname, list_length(colnames), numaliases)));
+  }
 
   rte->eref = eref;
 
@@ -2301,6 +2417,7 @@ addRangeTableEntryForCTE(ParseState *pstate,
                          RangeVar *rv,
                          bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   Alias    *alias = rv->alias;
   char     *refname = alias ? alias->aliasname : cte->ctename;
@@ -2335,12 +2452,14 @@ addRangeTableEntryForCTE(ParseState *pstate,
     Query    *ctequery = (Query *) cte->ctequery;
 
     if (ctequery->commandType != CMD_SELECT &&
-        ctequery->returningList == NIL)
+        ctequery->returningList == NIL) {
+      DBUG_INSTANT_PRINT("info", "WITH query \"%s\" does not have a RETURNING clause", cte->ctename);
       ereport(ERROR,
               (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                errmsg("WITH query \"%s\" does not have a RETURNING clause",
                       cte->ctename),
                parser_errposition(pstate, rv->location)));
+    }
   }
 
   rte->coltypes = list_copy(cte->ctecoltypes);
@@ -2366,11 +2485,13 @@ addRangeTableEntryForCTE(ParseState *pstate,
       eref->colnames = lappend(eref->colnames, lfirst(lc));
   }
 
-  if (varattno < numaliases)
+  if (varattno < numaliases) {
+    DBUG_INSTANT_PRINT("info", "table \"%s\" has %d columns available but %d columns specified", refname, varattno, numaliases);
     ereport(ERROR,
             (errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
              errmsg("table \"%s\" has %d columns available but %d columns specified",
                     refname, varattno, numaliases)));
+  }
 
   rte->eref = eref;
 
@@ -2455,6 +2576,7 @@ addRangeTableEntryForENR(ParseState *pstate,
                          RangeVar *rv,
                          bool inFromCl)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = makeNode(RangeTblEntry);
   Alias    *alias = rv->alias;
   char     *refname = alias ? alias->aliasname : rv->relname;
@@ -2632,19 +2754,26 @@ addRangeTableEntryForGroup(ParseState *pstate,
 bool
 isLockedRefname(ParseState *pstate, const char *refname)
 {
+  DBUG_TRACE;
   ListCell   *l;
 
   /*
    * If we are in a subquery specified as locked FOR UPDATE/SHARE from
    * parent level, then act as though there's a generic FOR UPDATE here.
    */
-  if (pstate->p_locked_from_parent)
+  if (pstate->p_locked_from_parent) {
+    DBUG_PRINT("info", "if we are in a subquery specified as locked FOR UPDATE/SHARE from parent level,");
+    DBUG_PRINT("info", "then act as though there's a generic FOR UPDATE here");
+    DBUG_PRINT("info", "result: true");
     return true;
+  }
 
   foreach(l, pstate->p_locking_clause) {
     LockingClause *lc = (LockingClause *) lfirst(l);
 
     if (lc->lockedRels == NIL) {
+      DBUG_PRINT("info", "all tables used in query");
+      DBUG_PRINT("info", "result: true");
       /* all tables used in query */
       return true;
     } else if (refname != NULL) {
@@ -2654,12 +2783,16 @@ isLockedRefname(ParseState *pstate, const char *refname)
       foreach(l2, lc->lockedRels) {
         RangeVar   *thisrel = (RangeVar *) lfirst(l2);
 
-        if (strcmp(refname, thisrel->relname) == 0)
+        if (strcmp(refname, thisrel->relname) == 0) {
+          DBUG_PRINT("info", "just the named tables");
+          DBUG_PRINT("info", "result: true");
           return true;
+        }
       }
     }
   }
 
+  DBUG_PRINT("info", "result: false");
   return false;
 }
 
@@ -2674,6 +2807,8 @@ addNSItemToQuery(ParseState *pstate, ParseNamespaceItem *nsitem,
                  bool addToJoinList,
                  bool addToRelNameSpace, bool addToVarNameSpace)
 {
+  DBUG_TRACE;
+
   if (addToJoinList) {
     RangeTblRef *rtr = makeNode(RangeTblRef);
 
@@ -2715,6 +2850,7 @@ expandRTE(RangeTblEntry *rte, int rtindex, int sublevels_up,
           int location, bool include_dropped,
           List **colnames, List **colvars)
 {
+  DBUG_TRACE;
   int     varattno;
 
   if (colnames)
@@ -2722,6 +2858,8 @@ expandRTE(RangeTblEntry *rte, int rtindex, int sublevels_up,
 
   if (colvars)
     *colvars = NIL;
+
+  DBUG_PRINT("info", "expand the columns of a rangetable entry");
 
   switch (rte->rtekind) {
     case RTE_RELATION:
@@ -3057,8 +3195,10 @@ expandRelation(Oid relid, Alias *eref, int rtindex, int sublevels_up,
                int location, bool include_dropped,
                List **colnames, List **colvars)
 {
+  DBUG_TRACE;
   Relation  rel;
 
+  DBUG_PRINT("info", "expandRTE subroutine");
   /* Get the tupledesc and turn it over to expandTupleDesc */
   rel = relation_open(relid, AccessShareLock);
   expandTupleDesc(rel->rd_att, eref, rel->rd_att->natts, 0,
@@ -3084,6 +3224,7 @@ expandTupleDesc(TupleDesc tupdesc, Alias *eref, int count, int offset,
                 int location, bool include_dropped,
                 List **colnames, List **colvars)
 {
+  DBUG_TRACE;
   ListCell   *aliascell;
   int     varattno;
 
@@ -3161,6 +3302,7 @@ expandNSItemVars(ParseState *pstate, ParseNamespaceItem *nsitem,
                  int sublevels_up, int location,
                  List **colnames)
 {
+  DBUG_TRACE;
   List     *result = NIL;
   int     colindex;
   ListCell   *lc;
@@ -3224,6 +3366,7 @@ List *
 expandNSItemAttrs(ParseState *pstate, ParseNamespaceItem *nsitem,
                   int sublevels_up, bool require_col_privs, int location)
 {
+  DBUG_TRACE;
   RangeTblEntry *rte = nsitem->p_rte;
   RTEPermissionInfo *perminfo = nsitem->p_perminfo;
   List     *names,
@@ -3286,6 +3429,8 @@ expandNSItemAttrs(ParseState *pstate, ParseNamespaceItem *nsitem,
 char *
 get_rte_attribute_name(RangeTblEntry *rte, AttrNumber attnum)
 {
+  DBUG_TRACE;
+
   if (attnum == InvalidAttrNumber)
     return "*";
 
@@ -3440,6 +3585,7 @@ get_rte_attribute_is_dropped(RangeTblEntry *rte, AttrNumber attnum)
         return false;
 
       /* this probably can't happen ... */
+      DBUG_INSTANT_PRINT("info", "column %d of relation \"%s\" does not exist", attnum, rte->eref->aliasname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column %d of relation \"%s\" does not exist",
@@ -3451,6 +3597,7 @@ get_rte_attribute_is_dropped(RangeTblEntry *rte, AttrNumber attnum)
 
     case RTE_RESULT:
       /* this probably can't happen ... */
+      DBUG_INSTANT_PRINT("info", "column %d of relation \"%s\" does not exist", attnum, rte->eref->aliasname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                errmsg("column %d of relation \"%s\" does not exist",
@@ -3462,6 +3609,12 @@ get_rte_attribute_is_dropped(RangeTblEntry *rte, AttrNumber attnum)
     default:
       elog(ERROR, "unrecognized RTE kind: %d", (int) rte->rtekind);
       result = false;   /* keep compiler quiet */
+  }
+
+  if (result) {
+    DBUG_PRINT("info", "return true");
+  } else {
+    DBUG_PRINT("info", "return false");
   }
 
   return result;
@@ -3616,6 +3769,8 @@ attnumTypeId(Relation rd, int attid)
 Oid
 attnumCollationId(Relation rd, int attid)
 {
+  DBUG_TRACE;
+
   if (attid <= 0) {
     /* All system attributes are of noncollatable types. */
     return InvalidOid;
@@ -3670,7 +3825,8 @@ errorMissingRTE(ParseState *pstate, RangeVar *relation)
   }
 
   /* If it looks like the user forgot to use an alias, hint about that */
-  if (badAlias)
+  if (badAlias) {
+    DBUG_INSTANT_PRINT("info", "invalid reference to FROM-clause entry for table \"%s\"", relation->relname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_TABLE),
              errmsg("invalid reference to FROM-clause entry for table \"%s\"",
@@ -3678,8 +3834,9 @@ errorMissingRTE(ParseState *pstate, RangeVar *relation)
              errhint("Perhaps you meant to reference the table alias \"%s\".",
                      badAlias),
              parser_errposition(pstate, relation->location)));
-  /* Hint about case where we found an (inaccessible) exact match */
-  else if (rte)
+    /* Hint about case where we found an (inaccessible) exact match */
+  } else if (rte) {
+    DBUG_INSTANT_PRINT("info", "invalid reference to FROM-clause entry for table \"%s\"", relation->relname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_TABLE),
              errmsg("invalid reference to FROM-clause entry for table \"%s\"",
@@ -3689,13 +3846,15 @@ errorMissingRTE(ParseState *pstate, RangeVar *relation)
              rte_visible_if_lateral(pstate, rte) ?
              errhint("To reference that table, you must mark this subquery with LATERAL.") : 0,
              parser_errposition(pstate, relation->location)));
-  /* Else, we have nothing to offer but the bald statement of error */
-  else
+    /* Else, we have nothing to offer but the bald statement of error */
+  } else {
+    DBUG_INSTANT_PRINT("info", "missing FROM-clause entry for table \"%s\"", relation->relname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_TABLE),
              errmsg("missing FROM-clause entry for table \"%s\"",
                     relation->relname),
              parser_errposition(pstate, relation->location)));
+  }
 }
 
 /*
@@ -3726,7 +3885,8 @@ errorMissingColumn(ParseState *pstate,
      * matches, but at least be sure that we don't misleadingly suggest
      * that there's only one.
      */
-    if (state->rexact2)
+    if (state->rexact2) {
+      DBUG_INSTANT_PRINT("info", "column %s.%s does not exist", relname, colname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                relname ?
@@ -3736,7 +3896,9 @@ errorMissingColumn(ParseState *pstate,
                          colname),
                !relname ? errhint("Try using a table-qualified name.") : 0,
                parser_errposition(pstate, location)));
+    }
 
+    DBUG_INSTANT_PRINT("info", "column %s.%s does not exist", relname, colname);
     /* Single exact match, so try to determine why it's inaccessible. */
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -3754,15 +3916,18 @@ errorMissingColumn(ParseState *pstate,
 
   if (!state->rsecond) {
     /* If we found no match at all, we have little to report */
-    if (!state->rfirst)
+    if (!state->rfirst) {
+      DBUG_INSTANT_PRINT("info", "column %s.%s does not exist",  relname, colname);
       ereport(ERROR,
               (errcode(ERRCODE_UNDEFINED_COLUMN),
                relname ?
                errmsg("column %s.%s does not exist", relname, colname) :
                errmsg("column \"%s\" does not exist", colname),
                parser_errposition(pstate, location)));
+    }
 
     /* Handle case where we have a single alternative spelling to offer */
+    DBUG_INSTANT_PRINT("info", "column %s.%s does not exist", relname, colname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_COLUMN),
              relname ?
@@ -3775,6 +3940,7 @@ errorMissingColumn(ParseState *pstate,
              parser_errposition(pstate, location)));
   } else {
     /* Handle case where there are two equally useful column hints */
+    DBUG_INSTANT_PRINT("info", "column %s.%s does not exist", relname, colname);
     ereport(ERROR,
             (errcode(ERRCODE_UNDEFINED_COLUMN),
              relname ?
@@ -3826,6 +3992,7 @@ findNSItemForRTE(ParseState *pstate, RangeTblEntry *rte)
 static bool
 rte_visible_if_lateral(ParseState *pstate, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *nsitem;
 
   /* If LATERAL *is* active, we're clearly barking up the wrong tree */
@@ -3848,6 +4015,7 @@ rte_visible_if_lateral(ParseState *pstate, RangeTblEntry *rte)
 static bool
 rte_visible_if_qualified(ParseState *pstate, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   ParseNamespaceItem *nsitem = findNSItemForRTE(pstate, rte);
 
   if (nsitem) {
@@ -3914,6 +4082,7 @@ isQueryUsingTempRelation_walker(Node *node, void *context)
 RTEPermissionInfo *
 addRTEPermissionInfo(List **rteperminfos, RangeTblEntry *rte)
 {
+  DBUG_TRACE;
   RTEPermissionInfo *perminfo;
 
   Assert(OidIsValid(rte->relid));
