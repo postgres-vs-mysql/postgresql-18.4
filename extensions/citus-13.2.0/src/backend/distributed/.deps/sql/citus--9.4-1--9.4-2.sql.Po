@@ -1,0 +1,5 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.4-1--9.4-2.sql: \
+ sql/citus--9.4-1--9.4-2.sql sql/udfs/citus_prepare_pg_upgrade/9.4-2.sql \
+ sql/udfs/citus_finish_pg_upgrade/9.4-2.sql
+sql/udfs/citus_prepare_pg_upgrade/9.4-2.sql:
+sql/udfs/citus_finish_pg_upgrade/9.4-2.sql:

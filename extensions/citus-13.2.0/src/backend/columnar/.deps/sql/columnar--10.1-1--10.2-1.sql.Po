@@ -1,0 +1,6 @@
+/home/wangbin/work/citus-13.2.0/src/backend/columnar/build/sql/columnar--10.1-1--10.2-1.sql: \
+ sql/columnar--10.1-1--10.2-1.sql \
+ sql/udfs/upgrade_columnar_storage/10.2-1.sql \
+ sql/udfs/downgrade_columnar_storage/10.2-1.sql
+sql/udfs/upgrade_columnar_storage/10.2-1.sql:
+sql/udfs/downgrade_columnar_storage/10.2-1.sql:

@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/columnar/build/sql/citus_columnar--11.1-1--11.2-1.sql: \
+ sql/citus_columnar--11.1-1--11.2-1.sql \
+ sql/udfs/columnar_ensure_am_depends_catalog/11.2-1.sql
+sql/udfs/columnar_ensure_am_depends_catalog/11.2-1.sql:

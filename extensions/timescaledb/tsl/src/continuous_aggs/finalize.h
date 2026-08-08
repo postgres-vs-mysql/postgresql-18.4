@@ -1,0 +1,27 @@
+/*
+ * This file and its contents are licensed under the Timescale License.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-TIMESCALE for a copy of the license.
+ */
+#pragma once
+
+#include <postgres.h>
+
+#include <catalog/pg_aggregate.h>
+#include <catalog/pg_collation.h>
+#include <catalog/pg_type.h>
+#include <nodes/makefuncs.h>
+#include <nodes/nodeFuncs.h>
+#include <nodes/pg_list.h>
+#include <parser/parse_func.h>
+#include <utils/builtins.h>
+#include <utils/regproc.h>
+#include <utils/syscache.h>
+
+#include "common.h"
+#include "ts_catalog/catalog.h"
+
+extern void finalizequery_init(FinalizeQueryInfo *inp, Query *orig_query,
+                               MaterializationHypertableColumnInfo *mattblinfo);
+extern Query *finalizequery_get_select_query(FinalizeQueryInfo *inp, List *matcollist,
+    ObjectAddress *mattbladdress, char *relname);

@@ -1,0 +1,28 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--10.0-4--10.1-1.sql: \
+ sql/citus--10.0-4--10.1-1.sql \
+ sql/../../columnar/sql/columnar--10.0-3--10.1-1.sql \
+ sql/udfs/create_distributed_table/10.1-1.sql \
+ sql/udfs/worker_partitioned_relation_total_size/10.1-1.sql \
+ sql/udfs/worker_partitioned_relation_size/10.1-1.sql \
+ sql/udfs/worker_partitioned_table_size/10.1-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/10.1-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/10.1-1.sql \
+ sql/udfs/citus_local_disk_space_stats/10.1-1.sql \
+ sql/udfs/get_rebalance_table_shards_plan/10.1-1.sql \
+ sql/udfs/citus_add_rebalance_strategy/10.1-1.sql \
+ sql/udfs/get_rebalance_progress/10.1-1.sql \
+ sql/udfs/citus_shards/10.1-1.sql \
+ sql/udfs/citus_cleanup_orphaned_shards/10.1-1.sql
+sql/../../columnar/sql/columnar--10.0-3--10.1-1.sql:
+sql/udfs/create_distributed_table/10.1-1.sql:
+sql/udfs/worker_partitioned_relation_total_size/10.1-1.sql:
+sql/udfs/worker_partitioned_relation_size/10.1-1.sql:
+sql/udfs/worker_partitioned_table_size/10.1-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/10.1-1.sql:
+sql/udfs/citus_finish_pg_upgrade/10.1-1.sql:
+sql/udfs/citus_local_disk_space_stats/10.1-1.sql:
+sql/udfs/get_rebalance_table_shards_plan/10.1-1.sql:
+sql/udfs/citus_add_rebalance_strategy/10.1-1.sql:
+sql/udfs/get_rebalance_progress/10.1-1.sql:
+sql/udfs/citus_shards/10.1-1.sql:
+sql/udfs/citus_cleanup_orphaned_shards/10.1-1.sql:

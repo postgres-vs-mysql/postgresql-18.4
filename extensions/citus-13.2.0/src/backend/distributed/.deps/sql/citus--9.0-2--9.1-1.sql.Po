@@ -1,0 +1,20 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.0-2--9.1-1.sql: \
+ sql/citus--9.0-2--9.1-1.sql sql/udfs/master_set_node_property/9.1-1.sql \
+ sql/udfs/master_drain_node/9.1-1.sql \
+ sql/udfs/worker_create_schema/9.1-1.sql \
+ sql/udfs/worker_repartition_cleanup/9.1-1.sql \
+ sql/udfs/rebalance_table_shards/9.1-1.sql \
+ sql/udfs/get_rebalance_table_shards_plan/9.1-1.sql \
+ sql/udfs/master_add_node/9.1-1.sql \
+ sql/udfs/master_add_inactive_node/9.1-1.sql \
+ sql/udfs/alter_role_if_exists/9.1-1.sql sql/udfs/any_value/9.1-1.sql
+sql/udfs/master_set_node_property/9.1-1.sql:
+sql/udfs/master_drain_node/9.1-1.sql:
+sql/udfs/worker_create_schema/9.1-1.sql:
+sql/udfs/worker_repartition_cleanup/9.1-1.sql:
+sql/udfs/rebalance_table_shards/9.1-1.sql:
+sql/udfs/get_rebalance_table_shards_plan/9.1-1.sql:
+sql/udfs/master_add_node/9.1-1.sql:
+sql/udfs/master_add_inactive_node/9.1-1.sql:
+sql/udfs/alter_role_if_exists/9.1-1.sql:
+sql/udfs/any_value/9.1-1.sql:

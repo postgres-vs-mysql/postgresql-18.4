@@ -1,0 +1,73 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+
+\o /dev/null
+\ir include/insert_single.sql
+\o
+
+-- Make sure UPDATE isn't optimized if it includes Append plans
+-- Need to turn of nestloop to make append appear the same on PG96 and PG10
+set enable_nestloop = 'off';
+
+CREATE OR REPLACE FUNCTION series_val()
+RETURNS integer LANGUAGE PLPGSQL STABLE AS
+$BODY$
+BEGIN
+    RETURN 5;
+END;
+$BODY$;
+
+-- ConstraintAwareAppend applied for SELECT
+EXPLAIN (buffers off, costs off)
+SELECT FROM "one_Partition"
+WHERE series_1 IN (SELECT series_1 FROM "one_Partition" WHERE series_1 > series_val());
+
+-- ConstraintAwareAppend NOT applied for UPDATE
+EXPLAIN (buffers off, costs off)
+UPDATE "one_Partition"
+SET series_1 = 8
+WHERE series_1 IN (SELECT series_1 FROM "one_Partition" WHERE series_1 > series_val());
+
+SELECT * FROM "one_Partition" ORDER BY "timeCustom", device_id, series_0, series_1, series_2;
+UPDATE "one_Partition"
+SET series_1 = 8
+WHERE series_1 IN (SELECT series_1 FROM "one_Partition" WHERE series_1 > series_val());
+SELECT * FROM "one_Partition" ORDER BY "timeCustom", device_id, series_0, series_1, series_2;
+
+UPDATE "one_Partition" SET series_1 = 47;
+UPDATE "one_Partition" SET series_bool = true;
+SELECT * FROM "one_Partition" ORDER BY "timeCustom", device_id, series_0, series_1, series_2;
+
+-- test update on chunks directly
+CREATE TABLE direct_update(time timestamptz) WITH (tsdb.hypertable);
+
+INSERT INTO direct_update VALUES ('2020-01-01');
+SELECT show_chunks('direct_update') AS "CHUNK" \gset
+
+--should have ModifyHyperable node
+EXPLAIN (costs off, timing off, summary off) UPDATE :CHUNK SET time = time + INTERVAL '1 minute';
+EXPLAIN (costs off, timing off, summary off) UPDATE ONLY :CHUNK SET time = time + INTERVAL '1 minute';
+
+-- correct time range should succeed
+UPDATE :CHUNK SET time = time + INTERVAL '1 minute' RETURNING *;
+UPDATE ONLY :CHUNK SET time = time + INTERVAL '1 minute' RETURNING *;
+-- crossing chunk boundary should fail
+\set ON_ERROR_STOP 0
+UPDATE :CHUNK SET time = time + INTERVAL '1 month' RETURNING *;
+UPDATE ONLY :CHUNK SET time = time + INTERVAL '1 month' RETURNING *;
+\set ON_ERROR_STOP 1
+
+-- github issue #6790
+-- test UPDATE with WHERE EXISTS on hypertable
+CREATE TABLE i6790_update(time timestamptz NOT NULL, device int, value float) WITH (tsdb.hypertable);
+INSERT INTO i6790_update SELECT t, 1, 0.1 FROM generate_series('2026-01-01'::timestamptz, '2026-01-03'::timestamptz, interval '12 hours') t;
+
+-- UPDATE with simple EXISTS - creates gating Result node(s) wrapping ChunkAppend
+UPDATE i6790_update SET value = 0.2 WHERE EXISTS (SELECT 1);
+SELECT count(*) FROM i6790_update WHERE value = 0.2;
+
+-- UPDATE with correlated EXISTS
+UPDATE i6790_update SET value = 0.3 WHERE EXISTS (SELECT 1 FROM i6790_update g WHERE g.device = i6790_update.device);
+SELECT count(*) FROM i6790_update WHERE value = 0.3;
+

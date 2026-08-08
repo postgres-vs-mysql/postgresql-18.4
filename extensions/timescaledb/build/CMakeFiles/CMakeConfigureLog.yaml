@@ -1,0 +1,579 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineSystem.cmake:205 (message)"
+      - "CMakeLists.txt:149 (project)"
+    message: |
+      The system is: Linux - 6.6.87.2-microsoft-standard-WSL2 - x86_64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCCompiler.cmake:123 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:149 (project)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler: /opt/rh/devtoolset-11/root/usr/bin/cc 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+      
+      The C compiler identification is GNU, found in:
+        /home/wangbin/work/timescaledb/build/CMakeFiles/3.31.11/CompilerIdC/a.out
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake:74 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:149 (project)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_e4639/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_e4639.dir/build.make CMakeFiles/cmTC_e4639.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3'
+        Building C object CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc   -v -o CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -c /usr/local/share/cmake-3.31/Modules/CMakeCCompilerABI.c
+        Using built-in specs.
+        COLLECT_GCC=/opt/rh/devtoolset-11/root/usr/bin/cc
+        Target: x86_64-redhat-linux
+        Configured with: ../configure --enable-bootstrap --enable-languages=c,c++,fortran,lto --prefix=/opt/rh/devtoolset-11/root/usr --mandir=/opt/rh/devtoolset-11/root/usr/share/man --infodir=/opt/rh/devtoolset-11/root/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-shared --enable-threads=posix --enable-checking=release --enable-multilib --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-gcc-major-version-only --with-linker-hash-style=gnu --with-default-libstdcxx-abi=gcc4-compatible --enable-plugin --enable-initfini-array --with-isl=/builddir/build/BUILD/gcc-11.2.1-20220127/obj-x86_64-redhat-linux/isl-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux
+        Thread model: posix
+        Supported LTO compression algorithms: zlib
+        gcc version 11.2.1 20220127 (Red Hat 11.2.1-9) (GCC) 
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/'
+         /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/cc1 -quiet -v /usr/local/share/cmake-3.31/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_e4639.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -o /tmp/ccfygot6.s
+        GNU C17 (GCC) version 11.2.1 20220127 (Red Hat 11.2.1-9) (x86_64-redhat-linux)
+        	compiled by GNU C version 11.2.1 20220127 (Red Hat 11.2.1-9), GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version isl-0.18-GMP
+        
+        GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+        ignoring nonexistent directory "/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include-fixed"
+        ignoring nonexistent directory "/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../x86_64-redhat-linux/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include
+         /usr/local/include
+         /opt/rh/devtoolset-11/root/usr/include
+         /usr/include
+        End of search list.
+        GNU C17 (GCC) version 11.2.1 20220127 (Red Hat 11.2.1-9) (x86_64-redhat-linux)
+        	compiled by GNU C version 11.2.1 20220127 (Red Hat 11.2.1-9), GMP version 6.0.0, MPFR version 3.1.1, MPC version 1.0.1, isl version isl-0.18-GMP
+        
+        GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+        Compiler executable checksum: fcd9572df254446d5004a010508b613e
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/'
+         /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/as -v --64 -o CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o /tmp/ccfygot6.s
+        GNU assembler version 2.36.1 (x86_64-redhat-linux) using BFD version version 2.36.1-1.el7.2
+        COMPILER_PATH=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/
+        LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.'
+        Linking C executable cmTC_e4639
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e4639.dir/link.txt --verbose=1
+        Using built-in specs.
+        COLLECT_GCC=/opt/rh/devtoolset-11/root/usr/bin/cc
+        COLLECT_LTO_WRAPPER=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper
+        Target: x86_64-redhat-linux
+        Configured with: ../configure --enable-bootstrap --enable-languages=c,c++,fortran,lto --prefix=/opt/rh/devtoolset-11/root/usr --mandir=/opt/rh/devtoolset-11/root/usr/share/man --infodir=/opt/rh/devtoolset-11/root/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-shared --enable-threads=posix --enable-checking=release --enable-multilib --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-gcc-major-version-only --with-linker-hash-style=gnu --with-default-libstdcxx-abi=gcc4-compatible --enable-plugin --enable-initfini-array --with-isl=/builddir/build/BUILD/gcc-11.2.1-20220127/obj-x86_64-redhat-linux/isl-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux
+        Thread model: posix
+        Supported LTO compression algorithms: zlib
+        gcc version 11.2.1 20220127 (Red Hat 11.2.1-9) (GCC) 
+        COMPILER_PATH=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/
+        LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e4639' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e4639.'
+         /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/collect2 -plugin /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/liblto_plugin.so -plugin-opt=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper -plugin-opt=-fresolution=/tmp/cca56Nwc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --no-add-needed --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e4639 /lib/../lib64/crt1.o /lib/../lib64/crti.o /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../.. -v CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o /lib/../lib64/crtn.o
+        collect2 version 11.2.1 20220127 (Red Hat 11.2.1-9)
+        /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/ld -plugin /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/liblto_plugin.so -plugin-opt=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper -plugin-opt=-fresolution=/tmp/cca56Nwc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --no-add-needed --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e4639 /lib/../lib64/crt1.o /lib/../lib64/crti.o /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../.. -v CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o /lib/../lib64/crtn.o
+        GNU ld version 2.36.1-1.el7.2
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e4639' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e4639.'
+        /opt/rh/devtoolset-11/root/usr/bin/cc  -v -Wl,-v CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -o cmTC_e4639
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3'
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake:182 (message)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:149 (project)"
+    message: |
+      Parsed C implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include]
+          add: [/usr/local/include]
+          add: [/opt/rh/devtoolset-11/root/usr/include]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include] ==> [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/opt/rh/devtoolset-11/root/usr/include] ==> [/opt/rh/devtoolset-11/root/usr/include]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include;/usr/local/include;/opt/rh/devtoolset-11/root/usr/include;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake:218 (message)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:149 (project)"
+    message: |
+      Parsed C implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(\\.[a-z]+)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(\\.[a-z]+)?))("|,| |$)]
+        ignore line: [Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_e4639/fast]
+        ignore line: [/opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_e4639.dir/build.make CMakeFiles/cmTC_e4639.dir/build]
+        ignore line: [gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-k0M2F3']
+        ignore line: [Building C object CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o]
+        ignore line: [/opt/rh/devtoolset-11/root/usr/bin/cc   -v -o CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -c /usr/local/share/cmake-3.31/Modules/CMakeCCompilerABI.c]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/opt/rh/devtoolset-11/root/usr/bin/cc]
+        ignore line: [Target: x86_64-redhat-linux]
+        ignore line: [Configured with: ../configure --enable-bootstrap --enable-languages=c c++ fortran lto --prefix=/opt/rh/devtoolset-11/root/usr --mandir=/opt/rh/devtoolset-11/root/usr/share/man --infodir=/opt/rh/devtoolset-11/root/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-shared --enable-threads=posix --enable-checking=release --enable-multilib --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-gcc-major-version-only --with-linker-hash-style=gnu --with-default-libstdcxx-abi=gcc4-compatible --enable-plugin --enable-initfini-array --with-isl=/builddir/build/BUILD/gcc-11.2.1-20220127/obj-x86_64-redhat-linux/isl-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib]
+        ignore line: [gcc version 11.2.1 20220127 (Red Hat 11.2.1-9) (GCC) ]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/']
+        ignore line: [ /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/cc1 -quiet -v /usr/local/share/cmake-3.31/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_e4639.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -o /tmp/ccfygot6.s]
+        ignore line: [GNU C17 (GCC) version 11.2.1 20220127 (Red Hat 11.2.1-9) (x86_64-redhat-linux)]
+        ignore line: [	compiled by GNU C version 11.2.1 20220127 (Red Hat 11.2.1-9)  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version isl-0.18-GMP]
+        ignore line: []
+        ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+        ignore line: [ignoring nonexistent directory "/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include-fixed"]
+        ignore line: [ignoring nonexistent directory "/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../x86_64-redhat-linux/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/include]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /opt/rh/devtoolset-11/root/usr/include]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [GNU C17 (GCC) version 11.2.1 20220127 (Red Hat 11.2.1-9) (x86_64-redhat-linux)]
+        ignore line: [	compiled by GNU C version 11.2.1 20220127 (Red Hat 11.2.1-9)  GMP version 6.0.0  MPFR version 3.1.1  MPC version 1.0.1  isl version isl-0.18-GMP]
+        ignore line: []
+        ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+        ignore line: [Compiler executable checksum: fcd9572df254446d5004a010508b613e]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/']
+        ignore line: [ /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/as -v --64 -o CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o /tmp/ccfygot6.s]
+        ignore line: [GNU assembler version 2.36.1 (x86_64-redhat-linux) using BFD version version 2.36.1-1.el7.2]
+        ignore line: [COMPILER_PATH=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/]
+        ignore line: [LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.']
+        ignore line: [Linking C executable cmTC_e4639]
+        ignore line: [/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e4639.dir/link.txt --verbose=1]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/opt/rh/devtoolset-11/root/usr/bin/cc]
+        ignore line: [COLLECT_LTO_WRAPPER=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper]
+        ignore line: [Target: x86_64-redhat-linux]
+        ignore line: [Configured with: ../configure --enable-bootstrap --enable-languages=c c++ fortran lto --prefix=/opt/rh/devtoolset-11/root/usr --mandir=/opt/rh/devtoolset-11/root/usr/share/man --infodir=/opt/rh/devtoolset-11/root/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-shared --enable-threads=posix --enable-checking=release --enable-multilib --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-gcc-major-version-only --with-linker-hash-style=gnu --with-default-libstdcxx-abi=gcc4-compatible --enable-plugin --enable-initfini-array --with-isl=/builddir/build/BUILD/gcc-11.2.1-20220127/obj-x86_64-redhat-linux/isl-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib]
+        ignore line: [gcc version 11.2.1 20220127 (Red Hat 11.2.1-9) (GCC) ]
+        ignore line: [COMPILER_PATH=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/]
+        ignore line: [LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e4639' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e4639.']
+        link line: [ /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/collect2 -plugin /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/liblto_plugin.so -plugin-opt=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper -plugin-opt=-fresolution=/tmp/cca56Nwc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --no-add-needed --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e4639 /lib/../lib64/crt1.o /lib/../lib64/crti.o /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../.. -v CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o /lib/../lib64/crtn.o]
+          arg [/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/collect2] ==> ignore
+          arg [-plugin] ==> ignore
+          arg [/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/liblto_plugin.so] ==> ignore
+          arg [-plugin-opt=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper] ==> ignore
+          arg [-plugin-opt=-fresolution=/tmp/cca56Nwc.res] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [-plugin-opt=-pass-through=-lc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--no-add-needed] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_e4639] ==> ignore
+          arg [/lib/../lib64/crt1.o] ==> obj [/lib/../lib64/crt1.o]
+          arg [/lib/../lib64/crti.o] ==> obj [/lib/../lib64/crti.o]
+          arg [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o] ==> obj [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o]
+          arg [-L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11] ==> dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11]
+          arg [-L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64] ==> dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64]
+          arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+          arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+          arg [-L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../..] ==> dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../..]
+          arg [-v] ==> ignore
+          arg [CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [-lgcc] ==> lib [gcc]
+          arg [--push-state] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--pop-state] ==> ignore
+          arg [-lc] ==> lib [c]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--push-state] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--pop-state] ==> ignore
+          arg [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o] ==> obj [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o]
+          arg [/lib/../lib64/crtn.o] ==> obj [/lib/../lib64/crtn.o]
+        ignore line: [collect2 version 11.2.1 20220127 (Red Hat 11.2.1-9)]
+        ignore line: [/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/ld -plugin /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/liblto_plugin.so -plugin-opt=/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/lto-wrapper -plugin-opt=-fresolution=/tmp/cca56Nwc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --no-add-needed --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e4639 /lib/../lib64/crt1.o /lib/../lib64/crti.o /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../.. -v CMakeFiles/cmTC_e4639.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o /lib/../lib64/crtn.o]
+        linker tool for 'C': /opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/ld
+        collapse obj [/lib/../lib64/crt1.o] ==> [/lib64/crt1.o]
+        collapse obj [/lib/../lib64/crti.o] ==> [/lib64/crti.o]
+        collapse obj [/lib/../lib64/crtn.o] ==> [/lib64/crtn.o]
+        collapse library dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11] ==> [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11]
+        collapse library dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../../../lib64] ==> [/opt/rh/devtoolset-11/root/usr/lib64]
+        collapse library dir [/lib/../lib64] ==> [/lib64]
+        collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+        collapse library dir [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/../../..] ==> [/opt/rh/devtoolset-11/root/usr/lib]
+        implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+        implicit objs: [/lib64/crt1.o;/lib64/crti.o;/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtbegin.o;/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11/crtend.o;/lib64/crtn.o]
+        implicit dirs: [/opt/rh/devtoolset-11/root/usr/lib/gcc/x86_64-redhat-linux/11;/opt/rh/devtoolset-11/root/usr/lib64;/lib64;/usr/lib64;/opt/rh/devtoolset-11/root/usr/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CMakeDetermineLinkerId.cmake:40 (message)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake:255 (cmake_determine_linker_id)"
+      - "/usr/local/share/cmake-3.31/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:149 (project)"
+    message: |
+      Running the C compiler's linker: "/opt/rh/devtoolset-11/root/usr/libexec/gcc/x86_64-redhat-linux/11/ld" "-v"
+      GNU ld version 2.36.1-1.el7.2
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:264 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_SUPPORTS_NO_UNUSED_CLI_ARG"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_SUPPORTS_NO_UNUSED_CLI_ARG"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_f1207/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_f1207.dir/build.make CMakeFiles/cmTC_f1207.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev'
+        Building C object CMakeFiles/cmTC_f1207.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_SUPPORTS_NO_UNUSED_CLI_ARG  -Wno-unused-command-line-argument -o CMakeFiles/cmTC_f1207.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev/src.c
+        Linking C executable cmTC_f1207
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f1207.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc CMakeFiles/cmTC_f1207.dir/src.c.o -o cmTC_f1207
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-FB69ev'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:270 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_SUPPORTS_NO_FORMAT_TRUNCATION"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_SUPPORTS_NO_FORMAT_TRUNCATION"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_d70bd/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_d70bd.dir/build.make CMakeFiles/cmTC_d70bd.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W'
+        Building C object CMakeFiles/cmTC_d70bd.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_SUPPORTS_NO_FORMAT_TRUNCATION  -Wno-format-truncation -o CMakeFiles/cmTC_d70bd.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W/src.c
+        Linking C executable cmTC_d70bd
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d70bd.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc CMakeFiles/cmTC_d70bd.dir/src.c.o -o cmTC_d70bd
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2luJ3W'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:277 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_STRINGOP_TRUNCATION"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_STRINGOP_TRUNCATION"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_bab3d/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_bab3d.dir/build.make CMakeFiles/cmTC_bab3d.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o'
+        Building C object CMakeFiles/cmTC_bab3d.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_STRINGOP_TRUNCATION  -Wstringop-truncation -o CMakeFiles/cmTC_bab3d.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o/src.c
+        Linking C executable cmTC_bab3d
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_bab3d.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc CMakeFiles/cmTC_bab3d.dir/src.c.o -o cmTC_bab3d
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-N1Nn5o'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:284 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_SUPPORTS_IMPLICIT_FALLTHROUGH"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_SUPPORTS_IMPLICIT_FALLTHROUGH"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_0c3c9/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_0c3c9.dir/build.make CMakeFiles/cmTC_0c3c9.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR'
+        Building C object CMakeFiles/cmTC_0c3c9.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_SUPPORTS_IMPLICIT_FALLTHROUGH  -Wimplicit-fallthrough -o CMakeFiles/cmTC_0c3c9.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR/src.c
+        Linking C executable cmTC_0c3c9
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0c3c9.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc CMakeFiles/cmTC_0c3c9.dir/src.c.o -o cmTC_0c3c9
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-2debkR'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:291 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_SUPPORTS_NEWLINE_EOF"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_SUPPORTS_NEWLINE_EOF"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_5636d/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_5636d.dir/build.make CMakeFiles/cmTC_5636d.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj'
+        Building C object CMakeFiles/cmTC_5636d.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_SUPPORTS_NEWLINE_EOF  -Wnewline-eof -o CMakeFiles/cmTC_5636d.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj/src.c
+        cc: error: unrecognized command-line option '-Wnewline-eof'
+        gmake[1]: *** [CMakeFiles/cmTC_5636d.dir/build.make:81: CMakeFiles/cmTC_5636d.dir/src.c.o] Error 1
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-9XfBKj'
+        gmake: *** [Makefile:134: cmTC_5636d/fast] Error 2
+        
+      exitCode: 2
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:314 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_SUPPORTS_VISIBILITY_HIDDEN"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_SUPPORTS_VISIBILITY_HIDDEN"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_b64d4/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_b64d4.dir/build.make CMakeFiles/cmTC_b64d4.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM'
+        Building C object CMakeFiles/cmTC_b64d4.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_SUPPORTS_VISIBILITY_HIDDEN  -fvisibility=hidden -o CMakeFiles/cmTC_b64d4.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM/src.c
+        Linking C executable cmTC_b64d4
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b64d4.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc CMakeFiles/cmTC_b64d4.dir/src.c.o -o cmTC_b64d4
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-4rCrhM'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:163 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:68 (__CHECK_SYMBOL_EXISTS_IMPL)"
+      - "CMakeLists.txt:605 (check_symbol_exists)"
+    checks:
+      - "Looking for USE_OPENSSL"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "PG_USE_OPENSSL"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_605b0/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_605b0.dir/build.make CMakeFiles/cmTC_605b0.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf'
+        Building C object CMakeFiles/cmTC_605b0.dir/CheckSymbolExists.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc    -o CMakeFiles/cmTC_605b0.dir/CheckSymbolExists.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf/CheckSymbolExists.c
+        /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf/CheckSymbolExists.c: In function ‘main’:
+        /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf/CheckSymbolExists.c:8:19: error: ‘USE_OPENSSL’ undeclared (first use in this function)
+            8 |   return ((int*)(&USE_OPENSSL))[argc];
+              |                   ^~~~~~~~~~~
+        /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf/CheckSymbolExists.c:8:19: note: each undeclared identifier is reported only once for each function it appears in
+        gmake[1]: *** [CMakeFiles/cmTC_605b0.dir/build.make:81: CMakeFiles/cmTC_605b0.dir/CheckSymbolExists.c.o] Error 1
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-Zvoshf'
+        gmake: *** [Makefile:134: cmTC_605b0/fast] Error 2
+        
+      exitCode: 2
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "tsl/src/CMakeLists.txt:57 (check_c_compiler_flag)"
+    checks:
+      - "Performing Test CC_PCLMUL"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI"
+    cmakeVariables:
+      CMAKE_C_FLAGS: " -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE "
+      CMAKE_C_FLAGS_DEBUG: "-g -g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "CC_PCLMUL"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_a2a8c/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_a2a8c.dir/build.make CMakeFiles/cmTC_a2a8c.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI'
+        Building C object CMakeFiles/cmTC_a2a8c.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DCC_PCLMUL  -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE   -std=gnu11   -mpclmul -o CMakeFiles/cmTC_a2a8c.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI/src.c
+        Linking C executable cmTC_a2a8c
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a2a8c.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc  -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE   CMakeFiles/cmTC_a2a8c.dir/src.c.o -o cmTC_a2a8c
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-lXgtXI'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "tsl/src/CMakeLists.txt:72 (check_c_source_compiles)"
+    checks:
+      - "Performing Test UMASH_SUPPORTED"
+    directories:
+      source: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc"
+      binary: "/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc"
+    cmakeVariables:
+      CMAKE_C_FLAGS: " -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE "
+      CMAKE_C_FLAGS_DEBUG: "-g -g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/wangbin/work/timescaledb/cmake"
+    buildResult:
+      variable: "UMASH_SUPPORTED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /opt/rh/devtoolset-11/root/usr/bin/gmake -f Makefile cmTC_271f6/fast
+        /opt/rh/devtoolset-11/root/usr/bin/gmake  -f CMakeFiles/cmTC_271f6.dir/build.make CMakeFiles/cmTC_271f6.dir/build
+        gmake[1]: Entering directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc'
+        Building C object CMakeFiles/cmTC_271f6.dir/src.c.o
+        /opt/rh/devtoolset-11/root/usr/bin/cc -DUMASH_SUPPORTED  -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE    -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE  -Wempty-body -Wvla -Wall -Wextra -Wno-unused-parameter -Wundef -Wmissing-prototypes -Wpointer-arith -Werror=vla -Wendif-labels -fno-strict-aliasing -fno-omit-frame-pointer -Wno-unused-command-line-argument -Wno-format-truncation -Wno-stringop-truncation -Wimplicit-fallthrough -Wno-missing-field-initializers -mpclmul -Werror=implicit-function-declaration -std=gnu11 -o CMakeFiles/cmTC_271f6.dir/src.c.o -c /home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc/src.c
+        Linking C executable cmTC_271f6
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_271f6.dir/link.txt --verbose=1
+        /opt/rh/devtoolset-11/root/usr/bin/cc  -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE    -fno-strict-aliasing -fwrapv -fexcess-precision=standard -g -fno-omit-frame-pointer -fPIC -D_GNU_SOURCE  -Wempty-body -Wvla -Wall -Wextra -Wno-unused-parameter -Wundef -Wmissing-prototypes -Wpointer-arith -Werror=vla -Wendif-labels -fno-strict-aliasing -fno-omit-frame-pointer -Wno-unused-command-line-argument -Wno-format-truncation -Wno-stringop-truncation -Wimplicit-fallthrough -Wno-missing-field-initializers -mpclmul -Werror=implicit-function-declaration CMakeFiles/cmTC_271f6.dir/src.c.o -o cmTC_271f6
+        gmake[1]: Leaving directory '/home/wangbin/work/timescaledb/build/CMakeFiles/CMakeScratch/TryCompile-8s8yRc'
+        
+      exitCode: 0
+...

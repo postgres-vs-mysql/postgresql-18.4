@@ -1,0 +1,411 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#include "debug_trace.h"
+#include <postgres.h>
+#include <access/amapi.h>
+#include <fmgr.h>
+#include <utils/lsyscache.h>
+#include <utils/timestamp.h>
+
+#include "bgw/job.h"
+#include "cross_module_fn.h"
+#include "export.h"
+#include "guc.h"
+#include "license_guc.h"
+
+#define CROSSMODULE_WRAPPER(func)                                                                  \
+  TS_FUNCTION_INFO_V1(ts_##func);                                                                \
+  Datum ts_##func(PG_FUNCTION_ARGS)                                           \
+  {                                                                                              \
+    PG_RETURN_DATUM(ts_cm_functions->func(fcinfo));                                            \
+  }
+
+/* bgw policy functions */
+CROSSMODULE_WRAPPER(policy_compression_add);
+CROSSMODULE_WRAPPER(policy_compression_remove);
+CROSSMODULE_WRAPPER(policy_recompression_proc);
+CROSSMODULE_WRAPPER(policy_compression_check);
+CROSSMODULE_WRAPPER(policy_refresh_cagg_add);
+CROSSMODULE_WRAPPER(policy_refresh_cagg_proc);
+CROSSMODULE_WRAPPER(policy_refresh_cagg_check);
+CROSSMODULE_WRAPPER(policy_refresh_cagg_remove);
+CROSSMODULE_WRAPPER(policy_reorder_add);
+CROSSMODULE_WRAPPER(policy_reorder_proc);
+CROSSMODULE_WRAPPER(policy_reorder_check);
+CROSSMODULE_WRAPPER(policy_reorder_remove);
+CROSSMODULE_WRAPPER(policy_retention_add);
+CROSSMODULE_WRAPPER(policy_retention_proc);
+CROSSMODULE_WRAPPER(policy_retention_check);
+CROSSMODULE_WRAPPER(policy_retention_remove);
+
+CROSSMODULE_WRAPPER(job_add);
+CROSSMODULE_WRAPPER(job_delete);
+CROSSMODULE_WRAPPER(job_run);
+CROSSMODULE_WRAPPER(job_alter);
+CROSSMODULE_WRAPPER(job_alter_set_hypertable_id);
+
+CROSSMODULE_WRAPPER(reorder_chunk);
+CROSSMODULE_WRAPPER(move_chunk);
+
+CROSSMODULE_WRAPPER(policies_add);
+CROSSMODULE_WRAPPER(policies_remove);
+CROSSMODULE_WRAPPER(policies_remove_all);
+CROSSMODULE_WRAPPER(policies_alter);
+CROSSMODULE_WRAPPER(policies_show);
+
+/* compression functions */
+CROSSMODULE_WRAPPER(compressed_data_decompress_forward);
+CROSSMODULE_WRAPPER(compressed_data_decompress_reverse);
+CROSSMODULE_WRAPPER(compressed_data_column_size);
+CROSSMODULE_WRAPPER(compressed_data_to_array);
+CROSSMODULE_WRAPPER(compressed_data_send);
+CROSSMODULE_WRAPPER(compressed_data_recv);
+CROSSMODULE_WRAPPER(compressed_data_in);
+CROSSMODULE_WRAPPER(compressed_data_out);
+CROSSMODULE_WRAPPER(compressed_data_info);
+CROSSMODULE_WRAPPER(compressed_data_has_nulls);
+CROSSMODULE_WRAPPER(deltadelta_compressor_append);
+CROSSMODULE_WRAPPER(deltadelta_compressor_finish);
+CROSSMODULE_WRAPPER(gorilla_compressor_append);
+CROSSMODULE_WRAPPER(gorilla_compressor_finish);
+CROSSMODULE_WRAPPER(dictionary_compressor_append);
+CROSSMODULE_WRAPPER(dictionary_compressor_finish);
+CROSSMODULE_WRAPPER(array_compressor_append);
+CROSSMODULE_WRAPPER(array_compressor_finish);
+CROSSMODULE_WRAPPER(bool_compressor_append);
+CROSSMODULE_WRAPPER(bool_compressor_finish);
+CROSSMODULE_WRAPPER(uuid_compressor_append);
+CROSSMODULE_WRAPPER(uuid_compressor_finish);
+CROSSMODULE_WRAPPER(create_compressed_chunk);
+CROSSMODULE_WRAPPER(compress_chunk);
+CROSSMODULE_WRAPPER(decompress_chunk);
+CROSSMODULE_WRAPPER(rebuild_columnstore);
+CROSSMODULE_WRAPPER(bloom1_contains);
+CROSSMODULE_WRAPPER(bloom1_contains_any);
+CROSSMODULE_WRAPPER(bloom1_contains_any_hashes);
+CROSSMODULE_WRAPPER(bloom1_hash);
+
+/* continuous aggregate */
+CROSSMODULE_WRAPPER(continuous_agg_refresh);
+CROSSMODULE_WRAPPER(continuous_agg_validate_query);
+CROSSMODULE_WRAPPER(continuous_agg_get_bucket_function);
+CROSSMODULE_WRAPPER(continuous_agg_get_bucket_function_info);
+CROSSMODULE_WRAPPER(continuous_agg_get_grouping_columns);
+
+CROSSMODULE_WRAPPER(chunk_freeze_chunk);
+CROSSMODULE_WRAPPER(chunk_unfreeze_chunk);
+
+CROSSMODULE_WRAPPER(recompress_chunk_segmentwise);
+CROSSMODULE_WRAPPER(get_compressed_chunk_index_for_recompression);
+CROSSMODULE_WRAPPER(merge_chunks);
+CROSSMODULE_WRAPPER(split_chunk);
+
+CROSSMODULE_WRAPPER(detach_chunk);
+CROSSMODULE_WRAPPER(attach_chunk);
+
+CROSSMODULE_WRAPPER(estimate_compressed_batch_size);
+
+/*
+ * casting a function pointer to a pointer of another type is undefined
+ * behavior, so we need one of these for every function type we have
+ */
+
+static void
+error_no_default_fn_community(void)
+{
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("functionality not supported under the current \"%s\" license. Learn more at "
+                  "https://tsdb.co/pdbir1r3",
+                  ts_guc_license),
+           errhint("To access all features and the best time-series experience, try out "
+                   "Timescale Cloud.")));
+}
+
+static bool
+error_no_default_fn_bool_void_community(void)
+{
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static bool
+job_execute_default_fn(BgwJob *job)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static void
+tsl_postprocess_plan_stub(PlannedStmt *stmt)
+{
+}
+
+static bool
+process_compress_table_default(Hypertable *ht, WithClauseResult *with_clause_options)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static void
+columnstore_setup_default(Hypertable *ht, WithClauseResult *with_clause_options)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static Datum
+error_no_default_fn_pg_community(PG_FUNCTION_ARGS)
+{
+  DBUG_TRACE;
+  char *fun_name = fcinfo->flinfo ? get_func_name(fcinfo->flinfo->fn_oid) : "unknown";
+  DBUG_INSTANT_PRINT("timescaledb", "function \"%s\" is not supported under the current \"%s\"", fun_name, ts_guc_license);
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("function \"%s\" is not supported under the current \"%s\" license",
+                  fun_name,
+                  ts_guc_license),
+           errhint("Upgrade your license to 'timescale' to use this free community feature.")));
+
+  pg_unreachable();
+}
+
+static void
+error_no_default_fn_chunk_insert_state_community(ChunkInsertState *cis, TupleTableSlot *slot)
+{
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+/*
+ * TSL library is not loaded by the replication worker for some reason,
+ * so a call to `compressed_data_in` and `compressed_data_out` functions would
+ * produce a misleading error saying that your license is "timescale" and you
+ * should upgrade to "timescale" license, even if you have already upgraded.
+ *
+ * As a workaround, we try to load the TSL module it in this function.
+ * It will still error out in the "apache" version
+ */
+
+static Datum
+process_compressed_data_in(PG_FUNCTION_ARGS)
+{
+  DBUG_TRACE;
+  ts_license_enable_module_loading();
+
+  if (ts_cm_functions->compressed_data_in != process_compressed_data_in)
+    return ts_cm_functions->compressed_data_in(fcinfo);
+
+  error_no_default_fn_pg_community(fcinfo);
+  pg_unreachable();
+}
+
+static Datum
+process_compressed_data_out(PG_FUNCTION_ARGS)
+{
+  DBUG_TRACE;
+  ts_license_enable_module_loading();
+
+  if (ts_cm_functions->compressed_data_out != process_compressed_data_out)
+    return ts_cm_functions->compressed_data_out(fcinfo);
+
+  error_no_default_fn_pg_community(fcinfo);
+  pg_unreachable();
+}
+
+static DDLResult
+process_cagg_viewstmt_default(Node *stmt, const char *query_string, void *pstmt,
+                              WithClauseResult *with_clause_options)
+{
+  DBUG_TRACE;
+  return error_no_default_fn_bool_void_community();
+}
+
+static void
+continuous_agg_update_options_default(ContinuousAgg *cagg, WithClauseResult *with_clause_options)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static void
+continuous_agg_invalidate_raw_ht_all_default(const Hypertable *raw_ht, int64 start, int64 end)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static void
+continuous_agg_invalidate_mat_ht_all_default(const Hypertable *raw_ht, const Hypertable *mat_ht,
+    int64 start, int64 end)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+static void
+continuous_agg_dml_invalidate_default(int32 hypertable_id, Relation chunk_rel,
+                                      HeapTuple chunk_tuple, HeapTuple chunk_newtuple, bool update)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+TS_FUNCTION_INFO_V1(ts_tsl_loaded);
+
+PGDLLEXPORT Datum
+ts_tsl_loaded(PG_FUNCTION_ARGS)
+{
+  DBUG_TRACE;
+  PG_RETURN_BOOL(ts_cm_functions != &ts_cm_functions_default);
+}
+
+static void
+preprocess_query_tsl_default_fn_community(Query *parse, int *cursor_opts)
+{
+  /* No op in community licensed code */
+}
+
+static PGFunction
+bloom1_get_hash_function_default(Oid type, FmgrInfo **finfo)
+{
+  DBUG_TRACE;
+  error_no_default_fn_community();
+  pg_unreachable();
+}
+
+/*
+ * Define cross-module functions' default values:
+ * If the submodule isn't activated, using one of the cm functions will throw an
+ * exception.
+ */
+TSDLLEXPORT CrossModuleFunctions ts_cm_functions_default = {
+  .create_upper_paths_hook = NULL,
+  .set_rel_pathlist_dml = NULL,
+  .set_rel_pathlist_query = NULL,
+  .sort_transform_replace_pathkeys = NULL,
+  .process_altertable_cmd = NULL,
+  .process_rename_cmd = NULL,
+
+  /* gapfill */
+  .gapfill_marker = error_no_default_fn_pg_community,
+  .gapfill_int16_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_int32_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_int64_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_date_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_timestamp_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_timestamptz_time_bucket = error_no_default_fn_pg_community,
+  .gapfill_timestamptz_timezone_time_bucket = error_no_default_fn_pg_community,
+
+  /* bgw policies */
+  .policy_compression_add = error_no_default_fn_pg_community,
+  .policy_compression_remove = error_no_default_fn_pg_community,
+  .policy_recompression_proc = error_no_default_fn_pg_community,
+  .policy_compression_check = error_no_default_fn_pg_community,
+  .policy_refresh_cagg_add = error_no_default_fn_pg_community,
+  .policy_refresh_cagg_proc = error_no_default_fn_pg_community,
+  .policy_refresh_cagg_check = error_no_default_fn_pg_community,
+  .policy_refresh_cagg_remove = error_no_default_fn_pg_community,
+  .policy_reorder_add = error_no_default_fn_pg_community,
+  .policy_reorder_proc = error_no_default_fn_pg_community,
+  .policy_reorder_check = error_no_default_fn_pg_community,
+  .policy_reorder_remove = error_no_default_fn_pg_community,
+  .policy_retention_add = error_no_default_fn_pg_community,
+  .policy_retention_proc = error_no_default_fn_pg_community,
+  .policy_retention_check = error_no_default_fn_pg_community,
+  .policy_retention_remove = error_no_default_fn_pg_community,
+
+  .job_add = error_no_default_fn_pg_community,
+  .job_alter = error_no_default_fn_pg_community,
+  .job_alter_set_hypertable_id = error_no_default_fn_pg_community,
+  .job_delete = error_no_default_fn_pg_community,
+  .job_run = error_no_default_fn_pg_community,
+  .job_execute = job_execute_default_fn,
+
+  .reorder_chunk = error_no_default_fn_pg_community,
+  .move_chunk = error_no_default_fn_pg_community,
+
+  .policies_add = error_no_default_fn_pg_community,
+  .policies_remove = error_no_default_fn_pg_community,
+  .policies_remove_all = error_no_default_fn_pg_community,
+  .policies_alter = error_no_default_fn_pg_community,
+  .policies_show = error_no_default_fn_pg_community,
+
+  .tsl_postprocess_plan = tsl_postprocess_plan_stub,
+
+  .process_cagg_viewstmt = process_cagg_viewstmt_default,
+  .continuous_agg_refresh = error_no_default_fn_pg_community,
+  .continuous_agg_invalidate_raw_ht = continuous_agg_invalidate_raw_ht_all_default,
+  .continuous_agg_invalidate_mat_ht = continuous_agg_invalidate_mat_ht_all_default,
+  .continuous_agg_dml_invalidate = continuous_agg_dml_invalidate_default,
+  .continuous_agg_update_options = continuous_agg_update_options_default,
+  .continuous_agg_apply_rewrites_tsl = NULL,
+  .continuous_agg_validate_query = error_no_default_fn_pg_community,
+  .continuous_agg_get_bucket_function = error_no_default_fn_pg_community,
+  .continuous_agg_get_bucket_function_info = error_no_default_fn_pg_community,
+  .continuous_agg_get_grouping_columns = error_no_default_fn_pg_community,
+
+  /* compression */
+  .compressed_data_send = error_no_default_fn_pg_community,
+  .compressed_data_recv = error_no_default_fn_pg_community,
+  .compressed_data_in = process_compressed_data_in,
+  .compressed_data_out = process_compressed_data_out,
+  .process_compress_table = process_compress_table_default,
+  .create_compressed_chunk = error_no_default_fn_pg_community,
+  .compress_chunk = error_no_default_fn_pg_community,
+  .decompress_chunk = error_no_default_fn_pg_community,
+  .rebuild_columnstore = error_no_default_fn_pg_community,
+  .compressed_data_decompress_forward = error_no_default_fn_pg_community,
+  .compressed_data_decompress_reverse = error_no_default_fn_pg_community,
+  .compressed_data_column_size = error_no_default_fn_pg_community,
+  .compressed_data_to_array = error_no_default_fn_pg_community,
+  .deltadelta_compressor_append = error_no_default_fn_pg_community,
+  .deltadelta_compressor_finish = error_no_default_fn_pg_community,
+  .gorilla_compressor_append = error_no_default_fn_pg_community,
+  .gorilla_compressor_finish = error_no_default_fn_pg_community,
+  .dictionary_compressor_append = error_no_default_fn_pg_community,
+  .dictionary_compressor_finish = error_no_default_fn_pg_community,
+  .array_compressor_append = error_no_default_fn_pg_community,
+  .array_compressor_finish = error_no_default_fn_pg_community,
+  .bool_compressor_append = error_no_default_fn_pg_community,
+  .bool_compressor_finish = error_no_default_fn_pg_community,
+  .uuid_compressor_append = error_no_default_fn_pg_community,
+  .uuid_compressor_finish = error_no_default_fn_pg_community,
+  .bloom1_contains = error_no_default_fn_pg_community,
+  .bloom1_contains_any = error_no_default_fn_pg_community,
+  .bloom1_contains_any_hashes = error_no_default_fn_pg_community,
+  .bloom1_hash = error_no_default_fn_pg_community,
+  .bloom1_get_hash_function = bloom1_get_hash_function_default,
+
+  .decompress_batches_for_insert = error_no_default_fn_chunk_insert_state_community,
+  .init_decompress_state_for_insert = error_no_default_fn_chunk_insert_state_community,
+
+  .columnstore_setup = columnstore_setup_default,
+
+  .show_chunk = error_no_default_fn_pg_community,
+  .create_chunk = error_no_default_fn_pg_community,
+  .chunk_freeze_chunk = error_no_default_fn_pg_community,
+  .chunk_unfreeze_chunk = error_no_default_fn_pg_community,
+  .recompress_chunk_segmentwise = error_no_default_fn_pg_community,
+  .get_compressed_chunk_index_for_recompression = error_no_default_fn_pg_community,
+
+  .preprocess_query_tsl = preprocess_query_tsl_default_fn_community,
+  .merge_chunks = error_no_default_fn_pg_community,
+  .split_chunk = error_no_default_fn_pg_community,
+
+  .detach_chunk = error_no_default_fn_pg_community,
+  .attach_chunk = error_no_default_fn_pg_community,
+};
+
+TSDLLEXPORT CrossModuleFunctions *ts_cm_functions = &ts_cm_functions_default;

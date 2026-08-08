@@ -1,0 +1,32 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+
+\c template1 :ROLE_SUPERUSER
+
+SET client_min_messages TO ERROR;
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+RESET client_min_messages;
+
+CREATE USER dump_unprivileged CREATEDB;
+
+\c template1 dump_unprivileged
+CREATE database dump_unprivileged;
+
+\! utils/pg_dump_unprivileged.sh
+
+\c dump_unprivileged :ROLE_SUPERUSER
+DROP EXTENSION timescaledb;
+GRANT ALL ON DATABASE dump_unprivileged TO dump_unprivileged;
+\c dump_unprivileged dump_unprivileged
+-- Create the timescale extension and table as underprivileged user
+CREATE EXTENSION timescaledb;
+CREATE TABLE t1 (a int);
+-- pg_dump currently fails when dumped
+\! utils/pg_dump_unprivileged.sh
+
+\c template1 :ROLE_SUPERUSER
+DROP EXTENSION timescaledb;
+DROP DATABASE dump_unprivileged WITH (FORCE);
+DROP USER dump_unprivileged;
+

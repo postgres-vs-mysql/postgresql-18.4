@@ -1,0 +1,86 @@
+#!/bin/bash
+
+if [ ! -x "/opt/rh/devtoolset-11/root/usr/bin/nm" ];
+then
+  echo "Cannot check export format because nm is not installed" >&2
+  exit 1
+fi
+
+DEFINED_ONLY="--defined-only"
+EXTERN_ONLY="--extern-only"
+
+if nm --help | grep -q ' \-defined\-only'; then
+	# The flag can be either --defined-only or -defined-only
+	# depending on nm-llvm version. If there is " -defined-only"
+	# string in the --help output, we assume this is the right
+	# way to specify the flag.
+    DEFINED_ONLY="-defined-only"
+    EXTERN_ONLY="-extern-only"
+fi
+
+# this script outputs all symbols not starting with an allowed prefix
+# exported symbols are allowed to start with
+#    ts_      for regular timescaledb functions
+#    pg_finfo for metadata defined by PG_FUNCTION_INFO_V1
+# we also whitelist a couple of special symbols
+#    _.*_init                     module startup functions
+#    _.*_fini                     module shutdown functions
+#    Pg_magic_func                used by postgres to check extension compatibility
+#    timescaledb_hello            used to test that our name collision resistance works
+#    loader_hello                 used to test that our name collision resistance works
+#    test_symbol_conflict         used to test that our name collision resistance works
+#    tsl_license_update_check     used to check for valid license
+#    __sanitizer.* __sancov.*     llvm sanitizer
+#    _ZN11__sanitizer.*           llvm sanitizer
+#    __asan.* __odr_asan.*        address sanitizer
+#    __ubsan.* _ZN7__ubsan.*      undefined behaviour sanitizer
+#    internal_sigreturn           gcc
+#    OnPrint                      gcc
+#    backtrace_uncompress_zdebug  libbacktrace
+#    reset_fn_list                used by llvm code coverage infrastructure
+# all of these symbols start with an additional leading '_' on macos
+exports=$(find /home/wangbin/work/timescaledb/build -not -path '*/\.*' -name '*.so' -print0 \
+    | xargs -0 /opt/rh/devtoolset-11/root/usr/bin/nm ${DEFINED_ONLY} ${EXTERN_ONLY} \
+    | sed -e 's:^/.*$::' -e '/^$/d' -e 's/^[a-f0-9]* [A-Za-z] //' \
+    | grep -v \
+        -e '^_\?__gcov_' \
+        -e '^__bss_start$' \
+        -e '^_edata$' \
+        -e '^_end$' \
+        -e '^_fini$' \
+        -e '^_init$' \
+        -e '^_\?flush_fn_list$' \
+        -e '^_\?writeout_fn_list$' \
+        -e '^_\?lprofDirMode$' \
+        -e '^_\?mangle_path$' \
+        -e '^_\?ts_' \
+        -e '^_\?tsl_license_update_check$' \
+        -e '^_\?pg_finfo' \
+        -e '^_\?_.*_init$' \
+        -e '^_\?_.*_fini$' \
+        -e '^_\?Pg_magic_func$' \
+        -e '^_\?timescaledb_' \
+        -e '^_\?loader_hello$' \
+        -e '^_\?test_symbol_conflict$' \
+        -e '^_\?__sanitizer' \
+        -e '^_\?__sancov' \
+        -e '^_\?__asan' \
+        -e '^_\?__odr_asan' \
+        -e '^_\?__ubsan' \
+        -e '^_\?_ZN7__ubsan' \
+        -e '^_\?_ZN11__sanitizer' \
+        -e '^_\?internal_sigreturn$' \
+        -e '^_\?OnPrint$' \
+        -e '^_\?backtrace_uncompress_zdebug$' \
+        -e '^reset_fn_list$' \
+)
+
+num_exports=$(echo "${exports}" | grep -v '^$' -c)
+echo "${exports}"
+
+if [ ${num_exports} -gt 0 ];
+then
+  exit 1
+else
+  exit 0
+fi

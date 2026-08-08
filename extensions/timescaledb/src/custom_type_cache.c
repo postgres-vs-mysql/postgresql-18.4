@@ -1,0 +1,53 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#include <postgres.h>
+#include <catalog/namespace.h>
+#include <catalog/pg_type.h>
+#include <utils/syscache.h>
+
+#include "custom_type_cache.h"
+#include "extension_constants.h"
+#include "ts_catalog/catalog.h"
+
+/* Information about functions that we put in the cache */
+static CustomTypeInfo typeinfo[_CUSTOM_TYPE_MAX_INDEX] = {
+  [CUSTOM_TYPE_COMPRESSED_DATA] = {
+    .schema_name = INTERNAL_SCHEMA_NAME,
+    .type_name = "compressed_data",
+    .type_oid = InvalidOid,
+  },
+  [CUSTOM_TYPE_BLOOM1] = {
+    .schema_name = INTERNAL_SCHEMA_NAME,
+    .type_name = "bloom1",
+    .type_oid = InvalidOid,
+  }
+};
+
+extern CustomTypeInfo *
+ts_custom_type_cache_get(CustomType type)
+{
+  CustomTypeInfo *tinfo;
+
+  if (type >= _CUSTOM_TYPE_MAX_INDEX)
+    elog(ERROR, "invalid timescaledb type %d", type);
+
+  tinfo = &typeinfo[type];
+
+  if (!OidIsValid(tinfo->type_oid)) {
+    Oid schema_oid = LookupExplicitNamespace(tinfo->schema_name, false);
+    Oid type_oid = GetSysCacheOid2(TYPENAMENSP,
+                                   Anum_pg_type_oid,
+                                   CStringGetDatum(tinfo->type_name),
+                                   ObjectIdGetDatum(schema_oid));
+
+    if (!OidIsValid(type_oid))
+      elog(ERROR, "unknown timescaledb type %s", tinfo->type_name);
+
+    tinfo->type_oid = type_oid;
+  }
+
+  return tinfo;
+}

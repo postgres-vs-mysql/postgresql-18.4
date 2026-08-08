@@ -1,0 +1,3 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.2-1--9.2-2.sql: \
+ sql/citus--9.2-1--9.2-2.sql sql/udfs/worker_create_schema/9.2-2.sql
+sql/udfs/worker_create_schema/9.2-2.sql:

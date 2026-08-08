@@ -1,0 +1,6 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.3-1--11.3-2.sql: \
+ sql/citus--11.3-1--11.3-2.sql sql/udfs/citus_shard_sizes/11.3-2.sql \
+ sql/udfs/citus_shards/11.3-2.sql sql/udfs/citus_tables/11.3-2.sql
+sql/udfs/citus_shard_sizes/11.3-2.sql:
+sql/udfs/citus_shards/11.3-2.sql:
+sql/udfs/citus_tables/11.3-2.sql:

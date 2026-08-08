@@ -1,0 +1,98 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+\set ECHO errors
+SELECT _timescaledb_functions.align_to_bucket('5 minutes'::interval, rng::tstzrange) FROM data;
+                         align_to_bucket                         
+-----------------------------------------------------------------
+ ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:15:00 2025 PDT")
+ ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:20:00 2025 PDT")
+ ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:20:00 2025 PDT")
+
+\set ON_ERROR_STOP 0
+SELECT _timescaledb_functions.align_to_bucket(null, null);
+ERROR:  could not determine polymorphic type because input has type unknown
+SELECT _timescaledb_functions.align_to_bucket(null::interval, null::tstzrange);
+ align_to_bucket 
+-----------------
+ [NULL]
+
+SELECT _timescaledb_functions.align_to_bucket(
+       null::interval,
+       '["2025-04-25 11:10:00+02","2025-04-25 11:14:00+02"]'::tstzrange
+);
+ align_to_bucket 
+-----------------
+ [NULL]
+
+\set ON_ERROR_STOP 1
+SELECT typ,
+       _timescaledb_functions.get_internal_time_min(typ),
+       _timescaledb_functions.get_internal_time_max(typ)
+  FROM (VALUES
+    ('bigint'::regtype), ('int'::regtype), ('smallint'::regtype),
+    ('timestamp'::regtype), ('timestamptz'::regtype), ('date'::regtype),
+    (null::regtype)
+  ) t(typ);
+             typ             | get_internal_time_min | get_internal_time_max 
+-----------------------------+-----------------------+-----------------------
+ bigint                      |  -9223372036854775808 |   9223372036854775807
+ integer                     |           -2147483648 |            2147483647
+ smallint                    |                -32768 |                 32767
+ timestamp without time zone |   -210866803200000000 |   9223371331199999999
+ timestamp with time zone    |   -210866803200000000 |   9223371331199999999
+ date                        |   -210866803200000000 |   9223371331199999999
+ [NULL]                      |                [NULL] |                [NULL]
+
+\set ON_ERROR_STOP 0
+SELECT _timescaledb_functions.get_internal_time_min(0);
+ERROR:  unsupported time type "-"
+SELECT _timescaledb_functions.get_internal_time_max(0);
+ERROR:  unsupported time type "-"
+\set ON_ERROR_STOP 1
+WITH
+  tstzranges AS (
+    SELECT vid,
+           rng::tstzrange,
+           lower(rng::tstzrange) AS lower_ts,
+           upper(rng::tstzrange) AS upper_ts
+      FROM data
+  ),
+  usecranges AS (
+    SELECT vid,
+           _timescaledb_functions.to_unix_microseconds(lower_ts) AS lower_usec,
+           _timescaledb_functions.to_unix_microseconds(upper_ts) AS upper_usec
+      FROM tstzranges
+  )
+SELECT _timescaledb_functions.make_multirange_from_internal_time(rng, lower_usec, upper_usec),
+       _timescaledb_functions.make_range_from_internal_time(rng, lower_ts, upper_ts)
+  FROM tstzranges join usecranges using (vid);
+                make_multirange_from_internal_time                 |                  make_range_from_internal_time                  
+-------------------------------------------------------------------+-----------------------------------------------------------------
+ {["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:14:00 2025 PDT")} | ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:14:00 2025 PDT")
+ {["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:17:00 2025 PDT")} | ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:17:00 2025 PDT")
+ {["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:20:00 2025 PDT")} | ["Fri Apr 25 02:10:00 2025 PDT","Fri Apr 25 02:20:00 2025 PDT")
+
+WITH
+  tsranges AS (
+    SELECT vid,
+           rng::tsrange,
+           lower(rng::tsrange) AS lower_ts,
+           upper(rng::tsrange) AS upper_ts
+      FROM data
+  ),
+  usecranges AS (
+    SELECT vid,
+           _timescaledb_functions.to_unix_microseconds(lower_ts) AS lower_usec,
+           _timescaledb_functions.to_unix_microseconds(upper_ts) AS upper_usec
+      FROM tsranges
+  )
+SELECT _timescaledb_functions.make_multirange_from_internal_time(rng, lower_usec, upper_usec),
+       _timescaledb_functions.make_range_from_internal_time(rng, lower_ts, upper_ts)
+  FROM tsranges join usecranges using (vid);
+            make_multirange_from_internal_time             |              make_range_from_internal_time              
+-----------------------------------------------------------+---------------------------------------------------------
+ {["Fri Apr 25 18:10:00 2025","Fri Apr 25 18:14:00 2025")} | ["Fri Apr 25 11:10:00 2025","Fri Apr 25 11:14:00 2025")
+ {["Fri Apr 25 18:10:00 2025","Fri Apr 25 18:17:00 2025")} | ["Fri Apr 25 11:10:00 2025","Fri Apr 25 11:17:00 2025")
+ {["Fri Apr 25 18:10:00 2025","Fri Apr 25 18:20:00 2025")} | ["Fri Apr 25 11:10:00 2025","Fri Apr 25 11:20:00 2025")
+

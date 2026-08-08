@@ -1,0 +1,50 @@
+Parsed test spec with 2 sessions
+
+starting permutation: s2_read_sensor_data s1_begin s1_decompress s2_read_sensor_data s1_commit s2_read_sensor_data
+compression_status
+------------------
+Compressed        
+
+step s2_read_sensor_data: 
+   SELECT FROM sensor_data;
+   SELECT compression_status FROM chunk_compression_stats('sensor_data');
+
+compression_status
+------------------
+Compressed        
+
+step s1_begin: 
+  BEGIN;
+
+step s1_decompress: 
+   SELECT count(*) FROM (SELECT decompress_chunk(i, if_compressed => true) FROM show_chunks('sensor_data') i) i;
+   SELECT compression_status FROM chunk_compression_stats('sensor_data');
+
+count
+-----
+    1
+
+compression_status
+------------------
+Uncompressed      
+
+step s2_read_sensor_data: 
+   SELECT FROM sensor_data;
+   SELECT compression_status FROM chunk_compression_stats('sensor_data');
+ <waiting ...>
+step s1_commit: 
+  COMMIT;
+
+step s2_read_sensor_data: <... completed>
+compression_status
+------------------
+Uncompressed      
+
+step s2_read_sensor_data: 
+   SELECT FROM sensor_data;
+   SELECT compression_status FROM chunk_compression_stats('sensor_data');
+
+compression_status
+------------------
+Uncompressed      
+

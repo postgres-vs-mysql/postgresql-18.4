@@ -1,0 +1,188 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#pragma once
+
+#include <postgres.h>
+#include <commands/event_trigger.h>
+#include <fmgr.h>
+#include <optimizer/planner.h>
+#include <utils/array.h>
+#include <utils/jsonb.h>
+#include <utils/timestamp.h>
+
+#include "compat/compat.h"
+#include "bgw/job.h"
+#include "export.h"
+#include "planner/planner.h"
+#include "process_utility.h"
+#include "ts_catalog/continuous_agg.h"
+#include "with_clause/with_clause_parser.h"
+
+/*
+ * To define a cross-module function add it to this struct, add a default
+ * version in to ts_cm_functions_default cross_module_fn.c, and the overridden
+ * version to tsl_cm_functions tsl/src/init.c.
+ * This will allow the function to be called from this codebase as
+ *     ts_cm_functions-><function name>
+ */
+
+typedef struct JsonbParseState JsonbParseState;
+typedef struct Hypertable Hypertable;
+typedef struct Chunk Chunk;
+typedef struct ChunkInsertState ChunkInsertState;
+typedef struct CopyChunkState CopyChunkState;
+typedef struct ModifyHypertableState ModifyHypertableState;
+typedef struct RowCompressor RowCompressor;
+typedef struct BulkWriter BulkWriter;
+
+typedef struct CrossModuleFunctions {
+  PGFunction policy_compression_add;
+  PGFunction policy_compression_remove;
+  PGFunction policy_recompression_proc;
+  PGFunction policy_compression_check;
+  PGFunction policy_refresh_cagg_add;
+  PGFunction policy_refresh_cagg_proc;
+  PGFunction policy_refresh_cagg_check;
+  PGFunction policy_refresh_cagg_remove;
+  PGFunction policy_reorder_add;
+  PGFunction policy_reorder_proc;
+  PGFunction policy_reorder_check;
+  PGFunction policy_reorder_remove;
+  PGFunction policy_retention_add;
+  PGFunction policy_retention_proc;
+  PGFunction policy_retention_check;
+  PGFunction policy_retention_remove;
+
+  PGFunction policies_add;
+  PGFunction policies_remove;
+  PGFunction policies_remove_all;
+  PGFunction policies_alter;
+  PGFunction policies_show;
+
+  PGFunction job_add;
+  PGFunction job_alter;
+  PGFunction job_alter_set_hypertable_id;
+  PGFunction job_delete;
+  PGFunction job_run;
+
+  bool (*job_execute)(BgwJob *job);
+
+  void (*create_upper_paths_hook)(PlannerInfo *, UpperRelationKind, RelOptInfo *, RelOptInfo *,
+                                  TsRelType input_reltype, Hypertable *ht, void *extra);
+  void (*set_rel_pathlist_dml)(PlannerInfo *, RelOptInfo *, Index, RangeTblEntry *, Hypertable *);
+  void (*set_rel_pathlist_query)(PlannerInfo *, RelOptInfo *, Index, RangeTblEntry *,
+                                 Hypertable *);
+  void (*sort_transform_replace_pathkeys)(void *path, List *transformed_pathkeys,
+                                          List *original_pathkeys);
+
+  /* gapfill */
+  PGFunction gapfill_marker;
+  PGFunction gapfill_int16_time_bucket;
+  PGFunction gapfill_int32_time_bucket;
+  PGFunction gapfill_int64_time_bucket;
+  PGFunction gapfill_date_time_bucket;
+  PGFunction gapfill_timestamp_time_bucket;
+  PGFunction gapfill_timestamptz_time_bucket;
+  PGFunction gapfill_timestamptz_timezone_time_bucket;
+
+  PGFunction reorder_chunk;
+  PGFunction move_chunk;
+
+  /* Vectorized queries */
+  void (*tsl_postprocess_plan)(PlannedStmt *stmt);
+
+  /* Continuous Aggregates */
+  DDLResult (*process_cagg_viewstmt)(Node *stmt, const char *query_string, void *pstmt,
+                                     WithClauseResult *with_clause_options);
+  PGFunction continuous_agg_refresh;
+  void (*continuous_agg_invalidate_raw_ht)(const Hypertable *raw_ht, int64 start, int64 end);
+  void (*continuous_agg_invalidate_mat_ht)(const Hypertable *raw_ht, const Hypertable *mat_ht,
+      int64 start, int64 end);
+  void (*continuous_agg_dml_invalidate)(int32 hypertable_id, Relation chunk_rel,
+                                        HeapTuple chunk_tuple, HeapTuple chunk_newtuple,
+                                        bool update);
+  void (*continuous_agg_update_options)(ContinuousAgg *cagg,
+                                        WithClauseResult *with_clause_options);
+  Query *(*continuous_agg_apply_rewrites_tsl)(Query *parse);
+  PGFunction continuous_agg_validate_query;
+  PGFunction continuous_agg_get_bucket_function;
+  PGFunction continuous_agg_get_bucket_function_info;
+  PGFunction continuous_agg_get_grouping_columns;
+
+  PGFunction compressed_data_send;
+  PGFunction compressed_data_recv;
+  PGFunction compressed_data_in;
+  PGFunction compressed_data_out;
+  PGFunction compressed_data_info;
+  PGFunction compressed_data_has_nulls;
+  bool (*process_compress_table)(Hypertable *ht, WithClauseResult *with_clause_options);
+  void (*process_altertable_cmd)(Hypertable *ht, const AlterTableCmd *cmd);
+  void (*process_rename_cmd)(Oid relid, Cache *hcache, const RenameStmt *stmt);
+  PGFunction create_compressed_chunk;
+  PGFunction compress_chunk;
+  PGFunction decompress_chunk;
+  PGFunction rebuild_columnstore;
+  void (*decompress_batches_for_insert)(ChunkInsertState *state, TupleTableSlot *slot);
+  void (*init_decompress_state_for_insert)(ChunkInsertState *state, TupleTableSlot *slot);
+  bool (*decompress_target_segments)(ModifyHypertableState *ht_state);
+
+  void (*columnstore_setup)(Hypertable *ht, WithClauseResult *with_clause_options);
+  RowCompressor *(*compressor_init)(Relation in_rel, BulkWriter **bulk_writer, bool sort,
+                                    int tuple_sort_limit, bool created_compressed_chunk);
+  void (*compressor_set_invalidation)(RowCompressor *compressor, Hypertable *ht, Oid chunk_relid);
+  void (*compressor_add_slot)(RowCompressor *compressor, BulkWriter *bulk_writer,
+                              TupleTableSlot *slot);
+  void (*compressor_flush)(RowCompressor *compressor, BulkWriter *bulk_writer);
+  void (*compressor_free)(RowCompressor *compressor, BulkWriter *bulk_writer);
+  Chunk *(*compression_chunk_create)(Hypertable *ht, Chunk *src_chunk);
+
+  /* The compression functions below are not installed in SQL as part of create extension;
+   *  They are installed and tested during testing scripts. They are exposed in cross-module
+   *  functions because they may be very useful for debugging customer problems if the sql
+   *  stub is installed on the customer's machine.
+   */
+  PGFunction compressed_data_decompress_forward;
+  PGFunction compressed_data_decompress_reverse;
+  PGFunction compressed_data_column_size;
+  PGFunction compressed_data_to_array;
+  PGFunction deltadelta_compressor_append;
+  PGFunction deltadelta_compressor_finish;
+  PGFunction gorilla_compressor_append;
+  PGFunction gorilla_compressor_finish;
+  PGFunction dictionary_compressor_append;
+  PGFunction dictionary_compressor_finish;
+  PGFunction array_compressor_append;
+  PGFunction array_compressor_finish;
+  PGFunction bool_compressor_append;
+  PGFunction bool_compressor_finish;
+  PGFunction uuid_compressor_append;
+  PGFunction uuid_compressor_finish;
+  PGFunction bloom1_contains;
+  PGFunction bloom1_contains_any;
+  PGFunction bloom1_contains_any_hashes;
+  PGFunction bloom1_hash;
+  PGFunction (*bloom1_get_hash_function)(Oid type, FmgrInfo **finfo);
+
+  PGFunction create_chunk;
+  PGFunction show_chunk;
+
+  PGFunction chunk_freeze_chunk;
+  PGFunction chunk_unfreeze_chunk;
+  PGFunction recompress_chunk_segmentwise;
+  PGFunction get_compressed_chunk_index_for_recompression;
+
+  void (*preprocess_query_tsl)(Query *parse, int *cursor_opts);
+  PGFunction merge_chunks;
+  PGFunction split_chunk;
+
+  PGFunction detach_chunk;
+  PGFunction attach_chunk;
+
+  PGFunction estimate_compressed_batch_size;
+} CrossModuleFunctions;
+
+extern TSDLLEXPORT CrossModuleFunctions *ts_cm_functions;
+extern TSDLLEXPORT CrossModuleFunctions ts_cm_functions_default;

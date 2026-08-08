@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.0-2--11.0-3.sql: \
+ sql/citus--11.0-2--11.0-3.sql \
+ sql/udfs/citus_finalize_upgrade_to_citus11/11.0-3.sql
+sql/udfs/citus_finalize_upgrade_to_citus11/11.0-3.sql:

@@ -1,0 +1,15 @@
+/home/wangbin/work/citus-13.2.0/src/backend/columnar/build/sql/columnar--9.5-1--10.0-1.sql: \
+ sql/columnar--9.5-1--10.0-1.sql sql/udfs/columnar_handler/10.0-1.sql \
+ sql/udfs/alter_columnar_table_set/10.0-1.sql \
+ sql/udfs/alter_columnar_table_reset/10.0-1.sql \
+ sql/udfs/columnar_ensure_objects_exist/10.0-1.sql \
+ sql/udfs/columnar_ensure_objects_exist/../columnar_handler/10.0-1.sql \
+ sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_set/10.0-1.sql \
+ sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_reset/10.0-1.sql
+sql/udfs/columnar_handler/10.0-1.sql:
+sql/udfs/alter_columnar_table_set/10.0-1.sql:
+sql/udfs/alter_columnar_table_reset/10.0-1.sql:
+sql/udfs/columnar_ensure_objects_exist/10.0-1.sql:
+sql/udfs/columnar_ensure_objects_exist/../columnar_handler/10.0-1.sql:
+sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_set/10.0-1.sql:
+sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_reset/10.0-1.sql:

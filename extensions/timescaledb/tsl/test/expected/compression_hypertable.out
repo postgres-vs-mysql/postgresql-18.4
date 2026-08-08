@@ -1,0 +1,638 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\ir include/rand_generator.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+--------------------------
+-- cheap rand generator --
+--------------------------
+create table rand_minstd_state(i bigint);
+create function rand_minstd_advance(bigint) returns bigint
+language sql immutable as
+$$
+	select (16807 * $1) % 2147483647
+$$;
+create function gen_rand_minstd() returns bigint
+language sql security definer as
+$$
+	update rand_minstd_state set i = rand_minstd_advance(i) returning i
+$$;
+-- seed the random num generator
+insert into rand_minstd_state values (321);
+\c :TEST_DBNAME :ROLE_SUPERUSER
+\ir include/compression_utils.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+CREATE TYPE customtype;
+SET client_min_messages TO WARNING;
+CREATE OR REPLACE FUNCTION customtype_in(cstring) RETURNS customtype
+AS :TSL_MODULE_PATHNAME, 'ts_compression_custom_type_in'
+LANGUAGE C IMMUTABLE STRICT;
+CREATE OR REPLACE FUNCTION customtype_out(customtype) RETURNS cstring
+AS :TSL_MODULE_PATHNAME, 'ts_compression_custom_type_out'
+LANGUAGE C IMMUTABLE STRICT;
+CREATE OR REPLACE FUNCTION customtype_eq(customtype, customtype) RETURNS BOOL
+AS :TSL_MODULE_PATHNAME, 'ts_compression_custom_type_eq'
+LANGUAGE C IMMUTABLE STRICT;
+SET client_min_messages TO DEFAULT;
+-- for testing purposes we need a fixed length pass-by-ref type, and one whose
+-- alignment is greater than it's size. This type serves both purposes.
+CREATE TYPE customtype (
+  INPUT = customtype_in,
+  OUTPUT = customtype_out,
+  INTERNALLENGTH = 2,
+  ALIGNMENT = double,
+  STORAGE = plain
+);
+create operator = (
+  leftarg = customtype,
+  rightarg = customtype,
+  procedure = customtype_eq,
+  commutator = =
+);
+CREATE OPERATOR CLASS customtype_ops
+  DEFAULT
+  FOR TYPE customtype
+  USING hash AS OPERATOR 1 =;
+\c :TEST_DBNAME :ROLE_DEFAULT_PERM_USER
+CREATE TABLE test1 ("Time" timestamptz, i integer, b bigint, t text);
+SELECT table_name from create_hypertable('test1', 'Time', chunk_time_interval=> INTERVAL '1 day');
+ table_name 
+------------
+ test1
+
+INSERT INTO test1 SELECT t,  gen_rand_minstd(), gen_rand_minstd(), gen_rand_minstd()::text FROM generate_series('2018-03-02 1:00'::TIMESTAMPTZ, '2018-03-28 1:00', '1 hour') t;
+ALTER TABLE test1 set (timescaledb.compress, timescaledb.compress_segmentby = '', timescaledb.compress_orderby = '"Time" DESC');
+\set QUERY 'SELECT * FROM test1'
+\set QUERY_ORDER 'ORDER BY "Time"'
+\set HYPERTABLE_NAME 'test1'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+psql:include/compression_test_hypertable.sql:7: NOTICE:  table "original_result" does not exist, skipping
+ count compress 
+----------------
+             27
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+               27
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test1 |                                                 0
+
+\set TYPE timestamptz
+\set ORDER_BY_COL_NAME Time
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+    27
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+-- check stats
+SELECT DISTINCT attname, attstattarget
+  FROM pg_attribute
+ WHERE attrelid = '_timescaledb_internal._compressed_hypertable_2'::REGCLASS
+   AND attnum > 0
+ ORDER BY attname;
+ attname | attstattarget 
+---------+---------------
+
+SELECT DISTINCT attname, attstattarget
+  FROM pg_attribute
+  WHERE attrelid in (SELECT format('%I.%I', schema_name, table_name)::regclass FROM _timescaledb_catalog.chunk ch WHERE ch.hypertable_id = 2)
+    AND attnum > 0
+  ORDER BY attname;
+    attname     | attstattarget 
+----------------+---------------
+ Time           |             0
+ _ts_meta_count |          1000
+ _ts_meta_max_1 |          1000
+ _ts_meta_min_1 |          1000
+ b              |             0
+ i              |             0
+ t              |             0
+
+-- Test that the GUC to disable bulk decompression works.
+vacuum analyze test1;
+explain (analyze, verbose, timing off, buffers off, costs off, summary off)
+select * from _timescaledb_internal._hyper_1_10_chunk;
+--- QUERY PLAN ---
+ Custom Scan (ColumnarScan) on _timescaledb_internal._hyper_1_10_chunk (actual rows=24.00 loops=1)
+   Output: _hyper_1_10_chunk."Time", _hyper_1_10_chunk.i, _hyper_1_10_chunk.b, _hyper_1_10_chunk.t
+   Bulk Decompression: true
+   ->  Seq Scan on _timescaledb_internal.compress_hyper_2_55_chunk (actual rows=1.00 loops=1)
+         Output: compress_hyper_2_55_chunk._ts_meta_count, compress_hyper_2_55_chunk._ts_meta_min_1, compress_hyper_2_55_chunk._ts_meta_max_1, compress_hyper_2_55_chunk."Time", compress_hyper_2_55_chunk.i, compress_hyper_2_55_chunk.b, compress_hyper_2_55_chunk.t
+
+set timescaledb.enable_bulk_decompression to false;
+explain (analyze, verbose, timing off, buffers off, costs off, summary off)
+select * from _timescaledb_internal._hyper_1_10_chunk;
+--- QUERY PLAN ---
+ Custom Scan (ColumnarScan) on _timescaledb_internal._hyper_1_10_chunk (actual rows=24.00 loops=1)
+   Output: _hyper_1_10_chunk."Time", _hyper_1_10_chunk.i, _hyper_1_10_chunk.b, _hyper_1_10_chunk.t
+   Bulk Decompression: false
+   ->  Seq Scan on _timescaledb_internal.compress_hyper_2_55_chunk (actual rows=1.00 loops=1)
+         Output: compress_hyper_2_55_chunk._ts_meta_count, compress_hyper_2_55_chunk._ts_meta_min_1, compress_hyper_2_55_chunk._ts_meta_max_1, compress_hyper_2_55_chunk."Time", compress_hyper_2_55_chunk.i, compress_hyper_2_55_chunk.b, compress_hyper_2_55_chunk.t
+
+reset timescaledb.enable_bulk_decompression;
+TRUNCATE test1;
+/* should be no data in table */
+SELECT * FROM test1;
+ Time | i | b | t 
+------+---+---+---
+
+/* nor compressed table */
+SELECT * FROM _timescaledb_internal._compressed_hypertable_2;
+--
+
+/* the compressed table should not have chunks */
+SELECT count(*) FROM _timescaledb_catalog.chunk WHERE hypertable_id = 2;
+ count 
+-------
+     0
+
+--add test for altered hypertable
+CREATE TABLE test2 ("Time" timestamptz, i integer, b bigint, t text);
+SELECT table_name from create_hypertable('test2', 'Time', chunk_time_interval=> INTERVAL '1 day');
+ table_name 
+------------
+ test2
+
+--create some chunks with the old column numbers
+INSERT INTO test2 SELECT t,  gen_rand_minstd(), gen_rand_minstd(), gen_rand_minstd()::text FROM generate_series('2018-03-02 1:00'::TIMESTAMPTZ, '2018-03-04 1:00', '1 hour') t;
+ALTER TABLE test2 DROP COLUMN b;
+--add default a value
+ALTER TABLE test2 ADD COLUMN c INT DEFAULT -15;
+--add default NULL
+ALTER TABLE test2 ADD COLUMN d INT;
+--write to both old chunks and new chunks with different column #s
+INSERT INTO test2 SELECT t, gen_rand_minstd(), gen_rand_minstd()::text, gen_rand_minstd(), gen_rand_minstd() FROM generate_series('2018-03-02 1:00'::TIMESTAMPTZ, '2018-03-06 1:00', '1 hour') t;
+ALTER TABLE test2 set (timescaledb.compress, timescaledb.compress_segmentby = '', timescaledb.compress_orderby = 'c, "Time" DESC');
+\set QUERY 'SELECT * FROM test2'
+\set QUERY_ORDER 'ORDER BY c,"Time"'
+\set HYPERTABLE_NAME 'test2'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count compress 
+----------------
+              5
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+                5
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test2 |                                                 0
+
+\set TYPE int
+\set ORDER_BY_COL_NAME c
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+     5
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+\set TYPE timestamptz
+\set ORDER_BY_COL_NAME Time
+\set SEGMENT_META_COL_MIN _ts_meta_min_2
+\set SEGMENT_META_COL_MAX _ts_meta_max_2
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+psql:include/compression_test_hypertable_segment_meta.sql:10: NOTICE:  chunk "_hyper_3_82_chunk" is already converted to columnstore
+psql:include/compression_test_hypertable_segment_meta.sql:10: NOTICE:  chunk "_hyper_3_83_chunk" is already converted to columnstore
+psql:include/compression_test_hypertable_segment_meta.sql:10: NOTICE:  chunk "_hyper_3_84_chunk" is already converted to columnstore
+psql:include/compression_test_hypertable_segment_meta.sql:10: NOTICE:  chunk "_hyper_3_85_chunk" is already converted to columnstore
+psql:include/compression_test_hypertable_segment_meta.sql:10: NOTICE:  chunk "_hyper_3_86_chunk" is already converted to columnstore
+ count 
+-------
+     5
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+--TEST4 create segments with > 1000 rows.
+CREATE TABLE test4 (
+      timec       TIMESTAMPTZ       NOT NULL,
+      location    TEXT              NOT NULL,
+      location2   char(10)          NOT NULL,
+      temperature DOUBLE PRECISION  NULL,
+      humidity    DOUBLE PRECISION  NULL
+    );
+--we want all the data to go into 1 chunk. so use 1 year chunk interval
+select create_hypertable( 'test4', 'timec', chunk_time_interval=> '1 year'::interval);
+ create_hypertable  
+--------------------
+ (5,public,test4,t)
+
+alter table test4 set (timescaledb.compress, timescaledb.compress_segmentby = 'location', timescaledb.compress_orderby = 'timec');
+insert into test4
+select generate_series('2018-01-01 00:00'::timestamp, '2018-01-31 00:00'::timestamp, '1 day'), 'NYC', 'klick', 55, 75;
+insert into test4
+select generate_series('2018-02-01 00:00'::timestamp, '2018-02-14 00:00'::timestamp, '1 min'), 'POR', 'klick', 55, 75;
+select hypertable_name, num_chunks
+from timescaledb_information.hypertables
+where hypertable_name like 'test4';
+ hypertable_name | num_chunks 
+-----------------+------------
+ test4           |          1
+
+select location, count(*)
+from test4
+group by location ORDER BY location;
+ location | count 
+----------+-------
+ NYC      |    31
+ POR      | 18721
+
+\set QUERY 'SELECT * FROM test4'
+\set QUERY_ORDER 'ORDER BY timec'
+\set HYPERTABLE_NAME 'test4'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count compress 
+----------------
+              1
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+                1
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test4 |                                                 0
+
+\set TYPE TIMESTAMPTZ
+\set ORDER_BY_COL_NAME timec
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+     1
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+-- check stats with segmentby
+SELECT DISTINCT attname, attstattarget
+  FROM pg_attribute
+ WHERE attrelid = '_timescaledb_internal._compressed_hypertable_6'::REGCLASS
+   AND attnum > 0
+ ORDER BY attname;
+ attname | attstattarget 
+---------+---------------
+
+SELECT DISTINCT attname, attstattarget
+  FROM pg_attribute
+  WHERE attrelid in (SELECT format('%I.%I', schema_name, table_name)::regclass FROM _timescaledb_catalog.chunk ch WHERE ch.hypertable_id = 6)
+    AND attnum > 0
+  ORDER BY attname;
+    attname     | attstattarget 
+----------------+---------------
+ _ts_meta_count |          1000
+ _ts_meta_max_1 |          1000
+ _ts_meta_min_1 |          1000
+ humidity       |             0
+ location       |          1000
+ location2      |             0
+ temperature    |             0
+ timec          |             0
+
+--add hypertable with order by a non by-val type with NULLs
+CREATE TABLE test5 (
+      time      TIMESTAMPTZ       NOT NULL,
+      device_id   TEXT              NULL,
+      temperature DOUBLE PRECISION  NULL
+    );
+--we want all the data to go into 1 chunk. so use 1 year chunk interval
+select create_hypertable( 'test5', 'time', chunk_time_interval=> '1 day'::interval);
+ create_hypertable  
+--------------------
+ (7,public,test5,t)
+
+alter table test5 set (timescaledb.compress, timescaledb.compress_orderby = 'device_id, time');
+insert into test5
+select generate_series('2018-01-01 00:00'::timestamp, '2018-01-10 00:00'::timestamp, '2 hour'), 'device_1', gen_rand_minstd();
+insert into test5
+select generate_series('2018-01-01 00:00'::timestamp, '2018-01-10 00:00'::timestamp, '2 hour'), 'device_2', gen_rand_minstd();
+insert into test5
+select generate_series('2018-01-01 00:00'::timestamp, '2018-01-10 00:00'::timestamp, '2 hour'), NULL, gen_rand_minstd();
+\set QUERY 'SELECT * FROM test5'
+\set QUERY_ORDER 'ORDER BY device_id, time'
+\set HYPERTABLE_NAME 'test5'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count compress 
+----------------
+             10
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+               10
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test5 |                                                 0
+
+\set TYPE TEXT
+\set ORDER_BY_COL_NAME device_id
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+    10
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+TRUNCATE test5;
+SELECT * FROM test5;
+ time | device_id | temperature 
+------+-----------+-------------
+
+-- test 6, test with custom type, and NULLs in the segmentby
+CREATE table test6(
+  time INT NOT NULL,
+  device_id INT,
+  data customtype
+);
+SELECT create_hypertable('test6', 'time', chunk_time_interval=> 50);
+ create_hypertable  
+--------------------
+ (9,public,test6,t)
+
+ALTER TABLE test6 SET
+  (timescaledb.compress, timescaledb.compress_segmentby='device_id', timescaledb.compress_orderby = 'time DESC');
+INSERT INTO test6 SELECT t, d, customtype_in((t + d)::TEXT::cstring)
+  FROM generate_series(1, 200) t, generate_series(1, 3) d;
+INSERT INTO test6 SELECT t, NULL, customtype_in(t::TEXT::cstring)
+  FROM generate_series(1, 200) t;
+\set QUERY 'SELECT * FROM test6'
+\set QUERY_ORDER 'ORDER BY device_id, time'
+\set HYPERTABLE_NAME 'test6'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count compress 
+----------------
+              5
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+                5
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test6 |                                                 0
+
+\set TYPE INT
+\set ORDER_BY_COL_NAME time
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+     5
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+DROP TABLE test6;
+-- test 7, compress misc types, and NULLs in dictionaries
+CREATE TABLE test7(time INT, c1 DATE, c2 TIMESTAMP, c3 FLOAT, n TEXT);
+SELECT create_hypertable('test7', 'time', chunk_time_interval=> 200);
+WARNING:  column type "timestamp without time zone" used for "c2" does not follow best practices
+  create_hypertable  
+---------------------
+ (11,public,test7,t)
+
+ALTER TABLE test7 SET
+  (timescaledb.compress, timescaledb.compress_orderby = 'time DESC, c1 DESC');
+INSERT INTO test7
+  SELECT t, d, '2019/07/07 01:00', gen_rand_minstd(), 'a'
+  FROM generate_series(1, 10) t,
+       generate_series('2019/02/01'::DATE, '2019/02/10', '1d') d;
+INSERT INTO test7
+  SELECT t, d, '2019/07/07 01:30', gen_rand_minstd(), NULL
+  FROM generate_series(10, 20) t,
+       generate_series('2019/03/01'::DATE, '2019/03/10', '1d') d;
+\set QUERY 'SELECT * FROM test7'
+\set QUERY_ORDER 'ORDER BY time, c1'
+\set HYPERTABLE_NAME 'test7'
+\ir include/compression_test_hypertable.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count compress 
+----------------
+              1
+
+ timescaledb_pre_restore 
+-------------------------
+ t
+
+ timescaledb_post_restore 
+--------------------------
+ t
+
+ original | decompressed 
+----------+--------------
+
+ count decompress 
+------------------
+                1
+
+ table | diff between original and compressed/decompressed 
+-------+---------------------------------------------------
+ test7 |                                                 0
+
+\set TYPE INT
+\set ORDER_BY_COL_NAME time
+\set SEGMENT_META_COL_MIN _ts_meta_min_1
+\set SEGMENT_META_COL_MAX _ts_meta_max_1
+\ir include/compression_test_hypertable_segment_meta.sql
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\set ECHO errors
+ count 
+-------
+     1
+
+ min_correct | max_correct 
+-------------+-------------
+ t           | t
+
+DROP TABLE test7;
+-- helper function: float -> pseudorandom float [0..1].
+create or replace function mix(x float4) returns float4 as $$ select ((hashfloat4(x) / (pow(2., 31) - 1) + 1) / 2)::float4 $$ language sql;
+-- test gorilla for float4 and deltadelta for int32 and other types
+create table test8(ts date, id int, value float4, valueint2 int2, valuebool bool);
+select create_hypertable('test8', 'ts');
+  create_hypertable  
+---------------------
+ (13,public,test8,t)
+
+alter table test8 set (timescaledb.compress,
+    timescaledb.compress_segmentby = 'id',
+    timescaledb.compress_orderby = 'ts desc')
+;
+insert into test8
+    select '2022-02-02 02:02:02+03'::timestamptz + interval '1 month' * mix(x),
+        mix(x + 1.) * 20,
+        mix(x + 2.) * 50,
+        mix(x + 3.) * 100,
+        mix(x + 4.) > 0.1
+    from generate_series(1, 10000) x(x)
+;
+select compress_chunk(x) from show_chunks('test8') x;
+              compress_chunk               
+-------------------------------------------
+ _timescaledb_internal._hyper_13_148_chunk
+ _timescaledb_internal._hyper_13_149_chunk
+ _timescaledb_internal._hyper_13_150_chunk
+ _timescaledb_internal._hyper_13_151_chunk
+ _timescaledb_internal._hyper_13_152_chunk
+ _timescaledb_internal._hyper_13_153_chunk
+
+select distinct on (id) * from test8
+order by id, ts desc, value
+;
+     ts     | id |  value   | valueint2 | valuebool 
+------------+----+----------+-----------+-----------
+ 03-03-2022 |  0 |  9.49871 |        97 | t
+ 03-03-2022 |  1 |  2.96871 |         8 | t
+ 03-03-2022 |  2 |  4.17897 |        33 | f
+ 03-03-2022 |  3 |  8.08533 |        96 | t
+ 03-03-2022 |  4 |   16.959 |        46 | f
+ 03-03-2022 |  5 |  2.10652 |        20 | t
+ 03-03-2022 |  6 |  6.77508 |        58 | t
+ 03-03-2022 |  7 |  4.64613 |        56 | t
+ 03-03-2022 |  8 |  2.66474 |        82 | t
+ 03-03-2022 |  9 |  2.59844 |        56 | t
+ 03-03-2022 | 10 |  1.21461 |        44 | t
+ 03-03-2022 | 11 |  6.70618 |        84 | t
+ 03-03-2022 | 12 |  1.52959 |        18 | t
+ 03-03-2022 | 13 |  5.20262 |        84 | t
+ 03-03-2022 | 14 |  2.92403 |        15 | t
+ 03-03-2022 | 15 |  1.70258 |        82 | t
+ 03-03-2022 | 16 |  11.6858 |        43 | t
+ 03-03-2022 | 17 |  11.4363 |        14 | t
+ 03-03-2022 | 18 | 0.496188 |        59 | t
+ 03-03-2022 | 19 |   4.7812 |        51 | t
+ 03-03-2022 | 20 |  8.25849 |        30 | t
+
+drop table test8;

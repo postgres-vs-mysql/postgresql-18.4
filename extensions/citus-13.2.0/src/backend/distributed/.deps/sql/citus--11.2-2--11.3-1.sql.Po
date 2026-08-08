@@ -1,0 +1,15 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.2-2--11.3-1.sql: \
+ sql/citus--11.2-2--11.3-1.sql sql/udfs/repl_origin_helper/11.3-1.sql \
+ sql/udfs/worker_drop_all_shell_tables/11.3-1.sql \
+ sql/udfs/citus_internal_mark_node_not_synced/11.3-1.sql \
+ sql/udfs/citus_stat_tenants_local/11.3-1.sql \
+ sql/udfs/citus_stat_tenants/11.3-1.sql \
+ sql/udfs/citus_stat_tenants_local_reset/11.3-1.sql \
+ sql/udfs/citus_stat_tenants_reset/11.3-1.sql
+sql/udfs/repl_origin_helper/11.3-1.sql:
+sql/udfs/worker_drop_all_shell_tables/11.3-1.sql:
+sql/udfs/citus_internal_mark_node_not_synced/11.3-1.sql:
+sql/udfs/citus_stat_tenants_local/11.3-1.sql:
+sql/udfs/citus_stat_tenants/11.3-1.sql:
+sql/udfs/citus_stat_tenants_local_reset/11.3-1.sql:
+sql/udfs/citus_stat_tenants_reset/11.3-1.sql:

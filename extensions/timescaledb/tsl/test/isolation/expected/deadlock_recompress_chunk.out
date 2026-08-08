@@ -1,0 +1,51 @@
+Parsed test spec with 3 sessions
+
+starting permutation: recompress_insert_rows lock_after_decompress recompress_chunks_start query_start unlock_after_decompress
+count
+-----
+    1
+
+step recompress_insert_rows: 
+    INSERT INTO hyper
+    SELECT to_timestamp(ser), ser, ser+100 FROM generate_series(0,100) ser;
+
+step lock_after_decompress: 
+    SELECT count(*) FROM show_chunks('hyper');
+    DO $$
+    DECLARE
+      chunk regclass;
+    BEGIN
+      SELECT format('%I.%I', c.schema_name, c.table_name)::regclass INTO chunk
+      FROM show_chunks('hyper'), _timescaledb_catalog.chunk p, _timescaledb_catalog.chunk c
+      WHERE p.compressed_chunk_id = c.id
+      AND format('%I.%I', p.schema_name, p.table_name)::regclass = show_chunks;
+      EXECUTE format('LOCK TABLE %s IN EXCLUSIVE MODE', chunk);
+    END;
+    $$;
+
+count
+-----
+    1
+
+step recompress_chunks_start: 
+    DO $$
+    DECLARE
+      chunk regclass;
+    BEGIN
+      SELECT show_chunks('hyper') INTO chunk;
+      PERFORM compress_chunk(chunk);
+    END;
+    $$;
+ <waiting ...>
+step query_start: 
+    SELECT count(*) FROM hyper;
+ <waiting ...>
+step unlock_after_decompress: 
+    ROLLBACK;
+
+step recompress_chunks_start: <... completed>
+step query_start: <... completed>
+count
+-----
+ 1102
+

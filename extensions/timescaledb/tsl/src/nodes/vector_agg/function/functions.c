@@ -1,0 +1,259 @@
+/*
+ * This file and its contents are licensed under the Timescale License.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-TIMESCALE for a copy of the license.
+ */
+
+#include <limits.h>
+
+#include <postgres.h>
+
+#include <common/int.h>
+#include <utils/date.h>
+#include <utils/float.h>
+#include <utils/fmgroids.h>
+#include <utils/fmgrprotos.h>
+
+#include "functions.h"
+
+#include "compat/compat.h"
+
+/*
+ * For PG18+: provide the old lc_collate_is_c() API using pg_locale_t flags.
+ */
+
+#if PG18_GE
+
+#include "utils/pg_locale.h"
+
+static inline bool
+lc_collate_is_c(Oid collation)
+{
+  return pg_newlocale_from_collation(collation)->collate_is_c;
+}
+
+#else
+
+#include <utils/pg_locale.h>
+
+#endif
+
+/*
+ * Aggregate function count(*).
+ */
+typedef struct {
+  int64 count;
+} CountState;
+
+static void
+count_init(void *restrict agg_states, int n)
+{
+  DBUG_TRACE;
+  CountState *states = (CountState *) agg_states;
+
+  DBUG_PRINT("timescaledb", "n:%d", n);
+  for (int i = 0; i < n; i++) {
+    states[i].count = 0;
+  }
+}
+
+static void
+count_emit(void *agg_state, Datum *out_result, bool *out_isnull)
+{
+  DBUG_TRACE;
+  CountState *state = (CountState *) agg_state;
+  *out_result = Int64GetDatum(state->count);
+  *out_isnull = false;
+  DBUG_PRINT("timescaledb", "state->count:%ld", state->count);
+}
+
+static void
+count_star_scalar(void *agg_state, Datum constvalue, bool constisnull, int n,
+                  MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  CountState *state = (CountState *) agg_state;
+  state->count += n;
+  DBUG_PRINT("timescaledb", "state->count:%ld", state->count);
+}
+
+static pg_attribute_always_inline void
+count_star_many_scalar_impl(void *restrict agg_states, const uint32 *offsets, const uint64 *filter,
+                            int start_row, int end_row, Datum constvalue, bool constisnull,
+                            MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  CountState *states = (CountState *) agg_states;
+
+  DBUG_PRINT("timescaledb", "start_row:%d, end_row:%d", start_row, end_row);
+  for (int row = start_row; row < end_row; row++) {
+    if (arrow_row_is_valid(filter, row)) {
+      states[offsets[row]].count++;
+      DBUG_PRINT("timescaledb", "states[%d].count:%ld", offsets[row], states[offsets[row]].count);
+    }
+  }
+}
+
+static pg_noinline void
+count_star_many_scalar_nofilter(void *restrict agg_states, const uint32 *offsets, int start_row,
+                                int end_row, Datum constvalue, bool constisnull,
+                                MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  count_star_many_scalar_impl(agg_states,
+                              offsets,
+                              NULL,
+                              start_row,
+                              end_row,
+                              constvalue,
+                              constisnull,
+                              agg_extra_mctx);
+}
+
+static void
+count_star_many_scalar(void *restrict agg_states, const uint32 *offsets, const uint64 *filter,
+                       int start_row, int end_row, Datum constvalue, bool constisnull,
+                       MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  if (filter == NULL) {
+    count_star_many_scalar_nofilter(agg_states,
+                                    offsets,
+                                    start_row,
+                                    end_row,
+                                    constvalue,
+                                    constisnull,
+                                    agg_extra_mctx);
+  } else {
+    count_star_many_scalar_impl(agg_states,
+                                offsets,
+                                filter,
+                                start_row,
+                                end_row,
+                                constvalue,
+                                constisnull,
+                                agg_extra_mctx);
+  }
+}
+
+VectorAggFunctions count_star_agg = {
+  .state_bytes = sizeof(CountState),
+  .agg_init = count_init,
+  .agg_scalar = count_star_scalar,
+  .agg_emit = count_emit,
+  .agg_many_scalar = count_star_many_scalar,
+};
+
+/*
+ * Aggregate function count(x).
+ */
+static void
+count_any_scalar(void *agg_state, Datum constvalue, bool constisnull, int n,
+                 MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  if (constisnull) {
+    return;
+  }
+
+  CountState *state = (CountState *) agg_state;
+  state->count += n;
+  DBUG_PRINT("timescaledb", "vector->length:%d, state->count:%ld", n, state->count);
+}
+
+static void
+count_any_vector(void *agg_state, const ArrowArray *vector, const uint64 *filter,
+                 MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+  CountState *state = (CountState *) agg_state;
+  const int n = vector->length;
+
+  /* First, process the full words. */
+  for (int i = 0; i < n / 64; i++) {
+    const uint64 filter_word = filter ? filter[i] : ~0ULL;
+
+#ifdef HAVE__BUILTIN_POPCOUNT
+    state->count += __builtin_popcountll(filter_word);
+#else
+
+    /*
+     * Unfortunately, we have to have this fallback for Windows.
+     */
+    for (uint16 i = 0; i < 64; i++) {
+      const bool this_bit = (filter_word >> i) & 1;
+      state->count += this_bit;
+    }
+
+#endif
+  }
+
+  /*
+   * The tail word needs special handling because not all rows there are valid
+   * (some are past-the-end) even when the bitmap is null.
+   */
+  for (int i = 64 * (n / 64); i < n; i++) {
+    state->count += arrow_row_is_valid(filter, i);
+  }
+
+  DBUG_PRINT("timescaledb", "vector->length:%d, state->count:%ld", n, state->count);
+}
+
+static void
+count_any_many_vector(void *restrict agg_states, const uint32 *offsets, const uint64 *filter,
+                      int start_row, int end_row, const ArrowArray *vector,
+                      MemoryContext agg_extra_mctx)
+{
+  DBUG_TRACE;
+
+  DBUG_PRINT("timescaledb", "start_row:%d, end_row:%d", start_row, end_row);
+  for (int row = start_row; row < end_row; row++) {
+    CountState *state = (offsets[row] + (CountState *) agg_states);
+
+    if (arrow_row_is_valid(filter, row)) {
+      state->count++;
+      DBUG_PRINT("timescaledb", "agg_states[%d].count:%ld", offsets[row], state->count);
+    }
+  }
+
+}
+
+VectorAggFunctions count_any_agg = {
+  .state_bytes = sizeof(CountState),
+  .agg_init = count_init,
+  .agg_emit = count_emit,
+  .agg_scalar = count_any_scalar,
+  .agg_vector = count_any_vector,
+  .agg_many_vector = count_any_many_vector,
+};
+
+/*
+ * Return the vector aggregate definition corresponding to the given
+ * PG aggregate function Oid and collation.
+ *
+ * The collation parameter is used for text aggregates (min/max) which use
+ * memcmp for comparison. This only produces correct results for C collation,
+ * so we cannot use vectorized aggregation for non-C collations.
+ */
+VectorAggFunctions *
+get_vector_aggregate(Oid aggfnoid, Oid collation)
+{
+  switch (aggfnoid) {
+    case F_COUNT_:
+      return &count_star_agg;
+
+    case F_COUNT_ANY:
+      return &count_any_agg;
+#define GENERATE_DISPATCH_TABLE 1
+#include "float48_accum_templates.c"
+#include "int128_accum_templates.c"
+#include "int24_avg_accum_templates.c"
+#include "int24_sum_templates.c"
+#include "minmax_templates.c"
+#include "sum_float_templates.c"
+#undef GENERATE_DISPATCH_TABLE
+
+    default:
+      return NULL;
+  }
+}

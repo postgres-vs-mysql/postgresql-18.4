@@ -1,0 +1,14 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+
+CREATE OR REPLACE FUNCTION _timescaledb_functions.get_git_commit()
+    RETURNS TABLE(commit_tag TEXT, commit_hash TEXT, commit_time TIMESTAMPTZ)
+    AS '$libdir/timescaledb-2.27.0-dev', 'ts_get_git_commit' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION _timescaledb_functions.get_os_info()
+    RETURNS TABLE(sysname TEXT, version TEXT, release TEXT, version_pretty TEXT)
+    AS '$libdir/timescaledb-2.27.0-dev', 'ts_get_os_info' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION _timescaledb_functions.tsl_loaded() RETURNS BOOLEAN
+AS '$libdir/timescaledb-2.27.0-dev', 'ts_tsl_loaded' LANGUAGE C;

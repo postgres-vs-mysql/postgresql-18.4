@@ -1,0 +1,363 @@
+/*
+ * This file and its contents are licensed under the Timescale License.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-TIMESCALE for a copy of the license.
+ */
+#include "debug_trace.h"
+#include <postgres.h>
+
+#include <catalog/pg_trigger.h>
+#include <commands/extension.h>
+#include <foreign/fdwapi.h>
+#include <nodes/nodeFuncs.h>
+#include <nodes/parsenodes.h>
+#include <optimizer/pathnode.h>
+#include <optimizer/paths.h>
+#include <parser/parsetree.h>
+
+#include "compat/compat.h"
+#include "chunk.h"
+#include "chunkwise_agg.h"
+#include "continuous_aggs/planner.h"
+#include "guc.h"
+#include "hypertable.h"
+#include "nodes/columnar_index_scan/columnar_index_scan.h"
+#include "nodes/columnar_scan/columnar_scan.h"
+#include "nodes/gapfill/gapfill.h"
+#include "nodes/skip_scan/skip_scan.h"
+#include "nodes/vector_agg/plan.h"
+#include "planner.h"
+
+#include <math.h>
+
+#define OSM_EXTENSION_NAME "timescaledb_osm"
+
+static bool
+involves_hypertable(PlannerInfo *root, RelOptInfo *parent)
+{
+  DBUG_TRACE;
+
+  for (int relid = bms_next_member(parent->relids, -1); relid > 0;
+       relid = bms_next_member(parent->relids, relid)) {
+    Hypertable *ht;
+    RelOptInfo *child = root->simple_rel_array[relid];
+
+    /*
+     * RelOptInfo can be null here for join RTEs on PG >= 16. This doesn't
+     * matter because we'll have all the baserels in relids bitmap as well.
+     */
+    if (child != NULL && ts_classify_relation(root, child, &ht) == TS_REL_HYPERTABLE) {
+      DBUG_PRINT("timescaledb", "return true");
+      return true;
+    }
+  }
+
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+void
+tsl_create_upper_paths_hook(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel,
+                            RelOptInfo *output_rel, TsRelType input_reltype, Hypertable *ht,
+                            void *extra)
+{
+  DBUG_TRACE;
+
+  switch (stage) {
+    case UPPERREL_GROUP_AGG:
+      DBUG_PRINT("timescaledb", "state: UPPERREL_GROUP_AGG");
+      if (input_reltype != TS_REL_HYPERTABLE_CHILD) {
+        plan_add_gapfill(root, output_rel);
+      }
+
+      if (ts_guc_enable_chunkwise_aggregation && input_rel != NULL &&
+          !IS_DUMMY_REL(input_rel) && output_rel != NULL &&
+          involves_hypertable(root, input_rel)) {
+        tsl_pushdown_partial_agg(root, ht, input_rel, output_rel, extra);
+      }
+
+      if (root->numOrderedAggs && !IS_DUMMY_REL(input_rel) && output_rel != NULL) {
+        tsl_skip_scan_paths_add(root, input_rel, output_rel, stage);
+      }
+
+      break;
+
+    case UPPERREL_WINDOW:
+      DBUG_PRINT("timescaledb", "state: UPPERREL_WINDOW");
+      if (IsA(linitial(input_rel->pathlist), CustomPath))
+        gapfill_adjust_window_targetlist(root, input_rel, output_rel);
+
+      break;
+
+    case UPPERREL_DISTINCT:
+      DBUG_PRINT("timescaledb", "state: UPPERREL_DISTINCT");
+      tsl_skip_scan_paths_add(root, input_rel, output_rel, stage);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ * Check if a chunk should be decompressed via a ColumnarScan plan.
+ *
+ * Check first that it is a compressed chunk. Then, decompress unless it is
+ * SELECT * FROM ONLY <chunk>. We check if it is the ONLY case by calling
+ * ts_rte_is_marked_for_expansion. Respecting ONLY here is important to not
+ * break postgres tools like pg_dump.
+ */
+static inline bool
+use_columnar_scan(const RelOptInfo *rel, const RangeTblEntry *rte, const Chunk *chunk)
+{
+  DBUG_TRACE;
+
+  if (!ts_guc_enable_columnarscan)
+    return false;
+
+  /* Check that the chunk is actually compressed */
+  return ts_chunk_is_compressed(chunk) &&
+         /* Check that it is _not_ SELECT FROM ONLY <chunk> */
+         (rel->reloptkind != RELOPT_BASEREL || ts_rte_is_marked_for_expansion(rte));
+}
+
+void
+tsl_set_rel_pathlist_query(PlannerInfo *root, RelOptInfo *rel, Index rti, RangeTblEntry *rte,
+                           Hypertable *ht)
+{
+  DBUG_TRACE;
+
+  /* Only interested in queries on relations that are part of hypertables
+   * with compression enabled, so quick exit if not this case. */
+  if (ht == NULL || !TS_HYPERTABLE_HAS_COMPRESSION_TABLE(ht)) {
+    DBUG_PRINT("timescaledb", "only interested in queries on relations that are part of hypertable");
+    DBUG_PRINT("timescaledb", "with compression enabled, so quick exit if not this case");
+    return;
+  }
+
+  /*
+   * For a chunk, we can get here via a query on the hypertable that expands
+   * to the chunk or by direct query on the chunk. In the former case,
+   * reloptkind will be RELOPT_OTHER_MEMBER_REL (nember of hypertable) or in
+   * the latter case reloptkind will be RELOPT_BASEREL (standalone rel).
+   *
+   * These two cases are checked in ts_planner_chunk_fetch().
+   */
+  const Chunk *chunk = ts_planner_chunk_fetch(root, rel);
+
+  if (chunk == NULL)
+    return;
+
+  if (use_columnar_scan(rel, rte, chunk)) {
+    ts_columnar_scan_generate_paths(root, rel, ht, chunk);
+  }
+}
+
+void
+tsl_set_rel_pathlist_dml(PlannerInfo *root, RelOptInfo *rel, Index rti, RangeTblEntry *rte,
+                         Hypertable *ht)
+{
+  DBUG_TRACE;
+
+  if (ht != NULL && TS_HYPERTABLE_HAS_COMPRESSION_TABLE(ht)) {
+    if (!ts_guc_enable_compressed_merge && root->parse->commandType == CMD_MERGE)
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("The MERGE command with UPDATE/DELETE merge actions is not support on "
+                      "compressed hypertables")));
+
+#if !PG17_GE
+    /*
+     * PG16 and earlier: Remove BitmapHeapScan paths for DML on partial chunks.
+     *
+     * On PG16, BitmapHeapScan eagerly initializes its heap scan descriptor
+     * with the original snapshot during plan initialization. When we
+     * decompress rows and call CommandCounterIncrement(), the stale
+     * snapshot cannot see the newly decompressed rows.
+     *
+     * This bug only affects partial chunks because:
+     * - Fully compressed chunks have rel->indexlist = NIL (set in
+     *   timescaledb_get_relation_info_hook), so BitmapHeapScan is not
+     *   available anyway.
+     * - Partial chunks have indexes available, so BitmapHeapScan can be
+     *   chosen, and decompression will add rows that it cannot see.
+     *
+     * PG17+ fixed this via commit 1577081e961 which lazily initializes
+     * the scan descriptor in BitmapHeapNext(), using the current
+     * estate->es_snapshot after CommandCounterIncrement().
+     *
+     * IMPORTANT: PostgreSQL's add_path() prunes dominated paths. If
+     * BitmapHeapPath has lower cost than SeqScan (common with adjusted
+     * cost parameters), SeqScan may have been pruned from the pathlist.
+     * If removing BitmapHeapPath would leave no paths, we must add a
+     * another path as fallback to ensure a valid plan exists.
+     */
+    const Chunk *chunk = ts_planner_chunk_fetch(root, rel);
+
+    if (chunk && ts_chunk_is_partial(chunk)) {
+      ListCell *lc;
+      List *filtered_paths = NIL;
+
+      foreach (lc, rel->pathlist) {
+        Path *path = lfirst(lc);
+
+        if (!IsA(path, BitmapHeapPath))
+          filtered_paths = lappend(filtered_paths, path);
+      }
+
+      /*
+       * If removing BitmapHeapPath left us with no paths, try to add
+       * alternative scan paths. This can happen when BitmapHeapPath
+       * dominated and pruned other paths due to cost calculations.
+       *
+       * Prefer IndexScan if available, fall back to SeqScan.
+       */
+      if (filtered_paths == NIL && rel->pathlist != NIL) {
+        /*
+         * Try to create index paths. create_index_paths() adds paths
+         * to rel->pathlist, but it also creates BitmapHeapPath entries
+         * which we must filter out again.
+         */
+        rel->pathlist = NIL; /* Clear the BitmapHeapPath */
+        create_index_paths(root, rel);
+
+        /* Filter out any BitmapHeapPath that create_index_paths added */
+        foreach (lc, rel->pathlist) {
+          Path *path = lfirst(lc);
+
+          if (!IsA(path, BitmapHeapPath))
+            filtered_paths = lappend(filtered_paths, path);
+        }
+
+        /*
+         * If no non-bitmap index paths were created (e.g., enable_indexscan=off),
+         * add SeqScan as the final fallback.
+         */
+        if (filtered_paths == NIL) {
+          Relids required_outer = rel->lateral_relids;
+          Path *seqpath = create_seqscan_path(root, rel, required_outer, 0);
+          filtered_paths = lappend(filtered_paths, seqpath);
+        }
+      }
+
+      rel->pathlist = filtered_paths;
+
+      /* Also filter partial_pathlist for parallel plans */
+      filtered_paths = NIL;
+
+      foreach (lc, rel->partial_pathlist) {
+        Path *path = lfirst(lc);
+
+        if (!IsA(path, BitmapHeapPath))
+          filtered_paths = lappend(filtered_paths, path);
+      }
+
+      rel->partial_pathlist = filtered_paths;
+    }
+
+#endif /* !PG17_GE */
+  }
+}
+
+/*
+ * Run preprocess query optimizations
+ */
+void
+tsl_preprocess_query(Query *parse, int *cursor_opts)
+{
+  DBUG_TRACE;
+  Assert(parse != NULL);
+
+  DBUG_PRINT("timescaledb", "run preprocess query optimizations");
+
+  /* Check if constification of watermark values is enabled */
+  if (ts_guc_enable_cagg_watermark_constify) {
+    constify_cagg_watermark(parse);
+  }
+
+#if PG16_GE
+
+  /* Push down ORDER BY and LIMIT for realtime cagg (PG16+ only) */
+  if (ts_guc_enable_cagg_sort_pushdown) {
+    DBUG_PRINT("timescaledb", "push down ORDER BY and LIMIT for realtime cagg (PG16+ only)");
+    cagg_sort_pushdown(parse, cursor_opts);
+  }
+
+#endif
+}
+
+/*
+ * Replaces pathkeys in tsl-specific custom path types during sort transformation.
+ *
+ * This hook is called from ts_sort_transform_replace_pathkeys() in sort_transform.c
+ * after the basic pathkey replacement has been performed. It handles tsl-specific
+ * path types (such as ColumnarScan) that contain additional pathkey fields beyond
+ * the standard path.pathkeys field.
+ */
+void
+tsl_sort_transform_replace_pathkeys(void *path, List *transformed_pathkeys, List *original_pathkeys)
+{
+  DBUG_TRACE;
+
+  if (!path)
+    return;
+
+  if (ts_is_columnar_scan_path(path)) {
+    ColumnarScanPath *dcpath = (ColumnarScanPath *) path;
+
+    if (compare_pathkeys(dcpath->required_compressed_pathkeys, transformed_pathkeys) ==
+        PATHKEYS_EQUAL) {
+      dcpath->required_compressed_pathkeys = original_pathkeys;
+    }
+  }
+}
+
+/*
+ * Run plan postprocessing optimizations.
+ */
+void
+tsl_postprocess_plan(PlannedStmt *stmt)
+{
+  DBUG_TRACE;
+  DBUG_PRINT("timescaledb", "run plan postprocessing optimizations");
+
+  if (ts_guc_enable_columnarindexscan) {
+    stmt->planTree = try_insert_columnar_index_scan_node(stmt->planTree, stmt->rtable);
+    stmt->subplans =
+      (List *) try_insert_columnar_index_scan_node((Plan *) stmt->subplans, stmt->rtable);
+  }
+
+  if (ts_guc_enable_vectorized_aggregation) {
+    stmt->planTree = try_insert_vector_agg_node(stmt->planTree);
+    stmt->subplans = (List *) try_insert_vector_agg_node((Plan *) stmt->subplans);
+  }
+
+#ifdef TS_DEBUG
+
+  if (ts_guc_debug_require_vector_agg != DRO_Allow) {
+    bool has_some_agg = false;
+    const bool has_vector_partial_agg = has_vector_agg_node(stmt->planTree, &has_some_agg);
+
+    /*
+     * For convenience of using this in the tests, we don't complain about
+     * queries that don't have aggregation at all.
+     */
+    if (has_some_agg) {
+      if (!has_vector_partial_agg && ts_guc_debug_require_vector_agg == DRO_Require) {
+        ereport(ERROR,
+                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                 errmsg("vectorized aggregation node not found when required by the "
+                        "debug_require_vector_agg GUC")));
+      }
+
+      if (has_vector_partial_agg && ts_guc_debug_require_vector_agg == DRO_Forbid) {
+        ereport(ERROR,
+                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                 errmsg("vectorized aggregation node found when forbidden by the "
+                        "debug_require_vector_agg GUC")));
+      }
+    }
+  }
+
+#endif
+}

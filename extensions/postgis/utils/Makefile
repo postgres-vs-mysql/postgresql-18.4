@@ -1,0 +1,135 @@
+# **********************************************************************
+# *
+# * PostGIS - Spatial Types for PostgreSQL
+# * http://postgis.net
+# *
+# * Copyright (C) 2012-2022 Sandro Santilli <strk@kbt.io>
+# * Copyright (C) 2008 Mark Cave-Ayland
+# *
+# * This is free software; you can redistribute and/or modify it under
+# * the terms of the GNU General Public Licence. See the COPYING file.
+# *
+# **********************************************************************
+
+top_builddir = ..
+srcdir = .
+top_srcdir = ..
+datarootdir = ${prefix}/share
+datadir = ${datarootdir}
+prefix = /usr/local
+exec_prefix = ${prefix}
+bindir = /home/wangbin/pgsql_trace/bin
+INSTALL=/usr/bin/install -c
+INSTALL_DATA=${INSTALL} -m 644
+SRID_MAXIMUM = 999999
+SRID_USER_MAXIMUM = 998999
+PERL = /usr/bin/perl
+
+VPATH := .
+
+SHELL = /bin/sh
+INSTALL = $(SHELL) ../build-aux/install-sh
+
+SCRIPTS_built = postgis_restore.pl
+
+SCRIPTS = \
+	create_uninstall.pl \
+	repo_revision.pl \
+	create_upgrade.pl \
+	profile_intersects.pl \
+	test_estimation.pl \
+	test_joinestimation.pl
+
+all: $(SCRIPTS_built)
+
+DROP_FILES = \
+	$(top_srcdir)/raster/rt_pg/rtpostgis_upgrade_cleanup.sql.in \
+	$(top_srcdir)/raster/rt_pg/rtpostgis_drop.sql.in \
+	$(top_srcdir)/topology/topology_after_upgrade.sql.in \
+	$(top_srcdir)/topology/topology_before_upgrade.sql.in \
+	$(top_builddir)/postgis/uninstall_postgis.sql \
+	$(top_builddir)/postgis/uninstall_legacy.sql \
+	$(top_builddir)/postgis/postgis_upgrade.sql \
+	$(top_builddir)/sfcgal/uninstall_sfcgal.sql \
+	$(top_builddir)/raster/rt_pg/rtpostgis_upgrade.sql \
+	$(top_builddir)/raster/rt_pg/uninstall_rtpostgis.sql \
+	$(top_builddir)/topology/topology_upgrade.sql \
+	$(top_builddir)/topology/uninstall_topology.sql
+
+$(top_builddir)/postgis/uninstall_postgis.sql:
+	$(MAKE) -C ../postgis uninstall_postgis.sql
+
+$(top_builddir)/postgis/uninstall_legacy.sql:
+	$(MAKE) -C ../postgis uninstall_legacy.sql
+
+$(top_builddir)/sfcgal/uninstall_sfcgal.sql:
+	$(MAKE) -C ../sfcgal uninstall_sfcgal.sql
+
+$(top_builddir)/raster/rt_pg/uninstall_rtpostgis.sql:
+	$(MAKE) -C ../raster/rt_pg uninstall_rtpostgis.sql
+
+$(top_builddir)/raster/rt_pg/rtpostgis_upgrade.sql: $(top_builddir)/raster/rt_pg/uninstall_rtpostgis.sql
+	$(MAKE) -C ../raster/rt_pg rtpostgis_upgrade.sql
+
+$(top_builddir)/topology/topology_upgrade.sql:
+	$(MAKE) -C ../topology/ topology_upgrade.sql
+
+
+$(top_builddir)/topology/uninstall_topology.sql:
+	$(MAKE) -C ../topology/ uninstall_topology.sql
+
+postgis_restore_data.hardcoded: postgis_restore.pl.in Makefile
+	sed -e '1,/^__END__/d' $< \
+		| sort -u \
+		> $@
+
+postgis_restore_data.generated: $(DROP_FILES) Makefile create_skip_signatures.pl
+	$(PERL) ../utils/create_skip_signatures.pl $(DROP_FILES) \
+		| sort \
+		> $@
+
+postgis_restore.pl: postgis_restore.pl.in postgis_restore_data.hardcoded postgis_restore_data.generated Makefile
+	cat $< \
+		| sed '/^__END__/q' \
+		| sed 's,@SRID_MAXIMUM@,$(SRID_MAXIMUM),g;s,@SRID_USER_MAXIMUM@,$(SRID_USER_MAXIMUM),' \
+		> postgis_restore.pl
+	cat postgis_restore_data.hardcoded postgis_restore_data.generated \
+		| sort -u >> postgis_restore.pl
+	chmod +x $@
+
+postgis_restore_data.needlessly-hardcoded: postgis_restore_data.hardcoded postgis_restore_data.generated
+	comm -12 postgis_restore_data.hardcoded postgis_restore_data.generated > $@
+
+postgis_restore-check: postgis_restore_data.needlessly-hardcoded
+	@if test -s $<; then { \
+		echo "Needlessly hardcoded signatures found postgis_restore.pl.in:"; \
+		sed 's/^/  /' $<; \
+		echo "Use 'make postgis_restore-clean' to fix that"; \
+	} >&2 && false; fi
+
+
+postgis_restore-clean: postgis_restore_data.needlessly-hardcoded
+	mv $(srcdir)/postgis_restore.pl.in $(srcdir)/postgis_restore.pl.in~
+	grep -Fxvf $< $(srcdir)/postgis_restore.pl.in~ > $(srcdir)/postgis_restore.pl.in
+
+clean:
+	rm -f $(SCRIPTS_built) postgis_restore_data.*
+
+distclean: clean
+	rm -f Makefile
+
+# There's nothing to check for regress
+check-regress:
+
+check: check-unit
+
+check-unit: postgis_restore-check
+
+installdir:
+	@mkdir -p $(DESTDIR)$(bindir)
+
+uninstall:
+	rm -f '$(DESTDIR)$(bindir)/postgis_restore'
+
+install: installdir $(SCRIPTS_built)
+	$(INSTALL) postgis_restore.pl '$(DESTDIR)$(bindir)/postgis_restore'

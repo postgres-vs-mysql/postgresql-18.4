@@ -1,0 +1,124 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+
+SET timescaledb.enable_now_constify TO FALSE;
+
+-- We disable index only scans to avoid some flakiness. It is not
+-- needed for the tests and it is only important which index is
+-- picked.
+SET enable_indexonlyscan TO FALSE;
+
+SELECT
+       format('include/%s.sql', :'TEST_BASE_NAME') as "TEST_QUERY_NAME",
+       format('%s/shared/results/%s_results_uncompressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') as "TEST_RESULTS_UNCOMPRESSED",
+       format('%s/shared/results/%s_results_compressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') as "TEST_RESULTS_COMPRESSED"
+\gset
+SELECT format('\! diff -u --label "Uncompressed results" --label "Compressed results" %s %s', :'TEST_RESULTS_UNCOMPRESSED', :'TEST_RESULTS_COMPRESSED') as "DIFF_CMD"
+\gset
+
+-- get EXPLAIN output for all variations
+\set PREFIX 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off)'
+\set PREFIX_VERBOSE 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off, verbose)'
+
+set work_mem to '64MB';
+set max_parallel_workers_per_gather to 0;
+set enable_nestloop to off;
+
+\set TEST_TABLE 'metrics'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_compressed'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space_compressed'
+\ir :TEST_QUERY_NAME
+
+-- Disable plain/sorted aggregation to get a deterministic test output
+SET timescaledb.enable_chunkwise_aggregation = OFF;
+
+-- get results for all the queries
+-- run queries on uncompressed hypertable and store result
+\set PREFIX ''
+\set PREFIX_VERBOSE ''
+\set ECHO none
+SET client_min_messages TO error;
+
+-- run queries on compressed hypertable and store result
+\set TEST_TABLE 'metrics'
+\o :TEST_RESULTS_UNCOMPRESSED
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_compressed'
+\o :TEST_RESULTS_COMPRESSED
+\ir :TEST_QUERY_NAME
+\o
+
+-- diff compressed and uncompressed results
+:DIFF_CMD
+
+-- do the same for space partitioned hypertable
+\set TEST_TABLE 'metrics_space'
+\o :TEST_RESULTS_UNCOMPRESSED
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space_compressed'
+\o :TEST_RESULTS_COMPRESSED
+\ir :TEST_QUERY_NAME
+\o
+
+-- diff compressed and uncompressed results
+:DIFF_CMD
+
+\set ECHO all
+
+-- #4418
+-- test ordered append planning when inner join 2 hypertables on time column
+CREATE table i4418_1(time timestamptz, device text);
+CREATE table i4418_2(time timestamptz, device text);
+SELECT table_name FROM create_hypertable('i4418_1','time');
+SELECT table_name FROM create_hypertable('i4418_2','time');
+INSERT INTO i4418_1 SELECT time, 'device 1' FROM generate_series('2022-08-01'::timestamptz, '2022-08-20'::timestamptz,'3min'::interval) g(time);
+INSERT INTO i4418_2 SELECT * FROM i4418_1;
+
+EXPLAIN (analyze,buffers off, costs off,timing off,summary off) SELECT time_bucket('1d', tbl1.time), count(*)
+FROM i4418_1 tbl1
+INNER JOIN i4418_2 tbl2
+ON tbl1.device = tbl2.device AND tbl1.time = tbl2.time
+GROUP BY 1 ORDER BY 1;
+
+DROP TABLE i4418_1;
+DROP TABLE i4418_2;
+
+reset enable_nestloop;
+
+
+-- Ordered append with cross-type mergejoinable equality operator.
+create table dates(ts date) with (timescaledb.hypertable, timescaledb.partition_column = ts);
+
+insert into dates values ('2021-01-01'), ('2022-02-02'), ('2023-03-03');
+
+create table times(ts timestamp) with (timescaledb.hypertable, timescaledb.partition_column = ts);
+
+insert into times values ('2021-01-01 00:00:01'), ('2022-02-02 00:00:00'), ('2023-03-03 00:00:00');
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates natural join times where ts > '2021-01-01';
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates natural join times where ts > '2021-01-01' order by ts;
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates natural join times where ts > '2021-01-01' order by ts limit 1;
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates natural join times where ts > '2021-01-01' order by ts desc limit 1;
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates join times on times.ts = dates.ts where times.ts > '2021-01-01' order by times.ts desc limit 1;
+
+explain (analyze, costs off, buffers off, summary off, timing off)
+select * from dates join times on times.ts = dates.ts where times.ts > '2021-01-01' order by dates.ts limit 1;
+
+drop table dates;
+
+drop table times;
+

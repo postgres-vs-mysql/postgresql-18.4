@@ -1,0 +1,33 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#pragma once
+
+#define GETARG_NOTNULL_OID(var, arg, name)                                                         \
+  {                                                                                              \
+    var = PG_ARGISNULL(arg) ? InvalidOid : PG_GETARG_OID(arg);                                 \
+    if (!OidIsValid(var))                                                                      \
+      ereport(ERROR,                                                                         \
+          (errcode(ERRCODE_INVALID_PARAMETER_VALUE),                                     \
+           errmsg("%s cannot be NULL", name)));                                          \
+  }
+
+#define GETARG_NOTNULL_POINTER(var, arg, name, type)                                               \
+  {                                                                                              \
+    if (PG_ARGISNULL(arg))                                                                     \
+      ereport(ERROR,                                                                         \
+          (errcode(ERRCODE_INVALID_PARAMETER_VALUE),                                     \
+           errmsg("%s cannot be NULL", name)));                                          \
+    var = (type *) PG_GETARG_POINTER(arg);                                                     \
+  }
+
+#define GETARG_NOTNULL_NULLABLE(var, arg, name, type)                                              \
+  {                                                                                              \
+    if (PG_ARGISNULL(arg))                                                                     \
+      ereport(ERROR,                                                                         \
+          (errcode(ERRCODE_INVALID_PARAMETER_VALUE),                                     \
+           errmsg("%s cannot be NULL", name)));                                          \
+    var = PG_GETARG_##type(arg);                                                               \
+  }

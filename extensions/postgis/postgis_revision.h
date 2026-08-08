@@ -1,0 +1,1 @@
+#define POSTGIS_REVISION 3.6.0rc2-503-g707fb97

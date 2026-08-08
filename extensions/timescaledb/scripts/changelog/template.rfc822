@@ -1,0 +1,9 @@
+Backward-Incompatible Change: #NNNNN <one line description of the feature>
+
+Implements: #NNNNN <one line description of the feature>
+
+Fixes: #NNNNN <one line description of the Issue>
+
+Setting: <one-line description of the new or changed setting (GUC)>
+
+Thanks: @name <Thank you note>

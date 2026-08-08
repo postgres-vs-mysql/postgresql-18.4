@@ -1,0 +1,242 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+
+--parallel queries require big-ish tables so collect them all here
+--so that we need to generate queries only once.
+
+-- output with analyze is not stable because it depends on worker assignment
+\set PREFIX 'EXPLAIN (buffers off, costs off)'
+
+\set CHUNK1 _timescaledb_internal._hyper_1_1_chunk
+\set CHUNK2 _timescaledb_internal._hyper_1_2_chunk
+
+CREATE TABLE test (i int, j double precision, ts timestamp);
+SELECT create_hypertable('test','i',chunk_time_interval:=500000);
+INSERT INTO test SELECT x, x+0.1, _timescaledb_functions.to_timestamp(x*1000)  FROM generate_series(0,1000000-1,10) AS x;
+
+ANALYZE test;
+ALTER TABLE :CHUNK1 SET (parallel_workers=2);
+ALTER TABLE :CHUNK2 SET (parallel_workers=2);
+
+SET work_mem TO '50MB';
+SELECT set_config(CASE WHEN current_setting('server_version_num')::int < 160000 THEN 'force_parallel_mode' ELSE 'debug_parallel_query' END,'on', false);
+SET max_parallel_workers_per_gather = 4;
+SET parallel_setup_cost TO 0;
+
+EXPLAIN (buffers off, costs off) SELECT first(i, j) FROM "test";
+SELECT first(i, j) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT last(i, j) FROM "test";
+SELECT last(i, j) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT time_bucket('1 second', ts) sec, last(i, j)
+FROM "test"
+GROUP BY sec
+ORDER BY sec
+LIMIT 5;
+
+-- test single copy parallel plan with parallel chunk append
+:PREFIX SELECT time_bucket('1 second', ts) sec, last(i, j)
+FROM "test"
+WHERE length(version()) > 0
+GROUP BY sec
+ORDER BY sec
+LIMIT 5;
+
+SELECT time_bucket('1 second', ts) sec, last(i, j)
+FROM "test"
+GROUP BY sec
+ORDER BY sec
+LIMIT 5;
+
+--test variants of histogram
+EXPLAIN (buffers off, costs off) SELECT histogram(i, 1, 1000000, 2) FROM "test";
+SELECT histogram(i, 1, 1000000, 2) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT histogram(i, 1,1000001,10) FROM "test";
+SELECT histogram(i, 1, 1000001, 10) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT histogram(i, 0,100000,5) FROM "test";
+SELECT histogram(i, 0, 100000, 5) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT histogram(i, 10,100000,5) FROM "test";
+SELECT histogram(i, 10, 100000, 5) FROM "test";
+
+EXPLAIN (buffers off, costs off) SELECT histogram(NULL, 10,100000,5) FROM "test" WHERE  i = coalesce(-1,j);
+SELECT histogram(NULL, 10,100000,5) FROM "test" WHERE  i = coalesce(-1,j);
+
+-- test parallel ChunkAppend
+:PREFIX SELECT i FROM "test" WHERE length(version()) > 0;
+
+:PREFIX SELECT count(*) FROM "test" WHERE i > 1 AND length(version()) > 0;
+SELECT count(*) FROM "test" WHERE i > 1 AND length(version()) > 0;
+
+-- test parallel ChunkAppend with only work done in the parallel workers
+SET parallel_leader_participation = off;
+SELECT count(*) FROM "test" WHERE i > 1 AND length(version()) > 0;
+RESET parallel_leader_participation;
+
+-- Test parallel chunk append is used (index scan is disabled to trigger a parallel chunk append)
+SET parallel_tuple_cost = 0;
+SET enable_indexscan = OFF;
+:PREFIX SELECT * FROM (SELECT * FROM "test" WHERE length(version()) > 0 ORDER BY I LIMIT 10) AS t1 LEFT JOIN (SELECT * FROM "test" WHERE i < 500000 ORDER BY I LIMIT 10) AS t2 ON (t1.i = t2.i) ORDER BY t1.i, t2.i;
+SELECT * FROM (SELECT * FROM "test" WHERE length(version()) > 0 ORDER BY I LIMIT 10) AS t1 LEFT JOIN (SELECT * FROM "test" WHERE i < 500000 ORDER BY I LIMIT 10) AS t2 ON (t1.i = t2.i) ORDER BY t1.i, t2.i;
+SET enable_indexscan = ON;
+
+-- Test normal chunk append can be used in a parallel worker
+:PREFIX SELECT * FROM (SELECT * FROM "test" WHERE i >= 999000 ORDER BY i) AS t1 JOIN (SELECT * FROM "test" WHERE i >= 400000 ORDER BY i) AS t2 ON (TRUE) ORDER BY t1.i, t2.i LIMIT 10;
+SELECT * FROM (SELECT * FROM "test" WHERE i >= 999000 ORDER BY i) AS t1 JOIN (SELECT * FROM "test" WHERE i >= 400000 ORDER BY i) AS t2 ON (TRUE) ORDER BY t1.i, t2.i LIMIT 10;
+
+-- Test parallel ChunkAppend reinit
+SET enable_material = off;
+SET min_parallel_table_scan_size = 0;
+SET min_parallel_index_scan_size = 0;
+SET enable_hashjoin = 'off';
+SET enable_nestloop = 'off';
+
+CREATE TABLE sensor_data(
+      time timestamptz NOT NULL,
+      sensor_id integer NOT NULL);
+
+SELECT FROM create_hypertable(relation=>'sensor_data', time_column_name=> 'time');
+
+-- Sensors 1 and 2
+INSERT INTO sensor_data
+SELECT time, sensor_id
+FROM
+generate_series('2000-01-01 00:00:30', '2022-01-01 00:00:30', INTERVAL '3 months') AS g1(time),
+generate_series(1, 2, 1) AS g2(sensor_id)
+ORDER BY time;
+
+-- Sensor 100
+INSERT INTO sensor_data
+SELECT time, 100 as sensor_id
+FROM
+generate_series('2000-01-01 00:00:30', '2022-01-01 00:00:30', INTERVAL '1 year') AS g1(time)
+ORDER BY time;
+
+:PREFIX SELECT * FROM sensor_data AS s1 JOIN sensor_data AS s2 ON (TRUE) WHERE s1.time > '2020-01-01 00:00:30'::text::timestamptz AND s2.time > '2020-01-01 00:00:30' AND s2.time < '2021-01-01 00:00:30' AND s1.sensor_id > 50 ORDER BY s2.time, s1.time, s1.sensor_id, s2.sensor_id;
+
+-- Check query result
+SELECT * FROM sensor_data AS s1 JOIN sensor_data AS s2 ON (TRUE) WHERE s1.time > '2020-01-01 00:00:30'::text::timestamptz AND s2.time > '2020-01-01 00:00:30' AND s2.time < '2021-01-01 00:00:30' AND s1.sensor_id > 50 ORDER BY s2.time, s1.time, s1.sensor_id, s2.sensor_id;
+
+-- Ensure the same result is produced if only the parallel workers have to produce them (i.e., the pstate is reinitialized properly)
+SET parallel_leader_participation = off;
+SELECT * FROM sensor_data AS s1 JOIN sensor_data AS s2 ON (TRUE) WHERE s1.time > '2020-01-01 00:00:30'::text::timestamptz AND s2.time > '2020-01-01 00:00:30' AND s2.time < '2021-01-01 00:00:30' AND s1.sensor_id > 50 ORDER BY s2.time, s1.time, s1.sensor_id, s2.sensor_id;
+RESET parallel_leader_participation;
+
+-- Ensure the same query result is produced by a sequencial query
+SET max_parallel_workers_per_gather TO 0;
+SELECT set_config(CASE WHEN current_setting('server_version_num')::int < 160000 THEN 'force_parallel_mode' ELSE 'debug_parallel_query' END,'off', false);
+SELECT * FROM sensor_data AS s1 JOIN sensor_data AS s2 ON (TRUE) WHERE s1.time > '2020-01-01 00:00:30'::text::timestamptz AND s2.time > '2020-01-01 00:00:30' AND s2.time < '2021-01-01 00:00:30' AND s1.sensor_id > 50 ORDER BY s2.time, s1.time, s1.sensor_id, s2.sensor_id;
+
+RESET enable_material;
+RESET min_parallel_table_scan_size;
+RESET min_parallel_index_scan_size;
+RESET enable_hashjoin;
+RESET enable_nestloop;
+RESET parallel_tuple_cost;
+SELECT set_config(CASE WHEN current_setting('server_version_num')::int < 160000 THEN 'force_parallel_mode' ELSE 'debug_parallel_query' END,'on', false);
+
+-- test worker assignment
+-- first chunk should have 1 worker and second chunk should have 2
+SET max_parallel_workers_per_gather TO 2;
+:PREFIX SELECT count(*) FROM "test" WHERE i >= 400000 AND length(version()) > 0;
+SELECT count(*) FROM "test" WHERE i >= 400000 AND length(version()) > 0;
+
+-- test worker assignment
+-- first chunk should have 2 worker and second chunk should have 1
+:PREFIX SELECT count(*) FROM "test" WHERE i < 600000 AND length(version()) > 0;
+SELECT count(*) FROM "test" WHERE i < 600000 AND length(version()) > 0;
+
+-- test ChunkAppend with # workers < # childs
+SET max_parallel_workers_per_gather TO 1;
+:PREFIX SELECT count(*) FROM "test" WHERE length(version()) > 0;
+SELECT count(*) FROM "test" WHERE length(version()) > 0;
+
+-- test ChunkAppend with # workers > # childs
+SET max_parallel_workers_per_gather TO 2;
+:PREFIX SELECT count(*) FROM "test" WHERE i >= 500000 AND length(version()) > 0;
+SELECT count(*) FROM "test" WHERE i >= 500000 AND length(version()) > 0;
+
+RESET max_parallel_workers_per_gather;
+
+-- test partial and non-partial plans
+-- these will not be parallel on PG < 11
+ALTER TABLE :CHUNK1 SET (parallel_workers=0);
+ALTER TABLE :CHUNK2 SET (parallel_workers=2);
+:PREFIX SELECT count(*) FROM "test" WHERE i > 400000 AND length(version()) > 0;
+
+ALTER TABLE :CHUNK1 SET (parallel_workers=2);
+ALTER TABLE :CHUNK2 SET (parallel_workers=0);
+:PREFIX SELECT count(*) FROM "test" WHERE i < 600000 AND length(version()) > 0;
+
+-- Verify result correctness with mixed partial/non-partial subplans.
+-- chunk1 is partial (parallel_workers=2), chunk2 is non-partial (parallel_workers=0).
+SET max_parallel_workers_per_gather TO 0;
+SELECT count(*) FROM test WHERE i < 600000;
+
+SET max_parallel_workers_per_gather TO 2;
+SELECT count(*) FROM test WHERE i < 600000 AND length(version()) > 0;
+
+-- Same with leader not participating, so only workers execute subplans.
+SET parallel_leader_participation = off;
+SELECT count(*) FROM test WHERE i < 600000 AND length(version()) > 0;
+RESET parallel_leader_participation;
+
+-- Test startup exclusion with mixed partial/non-partial subplans.
+-- Use a 3-chunk table so that after excluding one non-partial chunk,
+-- the remaining plan still has both partial and non-partial subplans.
+CREATE TABLE test3 (i int, j double precision, ts timestamp);
+SELECT create_hypertable('test3', 'i', chunk_time_interval => 200000);
+INSERT INTO test3 SELECT x, x+0.1, _timescaledb_functions.to_timestamp(x*1000)
+  FROM generate_series(0, 599999, 10) AS x;
+ANALYZE test3;
+
+SELECT show_chunks('test3') AS chunk3_1 LIMIT 1 OFFSET 0 \gset
+SELECT show_chunks('test3') AS chunk3_2 LIMIT 1 OFFSET 1 \gset
+SELECT show_chunks('test3') AS chunk3_3 LIMIT 1 OFFSET 2 \gset
+
+-- Make chunks 1 and 2 non-partial, chunk 3 partial.
+-- Subplan order: chunk1(non-partial), chunk2(non-partial), chunk3(partial)
+-- first_partial_plan = 2.
+ALTER TABLE :chunk3_1 SET (parallel_workers=0);
+ALTER TABLE :chunk3_2 SET (parallel_workers=0);
+ALTER TABLE :chunk3_3 SET (parallel_workers=2);
+
+-- Startup-exclude chunk1 (non-partial). length(version()) is stable, so
+-- the expression is not constant-folded and triggers startup exclusion.
+-- After excluding chunk1, filtered_first_partial_plan should be 1
+-- (decremented from 2 because one non-partial was removed).
+-- Remaining: chunk2(non-partial), chunk3(partial).
+SET max_parallel_workers_per_gather TO 0;
+SELECT count(j) FROM test3 WHERE i >= length(version()) * 0 + 200000;
+
+SET max_parallel_workers_per_gather TO 2;
+SET enable_indexscan to OFF;
+:PREFIX SELECT count(j) FROM test3 WHERE i >= length(version()) * 0 + 200000 AND length(version()) > 0;
+SELECT count(j) FROM test3 WHERE i >= length(version()) * 0 + 200000 AND length(version()) > 0;
+
+SET parallel_leader_participation = off;
+SELECT count(j) FROM test3 WHERE i >= length(version()) * 0 + 200000 AND length(version()) > 0;
+RESET parallel_leader_participation;
+
+DROP TABLE test3;
+RESET max_parallel_workers_per_gather;
+RESET enable_indexscan;
+
+ALTER TABLE :CHUNK1 RESET (parallel_workers);
+ALTER TABLE :CHUNK2 RESET (parallel_workers);
+RESET max_parallel_workers_per_gather;
+
+-- now() is not marked parallel safe in PostgreSQL < 12 so using now()
+-- in a query will prevent parallelism but CURRENT_TIMESTAMP and
+-- transaction_timestamp() are marked parallel safe
+:PREFIX SELECT i FROM "test" WHERE ts < CURRENT_TIMESTAMP;
+
+:PREFIX SELECT i FROM "test" WHERE ts < transaction_timestamp();
+
+-- this won't be parallel query because now() is parallel restricted in PG < 12
+:PREFIX SELECT i FROM "test" WHERE ts < now();
+

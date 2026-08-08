@@ -1,0 +1,6 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--12.1-1--13.0-1.sql: \
+ sql/citus--12.1-1--13.0-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/13.0-1.sql \
+ sql/udfs/create_time_partitions/13.0-1.sql
+sql/udfs/citus_prepare_pg_upgrade/13.0-1.sql:
+sql/udfs/create_time_partitions/13.0-1.sql:

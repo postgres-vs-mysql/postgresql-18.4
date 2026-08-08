@@ -1,0 +1,22 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--13.1-1--13.2-1.sql: \
+ sql/citus--13.1-1--13.2-1.sql \
+ sql/udfs/worker_last_saved_explain_analyze/13.2-1.sql \
+ sql/cat_upgrades/add_clone_info_to_pg_dist_node.sql \
+ sql/udfs/citus_add_clone_node/13.2-1.sql \
+ sql/udfs/citus_remove_clone_node/13.2-1.sql \
+ sql/udfs/citus_promote_clone_and_rebalance/13.2-1.sql \
+ sql/udfs/get_snapshot_based_node_split_plan/13.2-1.sql \
+ sql/udfs/citus_rebalance_start/13.2-1.sql \
+ sql/udfs/citus_internal_copy_single_shard_placement/13.2-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/13.2-1.sql \
+ sql/udfs/citus_stats/13.2-1.sql
+sql/udfs/worker_last_saved_explain_analyze/13.2-1.sql:
+sql/cat_upgrades/add_clone_info_to_pg_dist_node.sql:
+sql/udfs/citus_add_clone_node/13.2-1.sql:
+sql/udfs/citus_remove_clone_node/13.2-1.sql:
+sql/udfs/citus_promote_clone_and_rebalance/13.2-1.sql:
+sql/udfs/get_snapshot_based_node_split_plan/13.2-1.sql:
+sql/udfs/citus_rebalance_start/13.2-1.sql:
+sql/udfs/citus_internal_copy_single_shard_placement/13.2-1.sql:
+sql/udfs/citus_finish_pg_upgrade/13.2-1.sql:
+sql/udfs/citus_stats/13.2-1.sql:

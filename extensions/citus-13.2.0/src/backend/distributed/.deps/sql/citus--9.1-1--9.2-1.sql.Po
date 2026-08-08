@@ -1,0 +1,33 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.1-1--9.2-1.sql: \
+ sql/citus--9.1-1--9.2-1.sql sql/udfs/read_intermediate_results/9.2-1.sql \
+ sql/udfs/fetch_intermediate_results/9.2-1.sql \
+ sql/udfs/worker_partition_query_result/9.2-1.sql \
+ sql/udfs/citus_validate_rebalance_strategy_functions/9.2-1.sql \
+ sql/udfs/pg_dist_rebalance_strategy_trigger_func/9.2-1.sql \
+ sql/udfs/citus_add_rebalance_strategy/9.2-1.sql \
+ sql/udfs/citus_set_default_rebalance_strategy/9.2-1.sql \
+ sql/udfs/citus_shard_cost_1/9.2-1.sql \
+ sql/udfs/citus_shard_cost_by_disk_size/9.2-1.sql \
+ sql/udfs/citus_node_capacity_1/9.2-1.sql \
+ sql/udfs/citus_shard_allowed_on_node_true/9.2-1.sql \
+ sql/udfs/master_drain_node/9.2-1.sql \
+ sql/udfs/rebalance_table_shards/9.2-1.sql \
+ sql/udfs/get_rebalance_table_shards_plan/9.2-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/9.2-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/9.2-1.sql
+sql/udfs/read_intermediate_results/9.2-1.sql:
+sql/udfs/fetch_intermediate_results/9.2-1.sql:
+sql/udfs/worker_partition_query_result/9.2-1.sql:
+sql/udfs/citus_validate_rebalance_strategy_functions/9.2-1.sql:
+sql/udfs/pg_dist_rebalance_strategy_trigger_func/9.2-1.sql:
+sql/udfs/citus_add_rebalance_strategy/9.2-1.sql:
+sql/udfs/citus_set_default_rebalance_strategy/9.2-1.sql:
+sql/udfs/citus_shard_cost_1/9.2-1.sql:
+sql/udfs/citus_shard_cost_by_disk_size/9.2-1.sql:
+sql/udfs/citus_node_capacity_1/9.2-1.sql:
+sql/udfs/citus_shard_allowed_on_node_true/9.2-1.sql:
+sql/udfs/master_drain_node/9.2-1.sql:
+sql/udfs/rebalance_table_shards/9.2-1.sql:
+sql/udfs/get_rebalance_table_shards_plan/9.2-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/9.2-1.sql:
+sql/udfs/citus_finish_pg_upgrade/9.2-1.sql:

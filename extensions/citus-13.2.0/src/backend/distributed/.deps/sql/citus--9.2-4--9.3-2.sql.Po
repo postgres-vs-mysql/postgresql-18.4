@@ -1,0 +1,13 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.2-4--9.3-2.sql: \
+ sql/citus--9.2-4--9.3-2.sql sql/udfs/citus_extradata_container/9.3-2.sql \
+ sql/udfs/update_distributed_table_colocation/9.3-2.sql \
+ sql/udfs/replicate_reference_tables/9.3-2.sql \
+ sql/udfs/citus_remote_connection_stats/9.3-2.sql \
+ sql/udfs/worker_create_or_alter_role/9.3-2.sql \
+ sql/udfs/truncate_local_data_after_distributing_table/9.3-2.sql
+sql/udfs/citus_extradata_container/9.3-2.sql:
+sql/udfs/update_distributed_table_colocation/9.3-2.sql:
+sql/udfs/replicate_reference_tables/9.3-2.sql:
+sql/udfs/citus_remote_connection_stats/9.3-2.sql:
+sql/udfs/worker_create_or_alter_role/9.3-2.sql:
+sql/udfs/truncate_local_data_after_distributing_table/9.3-2.sql:

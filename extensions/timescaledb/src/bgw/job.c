@@ -1,0 +1,1425 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#include "debug_trace.h"
+#include <postgres.h>
+
+#include <unistd.h>
+#include <access/xact.h>
+#include <catalog/pg_authid.h>
+#include <executor/execdebug.h>
+#include <executor/instrument.h>
+#include <miscadmin.h>
+#include <nodes/makefuncs.h>
+#include <parser/parse_func.h>
+#include <parser/parser.h>
+#include <pgstat.h>
+#include <postmaster/bgworker.h>
+#include <storage/ipc.h>
+#include <storage/lock.h>
+#include <tcop/tcopprot.h>
+#include <utils/acl.h>
+#include <utils/backend_status.h>
+#include <utils/builtins.h>
+#include <utils/elog.h>
+#include <utils/jsonb.h>
+#include <utils/lsyscache.h>
+#include <utils/memutils.h>
+#include <utils/snapmgr.h>
+#include <utils/syscache.h>
+#include <utils/timestamp.h>
+
+#include "compat/compat.h"
+#include "bgw/job_stat_history.h"
+#include "bgw/scheduler.h"
+#include "bgw_policy/chunk_stats.h"
+#include "bgw_policy/policy.h"
+#include "config.h"
+#include "cross_module_fn.h"
+#include "debug_assert.h"
+#include "debug_point.h"
+#include "extension.h"
+#include "job.h"
+#include "job_stat.h"
+#include "license_guc.h"
+#include "scan_iterator.h"
+#include "scanner.h"
+#include "tss_callbacks.h"
+#include "utils.h"
+
+#ifdef USE_TELEMETRY
+#include "telemetry/telemetry.h"
+#endif
+
+static scheduler_test_hook_type scheduler_test_hook = NULL;
+static char *job_entrypoint_function_name = "ts_bgw_job_entrypoint";
+
+/*
+ * Get the mem_guard callbacks.
+ *
+ * You might get a NULL pointer back if there are no mem_guard installed, so
+ * check before using.
+ */
+MGCallbacks *
+ts_get_mem_guard_callbacks(void)
+{
+  DBUG_TRACE;
+  static MGCallbacks **mem_guard_callback_ptr = NULL;
+
+  if (mem_guard_callback_ptr)
+    return *mem_guard_callback_ptr;
+
+  mem_guard_callback_ptr = (MGCallbacks **) find_rendezvous_variable(MG_CALLBACKS_VAR_NAME);
+
+  return *mem_guard_callback_ptr;
+}
+
+BackgroundWorkerHandle *
+ts_bgw_job_start(BgwJob *job, Oid user_oid)
+{
+  DBUG_TRACE;
+  BgwParams bgw_params = {
+    .job_id = Int32GetDatum(job->fd.id),
+    .job_history_id = job->job_history.id,
+    .job_history_execution_start = job->job_history.execution_start,
+    .user_oid = user_oid,
+  };
+
+  strlcpy(bgw_params.bgw_main, job_entrypoint_function_name, sizeof(bgw_params.bgw_main));
+
+  return ts_bgw_start_worker(NameStr(job->fd.application_name), &bgw_params);
+}
+
+static void
+job_execute_function(FuncExpr *funcexpr)
+{
+  DBUG_TRACE;
+  bool isnull;
+
+  EState *estate = CreateExecutorState();
+  ExprContext *econtext = CreateExprContext(estate);
+
+  ExprState *es = ExecPrepareExpr((Expr *) funcexpr, estate);
+  ExecEvalExpr(es, econtext, &isnull);
+  FreeExprContext(econtext, true);
+  FreeExecutorState(estate);
+}
+
+/**
+ * Run configuration check validation function.
+ *
+ * This will run the configuration check validation function registered for
+ * the job. If a new job is added, the job_id is going to be zero.
+ */
+void
+ts_bgw_job_run_config_check(Oid check, int32 job_id, Jsonb *config)
+{
+  DBUG_TRACE;
+
+  /* Nothing to check if there is no check function provided */
+  if (!OidIsValid(check))
+    return;
+
+  /* NULL config may be valid */
+  Const *arg;
+
+  if (config == NULL)
+    arg = makeNullConst(JSONBOID, -1, InvalidOid);
+  else
+    arg = makeConst(JSONBOID, -1, InvalidOid, -1, JsonbPGetDatum(config), false, false);
+
+  List *args = list_make1(arg);
+  FuncExpr *funcexpr =
+    makeFuncExpr(check, VOIDOID, args, InvalidOid, InvalidOid, COERCE_EXPLICIT_CALL);
+
+  if (get_func_prokind(check) == PROKIND_FUNCTION)
+    job_execute_function(funcexpr);
+  else
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("unsupported function type"),
+             errdetail("Only functions are allowed as custom configuration checks"),
+             errhint("Use a FUNCTION instead")));
+}
+
+/* Run the check function on a configuration. It will generate errors if there
+ * is anything wrong with the configuration, otherwise just return. If the
+ * check function does not exist, no checking will be done.*/
+static void
+job_config_check(BgwJob *job, Jsonb *config)
+{
+  DBUG_TRACE;
+  Oid proc;
+  List *funcname;
+
+  /* Both should either be empty or contain a schema and name */
+  Assert((strlen(NameStr(job->fd.check_schema)) == 0) ==
+         (strlen(NameStr(job->fd.check_schema)) == 0));
+
+  /* If there is no function, just return */
+  if (strlen(NameStr(job->fd.check_name)) == 0)
+    return;
+
+  funcname = list_make2(makeString(NameStr(job->fd.check_schema)),
+                        makeString(NameStr(job->fd.check_name)));
+
+  Oid argtypes[] = { JSONBOID };
+  /* Only functions allowed as custom checks, as procedures can cause errors with COMMIT
+   * statements */
+  proc = LookupFuncName(funcname, 1, argtypes, true);
+
+  /* a check function has been registered but it can't be found anymore
+   because it was dropped or renamed. Allow alter_job to run if that's the case
+   without validating the config but also print a warning */
+  if (OidIsValid(proc))
+    ts_bgw_job_run_config_check(proc, job->fd.id, config);
+  else
+    elog(WARNING,
+         "function %s.%s(config jsonb) not found, skipping config validation for "
+         "job %d",
+         NameStr(job->fd.check_schema),
+         NameStr(job->fd.check_name),
+         job->fd.id);
+}
+
+static BgwJob *
+bgw_job_from_tupleinfo(TupleInfo *ti, size_t alloc_size)
+{
+  DBUG_TRACE;
+  BgwJob *job;
+  bool should_free;
+  HeapTuple tuple;
+  MemoryContext old_ctx;
+  Datum values[Natts_bgw_job] = { 0 };
+  bool nulls[Natts_bgw_job] = { false };
+
+  /*
+   * allow for embedding with arbitrary alloc_size, which means we can't use
+   * the STRUCT_FROM_TUPLE macro
+   */
+  Assert(alloc_size >= sizeof(BgwJob));
+  job = MemoryContextAllocZero(ti->mctx, alloc_size);
+  tuple = ts_scanner_fetch_heap_tuple(ti, false, &should_free);
+
+  old_ctx = MemoryContextSwitchTo(ti->mctx);
+
+  /*
+   * Using heap_deform_tuple instead of GETSTRUCT since the tuple can
+   * contain NULL values. Some of these cannot really be null, but we check
+   * anyway since it is cheap and will avoid problems in the future. Note
+   * that the job structure is zeroed, so we only need to update the field
+   * if it is non-NULL.
+   */
+  heap_deform_tuple(tuple, ts_scanner_get_tupledesc(ti), values, nulls);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_id)])
+    job->fd.id = DatumGetInt32(values[AttrNumberGetAttrOffset(Anum_bgw_job_id)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_application_name)])
+    namestrcpy(&job->fd.application_name,
+               DatumGetCString(values[AttrNumberGetAttrOffset(Anum_bgw_job_application_name)]));
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_schedule_interval)])
+    job->fd.schedule_interval =
+      *DatumGetIntervalP(values[AttrNumberGetAttrOffset(Anum_bgw_job_schedule_interval)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_max_runtime)])
+    job->fd.max_runtime =
+      *DatumGetIntervalP(values[AttrNumberGetAttrOffset(Anum_bgw_job_max_runtime)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_max_retries)])
+    job->fd.max_retries =
+      DatumGetInt32(values[AttrNumberGetAttrOffset(Anum_bgw_job_max_retries)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_fixed_schedule)])
+    job->fd.fixed_schedule =
+      DatumGetBool(values[AttrNumberGetAttrOffset(Anum_bgw_job_fixed_schedule)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)]) {
+    job->fd.initial_start =
+      DatumGetTimestampTz(values[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)]);
+  } else
+    job->fd.initial_start = DT_NOBEGIN;
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)])
+    job->fd.timezone =
+      DatumGetTextPCopy(values[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_retry_period)])
+    job->fd.retry_period =
+      *DatumGetIntervalP(values[AttrNumberGetAttrOffset(Anum_bgw_job_retry_period)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_proc_schema)])
+    namestrcpy(&job->fd.proc_schema,
+               DatumGetCString(values[AttrNumberGetAttrOffset(Anum_bgw_job_proc_schema)]));
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_proc_name)])
+    namestrcpy(&job->fd.proc_name,
+               DatumGetCString(values[AttrNumberGetAttrOffset(Anum_bgw_job_proc_name)]));
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)])
+    namestrcpy(&job->fd.check_schema,
+               DatumGetCString(values[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)]));
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)])
+    namestrcpy(&job->fd.check_name,
+               DatumGetCString(values[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)]));
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_owner)])
+    job->fd.owner = DatumGetObjectId(values[AttrNumberGetAttrOffset(Anum_bgw_job_owner)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_scheduled)])
+    job->fd.scheduled = DatumGetBool(values[AttrNumberGetAttrOffset(Anum_bgw_job_scheduled)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)])
+    job->fd.hypertable_id =
+      DatumGetInt32(values[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)]);
+
+  if (!nulls[AttrNumberGetAttrOffset(Anum_bgw_job_config)])
+    job->fd.config = DatumGetJsonbPCopy(values[AttrNumberGetAttrOffset(Anum_bgw_job_config)]);
+
+  MemoryContextSwitchTo(old_ctx);
+
+  if (should_free)
+    heap_freetuple(tuple);
+
+  return job;
+}
+
+typedef struct AccumData {
+  List *list;
+  size_t alloc_size;
+} AccumData;
+
+static ScanTupleResult
+bgw_job_accum_tuple_found(TupleInfo *ti, void *data)
+{
+  DBUG_TRACE;
+  AccumData *list_data = data;
+  BgwJob *job = bgw_job_from_tupleinfo(ti, list_data->alloc_size);
+  MemoryContext orig = MemoryContextSwitchTo(ti->mctx);
+
+  list_data->list = lappend(list_data->list, job);
+
+  MemoryContextSwitchTo(orig);
+  return SCAN_CONTINUE;
+}
+
+static ScanFilterResult
+bgw_job_filter_scheduled(const TupleInfo *ti, void *data)
+{
+  DBUG_TRACE;
+  bool isnull;
+  Datum scheduled = slot_getattr(ti->slot, Anum_bgw_job_scheduled, &isnull);
+  Ensure(!isnull, "scheduled column was null");
+
+  return DatumGetBool(scheduled);
+}
+
+/* This function is meant to be used by the scheduler only
+ * it does not include the config field which saves us from
+ * detoasting and makes memory management in the scheduler
+ * simpler as otherwise the config field would have to be
+ * freed separately when freeing jobs which would prevent
+ * the use of list_free_deep.
+ * The scheduler does not need the config field only the
+ * individual jobs do.
+ * The scheduler requires jobs to be sorted by id
+ * which is guaranteed by the index scan on the primary key
+ */
+List *
+ts_bgw_job_get_scheduled(size_t alloc_size, MemoryContext mctx)
+{
+  DBUG_TRACE;
+  MemoryContext old_ctx;
+  List *jobs = NIL;
+  ScanIterator iterator =
+    ts_scan_iterator_create_with_catalog_snapshot(BGW_JOB, AccessShareLock, mctx);
+
+  iterator.ctx.index = catalog_get_index(ts_catalog_get(), BGW_JOB, BGW_JOB_PKEY_IDX);
+  iterator.ctx.filter = bgw_job_filter_scheduled;
+
+  ts_scanner_foreach(&iterator) {
+    TupleInfo *ti = ts_scan_iterator_tuple_info(&iterator);
+    bool should_free, isnull, initial_start_isnull, timezone_isnull;
+    Datum value, initial_start, timezone;
+
+    BgwJob *job = MemoryContextAllocZero(mctx, alloc_size);
+    HeapTuple tuple = ts_scanner_fetch_heap_tuple(ti, false, &should_free);
+
+    /*
+     * Note that the nullable columns might have variable width, so we
+     * handle them below. We can only use memcpy for the non-nullable fixed
+     * width starting part of the BgwJob struct.
+     */
+    memcpy(job, GETSTRUCT(tuple), offsetof(FormData_bgw_job, initial_start));
+
+    if (should_free)
+      heap_freetuple(tuple);
+
+#ifdef USE_TELEMETRY
+
+    /* ignore telemetry jobs if telemetry is disabled */
+    if (!ts_telemetry_on() && ts_is_telemetry_job(job)) {
+      pfree(job);
+      continue;
+    }
+
+#endif
+    /* handle NULL columns */
+    initial_start = slot_getattr(ti->slot, Anum_bgw_job_initial_start, &initial_start_isnull);
+
+    if (!initial_start_isnull)
+      job->fd.initial_start = DatumGetTimestampTz(initial_start);
+    else
+      job->fd.initial_start = DT_NOBEGIN;
+
+    value = slot_getattr(ti->slot, Anum_bgw_job_hypertable_id, &isnull);
+    job->fd.hypertable_id = isnull ? 0 : DatumGetInt32(value);
+
+    /* We skip config, check_name, and check_schema since the scheduler
+     * doesn't need these, it saves us from detoasting, and simplifies
+     * freeing job lists in the scheduler as otherwise the config field
+     * would have to be freed separately when freeing a job. */
+    job->fd.config = NULL;
+
+    old_ctx = MemoryContextSwitchTo(mctx);
+
+    timezone = slot_getattr(ti->slot, Anum_bgw_job_timezone, &timezone_isnull);
+
+    if (!timezone_isnull) {
+      /* We use DatumGetTextPCopy to move the detoasted value into our memory context */
+      job->fd.timezone = DatumGetTextPCopy(timezone);
+    } else {
+      job->fd.timezone = NULL;
+    }
+
+    jobs = lappend(jobs, job);
+    MemoryContextSwitchTo(old_ctx);
+  }
+
+  return jobs;
+}
+
+List *
+ts_bgw_job_get_all(size_t alloc_size, MemoryContext mctx)
+{
+  DBUG_TRACE;
+  Catalog *catalog = ts_catalog_get();
+  AccumData list_data = {
+    .list = NIL,
+    .alloc_size = sizeof(BgwJob),
+  };
+  ScannerCtx scanctx = {
+    .table = catalog_get_table_id(catalog, BGW_JOB),
+    .data = &list_data,
+    .tuple_found = bgw_job_accum_tuple_found,
+    .lockmode = AccessShareLock,
+    .result_mctx = mctx,
+    .scandirection = ForwardScanDirection,
+    .use_catalog_snapshot = true,
+  };
+
+  ts_scanner_scan(&scanctx);
+  return list_data.list;
+}
+
+static void
+init_scan_by_proc_name(ScanKeyData *scankey, const char *proc_name)
+{
+  DBUG_TRACE;
+  ScanKeyInit(scankey,
+              Anum_bgw_job_proc_hypertable_id_idx_proc_name,
+              BTEqualStrategyNumber,
+              F_NAMEEQ,
+              CStringGetDatum(proc_name));
+}
+
+static void
+init_scan_by_proc_schema(ScanKeyData *scankey, const char *proc_schema)
+{
+  DBUG_TRACE;
+  ScanKeyInit(scankey,
+              Anum_bgw_job_proc_hypertable_id_idx_proc_schema,
+              BTEqualStrategyNumber,
+              F_NAMEEQ,
+              CStringGetDatum(proc_schema));
+}
+
+static void
+init_scan_by_hypertable_id(ScanKeyData *scankey, int32 hypertable_id)
+{
+  DBUG_TRACE;
+  ScanKeyInit(scankey,
+              Anum_bgw_job_proc_hypertable_id_idx_hypertable_id,
+              BTEqualStrategyNumber,
+              F_INT4EQ,
+              Int32GetDatum(hypertable_id));
+}
+
+List *
+ts_bgw_job_find_by_proc_and_hypertable_id(const char *proc_name, const char *proc_schema,
+    int32 hypertable_id)
+{
+  DBUG_TRACE;
+  Catalog *catalog = ts_catalog_get();
+  ScanKeyData scankey[3];
+  AccumData list_data = {
+    .list = NIL,
+    .alloc_size = sizeof(BgwJob),
+  };
+  ScannerCtx scanctx = {
+    .table = catalog_get_table_id(catalog, BGW_JOB),
+    .index = catalog_get_index(ts_catalog_get(), BGW_JOB, BGW_JOB_PROC_HYPERTABLE_ID_IDX),
+    .data = &list_data,
+    .scankey = scankey,
+    .nkeys = sizeof(scankey) / sizeof(*scankey),
+    .tuple_found = bgw_job_accum_tuple_found,
+    .lockmode = AccessShareLock,
+    .scandirection = ForwardScanDirection,
+    .use_catalog_snapshot = true,
+  };
+
+  init_scan_by_proc_schema(&scankey[0], proc_schema);
+  init_scan_by_proc_name(&scankey[1], proc_name);
+  init_scan_by_hypertable_id(&scankey[2], hypertable_id);
+
+  ts_scanner_scan(&scanctx);
+  return list_data.list;
+}
+
+List *
+ts_bgw_job_find_by_hypertable_id(int32 hypertable_id)
+{
+  DBUG_TRACE;
+  Catalog *catalog = ts_catalog_get();
+  ScanKeyData scankey[1];
+  AccumData list_data = {
+    .list = NIL,
+    .alloc_size = sizeof(BgwJob),
+  };
+  ScannerCtx scanctx = {
+    .table = catalog_get_table_id(catalog, BGW_JOB),
+    .index = catalog_get_index(ts_catalog_get(), BGW_JOB, BGW_JOB_PROC_HYPERTABLE_ID_IDX),
+    .data = &list_data,
+    .scankey = scankey,
+    .nkeys = sizeof(scankey) / sizeof(*scankey),
+    .tuple_found = bgw_job_accum_tuple_found,
+    .lockmode = AccessShareLock,
+    .scandirection = ForwardScanDirection,
+    .use_catalog_snapshot = true,
+  };
+
+  init_scan_by_hypertable_id(&scankey[0], hypertable_id);
+
+  ts_scanner_scan(&scanctx);
+  return list_data.list;
+}
+
+static void
+init_scan_by_job_id(ScanIterator *iterator, int32 job_id)
+{
+  DBUG_TRACE;
+  iterator->ctx.index = catalog_get_index(ts_catalog_get(), BGW_JOB, BGW_JOB_PKEY_IDX);
+  ts_scan_iterator_scan_key_init(iterator,
+                                 Anum_bgw_job_pkey_idx_id,
+                                 BTEqualStrategyNumber,
+                                 F_INT4EQ,
+                                 Int32GetDatum(job_id));
+}
+
+BgwJob *
+ts_bgw_job_find(int32 bgw_job_id, MemoryContext mctx, bool fail_if_not_found)
+{
+  DBUG_TRACE;
+  ScanIterator iterator =
+    ts_scan_iterator_create_with_catalog_snapshot(BGW_JOB, AccessShareLock, mctx);
+  int num_found = 0;
+  BgwJob *job = NULL;
+
+  init_scan_by_job_id(&iterator, bgw_job_id);
+
+  ts_scanner_foreach(&iterator) {
+    Assert(num_found == 0);
+    job = bgw_job_from_tupleinfo(ts_scan_iterator_tuple_info(&iterator), sizeof(BgwJob));
+    num_found++;
+    DEBUG_WAITPOINT("bgw_job_find_during_scan");
+  }
+
+  if (num_found == 0 && fail_if_not_found)
+    ereport(ERROR, (errcode(ERRCODE_UNDEFINED_OBJECT), errmsg("job %d not found", bgw_job_id)));
+
+  return job;
+}
+
+static ScanTupleResult
+bgw_job_tuple_delete(TupleInfo *ti, void *data)
+{
+  DBUG_TRACE;
+  CatalogSecurityContext sec_ctx;
+  bool isnull_job_id;
+  Datum datum = slot_getattr(ti->slot, Anum_bgw_job_id, &isnull_job_id);
+  int32 job_id = DatumGetInt32(datum);
+
+  Ensure(!isnull_job_id, "job id was null");
+
+  /* Also delete the bgw_stat entry */
+  ts_bgw_job_stat_delete(job_id);
+
+  /* Delete any stats in bgw_policy_chunk_stats related to this job */
+  ts_bgw_policy_chunk_stats_delete_row_only_by_job_id(job_id);
+
+  ts_catalog_database_info_become_owner(ts_catalog_database_info_get(), &sec_ctx);
+  ts_catalog_delete_tid(ti->scanrel, ts_scanner_get_tuple_tid(ti));
+  ts_catalog_restore_user(&sec_ctx);
+
+  return SCAN_CONTINUE;
+}
+
+static bool
+bgw_job_delete_scan(ScanKeyData *scankey, int32 job_id)
+{
+  DBUG_TRACE;
+  Catalog *catalog = ts_catalog_get();
+  ScannerCtx scanctx;
+
+  scanctx = (ScannerCtx) {
+    .table = catalog_get_table_id(catalog, BGW_JOB),
+    .index = catalog_get_index(catalog, BGW_JOB, BGW_JOB_PKEY_IDX),
+    .nkeys = 1,
+    .scankey = scankey,
+    .data = NULL,
+    .limit = 1,
+    .tuple_found = bgw_job_tuple_delete,
+    .lockmode = RowExclusiveLock,
+    .scandirection = ForwardScanDirection,
+    .result_mctx = CurrentMemoryContext,
+    .use_catalog_snapshot = true,
+  };
+
+  return ts_scanner_scan(&scanctx);
+}
+
+/*
+ * Cancel the background worker running the given job, identified by its
+ * application_name. This is best-effort: if the worker is not found or
+ * already exited, we simply do nothing.
+ */
+static void
+cancel_worker_for_job(const char *appname)
+{
+  DBUG_TRACE;
+  const int num_backends = pgstat_fetch_stat_numbackends();
+
+  for (int i = 1; i <= num_backends; i++) {
+    const LocalPgBackendStatus *local_beentry = pgstat_get_local_beentry_by_index_compat(i);
+    const PgBackendStatus *beentry = &local_beentry->backendStatus;
+
+    if (beentry->st_databaseid == MyDatabaseId && beentry->st_appname[0] != '\0' &&
+        strcmp(beentry->st_appname, appname) == 0) {
+      DirectFunctionCall1(pg_cancel_backend, Int32GetDatum(beentry->st_procpid));
+      break;
+    }
+  }
+}
+
+/*
+ * Delete the job identified by `job_id`. If the job is currently running,
+ * we send SIGINT to the worker for prompt cancellation.
+ */
+bool
+ts_bgw_job_delete_by_id(int32 job_id)
+{
+  DBUG_TRACE;
+  ScanKeyData scankey[1];
+  NameData appname = { .data = { 0 } };
+  bool result;
+
+  /* Look up the job's application_name before deleting */
+  BgwJob *job = ts_bgw_job_find(job_id, CurrentMemoryContext, false);
+
+  if (job != NULL) {
+    namestrcpy(&appname, NameStr(job->fd.application_name));
+    pfree(job);
+  }
+
+  ScanKeyInit(&scankey[0],
+              Anum_bgw_job_pkey_idx_id,
+              BTEqualStrategyNumber,
+              F_INT4EQ,
+              Int32GetDatum(job_id));
+
+  result = bgw_job_delete_scan(scankey, job_id);
+
+  /* Send SIGINT to the running worker for prompt cancellation */
+  if (result && NameStr(appname)[0] != '\0')
+    cancel_worker_for_job(NameStr(appname));
+
+  return result;
+}
+
+/* This function only updates the fields modifiable with alter_job. */
+static ScanTupleResult
+bgw_job_tuple_update_by_id(TupleInfo *ti, void *const data)
+{
+  DBUG_TRACE;
+  BgwJob *updated_job = (BgwJob *) data;
+  bool should_free;
+  HeapTuple tuple = ts_scanner_fetch_heap_tuple(ti, false, &should_free);
+  HeapTuple new_tuple;
+
+  Datum values[Natts_bgw_job] = { 0 };
+  bool isnull[Natts_bgw_job] = { 0 };
+  bool doReplace[Natts_bgw_job] = { 0 };
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_application_name)] =
+    NameGetDatum(&updated_job->fd.application_name);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_application_name)] = true;
+
+  Datum old_schedule_interval =
+    slot_getattr(ti->slot, Anum_bgw_job_schedule_interval, &isnull[0]);
+  Assert(!isnull[0]);
+
+  /* when we update the schedule interval, modify the next start time as well*/
+  if (!DatumGetBool(DirectFunctionCall2(interval_eq,
+                                        old_schedule_interval,
+                                        IntervalPGetDatum(&updated_job->fd.schedule_interval)))) {
+    BgwJobStat *stat = ts_bgw_job_stat_find(updated_job->fd.id);
+
+    if (stat != NULL) {
+      TimestampTz next_start = DatumGetTimestampTz(
+                                 DirectFunctionCall2(timestamptz_pl_interval,
+                                     TimestampTzGetDatum(stat->fd.last_finish),
+                                     IntervalPGetDatum(&updated_job->fd.schedule_interval)));
+      /* allow DT_NOBEGIN for next_start here through allow_unset=true in the case that
+       * last_finish is DT_NOBEGIN,
+       * This means the value is counted as unset which is what we want */
+      ts_bgw_job_stat_update_next_start(updated_job->fd.id, next_start, true);
+    }
+
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_schedule_interval)] =
+      IntervalPGetDatum(&updated_job->fd.schedule_interval);
+    doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_schedule_interval)] = true;
+  }
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_max_runtime)] =
+    IntervalPGetDatum(&updated_job->fd.max_runtime);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_max_runtime)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_max_retries)] =
+    Int32GetDatum(updated_job->fd.max_retries);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_max_retries)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_retry_period)] =
+    IntervalPGetDatum(&updated_job->fd.retry_period);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_retry_period)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_scheduled)] =
+    BoolGetDatum(updated_job->fd.scheduled);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_scheduled)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_fixed_schedule)] =
+    BoolGetDatum(updated_job->fd.fixed_schedule);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_fixed_schedule)] = true;
+
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_config)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)] =
+    NameGetDatum(&updated_job->fd.check_schema);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)] =
+    NameGetDatum(&updated_job->fd.check_name);
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)] = true;
+
+  if (strlen(NameStr(updated_job->fd.check_name)) == 0) {
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)] = true;
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)] = true;
+  }
+
+  if (updated_job->fd.config) {
+    job_config_check(updated_job, updated_job->fd.config);
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_config)] =
+      JsonbPGetDatum(updated_job->fd.config);
+  } else
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_config)] = true;
+
+  if (updated_job->fd.hypertable_id != INVALID_HYPERTABLE_ID) {
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)] =
+      Int32GetDatum(updated_job->fd.hypertable_id);
+    doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)] = true;
+  } else
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)] = true;
+
+  if (TIMESTAMP_NOT_FINITE(updated_job->fd.initial_start))
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] = true;
+  else
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] =
+      TimestampTzGetDatum(updated_job->fd.initial_start);
+
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] = true;
+
+  if (updated_job->fd.timezone) {
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)] =
+      PointerGetDatum(updated_job->fd.timezone);
+  } else
+    isnull[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)] = true;
+
+  doReplace[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)] = true;
+
+  new_tuple = heap_modify_tuple(tuple, ts_scanner_get_tupledesc(ti), values, isnull, doReplace);
+
+  ts_catalog_update(ti->scanrel, new_tuple);
+
+  heap_freetuple(new_tuple);
+
+  if (should_free)
+    heap_freetuple(tuple);
+
+  return SCAN_DONE;
+}
+
+/*
+ * Overwrite job with specified job_id with the given fields
+ *
+ * This function only updates the fields modifiable with alter_job.
+ */
+bool
+ts_bgw_job_update_by_id(int32 job_id, BgwJob *job)
+{
+  DBUG_TRACE;
+  ScanKeyData scankey[1];
+  Catalog *catalog = ts_catalog_get();
+  ScanTupLock scantuplock = {
+    .waitpolicy = LockWaitBlock,
+    .lockmode = LockTupleExclusive,
+  };
+  ScannerCtx scanctx = { .table = catalog_get_table_id(catalog, BGW_JOB),
+                         .index = catalog_get_index(catalog, BGW_JOB, BGW_JOB_PKEY_IDX),
+                         .nkeys = 1,
+                         .scankey = scankey,
+                         .data = job,
+                         .limit = 1,
+                         .tuple_found = bgw_job_tuple_update_by_id,
+                         .lockmode = RowExclusiveLock,
+                         .scandirection = ForwardScanDirection,
+                         .result_mctx = CurrentMemoryContext,
+                         .tuplock = &scantuplock,
+                         .use_catalog_snapshot = true
+                       };
+
+  ScanKeyInit(&scankey[0],
+              Anum_bgw_job_pkey_idx_id,
+              BTEqualStrategyNumber,
+              F_INT4EQ,
+              Int32GetDatum(job_id));
+
+  return ts_scanner_scan(&scanctx);
+}
+
+static void
+ts_bgw_job_check_max_retries(BgwJob *job)
+{
+  DBUG_TRACE;
+  BgwJobStat *job_stat;
+
+  job_stat = ts_bgw_job_stat_find(job->fd.id);
+
+  /* stop to execute failing jobs after reached the "max_retries" option */
+  if (job->fd.max_retries >= 0 && job_stat->fd.consecutive_failures >= job->fd.max_retries) {
+    ereport(WARNING,
+            (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
+             errmsg("job %d reached max_retries after %d consecutive failures",
+                    job->fd.id,
+                    job_stat->fd.consecutive_failures),
+             errdetail("Job %d unscheduled as max_retries reached %d, consecutive failures %d.",
+                       job->fd.id,
+                       job->fd.max_retries,
+                       job_stat->fd.consecutive_failures),
+             errhint("Use alter_job(%d, scheduled => TRUE) SQL function to reschedule.",
+                     job->fd.id)));
+
+    if (job->fd.scheduled) {
+      job->fd.scheduled = false;
+      ts_bgw_job_update_by_id(job->fd.id, job);
+    }
+  }
+}
+
+void
+ts_bgw_job_permission_check(BgwJob *job, const char *cmd)
+{
+  DBUG_TRACE;
+
+  if (!has_privs_of_role(GetUserId(), job->fd.owner)) {
+    const char *owner_name = GetUserNameFromId(job->fd.owner, false);
+    const char *user_name = GetUserNameFromId(GetUserId(), false);
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("insufficient permissions to %s job %d", cmd, job->fd.id),
+             errdetail("Job %d is owned by role \"%s\" but user \"%s\" does not belong to that "
+                       "role.",
+                       job->fd.id,
+                       owner_name,
+                       user_name)));
+  }
+}
+
+void
+ts_bgw_job_validate_job_owner(Oid owner)
+{
+  DBUG_TRACE;
+  HeapTuple role_tup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(owner));
+
+  if (!HeapTupleIsValid(role_tup))
+    elog(ERROR, "cache lookup failed for role %u", owner);
+
+  Form_pg_authid rform = (Form_pg_authid) GETSTRUCT(role_tup);
+
+  if (!rform->rolcanlogin) {
+    char *rolname = pstrdup(NameStr(rform->rolname));
+    ReleaseSysCache(role_tup);
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION),
+             errmsg("permission denied to start background process as role \"%s\"", rolname),
+             errhint("Hypertable owner must have LOGIN permission to run background tasks.")));
+  }
+
+  ReleaseSysCache(role_tup);
+}
+
+/*
+ * Is the job the telemetry job?
+ */
+#ifdef USE_TELEMETRY
+bool
+ts_is_telemetry_job(BgwJob *job)
+{
+  DBUG_TRACE;
+  return namestrcmp(&job->fd.proc_schema, FUNCTIONS_SCHEMA_NAME) == 0 &&
+         namestrcmp(&job->fd.proc_name, "policy_telemetry") == 0;
+}
+#endif
+
+JobResult
+ts_bgw_job_execute(BgwJob *job)
+{
+  DBUG_TRACE;
+#ifdef USE_TELEMETRY
+
+  /* The telemetry job has a separate code path since we want to be able to
+   * use telemetry even if the TSL code is not installed. */
+  if (ts_is_telemetry_job(job)) {
+    /*
+     * In the first 12 hours, we want telemetry to ping every
+     * hour. After that initial period, we default to the
+     * schedule_interval listed in the job table.
+     */
+    Interval one_hour = { .time = 1 * USECS_PER_HOUR };
+    return ts_bgw_job_run_and_set_next_start(job,
+           ts_telemetry_main_wrapper,
+           TELEMETRY_INITIAL_NUM_RUNS,
+           &one_hour,
+           /* atomic */ true,
+           /* mark */ false);
+  }
+
+#endif
+
+#ifdef TS_DEBUG
+
+  if (scheduler_test_hook != NULL)
+    return scheduler_test_hook(job);
+
+#endif
+
+  return ts_cm_functions->job_execute(job);
+}
+
+bool
+ts_bgw_job_has_timeout(BgwJob *job)
+{
+  DBUG_TRACE;
+  Interval zero_val = {
+    .time = 0,
+  };
+
+  return DatumGetBool(DirectFunctionCall2(interval_gt,
+                                          IntervalPGetDatum(&job->fd.max_runtime),
+                                          IntervalPGetDatum(&zero_val)));
+}
+
+/* Return the timestamp at which to kill the job due to a timeout */
+TimestampTz
+ts_bgw_job_timeout_at(BgwJob *job, TimestampTz start_time)
+{
+  DBUG_TRACE;
+  /* timestamptz plus interval */
+  return DatumGetTimestampTz(DirectFunctionCall2(timestamptz_pl_interval,
+                             TimestampTzGetDatum(start_time),
+                             IntervalPGetDatum(&job->fd.max_runtime)));
+}
+
+TS_FUNCTION_INFO_V1(ts_bgw_job_entrypoint);
+
+static void
+zero_guc(const char *guc_name)
+{
+  DBUG_TRACE;
+  int config_change =
+    set_config_option(guc_name, "0", PGC_SUSET, PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
+
+  if (config_change == 0)
+    ereport(ERROR,
+            (errcode(ERRCODE_INTERNAL_ERROR), errmsg("guc \"%s\" does not exist", guc_name)));
+  else if (config_change < 0)
+    ereport(ERROR,
+            (errcode(ERRCODE_INTERNAL_ERROR), errmsg("could not set \"%s\" guc", guc_name)));
+}
+
+Oid
+ts_bgw_job_get_funcid(BgwJob *job)
+{
+  DBUG_TRACE;
+  ObjectWithArgs *object = makeNode(ObjectWithArgs);
+  object->objname = list_make2(makeString(NameStr(job->fd.proc_schema)),
+                               makeString(NameStr(job->fd.proc_name)));
+  object->objargs = list_make2(SystemTypeName("int4"), SystemTypeName("jsonb"));
+
+  /* Return InvalidOid if don't found */
+  return LookupFuncWithArgs(OBJECT_ROUTINE, object, true);
+}
+
+const char *
+ts_bgw_job_function_call_string(BgwJob *job)
+{
+  DBUG_TRACE;
+  Oid funcid = ts_bgw_job_get_funcid(job);
+  /* If do not found the function or procedure then fallback to PROKIND_FUNCTION */
+  char prokind = OidIsValid(funcid) ? get_func_prokind(funcid) : PROKIND_FUNCTION;
+  StringInfoData stmt;
+  initStringInfo(&stmt);
+  char *jsonb_str = "NULL";
+
+  if (job->fd.config)
+    jsonb_str = quote_literal_cstr(
+                  JsonbToCString(NULL, &job->fd.config->root, VARSIZE(job->fd.config)));
+
+  switch (prokind) {
+    case PROKIND_FUNCTION:
+      appendStringInfo(&stmt,
+                       "SELECT %s.%s('%d', %s)",
+                       quote_identifier(NameStr(job->fd.proc_schema)),
+                       quote_identifier(NameStr(job->fd.proc_name)),
+                       job->fd.id,
+                       jsonb_str);
+      break;
+
+    case PROKIND_PROCEDURE:
+      appendStringInfo(&stmt,
+                       "CALL %s.%s('%d', %s)",
+                       quote_identifier(NameStr(job->fd.proc_schema)),
+                       quote_identifier(NameStr(job->fd.proc_name)),
+                       job->fd.id,
+                       jsonb_str);
+      break;
+
+    default:
+      ereport(ERROR,
+              (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+               errmsg("unsupported function type: %c", prokind)));
+      break;
+  }
+
+  return stmt.data;
+}
+
+extern Datum
+ts_bgw_job_entrypoint(PG_FUNCTION_ARGS)
+{
+  DBUG_TRACE;
+  Oid db_oid = DatumGetObjectId(MyBgworkerEntry->bgw_main_arg);
+  BgwParams params;
+  BgwJob *job;
+  JobResult volatile res = JOB_FAILURE_IN_EXECUTION;
+  instr_time start;
+  instr_time duration;
+
+  memcpy(&params, MyBgworkerEntry->bgw_extra, sizeof(BgwParams));
+  Ensure(OidIsValid(params.user_oid) && params.job_id != 0,
+         "job id or user oid was zero - job_id: %d, user_oid: %d",
+         params.job_id,
+         params.user_oid);
+
+  BackgroundWorkerBlockSignals();
+  /* Setup any signal handlers here */
+
+  /*
+   * do not use the default `bgworker_die` sigterm handler because it does
+   * not respect critical sections
+   */
+  pqsignal(SIGTERM, die);
+  BackgroundWorkerUnblockSignals();
+
+  /*
+   * Set up mem_guard before starting to allocate (any significant amounts
+   * of) memory but after we have unblocked signals since we have no control
+   * over how the callback behaves.
+   */
+  MGCallbacks *callbacks = ts_get_mem_guard_callbacks();
+
+  if (callbacks && callbacks->version_num == MG_CALLBACKS_VERSION &&
+      callbacks->toggle_allocation_blocking && !callbacks->enabled)
+    callbacks->toggle_allocation_blocking(/*enable=*/true);
+
+  BackgroundWorkerInitializeConnectionByOid(db_oid, params.user_oid, 0);
+
+  log_min_messages = ts_guc_bgw_log_level;
+
+  elog(DEBUG2, "job %d started execution", params.job_id);
+
+  ts_license_enable_module_loading();
+
+  INSTR_TIME_SET_CURRENT(start);
+
+  StartTransactionCommand();
+  PushActiveSnapshot(GetTransactionSnapshot());
+
+  job = ts_bgw_job_find(params.job_id, TopMemoryContext, false);
+
+  if (job == NULL)
+    /* If the job is not found, we can't proceed */
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("job %d not found when running the background worker", params.job_id)));
+
+  /* get parameters from bgworker */
+  job->job_history.id = params.job_history_id;
+  job->job_history.execution_start = params.job_history_execution_start;
+  ts_bgw_job_stat_history_update(JOB_STAT_HISTORY_UPDATE_PID, job, JOB_SUCCESS, NULL);
+
+  PopActiveSnapshot();
+  CommitTransactionCommand();
+
+  elog(DEBUG2, "job %d (%s) found", params.job_id, NameStr(job->fd.application_name));
+
+  pgstat_report_appname(NameStr(job->fd.application_name));
+  MemoryContext oldcontext = CurrentMemoryContext;
+
+  bool job_failed = false;
+
+  if (scheduler_test_hook == NULL)
+    ts_begin_tss_store_callback();
+
+  PG_TRY();
+  {
+    /*
+     * we do not necessarily have a valid parallel worker context in
+     * background workers, so disable parallel execution by default
+     */
+    zero_guc("max_parallel_workers_per_gather");
+    zero_guc("max_parallel_workers");
+    zero_guc("max_parallel_maintenance_workers");
+
+    res = ts_bgw_job_execute(job);
+
+    /* The job is responsible for committing or aborting it's own txns */
+    if (IsTransactionState())
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_TRANSACTION_STATE),
+               errmsg("TimescaleDB background job \"%s\" failed to end the transaction",
+                      NameStr(job->fd.application_name))));
+  }
+  PG_CATCH();
+  {
+    ErrorData *edata;
+    NameData proc_schema = { .data = { 0 } }, proc_name = { .data = { 0 } };
+
+    if (IsTransactionState())
+      /* If there was an error, rollback what was done before the error */
+      AbortCurrentTransaction();
+
+    StartTransactionCommand();
+    PushActiveSnapshot(GetTransactionSnapshot());
+
+    /* Free the old job if it exists, it's no longer needed, and since it's
+     * in the TopMemoryContext it won't be freed otherwise.
+     */
+
+    if (job != NULL) {
+      pfree(job);
+    }
+
+    /* switch away from error context to not lose the data */
+    MemoryContextSwitchTo(oldcontext);
+    job_failed = true;
+    edata = CopyErrorData();
+    FlushErrorState();
+
+    /*
+     * Note that the mark_start happens in the scheduler right before the
+     * job is launched.
+     */
+    job = ts_bgw_job_find(params.job_id, TopMemoryContext, false);
+
+    if (job != NULL) {
+      namestrcpy(&proc_name, NameStr(job->fd.proc_name));
+      namestrcpy(&proc_schema, NameStr(job->fd.proc_schema));
+
+      job->job_history.id = params.job_history_id;
+      job->job_history.execution_start = params.job_history_execution_start;
+
+      ts_bgw_job_stat_mark_end(job,
+                               JOB_FAILURE_IN_EXECUTION,
+                               ts_errdata_to_jsonb(edata, &proc_schema, &proc_name));
+      ts_bgw_job_check_max_retries(job);
+      pfree(job);
+    }
+
+    /*
+     * the rethrow will log the error; but also log which job threw the
+     * error
+     */
+    elog(LOG, "job %d threw an error", params.job_id);
+
+    PopActiveSnapshot();
+    CommitTransactionCommand();
+    ReThrowError(edata);
+  }
+  PG_END_TRY();
+
+  Assert(!IsTransactionState());
+
+  StartTransactionCommand();
+  PushActiveSnapshot(GetTransactionSnapshot());
+
+  /*
+   * Note that the mark_start happens in the scheduler right before the job
+   * is launched
+   */
+  ts_bgw_job_stat_mark_end(job, res, NULL);
+
+  if (!job_failed && ts_is_tss_enabled() && scheduler_test_hook == NULL) {
+    const char *stmt = ts_bgw_job_function_call_string(job);
+    ts_end_tss_store_callback(stmt, -1, (int) strlen(stmt), 0, 0);
+  }
+
+  PopActiveSnapshot();
+  CommitTransactionCommand();
+
+  INSTR_TIME_SET_CURRENT(duration);
+  INSTR_TIME_SUBTRACT(duration, start);
+
+  elog(DEBUG1,
+       "job %d (%s) exiting with %s: execution time %.2f ms",
+       params.job_id,
+       NameStr(job->fd.application_name),
+       (res == JOB_SUCCESS ? "success" : "failure"),
+       INSTR_TIME_GET_MILLISEC(duration));
+
+  if (job != NULL) {
+    pfree(job);
+    job = NULL;
+  }
+
+  PG_RETURN_VOID();
+}
+
+void
+ts_bgw_job_set_scheduler_test_hook(scheduler_test_hook_type hook)
+{
+  DBUG_TRACE;
+  scheduler_test_hook = hook;
+}
+
+void
+ts_bgw_job_set_job_entrypoint_function_name(char *func_name)
+{
+  DBUG_TRACE;
+  job_entrypoint_function_name = func_name;
+}
+
+/*
+ * Run job and set next start.
+ *
+ * job: Job to run and update
+ * func: Function to execute for the job
+ * initial_runs: Limit on the number of runs to do
+ * next_interval: Interval to use when computing next start
+ * atomic: Should be executed as a single transaction.
+ * mark: Mark the start and end of the function execution in job_stats
+ */
+bool
+ts_bgw_job_run_and_set_next_start(BgwJob *job, job_main_func func, int64 initial_runs,
+                                  Interval *next_interval, bool atomic, bool mark)
+{
+  DBUG_TRACE;
+  BgwJobStat *job_stat;
+  bool result;
+
+  if (atomic)
+    StartTransactionCommand();
+
+  if (mark)
+    ts_bgw_job_stat_mark_start(job);
+
+  result = func();
+
+  if (mark)
+    ts_bgw_job_stat_mark_end(job, result ? JOB_SUCCESS : JOB_FAILURE_IN_EXECUTION, NULL);
+
+  /* Now update next_start. */
+  job_stat = ts_bgw_job_stat_find(job->fd.id);
+
+  /*
+   * Note that setting next_start explicitly from this function will
+   * override any backoff calculation due to failure.
+   */
+  Ensure(job_stat != NULL, "job status for job %d not found", job->fd.id);
+
+  if (job_stat->fd.total_runs < initial_runs) {
+    TimestampTz next_start =
+      DatumGetTimestampTz(DirectFunctionCall2(timestamptz_pl_interval,
+                          TimestampTzGetDatum(job_stat->fd.last_start),
+                          IntervalPGetDatum(next_interval)));
+
+    ts_bgw_job_stat_set_next_start(job->fd.id, next_start);
+  }
+
+  if (atomic)
+    CommitTransactionCommand();
+
+  return result;
+}
+
+/* Insert a new job in the bgw_job relation */
+int
+ts_bgw_job_insert_relation(Name application_name, Interval *schedule_interval,
+                           Interval *max_runtime, int32 max_retries, Interval *retry_period,
+                           Name proc_schema, Name proc_name, Name check_schema, Name check_name,
+                           Oid owner, bool scheduled, bool fixed_schedule, int32 hypertable_id,
+                           Jsonb *config, TimestampTz initial_start, const char *timezone)
+{
+  DBUG_TRACE;
+  Catalog *catalog = ts_catalog_get();
+  Relation rel;
+  TupleDesc desc;
+  Datum values[Natts_bgw_job] = { 0 };
+  CatalogSecurityContext sec_ctx;
+  bool nulls[Natts_bgw_job] = { false };
+  int32 job_id;
+  char app_name[NAMEDATALEN];
+  int name_len;
+
+  rel = table_open(catalog_get_table_id(catalog, BGW_JOB), RowExclusiveLock);
+  desc = RelationGetDescr(rel);
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_schedule_interval)] =
+    IntervalPGetDatum(schedule_interval);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_max_runtime)] = IntervalPGetDatum(max_runtime);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_max_retries)] = Int32GetDatum(max_retries);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_retry_period)] = IntervalPGetDatum(retry_period);
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_proc_schema)] = NameGetDatum(proc_schema);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_proc_name)] = NameGetDatum(proc_name);
+
+  if (strlen(NameStr(*check_schema)) > 0)
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)] = NameGetDatum(check_schema);
+  else
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_check_schema)] = true;
+
+  if (strlen(NameStr(*check_name)) > 0)
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)] = NameGetDatum(check_name);
+  else
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_check_name)] = true;
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_owner)] = ObjectIdGetDatum(owner);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_scheduled)] = BoolGetDatum(scheduled);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_fixed_schedule)] = BoolGetDatum(fixed_schedule);
+  /* initial_start must have a value if the schedule is fixed */
+  Assert(!fixed_schedule || !TIMESTAMP_NOT_FINITE(initial_start));
+
+  if (TIMESTAMP_NOT_FINITE(initial_start)) {
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] = true;
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] =
+      TimestampTzGetDatum(initial_start);
+  } else {
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] = false;
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_initial_start)] =
+      TimestampTzGetDatum(initial_start);
+  }
+
+  if (hypertable_id == INVALID_HYPERTABLE_ID)
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)] = true;
+  else
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_hypertable_id)] = Int32GetDatum(hypertable_id);
+
+  if (config == NULL)
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_config)] = true;
+  else
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_config)] = JsonbPGetDatum(config);
+
+  if (timezone == NULL)
+    nulls[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)] = true;
+  else
+    values[AttrNumberGetAttrOffset(Anum_bgw_job_timezone)] = CStringGetTextDatum(timezone);
+
+  ts_catalog_database_info_become_owner(ts_catalog_database_info_get(), &sec_ctx);
+
+  job_id = DatumGetInt32(ts_catalog_table_next_seq_id(catalog, BGW_JOB));
+  name_len = snprintf(app_name, NAMEDATALEN, "%s [%d]", NameStr(*application_name), job_id);
+
+  if (name_len >= NAMEDATALEN)
+    ereport(ERROR, (errcode(ERRCODE_NAME_TOO_LONG), errmsg("application name too long.")));
+
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_id)] = Int32GetDatum(job_id);
+  values[AttrNumberGetAttrOffset(Anum_bgw_job_application_name)] = CStringGetDatum(app_name);
+
+  ts_catalog_insert_values(rel, desc, values, nulls);
+  ts_catalog_restore_user(&sec_ctx);
+
+  /* This is where we would add a call to recordDependencyOnOwner, but it
+   * cannot support dependencies on anything but built-in classes since
+   * getObjectClass() have a lot of hard-coded checks in place.
+   *
+   * Instead we have a check in process_utility.c that prevents dropping the
+   * user if there is a dependent job. */
+
+  table_close(rel, NoLock);
+  return values[AttrNumberGetAttrOffset(Anum_bgw_job_id)];
+}
+
+/*
+ * This function ensures the schedule interval is acceptable in the case
+ * of fixed job schedules. Intervals that mix months with day and time
+ * components are not acceptable since internally we use time_bucket and
+ * cannot bucket by such an interval.
+ */
+void
+ts_bgw_job_validate_schedule_interval(Interval *schedule_interval)
+{
+  DBUG_TRACE;
+  bool has_month, has_day, has_time;
+  has_month = schedule_interval->month;
+  has_day = schedule_interval->day;
+  has_time = schedule_interval->time;
+
+  if (has_month && (has_day || has_time))
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("month intervals cannot have day or time component"),
+             errdetail("Fixed schedule jobs do not support such schedule intervals."),
+             errhint("Express the interval in terms of days or time instead.")));
+}
+
+char *
+ts_bgw_job_validate_timezone(Datum timezone)
+{
+  DBUG_TRACE;
+  DirectFunctionCall2(timestamp_zone,
+                      timezone,
+                      TimestampGetDatum(ts_timer_get_current_timestamp()));
+  return TextDatumGetCString(timezone);
+}

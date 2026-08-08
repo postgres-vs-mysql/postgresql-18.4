@@ -1,0 +1,36 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--10.1-1--10.2-1.sql: \
+ sql/citus--10.1-1--10.2-1.sql \
+ sql/udfs/stop_metadata_sync_to_node/10.2-1.sql \
+ sql/../../columnar/sql/columnar--10.1-1--10.2-1.sql \
+ sql/../../columnar/sql/udfs/upgrade_columnar_storage/10.2-1.sql \
+ sql/../../columnar/sql/udfs/downgrade_columnar_storage/10.2-1.sql \
+ sql/udfs/citus_internal_add_partition_metadata/10.2-1.sql \
+ sql/udfs/citus_internal_add_shard_metadata/10.2-1.sql \
+ sql/udfs/citus_internal_add_placement_metadata/10.2-1.sql \
+ sql/udfs/citus_internal_update_placement_metadata/10.2-1.sql \
+ sql/udfs/citus_internal_delete_shard_metadata/10.2-1.sql \
+ sql/udfs/citus_internal_update_relation_colocation/10.2-1.sql \
+ sql/udfs/create_time_partitions/10.2-1.sql \
+ sql/udfs/drop_old_time_partitions/10.2-1.sql \
+ sql/udfs/get_missing_time_partition_ranges/10.2-1.sql \
+ sql/udfs/worker_nextval/10.2-1.sql \
+ sql/udfs/citus_drop_trigger/10.2-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/10.2-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/10.2-1.sql
+sql/udfs/stop_metadata_sync_to_node/10.2-1.sql:
+sql/../../columnar/sql/columnar--10.1-1--10.2-1.sql:
+sql/../../columnar/sql/udfs/upgrade_columnar_storage/10.2-1.sql:
+sql/../../columnar/sql/udfs/downgrade_columnar_storage/10.2-1.sql:
+sql/udfs/citus_internal_add_partition_metadata/10.2-1.sql:
+sql/udfs/citus_internal_add_shard_metadata/10.2-1.sql:
+sql/udfs/citus_internal_add_placement_metadata/10.2-1.sql:
+sql/udfs/citus_internal_update_placement_metadata/10.2-1.sql:
+sql/udfs/citus_internal_delete_shard_metadata/10.2-1.sql:
+sql/udfs/citus_internal_update_relation_colocation/10.2-1.sql:
+sql/udfs/create_time_partitions/10.2-1.sql:
+sql/udfs/drop_old_time_partitions/10.2-1.sql:
+sql/udfs/get_missing_time_partition_ranges/10.2-1.sql:
+sql/udfs/worker_nextval/10.2-1.sql:
+sql/udfs/citus_drop_trigger/10.2-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/10.2-1.sql:
+sql/udfs/citus_finish_pg_upgrade/10.2-1.sql:

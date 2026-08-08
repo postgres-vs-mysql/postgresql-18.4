@@ -1,0 +1,24 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--8.3-1--9.0-1.sql: \
+ sql/citus--8.3-1--9.0-1.sql \
+ sql/udfs/pg_dist_shard_placement_trigger_func/9.0-1.sql \
+ sql/udfs/worker_create_or_replace_object/9.0-1.sql \
+ sql/udfs/create_distributed_function/9.0-1.sql \
+ sql/udfs/citus_drop_trigger/9.0-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/9.0-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/9.0-1.sql \
+ sql/udfs/get_rebalance_table_shards_plan/9.0-1.sql \
+ sql/udfs/replicate_table_shards/9.0-1.sql \
+ sql/udfs/rebalance_table_shards/9.0-1.sql \
+ sql/udfs/get_rebalance_progress/9.0-1.sql \
+ sql/udfs/citus_isolation_test_session_is_blocked/9.0-1.sql
+sql/udfs/pg_dist_shard_placement_trigger_func/9.0-1.sql:
+sql/udfs/worker_create_or_replace_object/9.0-1.sql:
+sql/udfs/create_distributed_function/9.0-1.sql:
+sql/udfs/citus_drop_trigger/9.0-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/9.0-1.sql:
+sql/udfs/citus_finish_pg_upgrade/9.0-1.sql:
+sql/udfs/get_rebalance_table_shards_plan/9.0-1.sql:
+sql/udfs/replicate_table_shards/9.0-1.sql:
+sql/udfs/rebalance_table_shards/9.0-1.sql:
+sql/udfs/get_rebalance_progress/9.0-1.sql:
+sql/udfs/citus_isolation_test_session_is_blocked/9.0-1.sql:

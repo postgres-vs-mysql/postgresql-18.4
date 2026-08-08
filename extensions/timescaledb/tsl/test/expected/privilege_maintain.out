@@ -1,0 +1,121 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\c :TEST_DBNAME :ROLE_SUPERUSER
+CREATE ROLE r_maintain;
+CREATE TABLE metrics(time timestamptz, device text, value float);
+SELECT create_hypertable('metrics', 'time');
+  create_hypertable   
+----------------------
+ (1,public,metrics,t)
+
+INSERT INTO metrics SELECT generate_series('2020-01-01'::timestamptz, '2020-01-09'::timestamptz, '3 day'::interval);
+\dp metrics
+                              Access privileges
+ Schema |  Name   | Type  | Access privileges | Column privileges | Policies 
+--------+---------+-------+-------------------+-------------------+----------
+ public | metrics | table |                   |                   | 
+
+\dp _timescaledb_internal._hyper_*
+                                          Access privileges
+        Schema         |       Name       | Type  | Access privileges | Column privileges | Policies 
+-----------------------+------------------+-------+-------------------+-------------------+----------
+ _timescaledb_internal | _hyper_1_1_chunk | table |                   |                   | 
+ _timescaledb_internal | _hyper_1_2_chunk | table |                   |                   | 
+
+GRANT MAINTAIN ON TABLE metrics TO r_maintain;
+-- check privilege is present on all the chunks
+\dp metrics
+                                    Access privileges
+ Schema |  Name   | Type  |       Access privileges        | Column privileges | Policies 
+--------+---------+-------+--------------------------------+-------------------+----------
+ public | metrics | table | super_user=arwdDxtm/super_user+|                   | 
+        |         |       | r_maintain=m/super_user        |                   | 
+
+\dp _timescaledb_internal._hyper_*
+                                                Access privileges
+        Schema         |       Name       | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _hyper_1_1_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                  |       | r_maintain=m/super_user        |                   | 
+ _timescaledb_internal | _hyper_1_2_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                  |       | r_maintain=m/super_user        |                   | 
+
+REVOKE MAINTAIN ON TABLE metrics FROM r_maintain;
+-- check privilege got removed from all the chunks
+\dp metrics
+                                    Access privileges
+ Schema |  Name   | Type  |       Access privileges        | Column privileges | Policies 
+--------+---------+-------+--------------------------------+-------------------+----------
+ public | metrics | table | super_user=arwdDxtm/super_user |                   | 
+
+\dp _timescaledb_internal._hyper_*
+                                                Access privileges
+        Schema         |       Name       | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _hyper_1_1_chunk | table | super_user=arwdDxtm/super_user |                   | 
+ _timescaledb_internal | _hyper_1_2_chunk | table | super_user=arwdDxtm/super_user |                   | 
+
+ALTER TABLE metrics SET (timescaledb.compress);
+SELECT compress_chunk(chunk) FROM show_chunks('metrics') chunk;
+             compress_chunk             
+----------------------------------------
+ _timescaledb_internal._hyper_1_1_chunk
+ _timescaledb_internal._hyper_1_2_chunk
+
+GRANT MAINTAIN ON TABLE metrics TO r_maintain;
+-- check privilege is present on all the chunks
+\dp metrics
+                                    Access privileges
+ Schema |  Name   | Type  |       Access privileges        | Column privileges | Policies 
+--------+---------+-------+--------------------------------+-------------------+----------
+ public | metrics | table | super_user=arwdDxtm/super_user+|                   | 
+        |         |       | r_maintain=m/super_user        |                   | 
+
+\dp _timescaledb_internal._hyper_*
+                                                Access privileges
+        Schema         |       Name       | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _hyper_1_1_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                  |       | r_maintain=m/super_user        |                   | 
+ _timescaledb_internal | _hyper_1_2_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                  |       | r_maintain=m/super_user        |                   | 
+
+\dp _timescaledb_internal.*compress*
+                                                    Access privileges
+        Schema         |           Name           | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+--------------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _compressed_hypertable_2 | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                          |       | r_maintain=m/super_user        |                   | 
+ _timescaledb_internal | compress_hyper_2_3_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                          |       | r_maintain=m/super_user        |                   | 
+ _timescaledb_internal | compress_hyper_2_4_chunk | table | super_user=arwdDxtm/super_user+|                   | 
+                       |                          |       | r_maintain=m/super_user        |                   | 
+ _timescaledb_internal | compressed_chunk_stats   | view  | super_user=arwdDxtm/super_user+|                   | 
+                       |                          |       | =r/super_user                  |                   | 
+
+REVOKE MAINTAIN ON TABLE metrics FROM r_maintain;
+-- check privilege got removed from all the chunks
+\dp metrics
+                                    Access privileges
+ Schema |  Name   | Type  |       Access privileges        | Column privileges | Policies 
+--------+---------+-------+--------------------------------+-------------------+----------
+ public | metrics | table | super_user=arwdDxtm/super_user |                   | 
+
+\dp _timescaledb_internal._hyper_*
+                                                Access privileges
+        Schema         |       Name       | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _hyper_1_1_chunk | table | super_user=arwdDxtm/super_user |                   | 
+ _timescaledb_internal | _hyper_1_2_chunk | table | super_user=arwdDxtm/super_user |                   | 
+
+\dp _timescaledb_internal.*compress*
+                                                    Access privileges
+        Schema         |           Name           | Type  |       Access privileges        | Column privileges | Policies 
+-----------------------+--------------------------+-------+--------------------------------+-------------------+----------
+ _timescaledb_internal | _compressed_hypertable_2 | table | super_user=arwdDxtm/super_user |                   | 
+ _timescaledb_internal | compress_hyper_2_3_chunk | table | super_user=arwdDxtm/super_user |                   | 
+ _timescaledb_internal | compress_hyper_2_4_chunk | table | super_user=arwdDxtm/super_user |                   | 
+ _timescaledb_internal | compressed_chunk_stats   | view  | super_user=arwdDxtm/super_user+|                   | 
+                       |                          |       | =r/super_user                  |                   | 
+

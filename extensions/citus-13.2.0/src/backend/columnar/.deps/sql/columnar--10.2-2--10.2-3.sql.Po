@@ -1,0 +1,2 @@
+/home/wangbin/work/citus-13.2.0/src/backend/columnar/build/sql/columnar--10.2-2--10.2-3.sql: \
+ sql/columnar--10.2-2--10.2-3.sql

@@ -1,0 +1,73 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--10.2-5--11.0-1.sql: \
+ sql/citus--10.2-5--11.0-1.sql sql/udfs/citus_disable_node/11.0-1.sql \
+ sql/udfs/create_distributed_function/11.0-1.sql \
+ sql/udfs/citus_check_connection_to_node/11.0-1.sql \
+ sql/udfs/citus_check_cluster_node_health/11.0-1.sql \
+ sql/udfs/citus_shards_on_worker/11.0-1.sql \
+ sql/udfs/citus_shard_indexes_on_worker/11.0-1.sql \
+ sql/udfs/citus_internal_add_object_metadata/11.0-1.sql \
+ sql/udfs/citus_internal_add_colocation_metadata/11.0-1.sql \
+ sql/udfs/citus_internal_delete_colocation_metadata/11.0-1.sql \
+ sql/udfs/citus_run_local_command/11.0-1.sql \
+ sql/udfs/worker_drop_sequence_dependency/11.0-1.sql \
+ sql/udfs/worker_drop_shell_table/11.0-1.sql \
+ sql/udfs/get_all_active_transactions/11.0-1.sql \
+ sql/udfs/get_global_active_transactions/11.0-1.sql \
+ sql/udfs/citus_internal_local_blocked_processes/11.0-1.sql \
+ sql/udfs/citus_internal_global_blocked_processes/11.0-1.sql \
+ sql/udfs/run_command_on_all_nodes/11.0-1.sql \
+ sql/udfs/citus_stat_activity/11.0-1.sql \
+ sql/udfs/worker_create_or_replace_object/11.0-1.sql \
+ sql/udfs/citus_isolation_test_session_is_blocked/11.0-1.sql \
+ sql/udfs/citus_blocking_pids/11.0-1.sql \
+ sql/udfs/citus_calculate_gpid/11.0-1.sql \
+ sql/udfs/citus_backend_gpid/11.0-1.sql \
+ sql/udfs/citus_dist_stat_activity/11.0-1.sql \
+ sql/udfs/citus_lock_waits/11.0-1.sql \
+ sql/udfs/pg_cancel_backend/11.0-1.sql \
+ sql/udfs/pg_terminate_backend/11.0-1.sql \
+ sql/udfs/worker_partition_query_result/11.0-1.sql \
+ sql/udfs/citus_finalize_upgrade_to_citus11/11.0-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/11.0-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/11.0-1.sql \
+ sql/udfs/citus_nodename_for_nodeid/11.0-1.sql \
+ sql/udfs/citus_nodeport_for_nodeid/11.0-1.sql \
+ sql/udfs/citus_nodeid_for_gpid/11.0-1.sql \
+ sql/udfs/citus_pid_for_gpid/11.0-1.sql \
+ sql/udfs/citus_coordinator_nodeid/11.0-1.sql
+sql/udfs/citus_disable_node/11.0-1.sql:
+sql/udfs/create_distributed_function/11.0-1.sql:
+sql/udfs/citus_check_connection_to_node/11.0-1.sql:
+sql/udfs/citus_check_cluster_node_health/11.0-1.sql:
+sql/udfs/citus_shards_on_worker/11.0-1.sql:
+sql/udfs/citus_shard_indexes_on_worker/11.0-1.sql:
+sql/udfs/citus_internal_add_object_metadata/11.0-1.sql:
+sql/udfs/citus_internal_add_colocation_metadata/11.0-1.sql:
+sql/udfs/citus_internal_delete_colocation_metadata/11.0-1.sql:
+sql/udfs/citus_run_local_command/11.0-1.sql:
+sql/udfs/worker_drop_sequence_dependency/11.0-1.sql:
+sql/udfs/worker_drop_shell_table/11.0-1.sql:
+sql/udfs/get_all_active_transactions/11.0-1.sql:
+sql/udfs/get_global_active_transactions/11.0-1.sql:
+sql/udfs/citus_internal_local_blocked_processes/11.0-1.sql:
+sql/udfs/citus_internal_global_blocked_processes/11.0-1.sql:
+sql/udfs/run_command_on_all_nodes/11.0-1.sql:
+sql/udfs/citus_stat_activity/11.0-1.sql:
+sql/udfs/worker_create_or_replace_object/11.0-1.sql:
+sql/udfs/citus_isolation_test_session_is_blocked/11.0-1.sql:
+sql/udfs/citus_blocking_pids/11.0-1.sql:
+sql/udfs/citus_calculate_gpid/11.0-1.sql:
+sql/udfs/citus_backend_gpid/11.0-1.sql:
+sql/udfs/citus_dist_stat_activity/11.0-1.sql:
+sql/udfs/citus_lock_waits/11.0-1.sql:
+sql/udfs/pg_cancel_backend/11.0-1.sql:
+sql/udfs/pg_terminate_backend/11.0-1.sql:
+sql/udfs/worker_partition_query_result/11.0-1.sql:
+sql/udfs/citus_finalize_upgrade_to_citus11/11.0-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/11.0-1.sql:
+sql/udfs/citus_finish_pg_upgrade/11.0-1.sql:
+sql/udfs/citus_nodename_for_nodeid/11.0-1.sql:
+sql/udfs/citus_nodeport_for_nodeid/11.0-1.sql:
+sql/udfs/citus_nodeid_for_gpid/11.0-1.sql:
+sql/udfs/citus_pid_for_gpid/11.0-1.sql:
+sql/udfs/citus_coordinator_nodeid/11.0-1.sql:

@@ -1,0 +1,59 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.0-4--11.1-1.sql: \
+ sql/citus--11.0-4--11.1-1.sql sql/udfs/citus_locks/11.1-1.sql \
+ sql/udfs/citus_tables/11.1-1.sql sql/udfs/citus_shards/11.1-1.sql \
+ sql/udfs/create_distributed_table_concurrently/11.1-1.sql \
+ sql/udfs/citus_internal_delete_partition_metadata/11.1-1.sql \
+ sql/udfs/citus_copy_shard_placement/11.1-1.sql \
+ sql/../../columnar/sql/columnar--11.0-3--11.1-1.sql \
+ sql/../../columnar/sql/udfs/alter_columnar_table_set/11.1-1.sql \
+ sql/../../columnar/sql/udfs/alter_columnar_table_reset/11.1-1.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_am_depends_catalog/11.1-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/11.1-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/11.1-1.sql \
+ sql/udfs/get_all_active_transactions/11.1-1.sql \
+ sql/udfs/citus_split_shard_by_split_points/11.1-1.sql \
+ sql/udfs/worker_split_copy/11.1-1.sql \
+ sql/udfs/worker_copy_table_to_node/11.1-1.sql \
+ sql/udfs/worker_split_shard_replication_setup/11.1-1.sql \
+ sql/udfs/citus_isolation_test_session_is_blocked/11.1-1.sql \
+ sql/udfs/replicate_reference_tables/11.1-1.sql \
+ sql/udfs/worker_split_shard_release_dsm/11.1-1.sql \
+ sql/udfs/isolate_tenant_to_new_shard/11.1-1.sql \
+ sql/udfs/citus_cleanup_orphaned_resources/11.1-1.sql \
+ sql/udfs/pg_cancel_backend/11.0-1.sql \
+ sql/udfs/pg_terminate_backend/11.0-1.sql \
+ sql/udfs/citus_job_wait/11.1-1.sql sql/udfs/citus_job_cancel/11.1-1.sql \
+ sql/udfs/citus_rebalance_start/11.1-1.sql \
+ sql/udfs/citus_rebalance_stop/11.1-1.sql \
+ sql/udfs/citus_rebalance_wait/11.1-1.sql \
+ sql/udfs/get_rebalance_progress/11.1-1.sql
+sql/udfs/citus_locks/11.1-1.sql:
+sql/udfs/citus_tables/11.1-1.sql:
+sql/udfs/citus_shards/11.1-1.sql:
+sql/udfs/create_distributed_table_concurrently/11.1-1.sql:
+sql/udfs/citus_internal_delete_partition_metadata/11.1-1.sql:
+sql/udfs/citus_copy_shard_placement/11.1-1.sql:
+sql/../../columnar/sql/columnar--11.0-3--11.1-1.sql:
+sql/../../columnar/sql/udfs/alter_columnar_table_set/11.1-1.sql:
+sql/../../columnar/sql/udfs/alter_columnar_table_reset/11.1-1.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_am_depends_catalog/11.1-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/11.1-1.sql:
+sql/udfs/citus_finish_pg_upgrade/11.1-1.sql:
+sql/udfs/get_all_active_transactions/11.1-1.sql:
+sql/udfs/citus_split_shard_by_split_points/11.1-1.sql:
+sql/udfs/worker_split_copy/11.1-1.sql:
+sql/udfs/worker_copy_table_to_node/11.1-1.sql:
+sql/udfs/worker_split_shard_replication_setup/11.1-1.sql:
+sql/udfs/citus_isolation_test_session_is_blocked/11.1-1.sql:
+sql/udfs/replicate_reference_tables/11.1-1.sql:
+sql/udfs/worker_split_shard_release_dsm/11.1-1.sql:
+sql/udfs/isolate_tenant_to_new_shard/11.1-1.sql:
+sql/udfs/citus_cleanup_orphaned_resources/11.1-1.sql:
+sql/udfs/pg_cancel_backend/11.0-1.sql:
+sql/udfs/pg_terminate_backend/11.0-1.sql:
+sql/udfs/citus_job_wait/11.1-1.sql:
+sql/udfs/citus_job_cancel/11.1-1.sql:
+sql/udfs/citus_rebalance_start/11.1-1.sql:
+sql/udfs/citus_rebalance_stop/11.1-1.sql:
+sql/udfs/citus_rebalance_wait/11.1-1.sql:
+sql/udfs/get_rebalance_progress/11.1-1.sql:

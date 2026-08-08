@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.0-1--9.0-2.sql: \
+ sql/citus--9.0-1--9.0-2.sql \
+ sql/udfs/distributed_tables_colocated/9.0-2.sql
+sql/udfs/distributed_tables_colocated/9.0-2.sql:

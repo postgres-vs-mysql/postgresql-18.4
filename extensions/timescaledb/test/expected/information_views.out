@@ -1,0 +1,284 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+SELECT * FROM timescaledb_information.hypertables;
+ hypertable_schema | hypertable_name | owner | num_dimensions | num_chunks | compression_enabled | tablespaces | primary_dimension | primary_dimension_type 
+-------------------+-----------------+-------+----------------+------------+---------------------+-------------+-------------------+------------------------
+
+-- create simple hypertable with 1 chunk
+CREATE TABLE ht1(time TIMESTAMPTZ NOT NULL);
+SELECT create_hypertable('ht1','time');
+ create_hypertable 
+-------------------
+ (1,public,ht1,t)
+
+INSERT INTO ht1 SELECT '2000-01-01'::TIMESTAMPTZ;
+-- create simple hypertable with 1 chunk and toasted data
+CREATE TABLE ht2(time TIMESTAMPTZ NOT NULL, data TEXT);
+SELECT create_hypertable('ht2','time');
+ create_hypertable 
+-------------------
+ (2,public,ht2,t)
+
+INSERT INTO ht2 SELECT '2000-01-01'::TIMESTAMPTZ, repeat('8k',4096);
+SELECT * FROM timescaledb_information.hypertables
+ORDER BY hypertable_schema, hypertable_name;
+ hypertable_schema | hypertable_name |       owner       | num_dimensions | num_chunks | compression_enabled | tablespaces | primary_dimension |  primary_dimension_type  
+-------------------+-----------------+-------------------+----------------+------------+---------------------+-------------+-------------------+--------------------------
+ public            | ht1             | default_perm_user |              1 |          1 | f                   |             | time              | timestamp with time zone
+ public            | ht2             | default_perm_user |              1 |          1 | f                   |             | time              | timestamp with time zone
+
+\c :TEST_DBNAME :ROLE_SUPERUSER
+-- create schema open and hypertable with 3 chunks
+CREATE SCHEMA open;
+GRANT USAGE ON SCHEMA open TO :ROLE_DEFAULT_PERM_USER;
+CREATE TABLE open.open_ht(time TIMESTAMPTZ NOT NULL);
+SELECT create_hypertable('open.open_ht','time');
+ create_hypertable  
+--------------------
+ (3,open,open_ht,t)
+
+INSERT INTO open.open_ht SELECT '2000-01-01'::TIMESTAMPTZ;
+INSERT INTO open.open_ht SELECT '2001-01-01'::TIMESTAMPTZ;
+INSERT INTO open.open_ht SELECT '2002-01-01'::TIMESTAMPTZ;
+-- create schema closed and hypertable
+CREATE SCHEMA closed;
+CREATE TABLE closed.closed_ht(time TIMESTAMPTZ NOT NULL);
+SELECT create_hypertable('closed.closed_ht','time');
+   create_hypertable    
+------------------------
+ (4,closed,closed_ht,t)
+
+INSERT INTO closed.closed_ht SELECT '2000-01-01'::TIMESTAMPTZ;
+SELECT * FROM timescaledb_information.hypertables
+ORDER BY hypertable_schema, hypertable_name;
+ hypertable_schema | hypertable_name |       owner       | num_dimensions | num_chunks | compression_enabled | tablespaces | primary_dimension |  primary_dimension_type  
+-------------------+-----------------+-------------------+----------------+------------+---------------------+-------------+-------------------+--------------------------
+ closed            | closed_ht       | super_user        |              1 |          1 | f                   |             | time              | timestamp with time zone
+ open              | open_ht         | super_user        |              1 |          3 | f                   |             | time              | timestamp with time zone
+ public            | ht1             | default_perm_user |              1 |          1 | f                   |             | time              | timestamp with time zone
+ public            | ht2             | default_perm_user |              1 |          1 | f                   |             | time              | timestamp with time zone
+
+\c :TEST_DBNAME :ROLE_DEFAULT_PERM_USER
+\set ON_ERROR_STOP 0
+\x
+SELECT * FROM timescaledb_information.hypertables
+ORDER BY hypertable_schema, hypertable_name;
+-[ RECORD 1 ]----------+-------------------------
+hypertable_schema      | closed
+hypertable_name        | closed_ht
+owner                  | super_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+-[ RECORD 2 ]----------+-------------------------
+hypertable_schema      | open
+hypertable_name        | open_ht
+owner                  | super_user
+num_dimensions         | 1
+num_chunks             | 3
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+-[ RECORD 3 ]----------+-------------------------
+hypertable_schema      | public
+hypertable_name        | ht1
+owner                  | default_perm_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+-[ RECORD 4 ]----------+-------------------------
+hypertable_schema      | public
+hypertable_name        | ht2
+owner                  | default_perm_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+
+-- filter by schema
+SELECT * FROM timescaledb_information.hypertables
+WHERE hypertable_schema = 'closed'
+ORDER BY hypertable_schema, hypertable_name;
+-[ RECORD 1 ]----------+-------------------------
+hypertable_schema      | closed
+hypertable_name        | closed_ht
+owner                  | super_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+
+-- filter by table name
+SELECT * FROM timescaledb_information.hypertables
+WHERE hypertable_name = 'ht1'
+ORDER BY hypertable_schema, hypertable_name;
+-[ RECORD 1 ]----------+-------------------------
+hypertable_schema      | public
+hypertable_name        | ht1
+owner                  | default_perm_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+
+-- filter by owner
+SELECT * FROM timescaledb_information.hypertables
+WHERE owner = 'super_user'
+ORDER BY hypertable_schema, hypertable_name;
+-[ RECORD 1 ]----------+-------------------------
+hypertable_schema      | closed
+hypertable_name        | closed_ht
+owner                  | super_user
+num_dimensions         | 1
+num_chunks             | 1
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+-[ RECORD 2 ]----------+-------------------------
+hypertable_schema      | open
+hypertable_name        | open_ht
+owner                  | super_user
+num_dimensions         | 1
+num_chunks             | 3
+compression_enabled    | f
+tablespaces            | 
+primary_dimension      | time
+primary_dimension_type | timestamp with time zone
+
+\x
+---Add integer table --
+CREATE TABLE test_table_int(time bigint, junk int);
+SELECT create_hypertable('test_table_int', 'time', chunk_time_interval => 10);
+      create_hypertable      
+-----------------------------
+ (5,public,test_table_int,t)
+
+CREATE OR REPLACE function table_int_now() returns BIGINT LANGUAGE SQL IMMUTABLE as  'SELECT 1::BIGINT';
+SELECT set_integer_now_func('test_table_int', 'table_int_now');
+ set_integer_now_func 
+----------------------
+ 
+
+INSERT into test_table_int SELECT generate_series( 1, 20), 100;
+\d timescaledb_information.chunks
+                       View "timescaledb_information.chunks"
+         Column         |           Type           | Collation | Nullable | Default 
+------------------------+--------------------------+-----------+----------+---------
+ hypertable_schema      | name                     |           |          | 
+ hypertable_name        | name                     |           |          | 
+ chunk_schema           | name                     |           |          | 
+ chunk_name             | name                     |           |          | 
+ primary_dimension      | name                     |           |          | 
+ primary_dimension_type | regtype                  |           |          | 
+ range_start            | timestamp with time zone |           |          | 
+ range_end              | timestamp with time zone |           |          | 
+ range_start_integer    | bigint                   |           |          | 
+ range_end_integer      | bigint                   |           |          | 
+ is_compressed          | boolean                  |           |          | 
+ chunk_tablespace       | name                     |           |          | 
+ chunk_creation_time    | timestamp with time zone |           |          | 
+
+SELECT hypertable_schema,
+       hypertable_name,
+       chunk_schema,
+       chunk_name,
+       primary_dimension,
+       primary_dimension_type,
+       range_start,
+       range_end,
+       range_start_integer,
+       range_end_integer,
+       is_compressed,
+       chunk_tablespace,
+       data_nodes
+FROM timescaledb_information.chunks WHERE hypertable_name = 'ht1' ORDER BY chunk_name;
+ERROR:  column "data_nodes" does not exist at character 294
+SELECT hypertable_schema,
+       hypertable_name,
+       chunk_schema,
+       chunk_name,
+       primary_dimension,
+       primary_dimension_type,
+       range_start,
+       range_end,
+       range_start_integer,
+       range_end_integer,
+       is_compressed,
+       chunk_tablespace,
+       data_nodes
+FROM timescaledb_information.chunks WHERE hypertable_name = 'test_table_int' ORDER BY chunk_name;
+ERROR:  column "data_nodes" does not exist at character 294
+\x
+SELECT * FROM timescaledb_information.dimensions ORDER BY hypertable_name, dimension_number;
+-[ RECORD 1 ]-----+-------------------------
+hypertable_schema | closed
+hypertable_name   | closed_ht
+dimension_number  | 1
+column_name       | time
+column_type       | timestamp with time zone
+dimension_type    | Time
+time_interval     | @ 7 days
+integer_interval  | 
+integer_now_func  | 
+num_partitions    | 
+-[ RECORD 2 ]-----+-------------------------
+hypertable_schema | public
+hypertable_name   | ht1
+dimension_number  | 1
+column_name       | time
+column_type       | timestamp with time zone
+dimension_type    | Time
+time_interval     | @ 7 days
+integer_interval  | 
+integer_now_func  | 
+num_partitions    | 
+-[ RECORD 3 ]-----+-------------------------
+hypertable_schema | public
+hypertable_name   | ht2
+dimension_number  | 1
+column_name       | time
+column_type       | timestamp with time zone
+dimension_type    | Time
+time_interval     | @ 7 days
+integer_interval  | 
+integer_now_func  | 
+num_partitions    | 
+-[ RECORD 4 ]-----+-------------------------
+hypertable_schema | open
+hypertable_name   | open_ht
+dimension_number  | 1
+column_name       | time
+column_type       | timestamp with time zone
+dimension_type    | Time
+time_interval     | @ 7 days
+integer_interval  | 
+integer_now_func  | 
+num_partitions    | 
+-[ RECORD 5 ]-----+-------------------------
+hypertable_schema | public
+hypertable_name   | test_table_int
+dimension_number  | 1
+column_name       | time
+column_type       | bigint
+dimension_type    | Time
+time_interval     | 
+integer_interval  | 10
+integer_now_func  | table_int_now
+num_partitions    | 
+
+\x

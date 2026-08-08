@@ -1,0 +1,28 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.3-2--12.0-1.sql: \
+ sql/citus--11.3-2--12.0-1.sql \
+ sql/udfs/citus_internal_add_tenant_schema/12.0-1.sql \
+ sql/udfs/citus_internal_delete_tenant_schema/12.0-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/12.0-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/12.0-1.sql \
+ sql/udfs/citus_internal_unregister_tenant_schema_globally/12.0-1.sql \
+ sql/udfs/citus_drop_trigger/12.0-1.sql sql/udfs/citus_tables/12.0-1.sql \
+ sql/udfs/citus_shards/12.0-1.sql sql/udfs/citus_schemas/12.0-1.sql \
+ sql/udfs/citus_stat_tenants_local/12.0-1.sql \
+ sql/udfs/citus_schema_distribute/12.0-1.sql \
+ sql/udfs/citus_schema_undistribute/12.0-1.sql \
+ sql/udfs/drop_old_time_partitions/12.0-1.sql \
+ sql/udfs/get_missing_time_partition_ranges/12.0-1.sql
+sql/udfs/citus_internal_add_tenant_schema/12.0-1.sql:
+sql/udfs/citus_internal_delete_tenant_schema/12.0-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/12.0-1.sql:
+sql/udfs/citus_finish_pg_upgrade/12.0-1.sql:
+sql/udfs/citus_internal_unregister_tenant_schema_globally/12.0-1.sql:
+sql/udfs/citus_drop_trigger/12.0-1.sql:
+sql/udfs/citus_tables/12.0-1.sql:
+sql/udfs/citus_shards/12.0-1.sql:
+sql/udfs/citus_schemas/12.0-1.sql:
+sql/udfs/citus_stat_tenants_local/12.0-1.sql:
+sql/udfs/citus_schema_distribute/12.0-1.sql:
+sql/udfs/citus_schema_undistribute/12.0-1.sql:
+sql/udfs/drop_old_time_partitions/12.0-1.sql:
+sql/udfs/get_missing_time_partition_ranges/12.0-1.sql:

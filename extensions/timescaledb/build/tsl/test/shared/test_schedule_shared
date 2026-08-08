@@ -1,0 +1,7 @@
+
+test: build_info bulk_decompression_limit chunk_append_merge_append chunkwise_agg_gather_sort classify_relation compat compress_bloom_sparse_compat compress_unique_index compression_nulls_not_distinct constify_timestamptz_op_interval-17 constraint_aware_append constraint_exclusion_prepared-17 decompress_join decompress_placeholdervar decompress_tracking gapfill-17 gapfill_bug generated_columns lateral_subquery-17 memoize 
+test: ordered_append_join-17 parameterized_chunkappend security_barrier space_constraint-17 subtract_integer_from_now transparent_decompress_chunk-17 
+
+test: cagg_compression 
+test: compression_dml 
+test: merge_dml 

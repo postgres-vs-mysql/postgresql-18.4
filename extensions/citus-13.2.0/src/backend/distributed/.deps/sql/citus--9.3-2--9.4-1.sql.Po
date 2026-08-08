@@ -1,0 +1,6 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.3-2--9.4-1.sql: \
+ sql/citus--9.3-2--9.4-1.sql \
+ sql/udfs/worker_last_saved_explain_analyze/9.4-1.sql \
+ sql/udfs/worker_save_query_explain_analyze/9.4-1.sql
+sql/udfs/worker_last_saved_explain_analyze/9.4-1.sql:
+sql/udfs/worker_save_query_explain_analyze/9.4-1.sql:

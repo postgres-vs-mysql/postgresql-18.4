@@ -1,0 +1,316 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+
+\set TEST_BASE_NAME transparent_decompression_ordered_index
+SELECT format('include/%s_query.sql', :'TEST_BASE_NAME') AS "TEST_QUERY_NAME",
+    format('%s/results/%s_results_uncompressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') AS "TEST_RESULTS_UNCOMPRESSED",
+    format('%s/results/%s_results_compressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') AS "TEST_RESULTS_COMPRESSED" \gset
+
+SELECT format('\! diff -u -- %s %s', :'TEST_RESULTS_UNCOMPRESSED', :'TEST_RESULTS_COMPRESSED') AS "DIFF_CMD" \gset
+
+-- disable memoize node to avoid flaky results
+SET enable_memoize TO 'off';
+
+-- Testing Index Scan backwards ----
+-- We want more than 1 segment in atleast 1 of the chunks
+
+CREATE TABLE metrics_ordered_idx (
+    time timestamptz NOT NULL,
+    device_id int,
+    device_id_peer int,
+    v0 int
+);
+
+SELECT create_hypertable ('metrics_ordered_idx', 'time', chunk_time_interval => '2days'::interval);
+
+ALTER TABLE metrics_ordered_idx SET (timescaledb.compress, timescaledb.compress_orderby = 'time ASC', timescaledb.compress_segmentby = 'device_id,device_id_peer');
+
+INSERT INTO metrics_ordered_idx (time, device_id, device_id_peer, v0)
+SELECT time,
+    device_id,
+    0,
+    device_id
+FROM generate_series('2000-01-13 0:00:00+0'::timestamptz, '2000-01-15 23:55:00+0', '15m') gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+INSERT INTO metrics_ordered_idx (time, device_id, device_id_peer, v0)
+SELECT generate_series('2000-01-20 0:00:00+0'::timestamptz, '2000-01-20 11:55:00+0', '15m'),
+    3,
+    3,
+    generate_series(1, 5, 1);
+
+INSERT INTO metrics_ordered_idx (time, device_id, device_id_peer, v0)
+SELECT generate_series('2018-01-20 0:00:00+0'::timestamptz, '2018-01-20 11:55:00+0', '15m'),
+    4,
+    5,
+    generate_series(1, 5, 1);
+
+INSERT INTO metrics_ordered_idx (time, device_id, device_id_peer, v0)
+SELECT '2020-01-01 0:00:00+0',
+    generate_series(4, 7, 1),
+    5,
+    generate_series(1, 5, 1);
+
+-- misisng values device_id = 7
+CREATE TABLE device_tbl (
+    device_id int,
+    descr text
+);
+
+INSERT INTO device_tbl
+SELECT generate_series(1, 6, 1),
+    'devicex';
+
+INSERT INTO device_tbl
+SELECT 8,
+    'device8';
+
+ANALYZE device_tbl;
+
+-- table for joins ---
+CREATE TABLE nodetime (
+    node int,
+    start_time timestamp,
+    stop_time timestamp
+);
+
+INSERT INTO nodetime
+    VALUES (4, '2018-01-06 00:00'::timestamp, '2018-12-02 12:00'::timestamp);
+
+VACUUM FULL ANALYZE metrics_ordered_idx;
+
+-- run queries on uncompressed hypertable and store result
+\set PREFIX ''
+\set PREFIX_VERBOSE ''
+-- Unfortunately the ECHO cannot be redirected to the output file.
+\set ECHO none
+SET client_min_messages TO error;
+
+\o :TEST_RESULTS_UNCOMPRESSED
+\ir include/transparent_decompression_ordered_index.sql
+\ir include/transparent_decompression_constraintaware.sql
+\o
+RESET client_min_messages;
+
+\set ECHO all
+--compress all chunks for metrics_ordered_idx table --
+SELECT count(compress_chunk(ch)) FROM show_chunks('metrics_ordered_idx') ch;
+
+-- reindexing compressed hypertable to update statistics
+DO
+$$
+DECLARE
+  hyper_id int;
+BEGIN
+  SELECT h.compressed_hypertable_id
+  INTO hyper_id
+  FROM _timescaledb_catalog.hypertable h
+  WHERE h.table_name = 'metrics_ordered_idx';
+  EXECUTE format('REINDEX TABLE _timescaledb_internal._compressed_hypertable_%s',
+    hyper_id);
+END;
+$$;
+
+VACUUM FULL ANALYZE metrics_ordered_idx;
+
+-- run queries on compressed hypertable and store result
+\set PREFIX ''
+\set PREFIX_VERBOSE ''
+\set ECHO none
+SET client_min_messages TO error;
+
+SET enable_seqscan = FALSE;
+
+\o :TEST_RESULTS_COMPRESSED
+\ir include/transparent_decompression_ordered_index.sql
+\ir include/transparent_decompression_constraintaware.sql
+SET enable_seqscan = TRUE;
+
+\o
+RESET client_min_messages;
+
+\set ECHO all
+-- diff compressed and uncompressed results
+:DIFF_CMD
+
+-- This is to illustrate that we have some null device_id values. This fact
+-- might influence the runtime chunk exclusion when doing joins on device_id.
+select count(*) from metrics_ordered_idx
+where extract(minute from time) = 0 and device_id is null
+;
+
+\set PREFIX 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off)'
+\set PREFIX_VERBOSE 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off, verbose)'
+-- we disable parallelism here otherwise EXPLAIN ANALYZE output
+-- will be not stable and differ depending on worker assignment
+
+SET max_parallel_workers_per_gather TO 0;
+
+SET enable_seqscan = FALSE;
+
+-- get explain for queries on hypertable with compression
+\ir include/transparent_decompression_ordered_indexplan.sql
+SET enable_seqscan = FALSE;
+
+\ir include/transparent_decompression_ordered_index.sql
+SET enable_seqscan = TRUE;
+
+\ir include/transparent_decompression_constraintaware.sql
+
+-- github bug 2917 with UNION ALL that references compressed ht
+CREATE TABLE entity
+(
+  oid bigint PRIMARY KEY,
+  type text,
+  name text
+);
+
+INSERT INTO entity values(10, 'VMEM', 'cpu');
+
+CREATE TABLE entity_m2
+(
+ timec         timestamp with time zone  NOT NULL,
+ entity_oid    bigint                    ,
+ entity_hash   bigint                    ,
+ type          text               ,
+ current       double precision,
+ capacity      double precision,
+ utilization   double precision,
+ peak          double precision
+);
+
+SELECT create_hypertable('entity_m2', 'timec', chunk_time_interval=>'30 days'::interval);
+
+INSERT INTO entity_m2 values (
+ '2020-12-21 15:47:58.778-05' , 10 , -7792214420424674003 , 'VMEM' , 0,  2097152 ,           0 ,  100);
+INSERT INTO entity_m2 values (
+ '2020-12-21 16:47:58.778-05' , 10 , -7792214420424674003 , 'VMEM' , 0,  2097152 ,           0 ,  100);
+
+ALTER TABLE entity_m2 SET (timescaledb.compress,
+timescaledb.compress_segmentby = 'entity_oid',
+timescaledb.compress_orderby = 'type, timec');
+
+SELECT compress_chunk(c) FROM show_chunks('entity_m2') c;
+
+VACUUM FULL ANALYZE entity_m2;
+
+CREATE TABLE entity_m1
+(
+timec         timestamp with time zone  ,
+ entity_oid    bigint                    ,
+ entity_hash   bigint                    ,
+ type          text               ,
+ current       double precision,
+ capacity      double precision,
+ utilization   double precision
+);
+
+SELECT create_hypertable('entity_m1', 'timec', chunk_time_interval=>'30 days'::interval);
+INSERT INTO entity_m1 values (
+ '2020-12-21 16:47:58.778-05' , 10 , -7792214420424674003 , 'VMEM' , 0,  100 ,           0 );
+
+
+create view metric_view as
+ SELECT m2.timec,
+    m2.entity_oid,
+    m2.entity_hash,
+    m2.type,
+    m2.current,
+    m2.capacity,
+    m2.utilization,
+    m2.peak
+   FROM entity_m2 m2
+UNION ALL
+ SELECT m1.timec,
+    m1.entity_oid,
+    m1.entity_hash,
+    m1.type,
+    m1.current,
+    m1.capacity,
+    m1.utilization,
+    NULL::double precision AS peak
+   FROM entity_m1 m1;
+
+VACUUM FULL ANALYZE entity_m1;
+
+SET enable_bitmapscan = false;
+SET enable_hashjoin = false;
+SET enable_mergejoin = false;
+SELECT m.timec, avg(m.utilization) AS avg_util
+   FROM  metric_view m, entity e
+   WHERE m.type = 'VMEM'
+   AND m.timec BETWEEN '2020-12-21T00:00:00'::timestamptz - interval '7 day' AND date_trunc('day', '2020-12-22T00:00:00'::timestamptz)
+   AND m.entity_oid = e.oid
+   GROUP BY 1 ORDER BY 1;
+
+--now compress the other table too and rerun the query --
+ALTER TABLE entity_m1 SET (timescaledb.compress,
+timescaledb.compress_segmentby = 'entity_oid',
+timescaledb.compress_orderby = 'type, timec');
+SELECT compress_chunk(c) FROM show_chunks('entity_m1') c;
+VACUUM FULL ANALYZE entity_m1;
+
+SELECT m.timec, avg(m.utilization) AS avg_util
+   FROM  metric_view m, entity e
+   WHERE m.type = 'VMEM'
+   AND m.timec BETWEEN '2020-12-21T00:00:00'::timestamptz - interval '7 day' AND date_trunc('day', '2020-12-22T00:00:00'::timestamptz)
+   AND m.entity_oid = e.oid
+   GROUP BY 1 ORDER BY 1;
+RESET enable_bitmapscan ;
+RESET enable_hashjoin ;
+RESET enable_mergejoin;
+
+-- end github bug 2917
+
+-- When we cannot use compression sort as query keys do not match,
+-- and have useful and cheap IndexScans due to selective index conditions,
+-- we should be able to use ChunkAppend after sorting IndexScans to desired query keys.
+-- Before, we would only try to sort SeqScans in such scenarios.
+SET enable_seqscan = false;
+
+-- IndexScan keys (device_id, device_id_peer, time) do not match query keys, can't push sort into compressed index.
+-- Cannot use batch sort either as have to order on (time, device_id_peer).
+-- IndexScan can be cheap because of (device_id>2),
+-- should allow ChunkAppend with LIMIT after sorting decompressed IndexScans on query keys.
+:PREFIX select * from metrics_ordered_idx where device_id > 2 order by "time" desc, device_id_peer limit 10;
+
+-- Make sure we can use ChunkAppend over sorted decompressed parametrized IndexScans and SeqScans
+
+-- Parametrized IndexScans
+:PREFIX SELECT nd.node,
+    mt.*
+FROM metrics_ordered_idx mt,
+    nodetime nd
+WHERE mt.time > nd.start_time
+    AND mt.device_id = nd.node
+    AND mt.time < nd.stop_time
+ORDER BY "time", mt.device_id limit 5;
+
+-- Parametrized SeqScans
+RESET enable_seqscan;
+SET enable_indexscan = false;
+
+:PREFIX SELECT nd.node,
+    mt.*
+FROM metrics_ordered_idx mt,
+    nodetime nd
+WHERE mt.time > nd.start_time
+    AND mt.device_id = nd.node
+    AND mt.time < nd.stop_time
+ORDER BY "time", mt.device_id limit 5;
+
+SET enable_seqscan = false;
+RESET enable_indexscan;
+
+-- When we decompress top chunk, uncompressed IndexScan is sorted on (time DESC),
+-- should allow ChunkAppend with LIMIT
+-- over (Sort(time, device_id_peer) <- IndexScan + Sort(time, device_id_peer) <- DecompressChunk ...)
+select show_chunks as chunk_to_decompress_1 from show_chunks('metrics_ordered_idx') order by 1 desc limit 1 \gset
+select decompress_chunk(:'chunk_to_decompress_1');
+
+:PREFIX select * from metrics_ordered_idx where device_id > 2 order by "time" desc, device_id_peer limit 10;
+
+select compress_chunk(:'chunk_to_decompress_1');
+
+RESET enable_seqscan;

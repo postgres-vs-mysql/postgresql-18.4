@@ -1,0 +1,8 @@
+--exclude=.git
+--exclude=bld
+--exclude=mysql-test
+--exclude=*.log
+--exclude=Docs
+--exclude=scripts
+--exclude=boost
+-R

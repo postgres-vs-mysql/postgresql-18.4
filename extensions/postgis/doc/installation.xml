@@ -1,0 +1,997 @@
+<!-- Converted by db4-upgrade version 1.1 -->
+<chapter xmlns="http://docbook.org/ns/docbook"
+ xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:id="postgis_installation">
+  <title>PostGIS Installation</title>
+
+  <para>
+  This chapter details the steps required to install PostGIS.
+  </para>
+
+  <section xml:id="install_short_version">
+  <title>Short Version</title>
+  <para>To compile assuming you have all the dependencies in your search path:</para>
+  <programlisting>tar -xvzf postgis-&last_release_version;.tar.gz
+cd postgis-&last_release_version;
+./configure
+make
+make install</programlisting>
+  <para>
+Once PostGIS is installed, it needs to be
+enabled (<xref linkend="create_spatial_db"/>)
+or upgraded (<xref linkend="upgrading"/>)
+in each individual database you want to use it in.
+  </para>
+
+  </section>
+
+  <section xml:id="PGInstall">
+  <title>Compiling and Install from Source</title>
+
+  <note>
+    <para>
+    Many OS systems now include pre-built packages for PostgreSQL/PostGIS.
+    In many cases compilation is only necessary if you want the most
+    bleeding edge versions or you are a package maintainer.
+    </para>
+    <para>This section includes general compilation instructions, if you are compiling for Windows etc
+    or another OS, you may find additional more detailed help at <link xlink:href="https://trac.osgeo.org/postgis/wiki/UsersWikiInstall">PostGIS User contributed compile guides</link> and <link xlink:href="http://trac.osgeo.org/postgis/wiki/DevWikiMain">PostGIS Dev Wiki</link>.</para>
+    <para>Pre-Built Packages for various OS are listed in <link xlink:href="https://trac.osgeo.org/postgis/wiki/UsersWikiPackages">PostGIS Pre-built Packages</link></para>
+    <para>If you are a windows user, you can get stable builds via Stackbuilder or <link xlink:href="https://postgis.net/windows_downloads">PostGIS Windows download site</link>
+    We also have <link xlink:href="https://postgis.net/windows_downloads">very bleeding-edge windows experimental builds</link> that are built usually once or twice a week or whenever anything exciting happens.  You can
+    use these to experiment with the in progress releases of PostGIS</para>
+  </note>
+
+  <para>
+    The PostGIS module is an extension to the PostgreSQL backend server. As
+    such, PostGIS &last_release_version; <emphasis>requires</emphasis> full
+    PostgreSQL server headers access in order to compile. It can be built
+    against PostgreSQL versions &min_postgres_version; - &max_postgres_version;. Earlier
+    versions of PostgreSQL are <emphasis>not</emphasis> supported.
+  </para>
+
+  <para>
+    Refer to the PostgreSQL installation guides if you haven't already
+    installed PostgreSQL.
+    <link xlink:href="https://www.postgresql.org">
+    https://www.postgresql.org
+    </link>
+    .
+  </para>
+
+  <note>
+    <para>
+    For GEOS functionality, when you install PostgreSQL you may need to
+    explicitly link PostgreSQL against the standard C++ library:
+    </para>
+
+    <programlisting>LDFLAGS=-lstdc++ ./configure [YOUR OPTIONS HERE]</programlisting>
+
+    <para>
+    This is a workaround for bogus C++ exceptions interaction with older
+    development tools. If you experience weird problems (backend
+    unexpectedly closed or similar things) try this trick. This will require
+    recompiling your PostgreSQL from scratch, of course.
+    </para>
+  </note>
+
+  <para>
+    The following steps outline the configuration and compilation of the
+    PostGIS source. They are written for Linux users and will not work on
+    Windows or Mac.
+  </para>
+
+  <section xml:id="install_getting_source">
+  <title>Getting the Source</title>
+
+  <para>
+    Retrieve the PostGIS source archive from the downloads website
+    <link xlink:href="&postgis_download_url;">
+    &postgis_download_url;
+    </link>
+  </para>
+
+  <programlisting>wget &postgis_download_url;
+tar -xvzf postgis-&last_release_version;.tar.gz
+cd postgis-&last_release_version;</programlisting>
+
+  <para>
+    This will create a directory called
+    <varname>postgis-&last_release_version;</varname> in the current working
+    directory.
+  </para>
+
+  <para>
+    Alternatively, checkout the source from the
+    <link xlink:href="https://git-scm.com/">
+    git
+    </link>
+    repository
+    <link xlink:href="https://git.osgeo.org/gitea/postgis/postgis/">
+    https://git.osgeo.org/gitea/postgis/postgis/
+    </link>
+    .
+  </para>
+
+  <programlisting>git clone https://git.osgeo.org/gitea/postgis/postgis.git postgis
+cd postgis
+sh autogen.sh
+    </programlisting>
+
+  <para>
+    Change into the newly created
+    <varname>postgis</varname> directory to continue
+    the installation.
+  </para>
+    <programlisting>./configure</programlisting>
+  </section>
+
+  <section xml:id="install_requirements">
+  <title>Install Requirements</title>
+
+  <para>
+    PostGIS has the following requirements for building and usage:
+  </para>
+
+  <para>
+    <emphasis role="bold">Required</emphasis>
+  </para>
+
+  <itemizedlist>
+    <listitem>
+    <para>
+      PostgreSQL &min_postgres_version; - &max_postgres_version;. A complete installation
+      of PostgreSQL (including server headers) is required. PostgreSQL
+      is available from
+      <link xlink:href="https://www.postgresql.org">
+      https://www.postgresql.org
+      </link>18
+      .
+    </para>
+    <para>For a full PostgreSQL / PostGIS support matrix and PostGIS/GEOS support matrix refer to
+      <link xlink:href="https://trac.osgeo.org/postgis/wiki/UsersWikiPostgreSQLPostGIS">https://trac.osgeo.org/postgis/wiki/UsersWikiPostgreSQLPostGIS</link>
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      GNU C compiler (<filename>gcc</filename>). Some other ANSI C compilers
+      can be used to compile PostGIS, but we find far fewer problems when
+      compiling with <filename>gcc</filename>.
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      GNU Make (<filename>gmake</filename> or <filename>make</filename>).
+      For many systems, GNU <filename>make</filename> is the default version
+      of make. Check the version by invoking <filename>make -v</filename>.
+      Other versions of <filename>make</filename> may not process the
+      PostGIS <filename>Makefile</filename> properly.
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      Proj reprojection library. Proj 6.1 or above is required.
+      The Proj library is used to provide coordinate reprojection support within
+      PostGIS. Proj is available for download from
+      <link xlink:href="https://proj.org/">
+      https://proj.org/
+      </link>
+      .
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      GEOS geometry library, version &min_geos_version; or greater, but GEOS 3.14+ is required to take full advantage of all the new functions and features. GEOS is available for download from
+      <link xlink:href="https://libgeos.org/">
+      https://libgeos.org
+      </link>.
+    </para>
+    </listitem>
+    <listitem>
+    <para>
+      LibXML2, version 2.5.x or higher. LibXML2 is currently used in some imports
+      functions (ST_GeomFromGML and ST_GeomFromKML). LibXML2 is available for download from
+      <link xlink:href="https://gitlab.gnome.org/GNOME/libxml2/-/releases">https://gitlab.gnome.org/GNOME/libxml2/-/releases</link>.
+    </para>
+    </listitem>
+    <listitem>
+    <para>
+      JSON-C, version 0.9 or higher. JSON-C is currently used to import GeoJSON via the
+      function ST_GeomFromGeoJson. JSON-C is available for download from
+      <link xlink:href="https://github.com/json-c/json-c/releases">https://github.com/json-c/json-c/releases/</link>.
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      GDAL, version 3+ is preferred.  This is required for raster
+      support.
+      <link xlink:href="https://gdal.org/download.html">https://gdal.org/download.html</link>.
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      If compiling with PostgreSQL+JIT, LLVM version &gt;=6 is required
+      <link xlink:href="https://trac.osgeo.org/postgis/ticket/4125">https://trac.osgeo.org/postgis/ticket/4125</link>.
+    </para>
+    </listitem>
+
+  </itemizedlist>
+
+  <para>
+    <emphasis role="bold">Optional</emphasis>
+  </para>
+
+  <itemizedlist>
+    <listitem>
+    <para>
+      GDAL (pseudo optional) only if you don't want raster
+      you can leave it out.  Also make sure to enable
+      the drivers you want to use as described in <xref linkend="raster_configuration"/>.
+    </para>
+    </listitem>
+    <listitem>
+    <para>
+      GTK (requires GTK+2.0, 2.8+) to compile the shp2pgsql-gui shape file loader.
+      <link xlink:href="http://www.gtk.org/">
+      http://www.gtk.org/
+      </link>
+      .
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      SFCGAL, 1.4.1 or higher is required and 2.1+ is needed to be able to use all functionality. SFCGAL can be used to provide additional 2D and 3D advanced analysis functions to PostGIS cf <xref linkend="reference_sfcgal"/>. And also allow to use SFCGAL rather than GEOS for some 2D functions provided by both backends (like ST_Intersection or ST_Area, for instance). A PostgreSQL configuration variable <code>postgis.backend</code> allow end user to control which backend he want to use if SFCGAL is installed (GEOS by default). Nota: SFCGAL 1.2 require at least CGAL 4.3 and Boost 1.54 (cf: <link xlink:href="https://sfcgal.org">https://sfcgal.org</link>)
+
+      <link xlink:href="https://gitlab.com/sfcgal/SFCGAL/">https://gitlab.com/sfcgal/SFCGAL/</link>.
+    </para>
+    </listitem>
+
+    <listitem>
+      <para>
+        To enable ST_AsMVT protobuf-c library 1.1.0 or higher (for usage) and the protoc-c compiler (for building) are required.
+        Also, pkg-config is required to verify the correct minimum version of protobuf-c.
+        See <link xlink:href="https://github.com/protobuf-c/protobuf-c">protobuf-c</link>.
+        By default, Postgis will use Wagyu to validate MVT polygons faster which requires a c++11 compiler. It will use CXXFLAGS and the same compiler as the PostgreSQL installation. To disable this and use GEOS instead use the <varname>--without-wagyu</varname> during the configure step.
+      </para>
+    </listitem>
+
+    <listitem>
+    <para>
+     CUnit (<filename>CUnit</filename>). This is needed for regression testing. <link xlink:href="http://cunit.sourceforge.net/">http://cunit.sourceforge.net/</link>
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      DocBook (<filename>xsltproc</filename>) is required for building the
+      documentation. Docbook is available from
+      <link xlink:href="http://www.docbook.org/">
+      http://www.docbook.org/
+      </link>
+      .
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>
+      DBLatex (<filename>dblatex</filename>) is required for building the
+      documentation in PDF format. DBLatex is available from
+      <link xlink:href="http://dblatex.sourceforge.net/">
+      http://dblatex.sourceforge.net/
+      </link>
+      .
+    </para>
+    </listitem>
+
+          <listitem>
+                <para>
+                  GraphicsMagick (<filename>gm convert</filename>) is required to generate the
+                  images used in the documentation. If GraphicsMagick is unavailable, ImageMagick
+                  (<filename>convert</filename> or <filename>magick convert</filename>) provides the
+                  same command-line syntax. GraphicsMagick is available from
+                  <link xlink:href="http://www.graphicsmagick.org/">
+                        http://www.graphicsmagick.org/
+                  </link>
+                  and ImageMagick from
+                  <link xlink:href="https://imagemagick.org/">
+                        https://imagemagick.org/
+                  </link>
+                  .
+                </para>
+          </listitem>
+  </itemizedlist>
+  </section>
+
+
+  <section xml:id="installation_configuration">
+    <title>Build configuration</title>
+
+    <para>
+    As with most linux installations, the first step is to generate the
+    Makefile that will be used to build the source code. This is done by
+    running the shell script
+    </para>
+
+    <para>
+    <command>./configure</command>
+    </para>
+
+    <para>
+    With no additional parameters, this command will attempt to
+    automatically locate the required components and libraries needed to
+    build the PostGIS source code on your system. Although this is the most
+    common usage of <command>./configure</command>, the script accepts
+    several parameters for those who have the required libraries and
+    programs in non-standard locations.
+    </para>
+    <para>
+    The following list shows only the most commonly used parameters. For a
+    complete list, use the <command>--help</command> or
+    <command>--help=short</command> parameters.
+    </para>
+
+    <variablelist>
+    <varlistentry>
+      <term><option>--with-library-minor-version</option></term>
+      <listitem>
+      <para>Starting with PostGIS 3.0, the library files generated by default will no longer have the minor version
+      as part of the file name.  This means all PostGIS 3 libs will end in <code>postgis-3</code>.
+      This was done to make pg_upgrade easier, with downside that you can only install
+      one version PostGIS 3 series in your server.
+      To get the old behavior of file including the minor version: e.g. <code>postgis-3.0</code>
+      add this switch to your configure statement.</para>
+
+      </listitem>
+    </varlistentry>
+
+
+    <varlistentry>
+
+      <term><option>--prefix=PREFIX</option></term>
+      <listitem>
+      <para>
+        This is the location the PostGIS loader executables and shared libs will be installed.
+        By default, this location is the same as the
+        detected PostgreSQL installation.
+      </para>
+
+      <caution>
+        <para>
+        This parameter is currently broken, as the package will only
+        install into the PostgreSQL installation directory. Visit
+        <link xlink:href="http://trac.osgeo.org/postgis/ticket/635">
+          http://trac.osgeo.org/postgis/ticket/635
+        </link>
+        to track this bug.
+        </para>
+      </caution>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-pgconfig=FILE</option></term>
+      <listitem>
+      <para>
+        PostgreSQL provides a utility called <command>pg_config</command>
+        to enable extensions like PostGIS to locate the PostgreSQL
+        installation directory. Use this parameter
+        (<command>--with-pgconfig=/path/to/pg_config</command>) to
+        manually specify a particular PostgreSQL installation that PostGIS
+        will build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-gdalconfig=FILE</option></term>
+      <listitem>
+      <para>
+        GDAL, a required library, provides functionality needed for raster support
+        <command>gdal-config</command> to enable software installations to
+        locate the GDAL installation directory. Use this parameter
+        (<command>--with-gdalconfig=/path/to/gdal-config</command>) to
+        manually specify a particular GDAL installation that PostGIS will
+        build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-geosconfig=FILE</option></term>
+      <listitem>
+      <para>
+        GEOS, a required geometry library, provides a utility called
+        <command>geos-config</command> to enable software installations to
+        locate the GEOS installation directory. Use this parameter
+        (<command>--with-geosconfig=/path/to/geos-config</command>) to
+        manually specify a particular GEOS installation that PostGIS will
+        build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-xml2config=FILE</option></term>
+      <listitem>
+      <para>
+        LibXML is the library required for doing GeomFromKML/GML processes.
+        It normally is found if you have libxml installed, but if not or you want
+        a specific version used, you'll need to point PostGIS at a specific
+        <filename>xml2-config</filename> confi file to enable software installations to
+        locate the LibXML installation directory. Use this parameter
+        (<command>&gt;--with-xml2config=/path/to/xml2-config</command>) to
+        manually specify a particular LibXML installation that PostGIS will
+        build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+
+
+    <varlistentry>
+      <term><option>--with-projdir=DIR</option></term>
+      <listitem>
+      <para>
+        Proj is a reprojection library required by PostGIS. Use this
+        parameter (<command>--with-projdir=/path/to/projdir</command>) to
+        manually specify a particular Proj installation directory that
+        PostGIS will build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-libiconv=DIR</option></term>
+      <listitem>
+      <para>
+        Directory where iconv is installed.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-jsondir=DIR</option></term>
+      <listitem>
+      <para>
+        <link xlink:href="http://oss.metaparadigm.com/json-c/">JSON-C</link> is an MIT-licensed JSON library required by PostGIS ST_GeomFromJSON support. Use this
+        parameter (<command>--with-jsondir=/path/to/jsondir</command>) to
+        manually specify a particular JSON-C installation directory that
+        PostGIS will build against.
+      </para>
+      </listitem>
+    </varlistentry>
+
+    <varlistentry>
+      <term><option>--with-gui</option></term>
+      <listitem>
+      <para>
+        Compile the data import GUI (requires GTK+2.0).  This will create shp2pgsql-gui graphical interface
+        to shp2pgsql.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--without-raster</option></term>
+      <listitem>
+      <para>
+        Compile without raster support.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--without-topology</option></term>
+      <listitem>
+      <para>
+        Compile without topology support.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--with-gettext=no</option></term>
+      <listitem>
+      <para>
+        By default PostGIS will try to detect gettext support and compile with it, however if you run into incompatibility issues that
+        cause breakage of loader, you can disable it entirely with this command.  Refer to ticket <link xlink:href="http://trac.osgeo.org/postgis/ticket/748">http://trac.osgeo.org/postgis/ticket/748</link> for an example issue solved by configuring with this.
+        NOTE: that you aren't missing much by turning this off.  This is used for international help/label support for the GUI loader which is not yet documented
+        and still experimental.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--with-sfcgal=PATH</option></term>
+      <listitem>
+      <para>
+        By default PostGIS will not install with sfcgal support without this switch.
+        <varname>PATH</varname> is an optional argument that allows to specify an alternate PATH to sfcgal-config.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--without-phony-revision</option></term>
+      <listitem>
+      <para>
+        Disable updating postgis_revision.h to match current HEAD of the git repository.
+      </para>
+      </listitem>
+    </varlistentry>
+    </variablelist>
+    <note>
+    <para>
+      If you obtained PostGIS from the
+      <link xlink:href="https://trac.osgeo.org/postgis/wiki/CodeRepository">
+      code repository
+      </link>
+      , the first step is really to run the script
+    </para>
+
+    <para>
+      <command>./autogen.sh</command>
+    </para>
+
+    <para>
+      This script will generate the <command>configure</command> script that
+      in turn is used to customize the installation of PostGIS.
+    </para>
+
+    <para>
+      If you instead obtained PostGIS as a tarball, running
+      <command>./autogen.sh</command> is not necessary as
+      <command>configure</command> has already been generated.
+    </para>
+    </note>
+  </section>
+
+  <section>
+    <title>Building</title>
+
+    <para>
+    Once the Makefile has been generated, building PostGIS is as simple as
+    running
+    </para>
+
+    <para>
+    <command>make</command>
+    </para>
+
+    <para>
+    The last line of the output should be "<code>PostGIS was built
+    successfully. Ready to install.</code>"
+    </para>
+
+          <para>
+                All the functions have comments generated from the
+                documentation. If you wish to install these comments into your spatial
+                databases later, run the command which requires docbook.  The postgis_comments.sql and other
+                package comment files are
+                        also packaged in the tar.gz distribution in the doc folder so no need to make comments
+                        if installing from the tar ball.  Comments are also included as part of the CREATE EXTENSION install.
+          </para>
+
+    <para>
+    <command>make comments</command>
+    </para>
+
+          <para>
+                The <command>make cheatsheets</command> target generates html cheat sheets suitable for quick reference or for student handouts.
+                This requires xsltproc to build and will generate 4 files in doc folder <filename>topology_cheatsheet.html</filename>,
+                        <filename>raster_cheatsheet.html</filename>, <filename>postgis_cheatsheet.html</filename>
+          </para>
+    <para>You can download some pre-built ones available in html and pdf from <link xlink:href="http://www.postgis.us/study_guides">PostGIS / PostgreSQL Study Guides</link></para>
+
+    <para>
+    <command>make cheatsheets</command>
+    </para>
+  </section>
+
+  <section xml:id="make_install_postgis_extensions">
+    <title>Building PostGIS Extensions and Deploying them</title>
+
+          <para>
+                The PostGIS extensions are built and installed automatically when PostgreSQL extension support is available.
+          </para>
+    <para>If you are building from source repository, you need to build the function descriptions first. These get built if you have docbook installed. You can also manually build with the statement:
+    </para>
+    <para>
+    <command>make comments</command>
+    </para>
+    <para>Building the comments is not necessary if you are building from a release tar ball since these are packaged pre-built with the tar ball already.</para>
+    <para>The extensions should automatically build as part of the make install process.  You can if needed build from the extensions
+    folders or copy files if you need them on a different server. </para>
+    <programlisting>cd extensions
+cd postgis
+make clean
+make
+export PGUSER=postgres #overwrite psql variables
+make check #to test before install
+make install
+# to test extensions
+make check RUNTESTFLAGS=--extension</programlisting>
+    <note><para><code>make check</code> uses psql to run tests and as such can use psql environment variables.
+    Common ones useful to override are <varname>PGUSER</varname>,<varname>PGPORT</varname>, and <varname>PGHOST</varname>. Refer to <link xlink:href="https://www.postgresql.org/docs/current/libpq-envars.html">psql environment variables</link> </para></note>
+    <para>The extension files will always be the same for the same version of PostGIS and PostgreSQL regardless of OS, so it is fine to copy over the extension files from one OS to another as long as you
+    have the PostGIS binaries already installed on your servers. </para>
+    <para>If you want to install the extensions manually on a separate server different from your development,
+    You need to copy the following files from the extensions folder into the <filename>PostgreSQL / share / extension</filename> folder
+    of your PostgreSQL install as well as the needed binaries for regular PostGIS if you don't have them already on the server.
+    </para>
+
+    <itemizedlist>
+    <listitem>
+      <para>
+      These are the control files that denote information such as the version of the extension to install if not specified.
+      <filename>postgis.control, postgis_topology.control</filename>.
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+      All the files in the /sql folder of each extension.  Note that these need to be copied to the root of the PostgreSQL share/extension folder
+      <filename>extensions/postgis/sql/*.sql</filename>, <filename>extensions/postgis_topology/sql/*.sql</filename>
+      </para>
+    </listitem>
+   </itemizedlist>
+   <para>Once you do that, you should see <varname>postgis</varname>, <varname>postgis_topology</varname> as available extensions in PgAdmin -&gt; extensions.</para>
+   <para>If you are using psql, you can verify that the extensions are installed by running this query:</para>
+   <programlisting>SELECT name, default_version, installed_version
+FROM pg_available_extensions WHERE name LIKE 'postgis%';
+
+             name             | default_version | installed_version
+------------------------------+-----------------+-------------------
+ postgis                      | &last_release_version;         | &last_release_version;
+ postgis_raster               | &last_release_version;         | &last_release_version;
+ postgis_sfcgal               | &last_release_version;         |
+ postgis_topology             | &last_release_version;         |
+(6 rows)</programlisting>
+
+<para>If you have the extension installed in the database you are querying, you'll see mention in the <varname>installed_version</varname> column.
+If you get no records back, it means you don't have postgis extensions installed on the server at all.  PgAdmin III 1.14+ will also provide this information
+in the <varname>extensions</varname> section of the database browser tree and will even allow upgrade or uninstall by right-clicking.</para>
+
+<para>If you have the extensions available, you can install postgis extension in your database of choice by either using pgAdmin extension interface or running these sql commands:</para>
+<programlisting>CREATE EXTENSION postgis;
+CREATE EXTENSION postgis_raster;
+CREATE EXTENSION postgis_sfcgal;
+CREATE EXTENSION postgis_topology;</programlisting>
+
+<para>In psql you can use to see what versions you have installed and also what schema they are installed. </para>
+<programlisting>\connect mygisdb
+\x
+\dx postgis*</programlisting>
+
+<screen>List of installed extensions
+-[ RECORD 1 ]-------------------------------------------------
+Name        | postgis
+Version     | &last_release_version;
+Schema      | public
+Description | PostGIS geometry, geography, and raster spat..
+-[ RECORD 2 ]-------------------------------------------------
+Name        | postgis_raster
+Version     | 3.0.0dev
+Schema      | public
+Description | PostGIS raster types and functions
+-[ RECORD 3 ]-------------------------------------------------
+Name        | postgis_topology
+Version     | &last_release_version;
+Schema      | topology
+Description | PostGIS topology spatial types and functions</screen>
+
+<warning><para>Extension tables <varname>spatial_ref_sys</varname>, <varname>layer</varname>, <varname>topology</varname> can not be explicitly backed up.  They can only
+be backed up when the respective <varname>postgis</varname> or <varname>postgis_topology</varname> extension is backed up, which only happens when you back up the whole database.
+Only srid records not packaged with PostGIS are captured in backups, so don't change the entries we ship and expect the modifications to persist. Put in a ticket if you find an issue.  The structures of extension tables are never backed up since they are created with <code>CREATE EXTENSION</code>
+and assumed to be the same for a given version of an extension. These behaviors are built into the current PostgreSQL extension model.</para></warning>
+
+<para>If you installed &last_release_version;, without using our
+wonderful extension system, you can change it to be extension based by
+running the below commands to package the functions in their respective extension.
+Installing using `unpackaged` was removed in PostgreSQL 13, so you are advised to switch to an extension build before upgrading to PostgreSQL 13.
+</para>
+<programlisting>
+CREATE EXTENSION postgis FROM unpackaged;
+CREATE EXTENSION postgis_raster FROM unpackaged;
+CREATE EXTENSION postgis_topology FROM unpackaged;
+</programlisting>
+
+  </section>
+
+
+  <section>
+    <title>Testing</title>
+
+    <para>
+    If you wish to test the PostGIS build, run
+    </para>
+
+    <para>
+    <command>make check</command>
+    </para>
+
+    <para>
+    The above command will run through various checks and regression tests
+    using the generated library against an actual PostgreSQL database.
+    </para>
+
+    <note>
+    <para>
+      If you configured PostGIS using non-standard PostgreSQL, GEOS, or
+      Proj locations, you may need to add their library locations to the
+      <varname>LD_LIBRARY_PATH</varname> environment variable.
+    </para>
+    </note>
+
+          <caution>
+                <para>
+                  Currently, the <command>make check</command> relies on the
+                  <code>PATH</code> and <code>PGPORT</code> environment variables when
+                  performing the checks - it does <emphasis>not</emphasis> use the
+                  PostgreSQL version that may have been specified using the
+                  configuration parameter <command>--with-pgconfig</command>. So make
+                  sure to modify your PATH to match the detected PostgreSQL installation
+                  during configuration or be prepared to deal with the impending
+                  headaches.
+                </para>
+          </caution>
+
+          <note>
+                <para>
+                  Sandboxed build accounts that are not PostgreSQL superusers can
+                  delegate database ownership during the regression cycle by exporting
+                  <varname>POSTGIS_REGRESS_DB_OWNER</varname>. The harness will create
+                  the temporary regression database owned by the nominated role while
+                  continuing to connect using the less privileged account. Combine this
+                  with <varname>POSTGIS_REGRESS_ROLE_EXT_CREATOR</varname> when the
+                  extension creation role must differ from the database owner.
+                </para>
+                <para>
+                  These variables allow automated environments to exercise the full
+                  upgrade and extension install paths without promoting the calling
+                  account to superuser, provided the target PostgreSQL instance permits
+                  extension installation by those delegate roles.
+                </para>
+          </note>
+
+          <para>
+                If successful, make check will produce the output of almost 500 tests.  The results will look similar to the
+                following (numerous lines omitted below):
+          </para>
+
+    <programlisting>
+
+     CUnit - A unit testing framework for C - Version 2.1-3
+     http://cunit.sourceforge.net/
+
+  .
+  .
+  .
+
+Run Summary:    Type  Total    Ran Passed Failed Inactive
+              suites     44     44    n/a      0        0
+               tests    300    300    300      0        0
+             asserts   4215   4215   4215      0      n/a
+Elapsed time =    0.229 seconds
+
+  .
+  .
+  .
+
+Running tests
+
+  .
+  .
+  .
+
+Run tests: 134
+Failed: 0
+
+
+-- if you build with SFCGAL
+
+  .
+  .
+  .
+
+Running tests
+
+  .
+  .
+  .
+
+Run tests: 13
+Failed: 0
+
+-- if you built with raster support
+
+  .
+  .
+  .
+
+Run Summary:    Type  Total    Ran Passed Failed Inactive
+              suites     12     12    n/a      0        0
+               tests     65     65     65      0        0
+             asserts  45896  45896  45896      0      n/a
+
+
+  .
+  .
+  .
+
+Running tests
+
+  .
+  .
+  .
+
+Run tests: 101
+Failed: 0
+
+-- topology regress
+
+.
+.
+.
+
+Running tests
+
+  .
+  .
+  .
+
+Run tests: 51
+Failed: 0
+
+-- if you built --with-gui, you should see this too
+
+     CUnit - A unit testing framework for C - Version 2.1-2
+     http://cunit.sourceforge.net/
+
+  .
+  .
+  .
+
+Run Summary:    Type  Total    Ran Passed Failed Inactive
+              suites      2      2    n/a      0        0
+               tests      4      4      4      0        0
+             asserts      4      4      4      0      n/a</programlisting>
+
+
+    <para>output should look like:
+    <screen>============== dropping database "contrib_regression" ==============
+DROP DATABASE
+============== creating database "contrib_regression" ==============
+CREATE DATABASE
+ALTER DATABASE
+============== installing fuzzystrmatch               ==============
+CREATE EXTENSION
+============== installing postgis                     ==============
+CREATE EXTENSION
+============== running regression test queries        ==============
+test test-normalize_address   ... ok
+
+=====================
+All 2 tests passed.
+=====================</screen></para>
+  </section>
+
+  <section>
+    <title>Installation</title>
+
+    <para>
+    To install PostGIS, type
+    </para>
+
+    <para>
+    <command>make install</command>
+    </para>
+
+    <para>
+    This will copy the PostGIS installation files into their appropriate
+    subdirectory specified by the <command>--prefix</command> configuration
+    parameter. In particular:
+    </para>
+
+    <itemizedlist>
+    <listitem>
+      <para>
+      The loader and dumper binaries are installed in
+      <filename>[prefix]/bin</filename>.
+      </para>
+    </listitem>
+
+    <listitem>
+      <para>
+      The SQL files, such as <filename>postgis.sql</filename>, are
+      installed in <filename>[prefix]/share/contrib</filename>.
+      </para>
+    </listitem>
+
+    <listitem>
+      <para>
+      The PostGIS libraries are installed in
+      <filename>[prefix]/lib</filename>.
+      </para>
+    </listitem>
+    </itemizedlist>
+
+    <para>
+    If you previously ran the <command>make comments</command> command to
+    generate the <filename>postgis_comments.sql</filename>, <filename>raster_comments.sql</filename> file, install the
+    sql file by running
+    </para>
+
+    <para>
+    <command>make comments-install</command>
+    </para>
+
+    <note>
+    <para>
+      <filename>postgis_comments.sql</filename>, <filename>raster_comments.sql</filename>, <filename>topology_comments.sql</filename> was separated from the
+      typical build and installation targets since with it comes the extra
+      dependency of <command>xsltproc</command>.
+    </para>
+    </note>
+  </section>
+  </section>
+
+
+
+  <section>
+  <title>Common Problems during installation</title>
+  <para>
+    There are several things to check when your installation or upgrade
+    doesn't go as you expected.
+  </para>
+
+  <orderedlist>
+    <listitem>
+    <para>
+      Check that you have installed PostgreSQL &min_postgres_version;
+      or newer, and that you are compiling against the same version of the
+      PostgreSQL source as the version of PostgreSQL that is running.
+      Mix-ups can occur when your (Linux) distribution has already
+      installed PostgreSQL, or you have otherwise installed PostgreSQL
+      before and forgotten about it. PostGIS will only work with PostgreSQL
+      &min_postgres_version; or newer, and strange, unexpected
+      error messages will result if you use an older version. To check the
+      version of PostgreSQL which is running, connect to the database using
+      psql and run this query:
+    </para>
+
+    <programlisting>SELECT version();</programlisting>
+
+    <para>
+      If you are running an RPM based distribution, you can check for the
+      existence of pre-installed packages using the <command>rpm</command>
+      command as follows: <command>rpm -qa | grep postgresql</command>
+    </para>
+    </listitem>
+
+    <listitem>
+    <para>If your upgrade fails, make sure you are restoring into a database that already has PostGIS installed.</para>
+    <programlisting>SELECT postgis_full_version();</programlisting>
+    </listitem>
+  </orderedlist>
+
+  <para>
+    Also check that configure has correctly detected the location and version
+    of PostgreSQL, the Proj library and the GEOS library.
+  </para>
+
+  <orderedlist>
+    <listitem>
+    <para>
+      The output from configure is used to generate the
+      <filename>postgis_config.h</filename> file. Check that the
+      <varname>POSTGIS_PGSQL_VERSION</varname>,
+      <varname>POSTGIS_PROJ_VERSION</varname> and
+      <varname>POSTGIS_GEOS_VERSION</varname> variables have been set
+      correctly.
+    </para>
+    </listitem>
+  </orderedlist>
+  </section>
+
+</chapter>

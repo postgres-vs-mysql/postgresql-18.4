@@ -1,0 +1,47 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+
+-- need superuser to modify statistics
+\c :TEST_DBNAME :ROLE_SUPERUSER
+\ir include/skip_scan_load.sql
+
+-- we want to run with analyze here so we can see counts in the nodes
+\set PREFIX 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off)'
+\set TABLE skip_scan
+\ir include/skip_scan_query.sql
+
+\set TABLE skip_scan_ht
+\ir include/skip_scan_query.sql
+\ir include/skip_scan_query_ht.sql
+
+-- run tests on compressed hypertable with different compression settings
+\set TABLE skip_scan_htc
+\ir include/skip_scan_comp_query.sql
+
+-- run tests on compressed hypertable with different layouts of compressed chunks
+\set TABLE skip_scan_htcl
+\ir include/skip_scan_load_comp_query.sql
+
+-- try one query with EXPLAIN only for coverage
+EXPLAIN (buffers off, costs off, timing off, summary off) SELECT DISTINCT ON (dev_name) dev_name FROM skip_scan;
+EXPLAIN (buffers off, costs off, timing off, summary off) SELECT DISTINCT ON (dev_name) dev_name FROM skip_scan_ht;
+
+-- #3629 skipscan with constant skipscan column in where clause
+CREATE TABLE i3629(a int, time timestamptz NOT NULL);
+SELECT table_name FROM create_hypertable('i3629', 'time');
+INSERT INTO i3629 SELECT i, '2020-04-01'::date-10-i from generate_series(1,20) i;
+EXPLAIN (SUMMARY OFF, BUFFERS OFF, COSTS OFF) SELECT DISTINCT ON (a) * FROM i3629 WHERE a in (2) ORDER BY a ASC, time DESC;
+SELECT DISTINCT ON (a) * FROM i3629 WHERE a in (2) ORDER BY a ASC, time DESC;
+
+-- #3720 skipscan not being used on varchar column
+CREATE TABLE i3720(time timestamptz not null,data varchar);
+SELECT table_name FROM create_hypertable('i3720','time');
+
+INSERT INTO i3720
+SELECT time, (array['Yes', 'No', 'Maybe'])[floor(random() * 3 + 1)]
+FROM generate_series('2000-01-01'::timestamptz,'2000-01-03'::timestamptz, '10 minute'::interval) AS g1(time);
+
+CREATE INDEX ON i3720(data, time);
+ANALYZE i3720;
+:PREFIX SELECT DISTINCT ON(data) * FROM i3720;

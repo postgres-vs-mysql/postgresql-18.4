@@ -1,0 +1,3 @@
+# postgresql.conf settings for PostgreSQL test suite
+shared_preload_libraries=timescaledb
+@TELEMETRY_DEFAULT_SETTING@

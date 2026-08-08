@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--8.0-5--8.0-6.sql: \
+ sql/citus--8.0-5--8.0-6.sql \
+ sql/udfs/citus_isolation_test_session_is_blocked/8.0-6.sql
+sql/udfs/citus_isolation_test_session_is_blocked/8.0-6.sql:

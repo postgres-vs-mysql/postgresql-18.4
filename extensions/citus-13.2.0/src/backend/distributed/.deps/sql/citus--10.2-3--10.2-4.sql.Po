@@ -1,0 +1,14 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--10.2-3--10.2-4.sql: \
+ sql/citus--10.2-3--10.2-4.sql \
+ sql/../../columnar/sql/columnar--10.2-3--10.2-4.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_am_depends_catalog/10.2-4.sql \
+ sql/udfs/fix_partition_shard_index_names/10.2-4.sql \
+ sql/udfs/fix_all_partition_shard_index_names/10.2-4.sql \
+ sql/udfs/worker_fix_partition_shard_index_names/10.2-4.sql \
+ sql/udfs/citus_finish_pg_upgrade/10.2-4.sql
+sql/../../columnar/sql/columnar--10.2-3--10.2-4.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_am_depends_catalog/10.2-4.sql:
+sql/udfs/fix_partition_shard_index_names/10.2-4.sql:
+sql/udfs/fix_all_partition_shard_index_names/10.2-4.sql:
+sql/udfs/worker_fix_partition_shard_index_names/10.2-4.sql:
+sql/udfs/citus_finish_pg_upgrade/10.2-4.sql:

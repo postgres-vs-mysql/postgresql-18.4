@@ -1,0 +1,164 @@
+include ./../upgradeable_versions.mk
+
+EXTENSION     = postgis
+EXTVERSION    = 3.7.0dev
+MINORVERSION  = 3.7
+MODULEPATH    = $$libdir/$(EXTENSION)-3
+
+ifeq (no,yes)
+MODULEPATH=$$libdir/$(EXTENSION)-$(MINORVERSION)
+endif
+GREP = /usr/bin/grep
+
+# SQL preprocessor
+SQLPP = /opt/rh/devtoolset-11/root/usr/bin/cpp -traditional-cpp -w -P -Upixel -Ubool
+
+MICRO_NUMBER  = $(shell echo $(EXTVERSION) | \
+						$(PERL) -pe 's/\d.\d.(\d+)[a-zA-Z]*\d*/$1/'
+
+PREREL_NUMBER = $(shell echo $(EXTVERSION) | \
+                        $(PERL) -pe 's/\d\.\d\.(.*)/\1/' | \
+                        $(GREP) "[a-zA-Z]" | \
+                        $(PERL) -pe 's/\d+[a-zA-Z]+(\d+)/\1/'
+
+MICRO_PREV    = $(shell if test "$(MICRO_NUMBER)x" != "x"; then expr $(MICRO_NUMBER) - 1; fi)
+PREREL_PREV   = $(shell if test "$(PREREL_NUMBER)x" != "x"; then expr $(PREREL_NUMBER) - 1; fi)
+
+PREREL_PREFIX = $(shell echo $(EXTVERSION) | \
+                        $(PERL) -pe 's/\d\.\d\.(.*)/\1/' | \
+                        $(GREP) "[a-zA-Z]" | \
+                        $(PERL) -pe 's/(\d+[a-zA-Z]+)\d*/\1/'
+
+DATA_built = \
+	$(EXTENSION).control \
+	sql/$(EXTENSION)--$(EXTVERSION).sql \
+	sql/$(EXTENSION)--unpackaged.sql \
+	sql/$(EXTENSION)--unpackaged--$(EXTVERSION).sql \
+	sql/$(EXTENSION)--ANY--$(EXTVERSION).sql \
+	$(NULL)
+
+# Scripts making up the extension file
+# NOTE: order matters
+EXTENSION_SCRIPTS = \
+	sql/postgis_for_extension.sql \
+	sql/spatial_ref_sys_config_dump.sql \
+	sql/spatial_ref_sys.sql
+
+# Scripts making up the extension minor upgrade file
+# NOTE: order matters
+EXTENSION_UPGRADE_SCRIPTS = \
+	../postgis_extension_helper.sql \
+	sql/raster_unpackage.sql \
+	sql/postgis_upgrade.sql \
+	sql/spatial_ref_sys.sql \
+	sql/spatial_ref_sys_config_dump.sql \
+	../postgis_extension_helper_uninstall.sql
+
+RASTER_DROP_SCRIPTS = \
+	../../raster/rt_pg/rtpostgis_upgrade_cleanup.sql \
+	../../raster/rt_pg/rtpostgis_drop.sql \
+	../../raster/rt_pg/uninstall_rtpostgis.sql
+
+EXTRA_CLEAN = sql/
+
+CURV_big=37
+
+all: sql/$(EXTENSION)--$(EXTVERSION).sql sql/$(EXTENSION)--unpackaged--$(EXTVERSION).sql sql/$(EXTENSION)--ANY--$(EXTVERSION).sql
+
+$(EXTENSION).control: $(EXTENSION).control.in Makefile
+	cat $< \
+		| sed -e 's|@EXTVERSION@|$(EXTVERSION)|g' \
+		| sed -e 's|@EXTENSION@|$(EXTENSION)|g' \
+		| sed -e 's|@MODULEPATH@|$(MODULEPATH)|g' \
+		> $@
+
+$(RASTER_DROP_SCRIPTS):
+	$(MAKE) -C ../../raster/rt_pg sql_objs
+
+sql/raster_unpackage.sql: Makefile
+sql/raster_unpackage.sql: ../../utils/create_extension_unpackage.pl
+sql/raster_unpackage.sql: unpackage_raster_if_needed.sql
+sql/raster_unpackage.sql: $(RASTER_DROP_SCRIPTS) | sql
+
+	sed '/UNPACKAGE_CODE/q' ./unpackage_raster_if_needed.sql > $@
+
+	cat $^ \
+		| $(PERL) ../../utils/create_extension_unpackage.pl postgis >> $@
+
+	sed -ne '/UNPACKAGE_CODE/{s///; :a' -e 'n;p;ba' -e '}' \
+		./unpackage_raster_if_needed.sql  >> $@
+
+sql/$(EXTENSION)--$(EXTVERSION).sql: $(EXTENSION_SCRIPTS) | sql
+	printf '\\echo Use "CREATE EXTENSION $(EXTENSION)" to load this file. \\quit\n' > $@
+	cat $^ >> $@
+
+sql/$(EXTENSION)--unpackaged--$(EXTVERSION).sql: sql/$(EXTENSION)--$(EXTVERSION).sql sql/$(EXTENSION)--ANY--$(EXTVERSION).sql ../../utils/create_unpackaged.pl Makefile | sql
+	$(PERL) ../../utils/create_unpackaged.pl postgis < sql/$(EXTENSION)--$(EXTVERSION).sql > $@
+	# Upgrade after packaging
+	cat sql/$(EXTENSION)--ANY--$(EXTVERSION).sql >> $@
+
+
+sql/$(EXTENSION)--unpackaged.sql: Makefile | sql
+	echo "-- Nothing to do here" > $@
+
+sql:
+	mkdir -p $@
+
+#strip BEGIN/COMMIT since these are not allowed in extensions
+sql/spatial_ref_sys.sql: ../../spatial_ref_sys.sql | sql
+	$(PERL) -pe 's/BEGIN\;//g ; s/COMMIT\;//g' $< > $@
+
+sql/spatial_ref_sys_config_dump.sql: ../../spatial_ref_sys.sql ../../utils/create_spatial_ref_sys_config_dump.pl | sql
+	$(PERL) ../../utils/create_spatial_ref_sys_config_dump.pl $< > $@
+
+#this keeps the @extschema@. in place since extension machinery will replace during install
+sql/postgis_upgrade_for_extension.sql: ../../postgis/common_before_upgrade.sql ../../postgis/postgis_before_upgrade.sql sql/postgis_upgrade_for_extension.sql.in ../../postgis/postgis_after_upgrade.sql ../../postgis/common_after_upgrade.sql | sql
+	#strip BEGIN/COMMIT since these are not allowed in extensions
+	# WARNING: we should make sure these are not internal to function bodies
+	cat $^ | $(PERL) -pe 's/BEGIN\;//g ; s/COMMIT\;//g' > $@
+
+sql/postgis_upgrade_for_extension.sql.in: sql/postgis_for_extension.sql ../../utils/create_upgrade.pl | sql
+	$(PERL) ../../utils/create_upgrade.pl $< > $@
+
+sql/postgis_for_extension.sql: ../../postgis/postgis.sql.in ../../postgis_revision.h | sql
+	$(SQLPP) -I./../../postgis $< > $@.tmp
+	grep -v '^#' $@.tmp | \
+	$(PERL) -lpe \
+		"s'MODULE_PATHNAME'\$(MODULEPATH)'g" \
+		| $(PERL) -pe 's/BEGIN\;//g ; s/COMMIT\;//g' > $@
+	rm -f $@.tmp
+
+sql/postgis_upgrade.sql: sql/postgis_upgrade_for_extension.sql | sql
+	cat $< | \
+	$(PERL) -lpe "s/BEGIN\;//g" | \
+	$(PERL) -lpe "s/COMMIT\;//g" | \
+	$(PERL) -lpe "s/^(DROP .*)\;/SELECT \@extschema\@.postgis_extension_drop_if_exists('$(EXTENSION)', '\1');\n\1\;/" > $@
+
+sql/$(EXTENSION)--ANY--$(EXTVERSION).sql: $(EXTENSION_UPGRADE_SCRIPTS) | sql
+	printf '\\echo Use "CREATE EXTENSION $(EXTENSION)" to load this file. \\quit\n' > $@
+	cat $^ >> $@
+
+include ./../upgrade-paths-rules.mk
+
+distclean: clean
+	rm -f Makefile
+
+PG_CONFIG := /home/wangbin/pgsql_trace/bin/pg_config
+PGXS := /home/wangbin/pgsql_trace/lib/pgxs/src/makefiles/pgxs.mk
+include $(PGXS)
+PERL = /usr/bin/perl
+INSTALL=/usr/bin/install -c
+INSTALL_DATA=${INSTALL} -m 644
+
+
+ifneq (/usr/bin/mkdir -p,)
+	MKDIR_P = /usr/bin/mkdir -p
+endif
+
+
+
+# TODO: fix this, if srcdir is set, install of .control file fails
+#srcdir = .
+top_srcdir = ../..
+top_builddir = ../..
+abs_topbuilddir=$(abspath $(top_builddir))

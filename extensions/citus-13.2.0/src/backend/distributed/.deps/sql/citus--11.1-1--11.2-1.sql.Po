@@ -1,0 +1,34 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.1-1--11.2-1.sql: \
+ sql/citus--11.1-1--11.2-1.sql sql/udfs/get_rebalance_progress/11.2-1.sql \
+ sql/udfs/citus_isolation_test_session_is_blocked/11.2-1.sql \
+ sql/datatypes/citus_cluster_clock/11.2-1.sql \
+ sql/udfs/citus_get_node_clock/11.2-1.sql \
+ sql/udfs/citus_get_transaction_clock/11.2-1.sql \
+ sql/udfs/citus_is_clock_after/11.2-1.sql \
+ sql/udfs/citus_internal_adjust_local_clock_to_remote/11.2-1.sql \
+ sql/udfs/citus_job_list/11.2-1.sql sql/udfs/citus_job_status/11.2-1.sql \
+ sql/udfs/citus_rebalance_status/11.2-1.sql \
+ sql/udfs/worker_split_shard_replication_setup/11.2-1.sql \
+ sql/udfs/citus_task_wait/11.2-1.sql \
+ sql/udfs/citus_prepare_pg_upgrade/11.2-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/11.2-1.sql \
+ sql/udfs/citus_copy_shard_placement/11.2-1.sql \
+ sql/udfs/citus_move_shard_placement/11.2-1.sql \
+ sql/udfs/citus_internal_add_placement_metadata/11.2-1.sql
+sql/udfs/get_rebalance_progress/11.2-1.sql:
+sql/udfs/citus_isolation_test_session_is_blocked/11.2-1.sql:
+sql/datatypes/citus_cluster_clock/11.2-1.sql:
+sql/udfs/citus_get_node_clock/11.2-1.sql:
+sql/udfs/citus_get_transaction_clock/11.2-1.sql:
+sql/udfs/citus_is_clock_after/11.2-1.sql:
+sql/udfs/citus_internal_adjust_local_clock_to_remote/11.2-1.sql:
+sql/udfs/citus_job_list/11.2-1.sql:
+sql/udfs/citus_job_status/11.2-1.sql:
+sql/udfs/citus_rebalance_status/11.2-1.sql:
+sql/udfs/worker_split_shard_replication_setup/11.2-1.sql:
+sql/udfs/citus_task_wait/11.2-1.sql:
+sql/udfs/citus_prepare_pg_upgrade/11.2-1.sql:
+sql/udfs/citus_finish_pg_upgrade/11.2-1.sql:
+sql/udfs/citus_copy_shard_placement/11.2-1.sql:
+sql/udfs/citus_move_shard_placement/11.2-1.sql:
+sql/udfs/citus_internal_add_placement_metadata/11.2-1.sql:

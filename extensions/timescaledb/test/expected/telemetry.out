@@ -1,0 +1,541 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+\c :TEST_DBNAME :ROLE_SUPERUSER
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_status(int) RETURNS JSONB
+    AS :MODULE_PATHNAME, 'ts_test_status' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_status_ssl(int) RETURNS JSONB
+    AS :MODULE_PATHNAME, 'ts_test_status_ssl' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_status_mock(text) RETURNS JSONB
+    AS :MODULE_PATHNAME, 'ts_test_status_mock' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_validate_server_version(response text)
+    RETURNS TEXT
+    AS :MODULE_PATHNAME, 'ts_test_validate_server_version' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_telemetry_main_conn(text, text)
+RETURNS BOOLEAN AS :MODULE_PATHNAME, 'ts_test_telemetry_main_conn' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_telemetry(host text = NULL, servname text = NULL, port int = NULL) RETURNS JSONB AS :MODULE_PATHNAME, 'ts_test_telemetry' LANGUAGE C IMMUTABLE PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION _timescaledb_internal.test_privacy() RETURNS BOOLEAN
+    AS :MODULE_PATHNAME, 'ts_test_privacy' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE OR REPLACE FUNCTION test_check_version_response(response text)
+       RETURNS VOID
+       AS :MODULE_PATHNAME, 'ts_test_check_version_response'
+       LANGUAGE C
+       IMMUTABLE STRICT PARALLEL SAFE;
+INSERT INTO _timescaledb_catalog.metadata VALUES ('foo','bar',TRUE);
+INSERT INTO _timescaledb_catalog.metadata VALUES ('bar','baz',FALSE);
+\c :TEST_DBNAME :ROLE_DEFAULT_PERM_USER
+SELECT _timescaledb_internal.test_status_ssl(200);
+ test_status_ssl 
+-----------------
+ {"status": 200}
+
+SELECT _timescaledb_internal.test_status_ssl(201);
+ test_status_ssl 
+-----------------
+ {"status": 201}
+
+\set ON_ERROR_STOP 0
+SELECT _timescaledb_internal.test_status_ssl(304);
+ERROR:  endpoint sent back unexpected HTTP status: 304
+SELECT _timescaledb_internal.test_status_ssl(400);
+ERROR:  endpoint sent back unexpected HTTP status: 400
+SELECT _timescaledb_internal.test_status_ssl(401);
+ERROR:  endpoint sent back unexpected HTTP status: 401
+SELECT _timescaledb_internal.test_status_ssl(404);
+ERROR:  endpoint sent back unexpected HTTP status: 404
+SELECT _timescaledb_internal.test_status_ssl(500);
+ERROR:  endpoint sent back unexpected HTTP status: 500
+SELECT _timescaledb_internal.test_status_ssl(503);
+ERROR:  endpoint sent back unexpected HTTP status: 503
+\set ON_ERROR_STOP 1
+-- This function runs the test 5 times, because each time the internal C function is choosing a random length to send from the server on each socket read. We hit many cases this way.
+CREATE OR REPLACE FUNCTION mocker(TEXT) RETURNS SETOF TEXT AS
+$BODY$
+DECLARE
+r TEXT;
+BEGIN
+FOR i in 1..5 LOOP
+SELECT _timescaledb_internal.test_status_mock($1) INTO r;
+RETURN NEXT r;
+END LOOP;
+RETURN;
+END
+$BODY$
+LANGUAGE 'plpgsql';
+select * from mocker(
+        E'HTTP/1.1 200 OK\r\n'
+        'Content-Type: application/json; charset=utf-8\r\n'
+        'Date: Thu, 12 Jul 2018 18:33:04 GMT\r\n'
+        'ETag: W/\"e-upYEWCL+q6R/++2nWHz5b76hBgo\"\r\n'
+        'Server: nginx\r\n'
+        'Vary: Accept-Encoding\r\n'
+        'Content-Length: 14\r\n'
+        'Connection: Close\r\n\r\n'
+        '{\"status\":200}');
+     mocker      
+-----------------
+ {"status": 200}
+ {"status": 200}
+ {"status": 200}
+ {"status": 200}
+ {"status": 200}
+
+select * from mocker(
+        E'HTTP/1.1 201 OK\r\n'
+        'Content-Type: application/json; charset=utf-8\r\n'
+        'Vary: Accept-Encoding\r\n'
+        'Content-Length: 14\r\n'
+        'Connection: Close\r\n\r\n'
+        '{\"status\":201}');
+     mocker      
+-----------------
+ {"status": 201}
+ {"status": 201}
+ {"status": 201}
+ {"status": 201}
+ {"status": 201}
+
+\set ON_ERROR_STOP 0
+\set test_string 'HTTP/1.1 404 Not Found\r\nContent-Length: 14\r\nConnection: Close\r\n\r\n{\"status\":404}';
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  endpoint sent back unexpected HTTP status: 404
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  endpoint sent back unexpected HTTP status: 404
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  endpoint sent back unexpected HTTP status: 404
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  endpoint sent back unexpected HTTP status: 404
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  endpoint sent back unexpected HTTP status: 404
+\set test_string 'Content-Length: 14\r\nConnection: Close\r\n\r\n{\"status\":404}';
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+\set test_string 'HTTP/1.1 404 Not Found\r\nContent-Length: 14\r\nConnection: Close\r\n{\"status\":404}';
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+SELECT _timescaledb_internal.test_status_mock(:'test_string');
+ERROR:  could not parse HTTP response
+\set ON_ERROR_STOP 1
+-- Test parsing version response
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"status": "200", "current_timescaledb_version": "10.1.0"}');
+ test_validate_server_version 
+------------------------------
+ 10.1.0
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "10.1"}');
+ test_validate_server_version 
+------------------------------
+ 10.1
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "10"}');
+ test_validate_server_version 
+------------------------------
+ 10
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "9.2.0"}');
+ test_validate_server_version 
+------------------------------
+ 9.2.0
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "9.1.2"}');
+ test_validate_server_version 
+------------------------------
+ 9.1.2
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0"}');
+ test_validate_server_version 
+------------------------------
+ 1.0.0
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0-rc1"}');
+ test_validate_server_version 
+------------------------------
+ 1.0.0-rc1
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0-rc2"}');
+ test_validate_server_version 
+------------------------------
+ 1.0.0-rc2
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0-rc1"}');
+ test_validate_server_version 
+------------------------------
+ 1.0.0-rc1
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0-alpha"}');
+ test_validate_server_version 
+------------------------------
+ 1.0.0-alpha
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "123456789"}');
+ test_validate_server_version 
+------------------------------
+ 123456789
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "!@#$%"}');
+ test_validate_server_version 
+------------------------------
+ 
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": ""}');
+ test_validate_server_version 
+------------------------------
+ 
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": " 10 "}');
+ test_validate_server_version 
+------------------------------
+ 
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "a"}');
+ test_validate_server_version 
+------------------------------
+ a
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "a.b.c"}');
+ test_validate_server_version 
+------------------------------
+ a.b.c
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "10.1.1a"}');
+ test_validate_server_version 
+------------------------------
+ 10.1.1a
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "10.1.1+rc1"}');
+ test_validate_server_version 
+------------------------------
+ 
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "10.1.1.1"}');
+ test_validate_server_version 
+------------------------------
+ 10.1.1.1
+
+SELECT * FROM _timescaledb_internal.test_validate_server_version('{"current_timescaledb_version": "1.0.0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}');
+ test_validate_server_version 
+------------------------------
+ 
+
+----------------------------------------------------------------
+-- Test well-formed response and valid versions
+SELECT test_check_version_response('{"current_timescaledb_version": "1.6.1", "is_up_to_date": true}');
+NOTICE:  the "timescaledb" extension is up-to-date
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "1.6.1", "is_up_to_date": false}');
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "10.1", "is_up_to_date": false}');
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "10.1.1-rc1", "is_up_to_date": false}');
+ test_check_version_response 
+-----------------------------
+ 
+
+----------------------------------------------------------------
+-- Test well-formed response but invalid versions
+SELECT test_check_version_response('{"current_timescaledb_version": "1.0.0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", "is_up_to_date": false}');
+NOTICE:  server did not return a valid TimescaleDB version: version string is too long
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "10.1.1+rc1", "is_up_to_date": false}');
+NOTICE:  server did not return a valid TimescaleDB version: version string has invalid characters
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "@10.1.1", "is_up_to_date": false}');
+NOTICE:  server did not return a valid TimescaleDB version: version string has invalid characters
+ test_check_version_response 
+-----------------------------
+ 
+
+SELECT test_check_version_response('{"current_timescaledb_version": "10.1.1@", "is_up_to_date": false}');
+NOTICE:  server did not return a valid TimescaleDB version: version string has invalid characters
+ test_check_version_response 
+-----------------------------
+ 
+
+----------------------------------------------------------------
+-- Test malformed responses
+\set ON_ERROR_STOP 0
+-- Empty response
+SELECT test_check_version_response('{}');
+ERROR:  malformed telemetry response body
+-- Field "is_up_to_date" missing
+SELECT test_check_version_response('{"current_timescaledb_version": "1.6.1"}');
+ERROR:  malformed telemetry response body
+-- Field "current_timescaledb_version" is missing
+SELECT test_check_version_response('{"is_up_to_date": false}');
+ERROR:  malformed telemetry response body
+\set ON_ERROR_STOP 1
+SET timescaledb.last_tune_time = '2024-01-01 00:00:00+00';
+SET timescaledb.last_tune_version = '1.2.3';
+SET timescaledb.telemetry_level=basic;
+-- Connect to a bogus host and path to test error handling in telemetry_main()
+SELECT _timescaledb_internal.test_telemetry_main_conn('noservice.timescale.com', 'path');
+NOTICE:  telemetry could not connect to "noservice.timescale.com"
+ test_telemetry_main_conn 
+--------------------------
+ f
+
+-- Test telemetry report contents
+SET timescaledb.telemetry_level=basic;
+SELECT * FROM jsonb_object_keys(get_telemetry_report()) AS key
+WHERE key != 'os_name_pretty';
+                key                 
+------------------------------------
+ db_uuid
+ license
+ os_name
+ relations
+ os_release
+ os_version
+ data_volume
+ db_metadata
+ replication
+ build_os_name
+ access_methods
+ functions_used
+ install_method
+ installed_time
+ last_tuned_time
+ build_os_version
+ exported_db_uuid
+ instance_metadata
+ stats_by_job_type
+ telemetry_version
+ build_architecture
+ last_tuned_version
+ postgresql_version
+ related_extensions
+ db_telemetry_events
+ timescaledb_version
+ errors_by_sqlerrcode
+ num_reorder_policies
+ num_retention_policies
+ num_compression_policies
+ num_user_defined_actions
+ num_reorder_policies_fixed
+ build_architecture_bit_size
+ num_continuous_aggs_policies
+ num_retention_policies_fixed
+ num_compression_policies_fixed
+ num_user_defined_actions_fixed
+ num_continuous_aggs_policies_fixed
+
+CREATE MATERIALIZED VIEW telemetry_report AS
+SELECT t FROM get_telemetry_report() t;
+-- check telemetry picks up flagged content from metadata
+SELECT t -> 'db_metadata' FROM telemetry_report;
+    ?column?    
+----------------
+ {"foo": "bar"}
+
+-- check timescaledb_telemetry.cloud
+SELECT t -> 'instance_metadata' FROM telemetry_report;
+    ?column?     
+-----------------
+ {"cloud": "ci"}
+
+-- Check access methods
+SELECT t->'access_methods' ? 'btree',
+       t->'access_methods' ? 'heap',
+       CAST(t->'access_methods'->'btree'->'pages' AS int) > 0,
+       CAST(t->'access_methods'->'btree'->'instances' AS int) > 0
+  FROM telemetry_report;
+ ?column? | ?column? | ?column? | ?column? 
+----------+----------+----------+----------
+ t        | t        | t        | t
+
+WITH t AS (
+	 SELECT t -> 'relations' AS rels
+	 FROM telemetry_report
+)
+SELECT rels -> 'hypertables' -> 'num_relations' AS num_hypertables,
+	   rels -> 'continuous_aggregates' -> 'num_relations' AS num_caggs
+FROM t;
+ num_hypertables | num_caggs 
+-----------------+-----------
+ 0               | 0
+
+CREATE TABLE device_readings (
+      observation_time  TIMESTAMPTZ       NOT NULL
+);
+SELECT table_name FROM create_hypertable('device_readings', 'observation_time');
+   table_name    
+-----------------
+ device_readings
+
+REFRESH MATERIALIZED VIEW telemetry_report;
+WITH t AS (
+	 SELECT t -> 'relations' AS rels
+	 FROM telemetry_report
+)
+SELECT rels -> 'hypertables' -> 'num_relations' AS num_hypertables,
+	   rels -> 'continuous_aggregates' -> 'num_relations' AS num_caggs
+FROM t;
+ num_hypertables | num_caggs 
+-----------------+-----------
+ 1               | 0
+
+set datestyle to iso;
+-- check that installed_time formatting in telemetry report does not depend on local date settings
+SELECT t -> 'installed_time' AS installed_time FROM telemetry_report
+\gset
+set datestyle to sql;
+SELECT t-> 'installed_time' AS installed_time2 FROM telemetry_report
+\gset
+SELECT :'installed_time' = :'installed_time2' AS equal, length(:'installed_time'), length(:'installed_time2');
+ equal | length | length 
+-------+--------+--------
+ t     |     24 |     24
+
+RESET datestyle;
+-- test function call telemetry
+CREATE FUNCTION not_visible_in_telemetry() RETURNS INT AS $$
+    SELECT 1;
+$$ LANGUAGE SQL;
+-- drain old function call telemetry so we have fixed out put;
+SELECT FROM get_telemetry_report();
+--
+
+-- call some arbirary functions
+SELECT 1 + 1, not_visible_in_telemetry(), 1 + 1, abs(-1), not_visible_in_telemetry()
+WHERE 1 + 1 = 2;
+ ?column? | not_visible_in_telemetry | ?column? | abs | not_visible_in_telemetry 
+----------+--------------------------+----------+-----+--------------------------
+        2 |                        1 |        2 |   1 |                        1
+
+-- call some aggregates
+SELECT min(not_visible_in_telemetry()), sum(not_visible_in_telemetry());
+ min | sum 
+-----+-----
+   1 |   1
+
+-- check that we can record from a prepared statement
+PREPARE record_from_prepared AS SELECT 1 - 1;
+-- execute 10 times to make sure turning it into generic plan works
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+EXECUTE record_from_prepared;
+ ?column? 
+----------
+        0
+
+DEALLOCATE record_from_prepared;
+SELECT get_telemetry_report()->'functions_used';
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ?column?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"pg_catalog.count()": 1, "pg_catalog.sum(bigint)": 4, "pg_catalog.abs(integer)": 1, "pg_catalog.max(integer)": 2, "pg_catalog.min(integer)": 1, "pg_catalog.sum(integer)": 1, "pg_catalog.int8(numeric)": 4, "pg_catalog.sum(interval)": 2, "pg_catalog.current_database()": 1, "public.get_telemetry_report()": 1, "pg_catalog.text(pg_catalog.name)": 1, "pg_catalog.int4eq(integer,integer)": 3, "pg_catalog.int4mi(integer,integer)": 11, "pg_catalog.int4pl(integer,integer)": 3, "pg_catalog.concat(pg_catalog.\"any\")": 3, "pg_catalog.pg_get_userbyid(pg_catalog.oid)": 1, "pg_catalog.nameeq(pg_catalog.name,pg_catalog.name)": 2, "pg_catalog.texteq(pg_catalog.text,pg_catalog.text)": 1, "pg_catalog.nameregexeq(pg_catalog.name,pg_catalog.text)": 1, "pg_catalog.textregexeq(pg_catalog.text,pg_catalog.text)": 1, "pg_catalog.jsonb_object_agg(pg_catalog.\"any\",pg_catalog.\"any\")": 1, "pg_catalog.jsonb_object_field(pg_catalog.jsonb,pg_catalog.text)": 16, "pg_catalog.jsonb_object_field_text(pg_catalog.jsonb,pg_catalog.text)": 15, "pg_catalog.pg_has_role(pg_catalog.name,pg_catalog.oid,pg_catalog.text)": 1, "pg_catalog.pg_has_role(pg_catalog.name,pg_catalog.name,pg_catalog.text)": 1}
+
+-- check the report again to see if resetting works
+SELECT get_telemetry_report()->'functions_used';
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ?column?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"pg_catalog.count()": 1, "pg_catalog.sum(bigint)": 4, "pg_catalog.max(integer)": 2, "pg_catalog.int8(numeric)": 4, "pg_catalog.sum(interval)": 2, "pg_catalog.current_database()": 1, "public.get_telemetry_report()": 1, "pg_catalog.text(pg_catalog.name)": 1, "pg_catalog.int4eq(integer,integer)": 2, "pg_catalog.concat(pg_catalog.\"any\")": 3, "pg_catalog.pg_get_userbyid(pg_catalog.oid)": 1, "pg_catalog.nameeq(pg_catalog.name,pg_catalog.name)": 2, "pg_catalog.texteq(pg_catalog.text,pg_catalog.text)": 1, "pg_catalog.nameregexeq(pg_catalog.name,pg_catalog.text)": 1, "pg_catalog.textregexeq(pg_catalog.text,pg_catalog.text)": 1, "pg_catalog.jsonb_object_agg(pg_catalog.\"any\",pg_catalog.\"any\")": 1, "pg_catalog.jsonb_object_field(pg_catalog.jsonb,pg_catalog.text)": 16, "pg_catalog.jsonb_object_field_text(pg_catalog.jsonb,pg_catalog.text)": 15, "pg_catalog.pg_has_role(pg_catalog.name,pg_catalog.oid,pg_catalog.text)": 1, "pg_catalog.pg_has_role(pg_catalog.name,pg_catalog.name,pg_catalog.text)": 1}
+
+\c :TEST_DBNAME :ROLE_SUPERUSER
+TRUNCATE _timescaledb_catalog.metadata;
+SET timescaledb.telemetry_level=off;
+-- returns false which means telemetry got canceled
+SELECT * FROM _timescaledb_internal.test_privacy();
+ test_privacy 
+--------------
+ f
+
+RESET timescaledb.telemetry_level;
+-- returns false which means telemetry got canceled
+SELECT * FROM _timescaledb_internal.test_privacy();
+ test_privacy 
+--------------
+ f
+
+-- To make sure nothing was sent, we check the UUID table to make sure no exported UUID row was created
+SELECT key from _timescaledb_catalog.metadata;
+ key 
+-----
+
+\set ON_ERROR_STOP 0
+-- test that the telemetry gathering code doesn't break nonexistent statements
+EXECUTE noexistent_statement;
+ERROR:  prepared statement "noexistent_statement" does not exist
+\c :TEST_DBNAME :ROLE_SUPERUSER
+-- Insert some data into the telemetry event table
+INSERT INTO _timescaledb_catalog.telemetry_event(tag, body) VALUES
+    ('ummagumma', '{"title": "Careful with that Axe Eugene!"}'),
+    ('kaboom', '{"title": "Where is that kaboom?"}');
+-- Check that it is present in the telemetry report
+SELECT * FROM jsonb_to_recordset(get_telemetry_report()->'db_telemetry_events') AS x(tag name, body text);
+    tag    |                    body                    
+-----------+--------------------------------------------
+ ummagumma | {"title": "Careful with that Axe Eugene!"}
+ kaboom    | {"title": "Where is that kaboom?"}
+

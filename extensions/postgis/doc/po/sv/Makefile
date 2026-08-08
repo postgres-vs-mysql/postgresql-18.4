@@ -1,0 +1,4 @@
+include ./../Makefile.local
+DBLATEX_EXTRA_OPTIONS = -b xetex
+DOCSUFFIX=-sv
+srcdir=.

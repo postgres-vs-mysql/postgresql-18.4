@@ -1,0 +1,336 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+
+\set TEST_BASE_NAME transparent_decompression
+SELECT format('include/%s_load.sql', :'TEST_BASE_NAME') AS "TEST_LOAD_NAME",
+    format('include/%s_query.sql', :'TEST_BASE_NAME') AS "TEST_QUERY_NAME",
+    format('%s/results/%s_results_uncompressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') AS "TEST_RESULTS_UNCOMPRESSED",
+    format('%s/results/%s_results_compressed.out', :'TEST_OUTPUT_DIR', :'TEST_BASE_NAME') AS "TEST_RESULTS_COMPRESSED" \gset
+
+SELECT format('\! diff -u %s %s', :'TEST_RESULTS_UNCOMPRESSED', :'TEST_RESULTS_COMPRESSED') AS "DIFF_CMD" \gset
+
+SET work_mem TO '50MB';
+SET enable_incremental_sort TO off;
+SET timezone TO 'America/Los_Angeles';
+
+-- disable memoize node to avoid flaky results
+SET enable_memoize TO 'off';
+
+CREATE TABLE metrics (
+    filler_1 int,
+    filler_2 int,
+    filler_3 int,
+    time timestamptz NOT NULL,
+    device_id int,
+    device_id_peer int,
+    v0 int,
+    v1 int,
+    v2 float,
+    v3 float
+);
+
+SELECT create_hypertable ('metrics', 'time');
+
+ALTER TABLE metrics
+    DROP COLUMN filler_1;
+
+\set INTERVAL 30m
+
+INSERT INTO metrics (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id + 1,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-01 0:00:00+0'::timestamptz, '2000-01-05 23:55:00+0', (interval :'INTERVAL') / 3) gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+ALTER TABLE metrics
+    DROP COLUMN filler_2;
+
+INSERT INTO metrics (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id - 1,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-06 0:00:00+0'::timestamptz, '2000-01-12 23:55:00+0', (interval :'INTERVAL') / 2) gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+ALTER TABLE metrics
+    DROP COLUMN filler_3;
+
+INSERT INTO metrics (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-13 0:00:00+0'::timestamptz, '2000-01-19 23:55:00+0', :'INTERVAL') gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+VACUUM ANALYZE metrics;
+
+-- create identical hypertable with space partitioning
+CREATE TABLE metrics_space (
+    filler_1 int,
+    filler_2 int,
+    filler_3 int,
+    time timestamptz NOT NULL,
+    device_id int,
+    device_id_peer int,
+    v0 int,
+    v1 float,
+    v2 float,
+    v3 float
+);
+
+SELECT create_hypertable ('metrics_space', 'time', 'device_id', 3);
+
+ALTER TABLE metrics_space
+    DROP COLUMN filler_1;
+
+INSERT INTO metrics_space (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id + 1,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-01 0:00:00+0'::timestamptz, '2000-01-05 23:55:00+0', (interval :'INTERVAL') / 3) gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+ALTER TABLE metrics_space
+    DROP COLUMN filler_2;
+
+INSERT INTO metrics_space (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id + 1,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-06 0:00:00+0'::timestamptz, '2000-01-12 23:55:00+0', (interval :'INTERVAL') / 2) gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+ALTER TABLE metrics_space
+    DROP COLUMN filler_3;
+
+INSERT INTO metrics_space (time, device_id, device_id_peer, v0, v1, v2, v3)
+SELECT time,
+    device_id,
+    0,
+    device_id + 1,
+    device_id + 2,
+    device_id + 0.5,
+    NULL
+FROM generate_series('2000-01-13 0:00:00+0'::timestamptz, '2000-01-19 23:55:00+0', :'INTERVAL') gtime (time),
+    generate_series(1, 5, 1) gdevice (device_id);
+
+VACUUM ANALYZE metrics_space;
+
+-- run queries on uncompressed hypertable and store result
+\set PREFIX ''
+\set PREFIX_VERBOSE ''
+\set PREFIX_NO_ANALYZE ''
+\set ECHO none
+SET client_min_messages TO error;
+
+\o :TEST_RESULTS_UNCOMPRESSED
+\set TEST_TABLE 'metrics'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space'
+\ir :TEST_QUERY_NAME
+\o
+RESET client_min_messages;
+
+\set ECHO all
+-- compress first and last chunk on the hypertable
+ALTER TABLE metrics SET (timescaledb.compress, timescaledb.compress_orderby = 'v0, v1 desc, time', timescaledb.compress_segmentby = 'device_id,device_id_peer');
+
+select compress_chunk(x)
+from (select row_number() over (order by x) n, x from show_chunks('metrics') x) t
+where n in (1, 3)
+;
+
+VACUUM ANALYZE metrics;
+
+-- compress some chunks on space partitioned hypertable
+-- we compress all chunks of first time slice, none of second, and 2 of the last time slice
+
+ALTER TABLE metrics_space SET (timescaledb.compress, timescaledb.compress_orderby = 'v0, v1 desc, time', timescaledb.compress_segmentby = 'device_id,device_id_peer');
+
+select compress_chunk(x)
+from (select row_number() over (order by x) n, x from show_chunks('metrics_space') x) t
+where n in (1, 2, 3, 7, 8)
+;
+
+SELECT ht.schema_name || '.' || ht.table_name AS "METRICS_COMPRESSED"
+FROM _timescaledb_catalog.hypertable ht
+    INNER JOIN _timescaledb_catalog.hypertable ht2 ON ht.id = ht2.compressed_hypertable_id
+        AND ht2.table_name = 'metrics' \gset
+
+SELECT ht.schema_name || '.' || ht.table_name AS "METRICS_SPACE_COMPRESSED"
+FROM _timescaledb_catalog.hypertable ht
+    INNER JOIN _timescaledb_catalog.hypertable ht2 ON ht.id = ht2.compressed_hypertable_id
+        AND ht2.table_name = 'metrics_space' \gset
+
+\c :TEST_DBNAME :ROLE_SUPERUSER
+-- Index created using query saved in variable used because there was
+-- no standard way to create an index on a compressed table.
+-- Once a standard way exists, modify this test to use that method.
+
+\c :TEST_DBNAME :ROLE_DEFAULT_PERM_USER
+
+SET timezone TO 'America/Los_Angeles';
+
+CREATE INDEX ON metrics_space (device_id, device_id_peer, v0, v1 DESC, time);
+
+CREATE INDEX ON metrics_space (device_id, device_id_peer DESC, v0, v1 DESC, time);
+
+CREATE INDEX ON metrics_space (device_id DESC, device_id_peer DESC, v0, v1 DESC, time);
+
+VACUUM ANALYZE metrics_space;
+
+SET enable_incremental_sort TO off;
+
+-- run queries on compressed hypertable and store result
+\set PREFIX ''
+\set PREFIX_VERBOSE ''
+\set PREFIX_NO_ANALYZE ''
+\set ECHO none
+SET client_min_messages TO error;
+
+\o :TEST_RESULTS_COMPRESSED
+\set TEST_TABLE 'metrics'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space'
+\ir :TEST_QUERY_NAME
+\o
+RESET client_min_messages;
+
+\set ECHO all
+\set PREFIX 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off)'
+\set PREFIX_VERBOSE 'EXPLAIN (analyze, buffers off, costs off, timing off, summary off, verbose)'
+\set PREFIX_NO_ANALYZE 'EXPLAIN (verbose, buffers off, costs off)'
+-- we disable parallelism here otherwise EXPLAIN ANALYZE output
+-- will be not stable and differ depending on worker assignment
+
+SET max_parallel_workers_per_gather TO 0;
+
+-- get explain for queries on hypertable with compression
+\set TEST_TABLE 'metrics'
+\ir :TEST_QUERY_NAME
+\set TEST_TABLE 'metrics_space'
+\ir :TEST_QUERY_NAME
+\ir include/transparent_decompression_ordered.sql
+\ir include/transparent_decompression_systemcolumns.sql
+\ir include/transparent_decompression_undiffed.sql
+-- diff compressed and uncompressed results
+:DIFF_CMD
+
+-- check hypertable detection in views
+CREATE VIEW ht_view AS
+SELECT *,
+  0 AS res
+FROM metrics
+UNION ALL
+SELECT *,
+  1 AS res
+FROM metrics;
+
+CREATE FUNCTION ht_func() RETURNS SETOF metrics LANGUAGE SQL STABLE AS
+$sql$
+  SELECT time,
+    device_id,
+    device_id_peer,
+    v0, v1, v2, v3
+  FROM ht_view
+  WHERE res = 0;
+$sql$;
+
+-- should have decompresschunk node
+:PREFIX SELECT * FROM ht_func();
+\c
+SET enable_incremental_sort TO off;
+-- plan should be identical to previous plan in fresh session
+:PREFIX SELECT * FROM ht_func();
+
+-- repro for core dump related to total_table_pages setting that get
+-- adjusted during decompress path.
+CREATE SEQUENCE vessel_id_seq
+    INCREMENT 1
+    START 1    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1;
+
+CREATE TABLE motion_table(
+  id bigint NOT NULL DEFAULT nextval('vessel_id_seq'::regclass) ,
+ datalogger_id     bigint                   ,
+ vessel_id         bigint                   ,
+ bus_id            smallint                 ,
+ src_id            smallint                 ,
+ dataloggertime    timestamp with time zone ,
+ interval_s        real                     );
+
+CREATE INDEX
+motion_table_t2_datalogger_id_idx on motion_table (datalogger_id);
+CREATE INDEX motion_table_t2_dataloggertime_idx on motion_table(dataloggertime DESC);
+CREATE INDEX motion_table_t2_vessel_id_idx on motion_table(vessel_id);
+
+SELECT create_hypertable( 'motion_table', 'dataloggertime', chunk_time_interval=> '7 days'::interval);
+
+--- do not modify the data. We need atleast this volume to reproduce issues with pages/tuple counts etc. ---
+INSERT into motion_table(datalogger_id, vessel_id, bus_id, src_id,
+   dataloggertime, interval_s)
+SELECT 1, random(), random() , random() ,
+       generate_series( '2020-01-02 10:00'::timestamp, '2020-01-10 10::00'::timestamp, '1 min'::interval), 1.1;
+
+INSERT into motion_table(datalogger_id, vessel_id, bus_id, src_id,
+   dataloggertime, interval_s)
+SELECT 1, random(), 2, 3,
+       generate_series( '2020-01-10 8:00'::timestamp, '2020-01-10 10::00'::timestamp, '1 min'::interval), 1.1;
+
+ALTER TABLE motion_table SET ( timescaledb.compress,
+        timescaledb.compress_segmentby = 'vessel_id, datalogger_id, bus_id, src_id' , timescaledb.compress_orderby = 'dataloggertime' );
+
+--have 2 chunks --
+SELECT COUNT(*)
+FROM timescaledb_information.chunks
+WHERE hypertable_name = 'motion_table';
+
+-- compress only the first one ---
+SELECT compress_chunk( chunk_table)
+FROM ( SELECT chunk_schema || '.' || chunk_name as chunk_table
+       FROM timescaledb_information.chunks
+       WHERE hypertable_name = 'motion_table' ORDER BY range_start limit 1 ) q;
+
+--call to decompress chunk on 1 of the chunks
+SELECT count(*) from motion_table;
+
+--END of test for page settings
+
+
+CREATE TABLE repro(time timestamptz NOT NULL, device_id text, room_id text NOT NULL, score_type int NOT NULL, algorithm_version text NOT NULL, adjusted_score float NOT NULL);
+SELECT create_hypertable('repro','time');
+
+ALTER TABLE repro SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'device_id, room_id, score_type, algorithm_version',
+  timescaledb.compress_orderby='"time" DESC'
+);
+
+SELECT _timescaledb_functions.create_chunk('repro','{"time": [1717632000000000,1718236800000000]}');
+
+select compress_chunk(show_chunks('repro'));
+select from repro where room_id = 'foo' order by device_id, algorithm_version, score_type, time desc;
+

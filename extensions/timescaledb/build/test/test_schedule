@@ -1,0 +1,10 @@
+test: alter
+test: alternate_users
+test: chunk_utils
+test: index
+test: pg_dump_unprivileged
+test: tablespace
+test: agg_bookends-17 append-17 baserel_cache catalog_corruption chunk_adaptive chunk_publication chunks cluster constraint copy copy_where create_chunks create_hypertable create_table create_table_with cursor custom_type ddl ddl_errors ddl_extra debug_utils 
+test: delete drop_extension drop_hypertable drop_owned-17 drop_rename_hypertable drop_schema dump_meta extension_scripts generated_as_identity grant_hypertable-17 hash histogram_test-17 information_views insert-17 insert_many insert_returning insert_single lateral license merge null_exclusion-17 
+test: parallel-17 partition partition_coercion partitioning partitionwise-17 pg_join plain plan_expand_hypertable-17 plan_hashagg-17 plan_hypertable_inline plan_ordered_append-17 qual_filtering query relocate_extension reloptions rowsecurity-17 size_utils sort_optimization sql_query tableam tableam_alter 
+test: tableam_alter_defaults timestamp-17 triggers truncate trusted_extension ts_merge-17 update upsert util uuid vacuum vacuum_parallel version 

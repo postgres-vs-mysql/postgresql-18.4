@@ -1,0 +1,8 @@
+test: deadlock_dropchunks_select
+test: insert_dropchunks_race
+test: isolation_nop
+test: read_committed_insert
+test: read_uncommitted_insert
+test: repeatable_read_insert
+test: serializable_insert_rollback
+test: serializable_insert

@@ -1,0 +1,890 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+
+#include "debug_trace.h"
+#include <postgres.h>
+#include <access/heapam.h>
+#include <access/parallel.h>
+#include <access/xact.h>
+#include <catalog/pg_database.h>
+#include <commands/dbcommands.h>
+#include <commands/defrem.h>
+#include <commands/user.h>
+#include <nodes/print.h>
+#include <parser/analyze.h>
+#include <pg_config.h>
+#include <postmaster/bgworker.h>
+#include <storage/ipc.h>
+#include <tcop/utility.h>
+#include <utils/guc.h>
+#include <utils/inval.h>
+
+#if PG_VERSION_NUM < 150000
+#include "compat/compat-msvc-enter.h"
+#include <commands/extension.h>
+#include <miscadmin.h>
+#include "compat/compat-msvc-exit.h"
+#endif
+
+#include "compat/compat.h"
+#include "config.h"
+#include "export.h"
+#include "extension_constants.h"
+#include "extension_utils.c"
+
+#include "loader/bgw_counter.h"
+#include "loader/bgw_interface.h"
+#include "loader/bgw_launcher.h"
+#include "loader/bgw_message_queue.h"
+#include "loader/function_telemetry.h"
+#include "loader/loader.h"
+#include "loader/lwlocks.h"
+
+/*
+ * Loading process:
+ *
+ *   1. _PG_init starts up cluster-wide background worker stuff, and sets the
+ *      post_parse_analyze_hook (a postgres-defined hook which is called after
+ *      every statement is parsed) to our function post_analyze_hook
+ *   2. When a command is run with timescale not loaded, post_analyze_hook:
+ *        a. Gets the extension version.
+ *        b. Loads the versioned extension.
+ *        c. Sets the post_parse_analyze_hook back to what it was before we
+ *           loaded the versioned extension (this hook eventually called our
+ *           post_analyze_hook, but may not be our function, for instance, if
+ *           another extension is loaded).
+ *        d. Calls the prev_post_parse_analyze_hook.
+ *
+ * Some notes on design:
+ *
+ * We do not check for the installation of the extension upon loading the extension and instead rely
+ * on a hook for a few reasons:
+ *
+ * 1) We probably can't:
+ *    - The shared_preload_libraries is called in PostmasterMain which is way before InitPostgres is
+ *      called. Note: This happens even before the fork of the backend, so we don't even know which
+ *      database this is for.
+ *    - This means we cannot query for the existence of the extension yet because the caches are
+ *      initialized in InitPostgres.
+ *
+ * 2) We actually don't want to load the extension in two cases:
+ *    a) We are upgrading the extension.
+ *    b) We set the guc timescaledb.disable_load.
+ *
+ * 3) We include a section for the bgw launcher and some workers below the rest, separated with its
+ *    own notes, some function definitions are included as they are referenced by other loader
+ *    functions.
+ *
+ */
+
+TS_MODULE_MAGIC("timescaledb-loader");
+
+#define POST_LOAD_INIT_FN "ts_post_load_init"
+#define GUC_LAUNCHER_POLL_TIME_MS MAKE_EXTOPTION("bgw_launcher_poll_time")
+
+/*
+ * The loader really shouldn't load if we're in a parallel worker as there is a
+ * separate infrastructure for loading libraries inside of parallel workers. The
+ * issue is that IsParallelWorker() doesn't work on Windows because the var used
+ * is not dll exported correctly, so we have an alternate macro that looks for
+ * the parallel worker flags in MyBgworkerEntry, if it exists.
+ */
+
+#define CalledInParallelWorker()                                                                   \
+  (MyBgworkerEntry != NULL && (MyBgworkerEntry->bgw_flags & BGWORKER_CLASS_PARALLEL) != 0)
+
+#if PG16_LT
+extern void TSDLLEXPORT _PG_init(void);
+#endif
+
+/* was the versioned-extension loaded*/
+static bool loader_present = true;
+
+int ts_guc_bgw_launcher_poll_time = BGW_LAUNCHER_POLL_TIME_MS;
+
+/* This is the hook that existed before the loader was installed */
+static post_parse_analyze_hook_type prev_post_parse_analyze_hook;
+static shmem_startup_hook_type prev_shmem_startup_hook;
+static shmem_request_hook_type prev_shmem_request_hook;
+
+typedef struct TsExtension {
+  /*
+   * Static data
+   */
+
+  /* Name of the extension (must be part of the so file name) */
+  char const *const name;
+  /* Name of the schema for table_name. */
+  char const *const schema_name;
+  /* Name of the table whose existence indicates the extension is loaded. */
+  char const *const table_name;
+  /* Name of the GUC for disabling loading this extension. */
+  char const *const guc_disable_load_name;
+
+  /*
+   * Run-time state
+   */
+
+  /* Current value of this extension's disable GUC. */
+  bool guc_disable_load;
+
+  /* Shared object library version loaded; empty if none. */
+  char soversion[MAX_VERSION_LEN];
+} TsExtension;
+
+TsExtension extensions[] = {
+  /* Redundant default initializers are here because we compile with
+   * `-Werror -Wmissing-field-initializers` for our PG13 build... */
+  {
+    .name = EXTENSION_NAME,
+    .schema_name = CACHE_SCHEMA_NAME,
+    .table_name = EXTENSION_PROXY_TABLE,
+    .guc_disable_load_name = MAKE_EXTOPTION("disable_load"),
+    .guc_disable_load = false,
+    .soversion = "",
+  },
+  {
+    .name = "timescaledb_osm",
+    .schema_name = "_osm_catalog",
+    .table_name = "metadata",
+    .guc_disable_load_name = "timescaledb_osm.disable_load",
+    .guc_disable_load = false,
+    .soversion = "",
+  },
+  {
+    .name = "timescaledb_lake",
+    .schema_name = "_timescaledb_lake_catalog",
+    .table_name = "metadata",
+    .guc_disable_load_name = "timescaledb_lake.disable_load",
+    .guc_disable_load = false,
+    .soversion = "",
+  },
+};
+
+inline static void extension_check(TsExtension * /*ext*/);
+
+static bool
+extension_is_loaded(TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  bool result = ext->soversion[0] != '\0';
+
+  /* The extension is loaded when the version is set to a non-null string */
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return result;
+}
+
+extern char *
+ts_loader_extension_version(void)
+{
+  DBUG_TRACE;
+  return extension_version(EXTENSION_NAME);
+}
+
+extern bool
+ts_loader_extension_exists(void)
+{
+  DBUG_TRACE;
+  return extension_exists(EXTENSION_NAME);
+}
+
+static bool
+drop_statement_drops_extension(DropStmt const *const stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+
+  if (!extension_exists(ext->name)) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  if (stmt->removeType == OBJECT_EXTENSION) {
+    if (list_length(stmt->objects) == 1) {
+      char *ext_name;
+      void *name = linitial(stmt->objects);
+
+      ext_name = strVal(name);
+
+      if (strcmp(ext_name, ext->name) == 0) {
+        DBUG_PRINT("timescaledb", "return true");
+        return true;
+      }
+    }
+  }
+
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+static Oid
+extension_owner(TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  Datum result;
+  Relation rel;
+  SysScanDesc scandesc;
+  HeapTuple tuple;
+  ScanKeyData entry[1];
+  bool is_null = true;
+  Oid extension_owner = InvalidOid;
+
+  rel = table_open(ExtensionRelationId, AccessShareLock);
+
+  ScanKeyInit(&entry[0],
+              Anum_pg_extension_extname,
+              BTEqualStrategyNumber,
+              F_NAMEEQ,
+              CStringGetDatum(ext->name));
+
+  scandesc = systable_beginscan(rel, ExtensionNameIndexId, true, NULL, 1, entry);
+
+  tuple = systable_getnext(scandesc);
+
+  /* We assume that there can be at most one matching tuple */
+  if (HeapTupleIsValid(tuple)) {
+    result = heap_getattr(tuple, Anum_pg_extension_extowner, RelationGetDescr(rel), &is_null);
+
+    if (!is_null)
+      extension_owner = ObjectIdGetDatum(result);
+  }
+
+  systable_endscan(scandesc);
+  table_close(rel, AccessShareLock);
+
+  if (!OidIsValid(extension_owner))
+    elog(ERROR, "extension not found while getting owner");
+
+  return extension_owner;
+}
+
+static bool
+drop_owned_statement_drops_extension(DropOwnedStmt const *const stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  Oid extension_owner_oid;
+  List *role_ids;
+  ListCell *lc;
+
+  if (!extension_exists(ext->name)) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  Assert(IsTransactionState());
+  extension_owner_oid = extension_owner(ext);
+
+  role_ids = roleSpecsToIds(stmt->roles);
+
+  /* Check privileges */
+  foreach (lc, role_ids) {
+    Oid role_id = lfirst_oid(lc);
+
+    if (role_id == extension_owner_oid) {
+      DBUG_PRINT("timescaledb", "return true");
+      return true;
+    }
+  }
+
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+static bool
+should_load_on_variable_set(Node const *const utility_stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  VariableSetStmt *stmt = (VariableSetStmt *) utility_stmt;
+  bool result;
+
+  switch (stmt->kind) {
+    case VAR_SET_VALUE:
+    case VAR_SET_DEFAULT:
+    case VAR_RESET:
+      /* Do not load when setting the guc to disable load */
+      result = stmt->name == NULL || strcmp(stmt->name, ext->guc_disable_load_name) != 0;
+      return result;
+
+    default:
+      return true;
+  }
+}
+
+static bool
+should_load_on_alter_extension(Node const *const utility_stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  AlterExtensionStmt *stmt = (AlterExtensionStmt *) utility_stmt;
+
+  if (strcmp(stmt->extname, ext->name) != 0) {
+    DBUG_PRINT("timescaledb", "return true");
+    return true;
+  }
+
+  /* disallow loading two .so from different versions */
+  if (extension_is_loaded(ext))
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("extension \"%s\" cannot be updated after the old version has already been "
+                    "loaded",
+                    stmt->extname),
+             errhint("Start a new session and execute ALTER EXTENSION as the first command. "
+                     "Make sure to pass the \"-X\" flag to psql.")));
+
+  /* do not load the current (old) version's .so */
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+static bool
+should_load_on_create_extension(Node const *const utility_stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  CreateExtensionStmt *stmt = (CreateExtensionStmt *) utility_stmt;
+
+  if (strcmp(stmt->extname, ext->name) != 0) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  /* If set, a library has already been loaded */
+  if (!extension_is_loaded(ext)) {
+    DBUG_PRINT("timescaledb", "return true");
+    return true;
+  }
+
+  /*
+   * If the extension exists and the create statement has an IF NOT EXISTS
+   * option, we continue without loading and let CREATE EXTENSION bail out
+   * with a standard NOTICE. We can only do this if the extension actually
+   * exists (is created), or else we might potentially load the shared
+   * library of another version of the extension. Loading typically happens
+   * on CREATE EXTENSION (via CREATE FUNCTION as SQL files are installed)
+   * even if we do not explicitly load the library here. If we load another
+   * version of the library, in addition to the currently loaded version, we
+   * might taint the backend.
+   */
+  if (extension_exists(ext->name) && stmt->if_not_exists) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  /*
+   * If the extension does not exist (e.g., was dropped via DROP SCHEMA
+   * CASCADE) but the same version of the shared library is already loaded
+   * in this session, allow the CREATE EXTENSION to proceed without
+   * reloading. The .so is already in memory with all hooks in place, so
+   * CREATE EXTENSION just needs to install the SQL objects.
+   *
+   * We only allow this when no explicit VERSION is specified (meaning the
+   * default version from the control file will be used, which matches the
+   * loaded .so) or when the specified VERSION matches the loaded version.
+   */
+  if (!extension_exists(ext->name)) {
+    char *requested_version = NULL;
+    ListCell *lc;
+
+    foreach (lc, stmt->options) {
+      DefElem *d = (DefElem *) lfirst(lc);
+
+      if (strcmp(d->defname, "new_version") == 0) {
+        requested_version = defGetString(d);
+        break;
+      }
+    }
+
+    if (requested_version == NULL || strcmp(requested_version, ext->soversion) == 0) {
+      DBUG_PRINT("timescaledb", "return false");
+      return false;
+    }
+  }
+
+  /* disallow loading two .so from different versions */
+  ereport(ERROR,
+          (errcode(ERRCODE_DUPLICATE_OBJECT),
+           errmsg("extension \"%s\" has already been loaded with another version", stmt->extname),
+           errdetail("The loaded version is \"%s\".", ext->soversion),
+           errhint("Start a new session and execute CREATE EXTENSION as the first command. "
+                   "Make sure to pass the \"-X\" flag to psql.")));
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+static bool
+load_utility_cmd(Node const *const utility_stmt, TsExtension const *const ext)
+{
+  DBUG_TRACE;
+  bool result;
+
+  switch (nodeTag(utility_stmt)) {
+    case T_VariableSetStmt:
+      result = should_load_on_variable_set(utility_stmt, ext);
+
+      if (result) {
+        DBUG_PRINT("timescaledb", "it is a T_VariableSetStmt and return true");
+      } else {
+        DBUG_PRINT("timescaledb", "it is a T_VariableSetStmt and return false");
+      }
+
+      return result;
+
+    case T_AlterExtensionStmt:
+      result = should_load_on_alter_extension(utility_stmt, ext);
+
+      if (result) {
+        DBUG_PRINT("timescaledb", "it is a T_AlterExtensionStmt and return true");
+      } else {
+        DBUG_PRINT("timescaledb", "it is a T_AlterExtensionStmt and return false");
+      }
+
+      return result;
+
+    case T_CreateExtensionStmt:
+      result = should_load_on_create_extension(utility_stmt, ext);
+
+      if (result) {
+        DBUG_PRINT("timescaledb", "it is a T_CreateExtensionStmt and return true");
+      } else {
+        DBUG_PRINT("timescaledb", "it is a T_CreateExtensionStmt and return false");
+      }
+
+      return result;
+
+    case T_DropStmt:
+      result = !drop_statement_drops_extension((DropStmt *) utility_stmt, ext);
+
+      if (result) {
+        DBUG_PRINT("timescaledb", "it is a T_DropStmt and return true");
+      } else {
+        DBUG_PRINT("timescaledb", "it is a T_DropStmt and return false");
+      }
+
+      return result;
+
+    default:
+      DBUG_PRINT("timescaledb", "node tag:%d", nodeTag(utility_stmt));
+      DBUG_PRINT("timescaledb", "return true");
+      return true;
+  }
+}
+
+static void
+stop_workers_on_db_drop(DropdbStmt *drop_db_statement)
+{
+  DBUG_TRACE;
+  /*
+   * Don't check if extension exists here because even though the current
+   * database might not have TimescaleDB installed the database we are
+   * dropping might.
+   */
+  Oid dropped_db_oid = get_database_oid(drop_db_statement->dbname, drop_db_statement->missing_ok);
+
+  if (OidIsValid(dropped_db_oid)) {
+    ereport(LOG,
+            (errmsg("TimescaleDB background worker scheduler for database %u will be stopped",
+                    dropped_db_oid)));
+    ts_bgw_message_send_and_wait(STOP, dropped_db_oid);
+  }
+}
+
+static bool
+database_allowconn(const Oid db_oid)
+{
+  DBUG_TRACE;
+  Relation pg_database;
+  ScanKeyData entry[1];
+  SysScanDesc scan;
+  HeapTuple dbtuple;
+  bool allowconn = false;
+
+  pg_database = table_open(DatabaseRelationId, AccessShareLock);
+  ScanKeyInit(&entry[0],
+              Anum_pg_database_oid,
+              BTEqualStrategyNumber,
+              F_OIDEQ,
+              ObjectIdGetDatum(db_oid));
+  scan = systable_beginscan(pg_database, DatabaseOidIndexId, true, NULL, 1, entry);
+
+  dbtuple = systable_getnext(scan);
+
+  /* We assume that there can be at most one matching tuple */
+  if (!HeapTupleIsValid(dbtuple))
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_DATABASE),
+             errmsg("database with OID \"%u\" does not exist", db_oid)));
+
+  allowconn = ((Form_pg_database) GETSTRUCT(dbtuple))->datallowconn;
+
+  systable_endscan(scan);
+  table_close(pg_database, AccessShareLock);
+
+  if (allowconn) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return allowconn;
+}
+
+static void
+post_analyze_hook(ParseState *pstate, Query *query, JumbleState *jstate)
+{
+  DBUG_TRACE;
+
+  if (query->commandType == CMD_UTILITY) {
+    switch (nodeTag(query->utilityStmt)) {
+      case T_AlterDatabaseStmt: {
+        /*
+         * On ALTER DATABASE SET TABLESPACE we need to stop background
+         * workers for the command to succeed.
+         */
+        AlterDatabaseStmt *stmt = (AlterDatabaseStmt *) query->utilityStmt;
+        DBUG_PRINT("timescaledb", "on ALTER DATABASE SET TABLESPACE we need to stop background workers for the command to succeed");
+
+        if (list_length(stmt->options) == 1) {
+          DefElem *option = linitial(stmt->options);
+
+          if (option->defname && strcmp(option->defname, "tablespace") == 0) {
+            Oid db_oid = get_database_oid(stmt->dbname, false);
+
+            if (OidIsValid(db_oid)) {
+              ts_bgw_message_send_and_wait(RESTART, db_oid);
+              ereport(WARNING,
+                      (errmsg("you may need to manually restart any running "
+                              "background workers after this command")));
+            }
+          }
+        }
+
+        break;
+      }
+
+      case T_CreatedbStmt: {
+        /*
+         * If we create a database and the database used as template
+         * has background workers we need to stop those background
+         * workers connected to the template database.
+         */
+        CreatedbStmt *stmt = (CreatedbStmt *) query->utilityStmt;
+        ListCell *lc;
+
+        DBUG_PRINT("timescaledb", "if we create a database and the database used as template has background workers we need to");
+        DBUG_PRINT("timescaledb", "stop those background workers connected to the template database");
+
+        foreach (lc, stmt->options) {
+          DefElem *option = lfirst(lc);
+
+          if (option->defname != NULL && option->arg != NULL &&
+              strcmp(option->defname, "template") == 0) {
+            Oid db_oid = get_database_oid(defGetString(option), false);
+
+            if (OidIsValid(db_oid) && database_allowconn(db_oid))
+              ts_bgw_message_send_and_wait(RESTART, db_oid);
+          }
+        }
+
+        break;
+      }
+
+      case T_DropdbStmt: {
+        DropdbStmt *stmt = (DropdbStmt *) query->utilityStmt;
+
+        /*
+         * If we drop a database, we need to intercept and stop any of our
+         * schedulers that might be connected to said db.
+         */
+        DBUG_PRINT("timescaledb", "if we drop a database, we need to intercept and stop any of our schedulers that might be connected to said db");
+        stop_workers_on_db_drop(stmt);
+        break;
+      }
+
+      case T_DropStmt:
+        for (size_t i = 0; i < sizeof(extensions) / sizeof(TsExtension); ++i) {
+          if (drop_statement_drops_extension((DropStmt *) query->utilityStmt,
+                                             &extensions[i])) {
+            /*
+             * if we drop the extension we should restart (in case of
+             * a rollback) the scheduler
+             */
+            DBUG_PRINT("timescaledb", "if we drop the extension we should restart (in case of a rollback) the scheduler");
+            ts_bgw_message_send_and_wait(RESTART, MyDatabaseId);
+            break;
+          }
+        }
+
+        break;
+
+      case T_DropOwnedStmt:
+        for (size_t i = 0; i < sizeof(extensions) / sizeof(TsExtension); ++i) {
+          if (drop_owned_statement_drops_extension((DropOwnedStmt *) query->utilityStmt,
+              &extensions[i])) {
+            ts_bgw_message_send_and_wait(RESTART, MyDatabaseId);
+            break;
+          }
+        }
+
+        break;
+
+      case T_RenameStmt:
+        if (((RenameStmt *) query->utilityStmt)->renameType == OBJECT_DATABASE) {
+          RenameStmt *stmt = (RenameStmt *) query->utilityStmt;
+          Oid db_oid = get_database_oid(stmt->subname, stmt->missing_ok);
+
+          if (OidIsValid(db_oid)) {
+            ts_bgw_message_send_and_wait(STOP, db_oid);
+            ereport(WARNING,
+                    (errmsg("you need to manually restart any running "
+                            "background workers after this command")));
+          }
+        }
+
+        break;
+
+      default:
+
+        break;
+    }
+  }
+
+  for (size_t i = 0; i < sizeof(extensions) / sizeof(TsExtension); ++i) {
+    TsExtension *const ext = &extensions[i];
+
+    /* timescaledb.disable_load prevents loading of all extensions.
+     * timescaledb_osm.disable_load prevents loading of timescaledb_osm.
+     * If we ever had a third extension to load, we might need to make
+     * this smarter, but not today. */
+    bool const disable_load = extensions[0].guc_disable_load || ext->guc_disable_load;
+
+    if (!disable_load &&
+        (query->commandType != CMD_UTILITY || load_utility_cmd(query->utilityStmt, ext))) {
+      extension_check(ext);
+    }
+  }
+
+  if (prev_post_parse_analyze_hook != NULL) {
+    prev_post_parse_analyze_hook(pstate, query, jstate);
+  }
+}
+
+static void
+timescaledb_shmem_startup_hook(void)
+{
+  DBUG_TRACE;
+
+  if (prev_shmem_startup_hook)
+    prev_shmem_startup_hook();
+
+  ts_bgw_counter_shmem_startup();
+  ts_bgw_message_queue_shmem_startup();
+  ts_lwlocks_shmem_startup();
+  ts_function_telemetry_shmem_startup();
+}
+
+/*
+ * PG15 requires all shared memory requests to be requested in a dedicated
+ * hook. We group all our shared memory requests in this function and use
+ * it as a normal function for PG < 14 and as a hook for PG 15+.
+ */
+static void
+timescaledb_shmem_request_hook(void)
+{
+  DBUG_TRACE;
+
+  if (prev_shmem_request_hook)
+    prev_shmem_request_hook();
+
+  ts_bgw_counter_shmem_alloc();
+  ts_bgw_message_queue_alloc();
+  ts_lwlocks_shmem_alloc();
+  ts_function_telemetry_shmem_alloc();
+}
+
+static void
+extension_mark_loader_present()
+{
+  DBUG_TRACE;
+  void **presentptr = find_rendezvous_variable(RENDEZVOUS_LOADER_PRESENT_NAME);
+
+  *presentptr = &loader_present;
+}
+
+void
+_PG_init(void)
+{
+  DBUG_TRACE;
+
+  if (!process_shared_preload_libraries_in_progress) {
+    extension_load_without_preload();
+  }
+
+  extension_mark_loader_present();
+
+  elog(INFO, "timescaledb loaded");
+  DBUG_PRINT("timescaledb", "timescaledb loaded");
+
+  ts_bgw_cluster_launcher_init();
+  ts_bgw_counter_setup_gucs();
+  ts_bgw_interface_register_api_version();
+
+  /* This is a safety-valve variable to prevent loading the full extension */
+  for (size_t i = 0; i < sizeof(extensions) / sizeof(TsExtension); ++i) {
+    TsExtension *const ext = &extensions[i];
+    DefineCustomBoolVariable(ext->guc_disable_load_name,
+                             "Disable the loading of the actual extension",
+                             NULL,
+                             &ext->guc_disable_load,
+                             false,
+                             PGC_USERSET,
+                             0,
+                             NULL,
+                             NULL,
+                             NULL);
+  }
+
+  DefineCustomIntVariable(GUC_LAUNCHER_POLL_TIME_MS,
+                          "Launcher timeout value in milliseconds",
+                          "Configure the time the launcher waits "
+                          "to look for new TimescaleDB instances",
+                          &ts_guc_bgw_launcher_poll_time,
+                          BGW_LAUNCHER_POLL_TIME_MS, /* 10 ms or 60 seconds */
+                          10,              /* min: 10ms */
+                          PG_INT32_MAX,        /* PG_INT16_MAX would be too small  */
+                          PGC_POSTMASTER,
+                          0,
+                          NULL,
+                          NULL,
+                          NULL);
+
+  /*
+   * Cannot check for extension here since not inside a transaction yet. Nor
+   * do we even have an assigned database yet.
+   * Using the post_parse_analyze_hook since it's the earliest available
+   * hook.
+   */
+  prev_post_parse_analyze_hook = post_parse_analyze_hook;
+  /* register shmem startup hook for the background worker stuff */
+  prev_shmem_startup_hook = shmem_startup_hook;
+
+  post_parse_analyze_hook = post_analyze_hook;
+  shmem_startup_hook = timescaledb_shmem_startup_hook;
+
+  prev_shmem_request_hook = shmem_request_hook;
+  shmem_request_hook = timescaledb_shmem_request_hook;
+}
+
+inline static void
+do_load(TsExtension *const ext)
+{
+  DBUG_TRACE;
+  char *version = extension_version(ext->name);
+  char soname[MAX_SO_NAME_LEN];
+  post_parse_analyze_hook_type old_hook;
+
+  /* If the right version of the library is already loaded, we will just
+   * skip the actual loading. If the wrong version of the library is loaded,
+   * we need to kill the session since it will not be able to continue
+   * operate. */
+  if (extension_is_loaded(ext)) {
+    if (strcmp(ext->soversion, version) == 0)
+      return;
+
+    ereport(FATAL,
+            (errcode(ERRCODE_DUPLICATE_OBJECT),
+             errmsg("\"%s\" already loaded with a different version", ext->name),
+             errdetail("The new version is \"%s\", this session is using version \"%s\". The "
+                       "session will be restarted.",
+                       version,
+                       ext->soversion)));
+  }
+
+  strlcpy(ext->soversion, version, MAX_VERSION_LEN);
+  snprintf(soname, MAX_SO_NAME_LEN, "%s%s-%s", TS_LIBDIR, ext->name, version);
+
+  /*
+   * In a parallel worker, we're not responsible for loading libraries, it's
+   * handled by the parallel worker infrastructure which restores the
+   * library state.
+   */
+  if (CalledInParallelWorker()) {
+    DBUG_PRINT("timescaledb", "in a parallel worker, we're not responsible for loading libraries, it's");
+    DBUG_PRINT("timescaledb", "handled by the parallel worker infrastructure which restores the library state");
+    return;
+  }
+
+  /*
+   * Set the config option to let versions 0.9.0 and 0.9.1 know that the
+   * loader was preloaded, newer versions use rendezvous variables instead.
+   */
+  if ((strcmp(version, "0.9.0") == 0 || strcmp(version, "0.9.1") == 0) &&
+      strcmp(ext->name, EXTENSION_NAME) == 0) {
+    SetConfigOption(MAKE_EXTOPTION("loader_present"), "on", PGC_USERSET, PGC_S_SESSION);
+  }
+
+  /*
+   * Save and restore post_parse_analyze_hook around the load so that
+   * loading the versioned extension cannot modify our hook chain.
+   */
+  old_hook = post_parse_analyze_hook;
+  post_parse_analyze_hook = NULL;
+
+  PG_TRY();
+  {
+    PGFunction ts_post_load_init =
+      load_external_function(soname, POST_LOAD_INIT_FN, false, NULL);
+
+    if (ts_post_load_init != NULL) {
+      DirectFunctionCall1(ts_post_load_init, CharGetDatum(0));
+    }
+  }
+  PG_CATCH();
+  {
+    post_parse_analyze_hook = old_hook;
+    PG_RE_THROW();
+  }
+  PG_END_TRY();
+
+  /* The versioned extension must not install a post_parse_analyze_hook:
+   * the loader would silently drop it when restoring old_hook below. */
+  Assert(post_parse_analyze_hook == NULL);
+  post_parse_analyze_hook = old_hook;
+}
+
+inline static void
+extension_check(TsExtension *const ext)
+{
+  DBUG_TRACE;
+  switch (extension_current_state(ext->name, ext->schema_name, ext->table_name)) {
+    case EXTENSION_STATE_TRANSITIONING:
+
+    /*
+     * Always load as soon as the extension is transitioning. This is
+     * necessary so that the extension is loaded before any CREATE
+     * FUNCTION calls trigger an uncontrolled load of the .so.
+     */
+    case EXTENSION_STATE_CREATED:
+      do_load(ext);
+      return;
+
+    case EXTENSION_STATE_UNKNOWN:
+    case EXTENSION_STATE_NOT_INSTALLED:
+      return;
+  }
+}
+
+extern void
+ts_loader_extension_check(void)
+{
+  DBUG_TRACE;
+
+  for (size_t i = 0; i < sizeof(extensions) / sizeof(TsExtension); ++i) {
+    extension_check(&extensions[i]);
+  }
+}

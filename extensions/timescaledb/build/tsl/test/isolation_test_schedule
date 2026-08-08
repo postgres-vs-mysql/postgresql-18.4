@@ -1,0 +1,14 @@
+test: compression_ddl_iso
+test: compression_conflicts_iso
+test: cagg_insert
+test: cagg_multi_iso
+test: deadlock_drop_chunks_compress
+test: deadlock_drop_index_vacuum
+test: fk_hypertable_lock
+test: hypertable_row_lock
+test: parallel_compression
+test: osm_range_updates_iso
+test: concurrent_decompress_update
+test: delete_job_deadlock
+test: reorder_deadlock
+test: reorder_vs_insert_other_chunk

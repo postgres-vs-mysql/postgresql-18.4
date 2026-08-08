@@ -1,0 +1,6 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--11.2-1--11.2-2.sql: \
+ sql/citus--11.2-1--11.2-2.sql \
+ sql/udfs/worker_adjust_identity_column_seq_ranges/11.2-2.sql \
+ sql/udfs/worker_adjust_identity_column_seq_ranges/11.3-1.sql
+sql/udfs/worker_adjust_identity_column_seq_ranges/11.2-2.sql:
+sql/udfs/worker_adjust_identity_column_seq_ranges/11.3-1.sql:

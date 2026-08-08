@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/columnar/build/sql/citus_columnar--12.2-1--13.2-1.sql: \
+ sql/citus_columnar--12.2-1--13.2-1.sql \
+ sql/udfs/columnar_finish_pg_upgrade/13.2-1.sql
+sql/udfs/columnar_finish_pg_upgrade/13.2-1.sql:

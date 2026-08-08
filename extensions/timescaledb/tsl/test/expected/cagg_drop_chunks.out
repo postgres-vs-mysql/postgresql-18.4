@@ -1,0 +1,283 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+\c :TEST_DBNAME :ROLE_SUPERUSER
+SET timezone TO PST8PDT;
+--
+-- Check that drop chunks with a unique constraint works as expected.
+--
+CREATE TABLE clients (
+       id SERIAL PRIMARY KEY,
+       name TEXT NOT NULL,
+       UNIQUE(name)
+);
+CREATE TABLE records (
+    time TIMESTAMPTZ NOT NULL,
+    clientId INT NOT NULL REFERENCES clients(id),
+    value DOUBLE PRECISION,
+    UNIQUE(time, clientId)
+);
+SELECT * FROM create_hypertable('records', 'time',
+       chunk_time_interval => INTERVAL '1h');
+ hypertable_id | schema_name | table_name | created 
+---------------+-------------+------------+---------
+             1 | public      | records    | t
+
+CREATE MATERIALIZED VIEW records_monthly
+    WITH (timescaledb.continuous, timescaledb.materialized_only=false)
+    AS
+        SELECT time_bucket('1d', time) as bucket,
+            clientId,
+            avg(value) as value_avg,
+            max(value)-min(value) as value_spread
+        FROM records GROUP BY bucket, clientId WITH NO DATA;
+INSERT INTO clients(name) VALUES ('test-client');
+INSERT INTO records
+SELECT generate_series('2000-03-01'::timestamptz,'2000-04-01','1 day'),1,3.14;
+SELECT * FROM records_monthly ORDER BY bucket, clientId;
+            bucket            | clientid | value_avg | value_spread 
+------------------------------+----------+-----------+--------------
+ Tue Feb 29 16:00:00 2000 PST |        1 |      3.14 |            0
+ Wed Mar 01 16:00:00 2000 PST |        1 |      3.14 |            0
+ Thu Mar 02 16:00:00 2000 PST |        1 |      3.14 |            0
+ Fri Mar 03 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sat Mar 04 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sun Mar 05 16:00:00 2000 PST |        1 |      3.14 |            0
+ Mon Mar 06 16:00:00 2000 PST |        1 |      3.14 |            0
+ Tue Mar 07 16:00:00 2000 PST |        1 |      3.14 |            0
+ Wed Mar 08 16:00:00 2000 PST |        1 |      3.14 |            0
+ Thu Mar 09 16:00:00 2000 PST |        1 |      3.14 |            0
+ Fri Mar 10 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sat Mar 11 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sun Mar 12 16:00:00 2000 PST |        1 |      3.14 |            0
+ Mon Mar 13 16:00:00 2000 PST |        1 |      3.14 |            0
+ Tue Mar 14 16:00:00 2000 PST |        1 |      3.14 |            0
+ Wed Mar 15 16:00:00 2000 PST |        1 |      3.14 |            0
+ Thu Mar 16 16:00:00 2000 PST |        1 |      3.14 |            0
+ Fri Mar 17 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sat Mar 18 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sun Mar 19 16:00:00 2000 PST |        1 |      3.14 |            0
+ Mon Mar 20 16:00:00 2000 PST |        1 |      3.14 |            0
+ Tue Mar 21 16:00:00 2000 PST |        1 |      3.14 |            0
+ Wed Mar 22 16:00:00 2000 PST |        1 |      3.14 |            0
+ Thu Mar 23 16:00:00 2000 PST |        1 |      3.14 |            0
+ Fri Mar 24 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sat Mar 25 16:00:00 2000 PST |        1 |      3.14 |            0
+ Sun Mar 26 16:00:00 2000 PST |        1 |      3.14 |            0
+ Mon Mar 27 16:00:00 2000 PST |        1 |      3.14 |            0
+ Tue Mar 28 16:00:00 2000 PST |        1 |      3.14 |            0
+ Wed Mar 29 16:00:00 2000 PST |        1 |      3.14 |            0
+ Thu Mar 30 16:00:00 2000 PST |        1 |      3.14 |            0
+ Fri Mar 31 16:00:00 2000 PST |        1 |      3.14 |            0
+
+SELECT chunk_name, range_start, range_end
+FROM timescaledb_information.chunks
+WHERE hypertable_name = 'records_monthly' ORDER BY range_start;
+ chunk_name | range_start | range_end 
+------------+-------------+-----------
+
+SELECT chunk_name, range_start, range_end
+FROM timescaledb_information.chunks
+WHERE hypertable_name = 'records' ORDER BY range_start;
+    chunk_name     |         range_start          |          range_end           
+-------------------+------------------------------+------------------------------
+ _hyper_1_1_chunk  | Wed Mar 01 00:00:00 2000 PST | Wed Mar 01 01:00:00 2000 PST
+ _hyper_1_2_chunk  | Thu Mar 02 00:00:00 2000 PST | Thu Mar 02 01:00:00 2000 PST
+ _hyper_1_3_chunk  | Fri Mar 03 00:00:00 2000 PST | Fri Mar 03 01:00:00 2000 PST
+ _hyper_1_4_chunk  | Sat Mar 04 00:00:00 2000 PST | Sat Mar 04 01:00:00 2000 PST
+ _hyper_1_5_chunk  | Sun Mar 05 00:00:00 2000 PST | Sun Mar 05 01:00:00 2000 PST
+ _hyper_1_6_chunk  | Mon Mar 06 00:00:00 2000 PST | Mon Mar 06 01:00:00 2000 PST
+ _hyper_1_7_chunk  | Tue Mar 07 00:00:00 2000 PST | Tue Mar 07 01:00:00 2000 PST
+ _hyper_1_8_chunk  | Wed Mar 08 00:00:00 2000 PST | Wed Mar 08 01:00:00 2000 PST
+ _hyper_1_9_chunk  | Thu Mar 09 00:00:00 2000 PST | Thu Mar 09 01:00:00 2000 PST
+ _hyper_1_10_chunk | Fri Mar 10 00:00:00 2000 PST | Fri Mar 10 01:00:00 2000 PST
+ _hyper_1_11_chunk | Sat Mar 11 00:00:00 2000 PST | Sat Mar 11 01:00:00 2000 PST
+ _hyper_1_12_chunk | Sun Mar 12 00:00:00 2000 PST | Sun Mar 12 01:00:00 2000 PST
+ _hyper_1_13_chunk | Mon Mar 13 00:00:00 2000 PST | Mon Mar 13 01:00:00 2000 PST
+ _hyper_1_14_chunk | Tue Mar 14 00:00:00 2000 PST | Tue Mar 14 01:00:00 2000 PST
+ _hyper_1_15_chunk | Wed Mar 15 00:00:00 2000 PST | Wed Mar 15 01:00:00 2000 PST
+ _hyper_1_16_chunk | Thu Mar 16 00:00:00 2000 PST | Thu Mar 16 01:00:00 2000 PST
+ _hyper_1_17_chunk | Fri Mar 17 00:00:00 2000 PST | Fri Mar 17 01:00:00 2000 PST
+ _hyper_1_18_chunk | Sat Mar 18 00:00:00 2000 PST | Sat Mar 18 01:00:00 2000 PST
+ _hyper_1_19_chunk | Sun Mar 19 00:00:00 2000 PST | Sun Mar 19 01:00:00 2000 PST
+ _hyper_1_20_chunk | Mon Mar 20 00:00:00 2000 PST | Mon Mar 20 01:00:00 2000 PST
+ _hyper_1_21_chunk | Tue Mar 21 00:00:00 2000 PST | Tue Mar 21 01:00:00 2000 PST
+ _hyper_1_22_chunk | Wed Mar 22 00:00:00 2000 PST | Wed Mar 22 01:00:00 2000 PST
+ _hyper_1_23_chunk | Thu Mar 23 00:00:00 2000 PST | Thu Mar 23 01:00:00 2000 PST
+ _hyper_1_24_chunk | Fri Mar 24 00:00:00 2000 PST | Fri Mar 24 01:00:00 2000 PST
+ _hyper_1_25_chunk | Sat Mar 25 00:00:00 2000 PST | Sat Mar 25 01:00:00 2000 PST
+ _hyper_1_26_chunk | Sun Mar 26 00:00:00 2000 PST | Sun Mar 26 01:00:00 2000 PST
+ _hyper_1_27_chunk | Mon Mar 27 00:00:00 2000 PST | Mon Mar 27 01:00:00 2000 PST
+ _hyper_1_28_chunk | Tue Mar 28 00:00:00 2000 PST | Tue Mar 28 01:00:00 2000 PST
+ _hyper_1_29_chunk | Wed Mar 29 00:00:00 2000 PST | Wed Mar 29 01:00:00 2000 PST
+ _hyper_1_30_chunk | Thu Mar 30 00:00:00 2000 PST | Thu Mar 30 01:00:00 2000 PST
+ _hyper_1_31_chunk | Fri Mar 31 00:00:00 2000 PST | Fri Mar 31 01:00:00 2000 PST
+ _hyper_1_32_chunk | Sat Apr 01 00:00:00 2000 PST | Sat Apr 01 01:00:00 2000 PST
+
+CALL refresh_continuous_aggregate('records_monthly', NULL, NULL);
+\set VERBOSITY default
+SELECT drop_chunks('records', '2000-03-16'::timestamptz);
+               drop_chunks               
+-----------------------------------------
+ _timescaledb_internal._hyper_1_1_chunk
+ _timescaledb_internal._hyper_1_2_chunk
+ _timescaledb_internal._hyper_1_3_chunk
+ _timescaledb_internal._hyper_1_4_chunk
+ _timescaledb_internal._hyper_1_5_chunk
+ _timescaledb_internal._hyper_1_6_chunk
+ _timescaledb_internal._hyper_1_7_chunk
+ _timescaledb_internal._hyper_1_8_chunk
+ _timescaledb_internal._hyper_1_9_chunk
+ _timescaledb_internal._hyper_1_10_chunk
+ _timescaledb_internal._hyper_1_11_chunk
+ _timescaledb_internal._hyper_1_12_chunk
+ _timescaledb_internal._hyper_1_13_chunk
+ _timescaledb_internal._hyper_1_14_chunk
+ _timescaledb_internal._hyper_1_15_chunk
+
+\set VERBOSITY terse
+DROP MATERIALIZED VIEW records_monthly;
+NOTICE:  drop cascades to 32 other objects
+DROP TABLE records;
+DROP TABLE clients;
+\set VERBOSITY default
+CREATE PROCEDURE refresh_cagg_by_chunk_range(_cagg REGCLASS, _hypertable REGCLASS, _older_than INTEGER)
+AS
+$$
+DECLARE
+    _r RECORD;
+BEGIN
+    WITH _chunks AS (
+        SELECT relname, nspname
+        FROM show_chunks(_hypertable, _older_than) AS relid
+        JOIN pg_catalog.pg_class ON pg_class.oid = relid AND pg_class.relkind = 'r'
+        JOIN pg_catalog.pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+    )
+    SELECT MIN(range_start) AS range_start, MAX(range_end) AS range_end
+    INTO _r
+    FROM
+        _chunks
+        JOIN _timescaledb_catalog.chunk ON chunk.schema_name = _chunks.nspname AND chunk.table_name = _chunks.relname
+        JOIN _timescaledb_catalog.chunk_constraint ON chunk_id = chunk.id
+        JOIN _timescaledb_catalog.dimension_slice ON dimension_slice.id = dimension_slice_id;
+
+    RAISE INFO 'range_start=% range_end=%', _r.range_start::int, _r.range_end::int;
+    CALL refresh_continuous_aggregate(_cagg, _r.range_start::int, _r.range_end::int + 1);
+END;
+$$
+LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION test_int_now() returns INT LANGUAGE SQL STABLE as
+    $$ SELECT 125 $$;
+CREATE TABLE conditions(time_int INT NOT NULL, value FLOAT);
+SELECT create_hypertable('conditions', 'time_int', chunk_time_interval => 4);
+    create_hypertable    
+-------------------------
+ (3,public,conditions,t)
+
+INSERT INTO conditions
+SELECT time_val, 1 FROM generate_series(0, 19, 1) AS time_val;
+SELECT set_integer_now_func('conditions', 'test_int_now');
+ set_integer_now_func 
+----------------------
+ 
+
+CREATE MATERIALIZED VIEW conditions_2
+    WITH (timescaledb.continuous, timescaledb.materialized_only = TRUE)
+    AS
+        SELECT time_bucket(2, time_int) as bucket,
+            SUM(value), COUNT(value)
+        FROM conditions GROUP BY bucket WITH DATA;
+NOTICE:  refreshing continuous aggregate "conditions_2"
+HINT:  Use WITH NO DATA if you do not want to refresh the continuous aggregate on creation.
+SELECT * FROM conditions_2 ORDER BY bucket;
+ bucket | sum | count 
+--------+-----+-------
+      0 |   2 |     2
+      2 |   2 |     2
+      4 |   2 |     2
+      6 |   2 |     2
+      8 |   2 |     2
+     10 |   2 |     2
+     12 |   2 |     2
+     14 |   2 |     2
+     16 |   2 |     2
+     18 |   2 |     2
+
+UPDATE conditions SET value = 4.00 WHERE time_int = 0;
+UPDATE conditions SET value = 4.00 WHERE time_int = 6;
+CALL refresh_cagg_by_chunk_range('conditions_2', 'conditions', 4);
+INFO:  range_start=0 range_end=4
+SELECT drop_chunks('conditions', 4);
+               drop_chunks               
+-----------------------------------------
+ _timescaledb_internal._hyper_3_65_chunk
+
+SELECT * FROM conditions_2 ORDER BY bucket;
+ bucket | sum | count 
+--------+-----+-------
+      0 |   5 |     2
+      2 |   2 |     2
+      4 |   2 |     2
+      6 |   2 |     2
+      8 |   2 |     2
+     10 |   2 |     2
+     12 |   2 |     2
+     14 |   2 |     2
+     16 |   2 |     2
+     18 |   2 |     2
+
+CALL refresh_cagg_by_chunk_range('conditions_2', 'conditions', 8);
+INFO:  range_start=4 range_end=8
+SELECT * FROM conditions_2 ORDER BY bucket;
+ bucket | sum | count 
+--------+-----+-------
+      0 |   5 |     2
+      2 |   2 |     2
+      4 |   2 |     2
+      6 |   5 |     2
+      8 |   2 |     2
+     10 |   2 |     2
+     12 |   2 |     2
+     14 |   2 |     2
+     16 |   2 |     2
+     18 |   2 |     2
+
+UPDATE conditions SET value = 4.00 WHERE time_int = 19;
+SELECT drop_chunks('conditions', 8);
+               drop_chunks               
+-----------------------------------------
+ _timescaledb_internal._hyper_3_66_chunk
+
+CALL refresh_cagg_by_chunk_range('conditions_2', 'conditions', 12);
+INFO:  range_start=8 range_end=12
+SELECT * FROM conditions_2 ORDER BY bucket;
+ bucket | sum | count 
+--------+-----+-------
+      0 |   5 |     2
+      2 |   2 |     2
+      4 |   2 |     2
+      6 |   5 |     2
+      8 |   2 |     2
+     10 |   2 |     2
+     12 |   2 |     2
+     14 |   2 |     2
+     16 |   2 |     2
+     18 |   2 |     2
+
+CALL refresh_cagg_by_chunk_range('conditions_2', 'conditions', NULL);
+INFO:  range_start=8 range_end=20
+SELECT * FROM conditions_2 ORDER BY bucket;
+ bucket | sum | count 
+--------+-----+-------
+      0 |   5 |     2
+      2 |   2 |     2
+      4 |   2 |     2
+      6 |   5 |     2
+      8 |   2 |     2
+     10 |   2 |     2
+     12 |   2 |     2
+     14 |   2 |     2
+     16 |   2 |     2
+     18 |   5 |     2
+
+DROP PROCEDURE refresh_cagg_by_chunk_range(REGCLASS, REGCLASS, INTEGER);

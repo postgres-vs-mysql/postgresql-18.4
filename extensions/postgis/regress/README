@@ -1,0 +1,50 @@
+Requirements for run_test.pl
+----------------------------
+
+run_test.pl requires the following Perl modules to be installed
+
+ File::Basename
+ Time::HiRes
+ File::Temp
+ File::Copy
+ File::Path
+ Cwd
+ Getopt::Long
+
+Most distributions of Perl will have everything
+
+
+How to add a regression test
+----------------------------
+
+1. Write a ${test}.sql file with test sql queries
+
+2. Generate and tweak ${test}_expected file:
+   regress/run_test.pl --expect ${test} && vi ${test}_expected
+
+3. Add ${test} to $(dirname ${test})/tests.mk*
+
+Optional:
+   If your test has unusual setup or teardown requirements, you may create
+   any of the following optional files (they will run in this order):
+        ${test}-pre.sh
+        ${test}-pre.sql   (run via psql)
+                 (The test itself is run here.)
+        ${test}-post.sql  (run via psql)
+        ${test}-post.sh
+
+Notes about running individual regression tests
+-----------------------------------------------
+
+The script run_test.pl can be called directly to run individual
+regression tests. Run it without parameters for info about its usage.
+
+When the account invoking the harness lacks database ownership or extension
+creation privileges, export `POSTGIS_REGRESS_DB_OWNER` to nominate a role that
+will own the temporary regression database. If extension installation must be
+delegated further, set `POSTGIS_REGRESS_ROLE_EXT_CREATOR`. These variables allow
+tests to succeed from sandboxed environments without elevating the calling
+account.
+
+Note that tests run in a staged install which is created by running
+make staged-install. This step is a part of the complete make check.

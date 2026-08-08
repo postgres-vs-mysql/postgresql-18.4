@@ -1,0 +1,80 @@
+-- This file and its contents are licensed under the Apache License 2.0.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-APACHE for a copy of the license.
+\c :TEST_DBNAME :ROLE_SUPERUSER
+\set ECHO queries
+SHOW timescaledb.license;
+ timescaledb.license 
+---------------------
+ apache
+
+SELECT _timescaledb_functions.tsl_loaded();
+ tsl_loaded 
+------------
+ f
+
+SET timescaledb.license='apache';
+ERROR:  invalid value for parameter "timescaledb.license": "apache"
+DETAIL:  Cannot change a license in a running session.
+HINT:  Change the license in the configuration file or server command line.
+SET timescaledb.license='timescale';
+ERROR:  invalid value for parameter "timescaledb.license": "timescale"
+DETAIL:  Cannot change a license in a running session.
+HINT:  Change the license in the configuration file or server command line.
+SET timescaledb.license='something_else';
+ERROR:  invalid value for parameter "timescaledb.license": "something_else"
+DETAIL:  Unrecognized license type.
+HINT:  Supported license types are 'timescale' or 'apache'.
+SELECT locf(1);
+ERROR:  function "locf" is not supported under the current "apache" license
+HINT:  Upgrade your license to 'timescale' to use this free community feature.
+SELECT interpolate(1);
+ERROR:  function "interpolate" is not supported under the current "apache" license
+HINT:  Upgrade your license to 'timescale' to use this free community feature.
+SELECT time_bucket_gapfill(1,1,1,1);
+ERROR:  function "time_bucket_gapfill" is not supported under the current "apache" license
+HINT:  Upgrade your license to 'timescale' to use this free community feature.
+CREATE OR REPLACE FUNCTION custom_func(jobid int, args jsonb) RETURNS VOID AS $$
+DECLARE
+BEGIN
+END;
+$$ LANGUAGE plpgsql;
+SELECT add_job('custom_func','1h', config:='{"type":"function"}'::jsonb);
+ERROR:  function "add_job" is not supported under the current "apache" license
+HINT:  Upgrade your license to 'timescale' to use this free community feature.
+DROP FUNCTION custom_func;
+CREATE TABLE metrics(time timestamptz NOT NULL, value float);
+SELECT create_hypertable('metrics', 'time');
+  create_hypertable   
+----------------------
+ (1,public,metrics,t)
+
+ALTER TABLE metrics SET (timescaledb.compress);
+ERROR:  functionality not supported under the current "apache" license. Learn more at https://tsdb.co/pdbir1r3
+HINT:  To access all features and the best time-series experience, try out Timescale Cloud.
+INSERT INTO metrics
+VALUES ('2022-01-01 00:00:00', 1), ('2022-01-01 01:00:00', 2), ('2022-01-01 02:00:00', 3);
+CREATE MATERIALIZED VIEW metrics_hourly
+WITH (timescaledb.continuous) AS
+SELECT time_bucket(INTERVAL '1 hour', time) AS bucket,
+   AVG(value),
+   MAX(value),
+   MIN(value)
+FROM metrics
+GROUP BY bucket
+WITH NO DATA;
+ERROR:  functionality not supported under the current "apache" license. Learn more at https://tsdb.co/pdbir1r3
+HINT:  To access all features and the best time-series experience, try out Timescale Cloud.
+CREATE MATERIALIZED VIEW metrics_hourly
+AS
+SELECT time_bucket(INTERVAL '1 hour', time) AS bucket,
+   AVG(value),
+   MAX(value),
+   MIN(value)
+FROM metrics
+GROUP BY bucket;
+CALL refresh_continuous_aggregate('metrics_hourly', NULL, NULL);
+ERROR:  function "refresh_continuous_aggregate" is not supported under the current "apache" license
+HINT:  Upgrade your license to 'timescale' to use this free community feature.
+DROP MATERIALIZED VIEW metrics_hourly;
+DROP TABLE metrics;

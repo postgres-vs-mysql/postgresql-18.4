@@ -1,0 +1,2096 @@
+/*
+ * This file and its contents are licensed under the Apache License 2.0.
+ * Please see the included NOTICE for copyright information and
+ * LICENSE-APACHE for a copy of the license.
+ */
+#include "debug_trace.h"
+#include <postgres.h>
+#include <debug_trace.h>
+#include <access/tsmapi.h>
+#include <access/xact.h>
+#include <catalog/namespace.h>
+#include <commands/extension.h>
+#include <executor/nodeAgg.h>
+#include <miscadmin.h>
+#include <nodes/makefuncs.h>
+#include <nodes/nodeFuncs.h>
+#include <nodes/parsenodes.h>
+#include <nodes/plannodes.h>
+#include <optimizer/appendinfo.h>
+#include <optimizer/clauses.h>
+#include <optimizer/optimizer.h>
+#include <optimizer/pathnode.h>
+#include <optimizer/paths.h>
+#include <optimizer/plancat.h>
+#include <optimizer/planner.h>
+#include <optimizer/restrictinfo.h>
+#include <optimizer/tlist.h>
+#include <parser/parse_param.h>
+#include <parser/parse_relation.h>
+#include <parser/parsetree.h>
+#include <utils/elog.h>
+#include <utils/fmgroids.h>
+#include <utils/guc.h>
+#include <utils/lsyscache.h>
+#include <utils/memutils.h>
+#include <utils/selfuncs.h>
+#include <utils/timestamp.h>
+
+#include <math.h>
+
+#include "annotations.h"
+#include "chunk.h"
+#include "cross_module_fn.h"
+#include "debug_assert.h"
+#include "dimension.h"
+#include "dimension_slice.h"
+#include "dimension_vector.h"
+#include "extension.h"
+#include "func_cache.h"
+#include "guc.h"
+#include "hypertable.h"
+#include "hypertable_cache.h"
+#include "import/allpaths.h"
+#include "license_guc.h"
+#include "nodes/chunk_append/chunk_append.h"
+#include "nodes/constraint_aware_append/constraint_aware_append.h"
+#include "nodes/modify_hypertable.h"
+#include "partitioning.h"
+#include "planner/planner.h"
+#include "sort_transform.h"
+#include "utils.h"
+
+#include "compat/compat.h"
+#include <common/hashfn.h>
+
+#ifdef USE_TELEMETRY
+#include "telemetry/functions.h"
+#endif
+
+/* define parameters necessary to generate the baserel info hash table interface */
+typedef struct BaserelInfoEntry {
+  Oid reloid;
+  Hypertable *ht;
+
+  uint32 status; /* hash status */
+} BaserelInfoEntry;
+
+#define SH_PREFIX BaserelInfo
+#define SH_ELEMENT_TYPE BaserelInfoEntry
+#define SH_KEY_TYPE Oid
+#define SH_KEY reloid
+#define SH_EQUAL(tb, a, b) ((a) == (b))
+#define SH_HASH_KEY(tb, key) murmurhash32(key)
+#define SH_SCOPE static
+#define SH_DECLARE
+#define SH_DEFINE
+
+// We don't need most of the generated functions and there is no way to not
+// generate them.
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
+// Generate the baserel info hash table functions.
+#include "lib/simplehash.h"
+#ifdef __GNUC__
+
+#pragma GCC diagnostic pop
+#endif
+
+void _planner_init(void);
+void _planner_fini(void);
+
+static planner_hook_type prev_planner_hook;
+static set_rel_pathlist_hook_type prev_set_rel_pathlist_hook;
+static get_relation_info_hook_type prev_get_relation_info_hook;
+static create_upper_paths_hook_type prev_create_upper_paths_hook;
+static void cagg_reorder_groupby_clause(RangeTblEntry *subq_rte, Index rtno, List *outer_sortcl,
+                                        List *outer_tlist);
+
+/*
+ * We mark range table entries (RTEs) in a query with TS_CTE_EXPAND if we'd like
+ * to control table expansion ourselves. We exploit the ctename for this purpose
+ * since it is not used for regular (base) relations.
+ *
+ * Note that we cannot use this mark as a general way to identify hypertable
+ * RTEs. Child RTEs, for instance, will inherit this value from the parent RTE
+ * during expansion. While we can prevent this happening in our custom table
+ * expansion, we also have to account for the case when our custom expansion
+ * is turned off with a GUC.
+ */
+static const char *TS_CTE_EXPAND = "ts_expand";
+static const char *TS_FK_EXPAND = "ts_fk_expand";
+
+/*
+ * A simplehash hash table that records the chunks and their corresponding
+ * hypertables, and also the plain baserels. We use it to tell whether a
+ * relation is a hypertable chunk, inside the classify_relation function.
+ * It is valid inside the scope of timescaledb_planner().
+ * That function can be called recursively, e.g. when we evaluate a SQL function,
+ * and this cache is initialized only at the top-level call.
+ */
+static struct BaserelInfo_hash *ts_baserel_info = NULL;
+
+/*
+ * Add information about a chunk to the baserel info cache. Used to cache the
+ * chunk info at the plan time chunk exclusion.
+ */
+void
+ts_add_baserel_cache_entry_for_chunk(Oid chunk_reloid, Hypertable *hypertable)
+{
+  DBUG_TRACE;
+  Assert(hypertable != NULL);
+  Assert(ts_baserel_info != NULL);
+
+  bool found = false;
+  BaserelInfoEntry *entry = BaserelInfo_insert(ts_baserel_info, chunk_reloid, &found);
+
+  if (found) {
+    DBUG_PRINT("timescaledb", "already cached for chunk_reloid:%u", chunk_reloid);
+    /* Already cached. */
+    Assert(entry->ht != NULL);
+    return;
+  }
+
+  DBUG_PRINT("timescaledb", "add information about a chunk(chunk_reloid:%u) to the baserel info cache", chunk_reloid);
+  Assert(ts_chunk_get_hypertable_id_by_reloid(chunk_reloid) == hypertable->fd.id);
+
+  /* Fill the cache entry. */
+  entry->ht = hypertable;
+}
+
+static void
+rte_mark_for_expansion(RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  Assert(rte->rtekind == RTE_RELATION);
+  Assert(rte->ctename == NULL);
+  rte->ctename = (char *) TS_CTE_EXPAND;
+
+  /*
+   * Do not mark partitioned hypertables for inheritance, as Postgres
+   * is supposed to expand them.
+   */
+  if (rte->relkind != RELKIND_PARTITIONED_TABLE)
+    rte->inh = false;
+}
+
+static void
+rte_mark_for_fk_expansion(RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  Assert(rte->rtekind == RTE_RELATION);
+  Assert(rte->ctename == NULL);
+  rte->ctename = (char *) TS_FK_EXPAND;
+  /*
+   * If this is for an FK lookup query inherit should be false
+   * initially for hypertables.
+   */
+  Assert(!rte->inh);
+}
+
+bool
+ts_rte_is_marked_for_expansion(const RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  bool result;
+
+  if (NULL == rte->ctename) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  if (rte->ctename == TS_CTE_EXPAND || rte->ctename == TS_FK_EXPAND) {
+    DBUG_PRINT("timescaledb", "return true");
+    return true;
+  }
+
+  result = strcmp(rte->ctename, TS_CTE_EXPAND) == 0;
+
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return result;
+}
+
+/*
+ * Planner-global hypertable cache.
+ *
+ * Each invocation of the planner (and our hooks) should reference the same
+ * cache object. Since we warm the cache when pre-processing the query (prior to
+ * invoking the planner), we'd like to ensure that we use the same cache object
+ * throughout the planning of that query so that we can trust that the cache
+ * holds the objects it was warmed with. Since the planner can be invoked
+ * recursively, we also need to stack and pop cache objects.
+ */
+static List *planner_hcaches = NIL;
+
+static Cache *
+planner_hcache_push(void)
+{
+  Cache *hcache = ts_hypertable_cache_pin();
+
+  planner_hcaches = lcons(hcache, planner_hcaches);
+
+  return hcache;
+}
+
+static void
+planner_hcache_pop(bool release)
+{
+  Cache *hcache;
+
+  Assert(list_length(planner_hcaches) > 0);
+
+  hcache = linitial(planner_hcaches);
+
+  planner_hcaches = list_delete_first(planner_hcaches);
+
+  if (release) {
+    ts_cache_release(&hcache);
+
+    /* If we pop a stack and discover a new hypertable cache, the basrel
+     * cache can contain invalid entries, so we reset it. */
+    if (planner_hcaches != NIL && hcache != linitial(planner_hcaches))
+      BaserelInfo_reset(ts_baserel_info);
+  }
+}
+
+static bool
+planner_hcache_exists(void)
+{
+  return planner_hcaches != NIL;
+}
+
+static Cache *
+planner_hcache_get(void)
+{
+  if (planner_hcaches == NIL)
+    return NULL;
+
+  return (Cache *) linitial(planner_hcaches);
+}
+
+/*
+ * Get the Hypertable corresponding to the given relid.
+ *
+ * This function gets a hypertable from a pre-warmed hypertable cache. If
+ * noresolve is specified (true), then it will do a cache-only lookup (i.e., it
+ * will not try to scan metadata for a new entry to put in the cache). This
+ * allows fast lookups during planning to also determine if something is _not_ a
+ * hypertable.
+ */
+Hypertable *
+ts_planner_get_hypertable(const Oid relid, const unsigned int flags)
+{
+  DBUG_TRACE;
+  Cache *cache = planner_hcache_get();
+  Hypertable *result;
+
+  if (NULL == cache) {
+    DBUG_PRINT("timescaledb", "return NULL");
+    return NULL;
+  }
+
+  result = ts_hypertable_cache_get_entry(cache, relid, flags);
+  if (result) {
+    DBUG_PRINT("timescaledb", "get the Hypertable corresponding to the given relid:%u", relid);
+  } else {
+    DBUG_PRINT("timescaledb", "count not get the Hypertable corresponding to the given relid:%u", relid);
+  }
+  return result;
+}
+
+bool
+ts_rte_is_hypertable(const RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+
+  Hypertable *ht = ts_planner_get_hypertable(rte->relid, CACHE_FLAG_CHECK);
+
+  if (ht != NULL) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return ht != NULL;
+}
+
+#define IS_UPDL_CMD(parse)                                                                         \
+  ((parse)->commandType == CMD_UPDATE || (parse)->commandType == CMD_DELETE)
+
+typedef struct {
+  Query *rootquery;
+  Query *current_query;
+  PlannerInfo *root;
+} PreprocessQueryContext;
+
+static void preprocess_fk_checks(Query *query, Cache *hcache, PreprocessQueryContext *context);
+
+void
+replace_now_mock_walker(PlannerInfo *root, Node *clause, Oid funcid)
+{
+  DBUG_TRACE;
+
+  /* whenever we encounter a FuncExpr with now(), replace it with the supplied funcid */
+  switch (nodeTag(clause)) {
+    case T_FuncExpr: {
+      if (is_valid_now_func(clause)) {
+        FuncExpr *fe = castNode(FuncExpr, clause);
+        fe->funcid = funcid;
+        return;
+      }
+
+      break;
+    }
+
+    case T_OpExpr: {
+      ListCell *lc;
+      OpExpr *oe = castNode(OpExpr, clause);
+
+      foreach (lc, oe->args) {
+        replace_now_mock_walker(root, (Node *) lfirst(lc), funcid);
+      }
+
+      break;
+    }
+
+    case T_BoolExpr: {
+      ListCell *lc;
+      BoolExpr *be = castNode(BoolExpr, clause);
+
+      foreach (lc, be->args) {
+        replace_now_mock_walker(root, (Node *) lfirst(lc), funcid);
+      }
+
+      break;
+    }
+
+    default:
+      return;
+  }
+}
+
+/*
+ * Preprocess the query tree, including, e.g., subqueries.
+ *
+ * Preprocessing includes:
+ *
+ * 1. Identifying all range table entries (RTEs) that reference
+ *    hypertables. This will also warm the hypertable cache for faster lookup
+ *    of both hypertables (cache hit) and non-hypertables (cache miss),
+ *    without having to scan the metadata in either case.
+ *
+ * 2. Turning off inheritance for hypertable RTEs that we expand ourselves.
+ *
+ * 3. Reordering of GROUP BY clauses for continuous aggregates.
+ *
+ * 4. Constifying now() expressions for primary time dimension.
+ */
+static bool
+preprocess_query(Node *node, PreprocessQueryContext *context)
+{
+  DBUG_TRACE;
+
+  if (node == NULL) {
+    DBUG_PRINT("timescaledb", "node is nullptr");
+    return false;
+  }
+
+  if (IsA(node, FromExpr) && ts_guc_enable_optimizations) {
+    DBUG_PRINT("timescaledb", "node is a FromExpr");
+    FromExpr *from = castNode(FromExpr, node);
+
+    if (from->quals) {
+      if (ts_guc_enable_now_constify) {
+        from->quals =
+          ts_constify_now(context->root, context->current_query->rtable, from->quals);
+#ifdef TS_DEBUG
+
+        /*
+         * only replace if GUC is also set. This is used for testing purposes only,
+         * so no need to change the output for other tests in DEBUG builds
+         */
+        if (ts_current_timestamp_mock != NULL && strlen(ts_current_timestamp_mock) != 0) {
+          Oid funcid_mock;
+          const char *funcname = "ts_now_mock()";
+          funcid_mock = DatumGetObjectId(
+                          DirectFunctionCall1(regprocedurein, CStringGetDatum(funcname)));
+          replace_now_mock_walker(context->root, from->quals, funcid_mock);
+        }
+
+#endif
+      }
+
+      /*
+       * We only amend space constraints for UPDATE/DELETE and SELECT FOR UPDATE
+       * as for normal SELECT we use our own hypertable expansion which can handle
+       * constraints on hashed space dimensions without further help.
+       */
+      if (context->current_query->commandType != CMD_SELECT ||
+          context->current_query->rowMarks != NIL) {
+        DBUG_PRINT("timescaledb", "we only amend space constraints for UPDATE/DELETE and SELECT FOR UPDATE");
+        DBUG_PRINT("timescaledb", "as for normal SELECT we use our own hypertable expansion which can handle");
+        DBUG_PRINT("timescaledb", "constraints on hashed space dimensions without further help");
+        from->quals = ts_add_space_constraints(context->root,
+                                               context->current_query->rtable,
+                                               from->quals);
+      }
+    }
+  } else if (IsA(node, Query)) {
+    Query *query = castNode(Query, node);
+    Query *prev_query;
+    Cache *hcache = planner_hcache_get();
+    ListCell *lc;
+    Index rti = 1;
+    bool ret;
+
+    DBUG_PRINT("timescaledb", "node is a Query");
+
+    if (ts_guc_enable_foreign_key_propagation) {
+      preprocess_fk_checks(query, hcache, context);
+    }
+
+    foreach (lc, query->rtable) {
+      RangeTblEntry *rte = lfirst_node(RangeTblEntry, lc);
+      Hypertable *ht;
+
+      switch (rte->rtekind) {
+        case RTE_SUBQUERY:
+          if (ts_guc_enable_optimizations && ts_guc_enable_cagg_reorder_groupby &&
+              query->commandType == CMD_SELECT) {
+            /* applicable to selects on continuous aggregates */
+            List *outer_tlist = query->targetList;
+            List *outer_sortcl = query->sortClause;
+            DBUG_PRINT("timescaledb", "applicable to selects on continuous aggregates");
+            cagg_reorder_groupby_clause(rte, rti, outer_sortcl, outer_tlist);
+          }
+
+          break;
+
+        case RTE_RELATION:
+          /* This lookup will warm the cache with all hypertables in the query */
+          ht = ts_hypertable_cache_get_entry(hcache, rte->relid, CACHE_FLAG_MISSING_OK);
+
+          if (ht) {
+            /* Mark hypertable RTEs we'd like to expand ourselves.
+             * We skip the DML target relation (resultRelation != 0
+             * in the current query) but allow non-target hypertables
+             * in subqueries of UPDATE/DELETE to use TSDB expansion. */
+            if (ts_guc_enable_optimizations && ts_guc_enable_constraint_exclusion &&
+                query->resultRelation == 0 && rte->inh) {
+              DBUG_PRINT("timescaledb", "mark hypertable RTEs we'd like to expand ourselves");
+              rte_mark_for_expansion(rte);
+            }
+
+            if (TS_HYPERTABLE_HAS_COMPRESSION_TABLE(ht)) {
+              int compr_htid = ht->fd.compressed_hypertable_id;
+
+              /* Also warm the cache with the compressed
+               * companion hypertable */
+              ts_hypertable_cache_get_entry_by_id(hcache, compr_htid);
+            }
+          } else {
+            /* To properly keep track of SELECT FROM ONLY <chunk> we
+             * have to mark the rte here because postgres will set
+             * rte->inh to false (when it detects the chunk has no
+             * children which is true for all our chunks) before it
+             * reaches set_rel_pathlist hook. But chunks from queries
+             * like SELECT ..  FROM ONLY <chunk> has rte->inh set to
+             * false and other chunks have rte->inh set to true.
+             * We want to distinguish between the two cases here by
+             * marking the chunk when rte->inh is true.
+             */
+            Chunk *chunk =
+              ts_chunk_get_by_relid_locked(rte->relid, NoLock, NULL, false);
+            DBUG_PRINT("timescaledb", "to  properly keep track of SELECT FROM ONLY <chunk> we have to mark the rte here");
+
+            if (chunk && rte->inh)
+              rte_mark_for_expansion(rte);
+          }
+
+          break;
+
+        default:
+          break;
+      }
+
+      rti++;
+    }
+
+    prev_query = context->current_query;
+    context->current_query = query;
+    ret = query_tree_walker(query, preprocess_query, context, 0);
+    context->current_query = prev_query;
+    return ret;
+  } else {
+  }
+
+  return expression_tree_walker(node, preprocess_query, context);
+}
+
+/*
+ * Detect FOREIGN KEY lookup queries and mark the RTE for expansion.
+ * Unfortunately postgres will create lookup queries for foreign keys
+ * with `ONLY` preventing hypertable expansion. Only for declarative
+ * partitioned tables the queries will be created without `ONLY`.
+ * We try to detect these queries here and undo the `ONLY` flag for
+ * these specific queries.
+ *
+ * The implementation of this on the postgres side can be found in
+ * src/backend/utils/adt/ri_triggers.c
+ */
+static void
+preprocess_fk_checks(Query *query, Cache *hcache, PreprocessQueryContext *context)
+{
+  DBUG_TRACE;
+
+  /*
+   * RI_FKey_cascade_del
+   *
+   * DELETE FROM [ONLY] <fktable> WHERE $1 = fkatt1 [AND ...]
+   */
+  if (query->commandType == CMD_DELETE && list_length(query->rtable) == 1 &&
+      query->jointree->quals && IsA(query->jointree->quals, OpExpr) &&
+      (context->root->glob->boundParams || query_contains_extern_params(query))) {
+    RangeTblEntry *rte = linitial_node(RangeTblEntry, query->rtable);
+
+    if (!rte->inh && rte->rtekind == RTE_RELATION) {
+      Hypertable *ht =
+        ts_hypertable_cache_get_entry(hcache, rte->relid, CACHE_FLAG_MISSING_OK);
+
+      if (ht) {
+        rte->inh = true;
+      }
+    }
+  }
+
+  /*
+   * RI_FKey_cascade_upd
+   *
+   *  UPDATE [ONLY] <fktable> SET fkatt1 = $1 [, ...]
+   *      WHERE $n = fkatt1 [AND ...]
+   */
+  if (query->commandType == CMD_UPDATE && list_length(query->rtable) == 1 &&
+      query->jointree->quals && IsA(query->jointree->quals, OpExpr) &&
+      (context->root->glob->boundParams || query_contains_extern_params(query))) {
+    RangeTblEntry *rte = linitial_node(RangeTblEntry, query->rtable);
+
+    if (!rte->inh && rte->rtekind == RTE_RELATION) {
+      Hypertable *ht =
+        ts_hypertable_cache_get_entry(hcache, rte->relid, CACHE_FLAG_MISSING_OK);
+
+      if (ht) {
+        rte->inh = true;
+      }
+    }
+  }
+
+  /*
+   * RI_FKey_check
+   *
+   * The RI_FKey_check query string built is
+   *  SELECT 1 FROM [ONLY] <pktable> x WHERE pkatt1 = $1 [AND ...]
+   *       FOR KEY SHARE OF x
+   */
+  if (query->commandType == CMD_SELECT && query->hasForUpdate &&
+      list_length(query->rtable) == 1 &&
+      (context->root->glob->boundParams || query_contains_extern_params(query))) {
+    RangeTblEntry *rte = linitial_node(RangeTblEntry, query->rtable);
+
+    if (!rte->inh && rte->rtekind == RTE_RELATION && rte->rellockmode == RowShareLock &&
+        list_length(query->jointree->fromlist) == 1 && query->jointree->quals &&
+        strcmp(rte->eref->aliasname, "x") == 0) {
+      Hypertable *ht =
+        ts_hypertable_cache_get_entry(hcache, rte->relid, CACHE_FLAG_MISSING_OK);
+
+      if (ht) {
+        rte_mark_for_fk_expansion(rte);
+
+        if (TS_HYPERTABLE_HAS_COMPRESSION_ENABLED(ht))
+          query->rowMarks = NIL;
+      }
+    }
+  }
+
+  /*
+   * RI_Initial_Check query
+   *
+   * The RI_Initial_Check query string built is:
+   *  SELECT fk.keycols FROM [ONLY] relname fk
+   *   LEFT OUTER JOIN [ONLY] pkrelname pk
+   *   ON (pk.pkkeycol1=fk.keycol1 [AND ...])
+   *   WHERE pk.pkkeycol1 IS NULL AND
+   * For MATCH SIMPLE:
+   *   (fk.keycol1 IS NOT NULL [AND ...])
+   * For MATCH FULL:
+   *   (fk.keycol1 IS NOT NULL [OR ...])
+   */
+  if (query->commandType == CMD_SELECT && list_length(query->rtable) == 3) {
+    RangeTblEntry *rte1 = linitial_node(RangeTblEntry, query->rtable);
+    RangeTblEntry *rte2 = lsecond_node(RangeTblEntry, query->rtable);
+
+    if (!rte1->inh && !rte2->inh && rte1->rtekind == RTE_RELATION &&
+        rte2->rtekind == RTE_RELATION && strcmp(rte1->eref->aliasname, "fk") == 0 &&
+        strcmp(rte2->eref->aliasname, "pk") == 0) {
+      if (ts_hypertable_cache_get_entry(hcache, rte1->relid, CACHE_FLAG_MISSING_OK)) {
+        rte_mark_for_fk_expansion(rte1);
+      }
+
+      if (ts_hypertable_cache_get_entry(hcache, rte2->relid, CACHE_FLAG_MISSING_OK)) {
+        rte_mark_for_fk_expansion(rte2);
+      }
+    }
+  }
+}
+
+static PlannedStmt *
+timescaledb_planner(Query *parse, const char *query_string, int cursor_opts,
+                    ParamListInfo bound_params)
+{
+  DBUG_TRACE;
+  PlannedStmt *stmt;
+  ListCell *lc;
+  /*
+   * Volatile is needed because these are the local variables that are
+   * modified between setjmp/longjmp calls.
+   */
+  volatile bool reset_baserel_info = false;
+
+  /*
+   * If we are in an aborted transaction, reject all queries.
+   * While this state will not happen during normal operation it
+   * can happen when executing plpgsql procedures.
+   */
+  if (IsAbortedTransactionBlockState()) {
+    DBUG_INSTANT_PRINT("timescaledb", "if we are in an aborted transaction, reject all queries");
+    ereport(ERROR,
+            (errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION),
+             errmsg("current transaction is aborted, "
+                    "commands ignored until end of transaction block")));
+  }
+
+  planner_hcache_push();
+
+  if (ts_baserel_info == NULL) {
+    /*
+     * The calls to timescaledb_planner can be recursive (e.g. when
+     * evaluating an immutable SQL function at planning time). We want to
+     * create and destroy the per-query baserel info table only at the
+     * top-level call, hence this flag.
+     */
+    reset_baserel_info = true;
+
+    /*
+     * This is a per-query cache, so we create it in the current memory
+     * context for the top-level call of this function, which hopefully
+     * should exist for the duration of the query. Message or portal
+     * memory contexts could also be suitable, but they don't exist for
+     * SPI calls.
+     */
+    ts_baserel_info = BaserelInfo_create(CurrentMemoryContext,
+                                         /* nelements = */ 1,
+                                         /* private_data = */ NULL);
+  }
+
+  PG_TRY();
+  {
+    PreprocessQueryContext context = { 0 };
+    PlannerGlobal glob = {
+      .boundParams = bound_params,
+    };
+    PlannerInfo root = {
+      .glob = &glob,
+    };
+
+    context.root = &root;
+    context.rootquery = parse;
+    context.current_query = parse;
+
+    if (ts_extension_is_loaded_and_not_upgrading()) {
+#ifdef USE_TELEMETRY
+      ts_telemetry_function_info_gather(parse);
+#endif
+#if PG16_GE
+
+      if (ts_guc_enable_optimizations &&
+          ts_cm_functions->continuous_agg_apply_rewrites_tsl != NULL) {
+        context.rootquery = ts_cm_functions->continuous_agg_apply_rewrites_tsl(parse);
+      }
+
+#endif
+      /*
+       * Preprocess the hypertables in the query and warm up the caches.
+       */
+      DBUG_PRINT("timescaledb", "preprocess the hypertables in the query and warm up the caches");
+      preprocess_query((Node *) context.rootquery, &context);
+
+      if (ts_guc_enable_optimizations) {
+        DBUG_PRINT("timescaledb", "TimescaleDB query optimizations is enabled");
+        ts_cm_functions->preprocess_query_tsl(context.rootquery, &cursor_opts);
+      }
+    }
+
+    if (prev_planner_hook != NULL) {
+      /* Call any earlier hooks */
+      DBUG_PRINT("timescaledb", "call any earlier hooks");
+      stmt = (prev_planner_hook) (context.rootquery, query_string, cursor_opts, bound_params);
+    } else {
+      /* Call the standard planner */
+      DBUG_PRINT("timescaledb", "call the standard planner");
+      stmt = standard_planner(context.rootquery, query_string, cursor_opts, bound_params);
+    }
+
+    if (ts_extension_is_loaded_and_not_upgrading()) {
+      /*
+       * Our top-level HypertableInsert plan node that wraps ModifyTable needs
+       * to have a final target list that is the same as the ModifyTable plan
+       * node, and we only have access to its final target list after
+       * set_plan_references() (setrefs.c) has run at the end of
+       * standard_planner. Therefore, we fixup the final target list for
+       * HypertableInsert here.
+       */
+      ts_modify_hypertable_fixup_tlist(stmt->planTree);
+
+      foreach (lc, stmt->subplans) {
+        Plan *subplan = (Plan *) lfirst(lc);
+
+        if (subplan)
+          ts_modify_hypertable_fixup_tlist(subplan);
+      }
+
+      ts_cm_functions->tsl_postprocess_plan(stmt);
+    }
+
+    if (reset_baserel_info) {
+      Assert(ts_baserel_info != NULL);
+      BaserelInfo_destroy(ts_baserel_info);
+      ts_baserel_info = NULL;
+    }
+  }
+  PG_CATCH();
+  {
+    if (reset_baserel_info) {
+      Assert(ts_baserel_info != NULL);
+      BaserelInfo_destroy(ts_baserel_info);
+      ts_baserel_info = NULL;
+    }
+
+    /* Pop the cache, but do not release since caches are auto-released on
+     * error */
+    planner_hcache_pop(false);
+    PG_RE_THROW();
+  }
+  PG_END_TRY();
+
+  planner_hcache_pop(true);
+
+  return stmt;
+}
+
+static RangeTblEntry *
+get_parent_rte(const PlannerInfo *root, Index rti)
+{
+  ListCell *lc;
+
+  /* Fast path when arrays are setup */
+  if (root->append_rel_array != NULL && root->append_rel_array[rti] != NULL) {
+    AppendRelInfo *appinfo = root->append_rel_array[rti];
+    return planner_rt_fetch(appinfo->parent_relid, root);
+  }
+
+  foreach (lc, root->append_rel_list) {
+    AppendRelInfo *appinfo = lfirst_node(AppendRelInfo, lc);
+
+    if (appinfo->child_relid == rti)
+      return planner_rt_fetch(appinfo->parent_relid, root);
+  }
+
+  return NULL;
+}
+
+/*
+ * Fetch cached baserel entry. If it does not exists, create an entry for this
+ * relid.
+ * If this relid corresponds to a chunk, cache additional chunk
+ * related metadata: like chunk_status and pointer to hypertable entry.
+ * It is okay to cache a pointer to the hypertable, since this cache is
+ * confined to the lifetime of the query and not used across queries.
+ * If the parent reolid is known, the caller can specify it to avoid the costly
+ * lookup. Otherwise pass InvalidOid.
+ */
+static BaserelInfoEntry *
+get_or_add_baserel_from_cache(Oid chunk_reloid, Oid parent_reloid)
+{
+  Hypertable *ht = NULL;
+  /* First, check if this reloid is in cache. */
+  bool found = false;
+  BaserelInfoEntry *entry = BaserelInfo_insert(ts_baserel_info, chunk_reloid, &found);
+
+  if (found) {
+    return entry;
+  }
+
+  if (OidIsValid(parent_reloid)) {
+    ht = ts_planner_get_hypertable(parent_reloid, CACHE_FLAG_CHECK);
+
+#ifdef USE_ASSERT_CHECKING
+    /* Sanity check on the caller-specified hypertable reloid. */
+    int32 parent_hypertable_id = ts_chunk_get_hypertable_id_by_reloid(chunk_reloid);
+
+    if (parent_hypertable_id != INVALID_HYPERTABLE_ID) {
+      Assert(ts_hypertable_id_to_relid(parent_hypertable_id, false) == parent_reloid);
+
+      if (ht != NULL) {
+        Assert(ht->fd.id == parent_hypertable_id);
+      }
+    }
+
+#endif
+  } else {
+    /* Hypertable reloid not specified by the caller, look it up by
+     * an expensive metadata scan.
+     */
+    int32 hypertable_id = ts_chunk_get_hypertable_id_by_reloid(chunk_reloid);
+
+    if (hypertable_id != INVALID_HYPERTABLE_ID) {
+      /* Hypertable reloid not specified by the caller, look it up. */
+      parent_reloid = ts_hypertable_id_to_relid(hypertable_id, /* return_invalid */ false);
+
+      ht = ts_planner_get_hypertable(parent_reloid, CACHE_FLAG_NONE);
+      Assert(ht != NULL);
+      Assert(ht->fd.id == hypertable_id);
+    }
+  }
+
+  /* Cache the result. */
+  entry->ht = ht;
+  return entry;
+}
+
+/*
+ * Classify a planned relation.
+ *
+ * This makes use of cache warming that happened during Query preprocessing in
+ * the first planner hook.
+ */
+TsRelType
+ts_classify_relation(const PlannerInfo *root, const RelOptInfo *rel, Hypertable **ht)
+{
+  DBUG_TRACE;
+  Assert(ht != NULL);
+  *ht = NULL;
+
+  DBUG_PRINT("timescaledb", "classify a planned relation");
+
+  if (rel->reloptkind != RELOPT_BASEREL && rel->reloptkind != RELOPT_OTHER_MEMBER_REL) {
+    DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    return TS_REL_OTHER;
+  }
+
+  RangeTblEntry *rte = planner_rt_fetch(rel->relid, root);
+
+  if (rte->relkind == RELKIND_FOREIGN_TABLE) {
+    /*
+     * OSM chunk or other foreign chunk. We can't even access the
+     * fdw_private for it, because it's a foreign chunk managed by a
+     * different extension. Try to ignore it as much as possible.
+     */
+    DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    return TS_REL_OTHER;
+  }
+
+  if (!OidIsValid(rte->relid)) {
+    DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    return TS_REL_OTHER;
+  }
+
+  if (rel->reloptkind == RELOPT_BASEREL) {
+    /*
+     * To correctly classify relations in subqueries we cannot call
+     * ts_planner_get_hypertable with CACHE_FLAG_CHECK which includes
+     * CACHE_FLAG_NOCREATE flag because the rel might not be in cache yet.
+     */
+    *ht = ts_planner_get_hypertable(rte->relid, CACHE_FLAG_MISSING_OK);
+
+    if (*ht != NULL) {
+      DBUG_PRINT("timescaledb", "a hypertable with no parent");
+      return TS_REL_HYPERTABLE;
+    }
+
+    /*
+     * This is either a chunk seen as a standalone table, a compressed chunk
+     * table, or a non-chunk baserel. We need a costly chunk metadata scan
+     * to distinguish between them, so we cache the result of this lookup to
+     * avoid doing it repeatedly.
+     */
+    BaserelInfoEntry *entry = get_or_add_baserel_from_cache(rte->relid, InvalidOid);
+    *ht = entry->ht;
+
+    if (*ht) {
+      /*
+       * Note that this works in a slightly weird way for compressed
+       * chunks expanded from a normal hypertable, always saying that they
+       * are standalone. In practice we filter them out by also checking
+       * that the respective hypertable is not an internal compression
+       * hypertable.
+       */
+      return TS_REL_CHUNK_STANDALONE;
+    }
+
+    DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    return TS_REL_OTHER;
+  }
+
+  Assert(rel->reloptkind == RELOPT_OTHER_MEMBER_REL);
+
+  RangeTblEntry *parent_rte = get_parent_rte(root, rel->relid);
+
+  /*
+   * An entry of reloptkind RELOPT_OTHER_MEMBER_REL might still
+   * be a hypertable or a chunk here if it was pulled up from a
+   * subquery as happens with UNION ALL for example. So we have to
+   * check for that to properly detect that pattern.
+   */
+  if (parent_rte->rtekind == RTE_SUBQUERY) {
+    *ht = ts_planner_get_hypertable(rte->relid,
+                                    rte->inh ? CACHE_FLAG_MISSING_OK : CACHE_FLAG_CHECK);
+
+    if (*ht) {
+      DBUG_PRINT("timescaledb", "a hypertable with no parent");
+      return TS_REL_HYPERTABLE;
+    }
+
+    /*
+     * This is either a chunk seen as a standalone table or a non-chunk baserel.
+     * We need a costly chunk metadata scan to distinguish between them, so we
+     * cache the result of this lookup to avoid doing it repeatedly.
+     */
+    BaserelInfoEntry *entry = get_or_add_baserel_from_cache(rte->relid, InvalidOid);
+    *ht = entry->ht;
+
+    if (*ht) {
+      DBUG_PRINT("timescaledb", "chunk with no parent");
+      return TS_REL_CHUNK_STANDALONE;
+    }
+
+    DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    return TS_REL_OTHER;
+  }
+
+  if (parent_rte->relid == rte->relid) {
+    /*
+     * A PostgreSQL table expansion peculiarity -- "self child", the root
+     * table that is expanded as a child of itself. This happens when our
+     * expansion code is turned off.
+     */
+    *ht = ts_planner_get_hypertable(rte->relid, CACHE_FLAG_CHECK);
+
+    if (*ht != NULL) {
+      DBUG_PRINT("timescaledb", "self child");
+    } else {
+      DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+    }
+
+    return *ht != NULL ? TS_REL_HYPERTABLE_CHILD : TS_REL_OTHER;
+  }
+
+  /*
+   * Either an other baserel or a chunk seen when expanding the hypertable.
+   * Use the baserel cache to determine what it is.
+   */
+  BaserelInfoEntry *entry = get_or_add_baserel_from_cache(rte->relid, parent_rte->relid);
+  *ht = entry->ht;
+
+  if (*ht) {
+    DBUG_PRINT("timescaledb", "chunk with parent and the result of table expansion");
+    return TS_REL_CHUNK_CHILD;
+  }
+
+  DBUG_PRINT("timescaledb", "return result:TS_REL_OTHER");
+  return TS_REL_OTHER;
+}
+
+static inline bool
+should_chunk_append(Hypertable *ht, PlannerInfo *root, RelOptInfo *rel, Path *path, bool ordered,
+                    int order_attno)
+{
+  DBUG_TRACE;
+
+  if (path->param_info != NULL && ordered) {
+    /*
+     * Ordered ChunkAppend might create MergeAppend path for individual
+     * chunks when we have space partitioning or partial chunks. MergeAppend
+     * paths cannot be parameterized. Refuse to use parameterized ordered
+     * ChunkAppend altogether, because the more precise conditions are
+     * difficult to check.
+     */
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  if (
+    /*
+     * We only support chunk exclusion on UPDATE/DELETE when no JOIN is involved on PG14+.
+     */
+    ((root->parse->commandType == CMD_DELETE || root->parse->commandType == CMD_UPDATE) &&
+     bms_num_members(root->all_baserels) > 1) ||
+    !ts_guc_enable_chunk_append) {
+    DBUG_PRINT("timescaledb", "we only support chunk exclusion on UPDATE/DELETE when no JOIN is involved on PG14+");
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  switch (nodeTag(path)) {
+    case T_AppendPath:
+      /*
+       * If there are clauses that have mutable functions, or clauses that reference
+       * Params this Path might benefit from startup or runtime exclusion
+       */
+    {
+      AppendPath *append = castNode(AppendPath, path);
+      ListCell *lc;
+
+      /* Don't create ChunkAppend with no children */
+      if (list_length(append->subpaths) == 0) {
+        DBUG_PRINT("timescaledb", "don't create ChunkAppend with no children");
+        DBUG_PRINT("timescaledb", "return false");
+        return false;
+      }
+
+      foreach (lc, rel->baserestrictinfo) {
+        RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+
+        if (contain_mutable_functions((Node *) rinfo->clause) ||
+            ts_contains_external_param((Node *) rinfo->clause) ||
+            ts_contains_join_param((Node *) rinfo->clause)) {
+          DBUG_PRINT("timescaledb", "return true");
+          return true;
+        }
+      }
+
+      DBUG_PRINT("timescaledb", "return false");
+      return false;
+      break;
+    }
+
+    case T_MergeAppendPath:
+      /*
+       * Can we do ordered append
+       */
+    {
+      MergeAppendPath *merge = castNode(MergeAppendPath, path);
+      PathKey *pk;
+      ListCell *lc;
+
+      if (!ordered || path->pathkeys == NIL || list_length(merge->subpaths) == 0) {
+        DBUG_PRINT("timescaledb", "return false");
+        return false;
+      }
+
+      /*
+       * Do not try to do ordered append if the OSM chunk range is noncontiguous
+       */
+      if (ht && ts_chunk_get_osm_chunk_id(ht->fd.id) != INVALID_CHUNK_ID) {
+        if (ts_flags_are_set_32(ht->fd.status,
+                                HYPERTABLE_STATUS_OSM_CHUNK_NONCONTIGUOUS)) {
+          DBUG_PRINT("timescaledb", "do not try to do ordered append if the OSM chunk range is noncontiguous");
+          DBUG_PRINT("timescaledb", "return false");
+          return false;
+        }
+      }
+
+      /*
+       * If we only have 1 child node there is no need for the
+       * ordered append optimization. We might still benefit from
+       * a ChunkAppend node here due to runtime chunk exclusion
+       * when we have non-immutable constraints.
+       */
+      if (list_length(merge->subpaths) == 1) {
+        foreach (lc, rel->baserestrictinfo) {
+          RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+
+          if (contain_mutable_functions((Node *) rinfo->clause) ||
+              ts_contains_external_param((Node *) rinfo->clause) ||
+              ts_contains_join_param((Node *) rinfo->clause)) {
+            DBUG_PRINT("timescaledb", "return true");
+            return true;
+          }
+        }
+
+        DBUG_PRINT("timescaledb", "return false");
+        return false;
+      }
+
+      pk = linitial_node(PathKey, path->pathkeys);
+
+      /*
+       * Check PathKey is compatible with Ordered Append ordering
+       * we created when expanding hypertable.
+       * Even though ordered is true on the RelOptInfo we have to
+       * double check that current Path fulfills requirements for
+       * Ordered Append transformation because the RelOptInfo may
+       * be used for multiple Paths.
+       */
+      Expr *em_expr = ts_find_em_expr_for_rel(pk->pk_eclass, rel);
+
+      /*
+       * If this is a join the ordering information might not be
+       * for the current rel and have no EquivalenceMember.
+       */
+
+      if (!em_expr) {
+        DBUG_PRINT("timescaledb", "return false");
+        return false;
+      }
+
+      if (IsA(em_expr, Var) && castNode(Var, em_expr)->varattno == order_attno) {
+        DBUG_PRINT("timescaledb", "return true");
+        return true;
+      }
+
+      if (IsA(em_expr, FuncExpr) && list_length(path->pathkeys) == 1) {
+        FuncExpr *func = castNode(FuncExpr, em_expr);
+        FuncInfo *info = ts_func_cache_get_bucketing_func(func->funcid);
+        Expr *transformed;
+
+        if (info && info->sort_transform) {
+          transformed = info->sort_transform(func);
+
+          if (IsA(transformed, Var) &&
+              castNode(Var, transformed)->varattno == order_attno) {
+            DBUG_PRINT("timescaledb", "return true");
+            return true;
+          }
+        }
+      }
+
+      DBUG_PRINT("timescaledb", "return false");
+      return false;
+      break;
+    }
+
+    default:
+      DBUG_PRINT("timescaledb", "return false");
+      return false;
+  }
+}
+
+static inline bool
+should_constraint_aware_append(PlannerInfo *root, Hypertable *ht, Path *path)
+{
+  DBUG_TRACE;
+  bool result;
+
+  /* Constraint-aware append currently expects children that scans a real
+   * "relation" (e.g., not an "upper" relation).
+   */
+  if (root->parse->commandType != CMD_SELECT) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  result = ts_constraint_aware_append_possible(path);
+
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return result;
+}
+
+static bool
+rte_should_expand(const RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  bool is_hypertable = ts_rte_is_hypertable(rte);
+  bool result;
+
+  result = is_hypertable && !rte->inh && ts_rte_is_marked_for_expansion(rte) &&
+           rte->relkind != RELKIND_PARTITIONED_TABLE;
+
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+
+  return result;
+}
+
+static void
+expand_hypertables(PlannerInfo *root, RelOptInfo *rel, Index rti, RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  bool set_pathlist_for_current_rel = false;
+  double total_pages;
+  bool reenabled_inheritance = false;
+
+  DBUG_PRINT("timescaledb", "simple_rel_array_size:%d", root->simple_rel_array_size);
+  for (int i = 1; i < root->simple_rel_array_size; i++) {
+    RangeTblEntry *in_rte = root->simple_rte_array[i];
+
+#if PG18_GE
+
+    /* RTE could be removed due to self-join
+     * elimination optimization.
+     *
+     * https://github.com/postgres/postgres/commit/5f6f95
+     */
+    if (!in_rte)
+      continue;
+
+#endif
+
+    if (rte_should_expand(in_rte) && root->simple_rel_array[i]) {
+      RelOptInfo *in_rel = root->simple_rel_array[i];
+      Hypertable *ht = ts_planner_get_hypertable(in_rte->relid, CACHE_FLAG_NOCREATE);
+
+      Assert(ht != NULL && in_rel != NULL);
+      ts_plan_expand_hypertable_chunks(ht, root, in_rel, in_rte->ctename != TS_FK_EXPAND);
+
+      in_rte->inh = true;
+      reenabled_inheritance = true;
+      /* Redo set_rel_consider_parallel, as results of the call may no longer be valid
+       * here (due to adding more tables to the set of tables under consideration here).
+       * This is especially true if dealing with foreign data wrappers. */
+
+      /*
+       * An entry of reloptkind RELOPT_OTHER_MEMBER_REL might still
+       * be a hypertable here if it was pulled up from a subquery
+       * as happens with UNION ALL for example.
+       */
+      if (in_rel->reloptkind == RELOPT_BASEREL ||
+          in_rel->reloptkind == RELOPT_OTHER_MEMBER_REL) {
+        Assert(in_rte->relkind == RELKIND_RELATION);
+        ts_set_rel_size(root, in_rel, i, in_rte);
+      }
+
+      /* if we're activating inheritance during a hypertable's pathlist
+       * creation then we're past the point at which postgres will add
+       * paths for the children, and we have to do it ourselves. We delay
+       * the actual setting of the pathlists until after this loop,
+       * because set_append_rel_pathlist will eventually call this hook again.
+       */
+      if (in_rte == rte) {
+        Assert(rti == (Index) i);
+        set_pathlist_for_current_rel = true;
+      }
+    }
+  }
+
+  if (!reenabled_inheritance)
+    return;
+
+  total_pages = 0;
+
+  for (int i = 1; i < root->simple_rel_array_size; i++) {
+    RelOptInfo *brel = root->simple_rel_array[i];
+
+    if (brel == NULL)
+      continue;
+
+    Assert(brel->relid == (Index) i); /* sanity check on array */
+
+    if (IS_DUMMY_REL(brel))
+      continue;
+
+    if (IS_SIMPLE_REL(brel))
+      total_pages += (double) brel->pages;
+  }
+
+  root->total_table_pages = total_pages;
+
+  if (set_pathlist_for_current_rel) {
+    rel->pathlist = NIL;
+    rel->partial_pathlist = NIL;
+
+    ts_set_append_rel_pathlist(root, rel, rti, rte);
+  }
+
+  DBUG_PRINT("timescaledb", "total_pages:%g", total_pages);
+}
+
+static void
+apply_optimizations(PlannerInfo *root, TsRelType reltype, RelOptInfo *rel, RangeTblEntry *rte,
+                    Hypertable *ht)
+{
+  DBUG_TRACE;
+
+  if (!ts_guc_enable_optimizations) {
+    DBUG_PRINT("timescaledb", "ts_guc_enable_optimizations: false");
+    return;
+  }
+
+  if (reltype == TS_REL_CHUNK_STANDALONE) {
+      DBUG_PRINT("timescaledb", "rel type: chunk with no parent");
+  } else if (reltype == TS_REL_CHUNK_CHILD) {
+      DBUG_PRINT("timescaledb", "rel type: chunk with parent and the result of table expansion");
+  }
+
+  switch (reltype) {
+    case TS_REL_HYPERTABLE_CHILD:
+      DBUG_PRINT("timescaledb", "empty table so nothing to optimize");
+      /* empty table so nothing to optimize */
+      break;
+
+    case TS_REL_CHUNK_STANDALONE:
+    case TS_REL_CHUNK_CHILD: {
+      /*
+       * Since the sort optimization adds new paths to the rel it has
+       * to happen before any optimizations that replace pathlist.
+       */
+      List *transformed_query_pathkeys = ts_sort_transform_get_pathkeys(root, rel, rte, ht);
+
+      DBUG_PRINT("timescaledb", "since the sort optimization adds new paths to the rel it has");
+      DBUG_PRINT("timescaledb", "to happen before any optimizations that replace pathlist");
+      if (transformed_query_pathkeys != NIL) {
+        List *orig_query_pathkeys = root->query_pathkeys;
+        root->query_pathkeys = transformed_query_pathkeys;
+        DBUG_PRINT("timescaledb", "since the sort optimization adds new paths to the rel it has to happen before any optimizations that replace pathlist");
+
+        DBUG_PRINT("timescaledb", "create index paths with transformed pathkeys");
+        /* Create index paths with transformed pathkeys */
+        create_index_paths(root, rel);
+
+        /*
+         * Call the TSL hooks with the transformed pathkeys as well, so
+         * that the decompression paths also use this optimization.
+         */
+        if (ts_cm_functions->set_rel_pathlist_query != NULL) {
+          DBUG_PRINT("timescaledb", "call the TSL hooks with the transformed pathkeys as well, so");
+          DBUG_PRINT("timescaledb", "that the decompression paths also use this optimization");
+          ts_cm_functions->set_rel_pathlist_query(root, rel, rel->relid, rte, ht);
+        }
+
+        root->query_pathkeys = orig_query_pathkeys;
+
+        /*
+         * change returned paths to use original pathkeys. have to go through
+         * all paths since create_index_paths might have modified existing
+         * pathkey. Always safe to do transform since ordering of
+         * transformed_query_pathkey implements ordering of
+         * orig_query_pathkeys.
+         */
+        ts_sort_transform_replace_pathkeys(rel->pathlist,
+                                           transformed_query_pathkeys,
+                                           orig_query_pathkeys);
+      } else {
+        if (ts_cm_functions->set_rel_pathlist_query != NULL)
+          ts_cm_functions->set_rel_pathlist_query(root, rel, rel->relid, rte, ht);
+      }
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  if (reltype == TS_REL_HYPERTABLE &&
+      (root->parse->commandType == CMD_SELECT || root->parse->commandType == CMD_DELETE ||
+       root->parse->commandType == CMD_UPDATE)) {
+    TimescaleDBPrivate *private = ts_get_private_reloptinfo(rel);
+    bool ordered = private->appends_ordered;
+    int order_attno = private->order_attno;
+    List *nested_oids = private->nested_oids;
+    ListCell *lc;
+
+    Assert(ht != NULL);
+
+    foreach (lc, rel->pathlist) {
+      Path **pathptr = (Path **) &lfirst(lc);
+
+      switch (nodeTag(*pathptr)) {
+        case T_AppendPath:
+        case T_MergeAppendPath:
+          if (should_chunk_append(ht, root, rel, *pathptr, ordered, order_attno))
+            *pathptr = ts_chunk_append_path_create(root,
+                                                   rel,
+                                                   ht,
+                                                   *pathptr,
+                                                   false,
+                                                   ordered,
+                                                   nested_oids);
+          else if (should_constraint_aware_append(root, ht, *pathptr))
+            *pathptr = ts_constraint_aware_append_path_create(root, *pathptr);
+
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    foreach (lc, rel->partial_pathlist) {
+      Path **pathptr = (Path **) &lfirst(lc);
+
+      switch (nodeTag(*pathptr)) {
+        case T_AppendPath:
+        case T_MergeAppendPath:
+          if (should_chunk_append(ht, root, rel, *pathptr, false, 0))
+            *pathptr =
+              ts_chunk_append_path_create(root, rel, ht, *pathptr, true, false, NIL);
+          else if (should_constraint_aware_append(root, ht, *pathptr))
+            *pathptr = ts_constraint_aware_append_path_create(root, *pathptr);
+
+          break;
+
+        default:
+          break;
+      }
+    }
+  }
+}
+
+static bool
+valid_hook_call(void)
+{
+  return ts_extension_is_loaded_and_not_upgrading() && planner_hcache_exists();
+}
+
+static bool
+dml_involves_hypertable(PlannerInfo *root, Hypertable *ht, Index rti)
+{
+  DBUG_TRACE;
+  Index result_rti = root->parse->resultRelation;
+  RangeTblEntry *result_rte = planner_rt_fetch(result_rti, root);
+
+  return result_rti == rti || ht->main_table_relid == result_rte->relid;
+}
+
+static void
+timescaledb_set_rel_pathlist(PlannerInfo *root, RelOptInfo *rel, Index rti, RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  TsRelType reltype;
+  Hypertable *ht;
+
+  /*
+   * Quick exit if this is a relation we're not interested in.
+   *
+   * If the rtekind is a named tuple store, it is a named tuple store *for*
+   * the relation rte->relid (e.g., a transition table for a trigger), but
+   * not the relation itself.
+   */
+  if (!valid_hook_call() || rte->rtekind == RTE_NAMEDTUPLESTORE || !OidIsValid(rte->relid) ||
+      IS_DUMMY_REL(rel)) {
+    if (prev_set_rel_pathlist_hook != NULL)
+      (*prev_set_rel_pathlist_hook)(root, rel, rti, rte);
+
+    return;
+  }
+
+  reltype = ts_classify_relation(root, rel, &ht);
+
+  /* Check for unexpanded hypertable */
+  if (!rte->inh && ts_rte_is_marked_for_expansion(rte)) {
+    DBUG_PRINT("timescaledb", "check for unexpanded hypertable");
+    expand_hypertables(root, rel, rti, rte);
+  }
+
+  if (ts_guc_enable_optimizations)
+    ts_planner_constraint_cleanup(root, rel);
+
+  /* Call other extensions. Do it after table expansion. */
+  if (prev_set_rel_pathlist_hook != NULL) {
+    DBUG_PRINT("timescaledb", "call other extensions. Do it after table expansion.");
+    (*prev_set_rel_pathlist_hook)(root, rel, rti, rte);
+  }
+
+  switch (reltype) {
+    case TS_REL_HYPERTABLE_CHILD:
+      DBUG_PRINT("timescaledb", "reltype: TS_REL_HYPERTABLE_CHILD");
+      if (ts_guc_enable_optimizations && IS_UPDL_CMD(root->parse))
+        ts_planner_constraint_cleanup(root, rel);
+
+      break;
+
+    case TS_REL_CHUNK_STANDALONE:
+    case TS_REL_CHUNK_CHILD:
+
+      if (reltype == TS_REL_CHUNK_STANDALONE) {
+        DBUG_PRINT("timescaledb", "reltype: TS_REL_CHUNK_STANDALONE");
+      } else {
+        DBUG_PRINT("timescaledb", "reltype: TS_REL_CHUNK_CHILD");
+      }
+      /* Check for UPDATE/DELETE/MERGE (DML) on compressed chunks */
+      if ((IS_UPDL_CMD(root->parse) || root->parse->commandType == CMD_MERGE) &&
+          dml_involves_hypertable(root, ht, rti)) {
+        DBUG_PRINT("timescaledb", "check for UPDATE/DELETE/MERGE (DML) on compressed chunks");
+
+        if (ts_cm_functions->set_rel_pathlist_dml != NULL)
+          ts_cm_functions->set_rel_pathlist_dml(root, rel, rti, rte, ht);
+
+        break;
+      }
+
+      TS_FALLTHROUGH;
+
+    default:
+
+      /*
+       * Set the indexlist for a hypertable parent to NIL since we
+       * should not try to do any index scans on hypertable parents,
+       * similar to how it works for partitioned tables.
+       *
+       * This can happen when building a merge join path and computing
+       * cost for it. See get_actual_variable_range().
+       *
+       * This has to be after the hypertable is expanded, since the
+       * indexlist is used during hypertable expansion.
+       */
+      if (reltype == TS_REL_HYPERTABLE)
+        rel->indexlist = NIL;
+
+      apply_optimizations(root, reltype, rel, rte, ht);
+      break;
+  }
+}
+
+/* This hook is meant to editorialize about the information the planner gets
+ * about a relation. We use it to attach our own metadata to hypertable and
+ * chunk relations that we need during planning. We also expand hypertables
+ * here. */
+static void
+timescaledb_get_relation_info_hook(PlannerInfo *root, Oid relation_objectid, bool inhparent,
+                                   RelOptInfo *rel)
+{
+  DBUG_TRACE;
+
+  if (prev_get_relation_info_hook != NULL)
+    prev_get_relation_info_hook(root, relation_objectid, inhparent, rel);
+
+  if (!valid_hook_call())
+    return;
+
+  RangeTblEntry *rte = planner_rt_fetch(rel->relid, root);
+  Query *query = root->parse;
+  Hypertable *ht;
+  const TsRelType type = ts_classify_relation(root, rel, &ht);
+
+  switch (type) {
+    case TS_REL_HYPERTABLE: {
+      /* Mark hypertable RTEs we'd like to expand ourselves.
+       * Hypertables inside inlineable functions don't get marked during
+       * the query preprocessing step. Therefore we do an extra try here.
+       * We skip the DML target relation identified by resultRelation.
+       */
+      if (ts_guc_enable_optimizations && ts_guc_enable_constraint_exclusion && inhparent &&
+          rte->ctename == NULL && rel->relid != (Index) query->resultRelation) {
+        DBUG_PRINT("timescaledb", "mark hypertable RTEs we'd like to expand ourselves");
+        rte_mark_for_expansion(rte);
+      }
+
+      ts_create_private_reloptinfo(rel);
+      ts_plan_expand_timebucket_annotate(root, rel);
+      break;
+    }
+
+    case TS_REL_CHUNK_STANDALONE:
+    case TS_REL_CHUNK_CHILD:
+      ts_create_private_reloptinfo(rel);
+
+      /*
+       * We don't want to plan index scans on empty uncompressed tables of
+       * fully compressed chunks. It takes a lot of time, and these tables
+       * are empty anyway. Just reset the indexlist in this case. For
+       * uncompressed or partially compressed chunks, the uncompressed
+       * tables are not empty, so we plan the index scans as usual.
+       *
+       * Normally the index list is reset in ts_set_append_rel_pathlist(),
+       * based on the Chunk struct cached by our hypertable expansion, but
+       * in cases when these functions don't run, we have to do it here.
+       */
+      const bool use_columnar_scan =
+        ts_guc_enable_columnarscan && TS_HYPERTABLE_HAS_COMPRESSION_TABLE(ht);
+      const bool is_standalone_chunk = (type == TS_REL_CHUNK_STANDALONE) &&
+                                       !TS_HYPERTABLE_IS_INTERNAL_COMPRESSION_TABLE(ht);
+      const bool is_child_chunk_in_update =
+        (type == TS_REL_CHUNK_CHILD) && IS_UPDL_CMD(query);
+
+      if (use_columnar_scan && (is_standalone_chunk || is_child_chunk_in_update)) {
+        const Chunk *chunk = ts_planner_chunk_fetch(root, rel);
+
+        if (!ts_chunk_is_partial(chunk) && ts_chunk_is_compressed(chunk)) {
+          rel->indexlist = NIL;
+        }
+      }
+
+      break;
+
+    case TS_REL_HYPERTABLE_CHILD:
+
+      /* When postgres expands an inheritance tree it also adds the
+       * parent hypertable as child relation. Since for a hypertable the
+       * parent will never have any data we can mark this relation as
+       * dummy relation so it gets ignored in later steps. This is only
+       * relevant for code paths that use the postgres inheritance code
+       * as we don't include the hypertable as child when expanding the
+       * hypertable ourself.
+       */
+      if (IS_UPDL_CMD(root->parse))
+        mark_dummy_rel(rel);
+
+      break;
+
+    case TS_REL_OTHER:
+      break;
+  }
+}
+
+static bool
+join_involves_hypertable(const PlannerInfo *root, const RelOptInfo *rel)
+{
+  DBUG_TRACE;
+  bool result;
+  int relid = -1;
+
+  while ((relid = bms_next_member(rel->relids, relid)) >= 0) {
+    const RangeTblEntry *rte = planner_rt_fetch(relid, root);
+
+    if (rte != NULL) {
+      /* This might give a false positive for chunks in case of PostgreSQL
+       * expansion since the ctename is copied from the parent hypertable
+       * to the chunk */
+      result = ts_rte_is_marked_for_expansion(rte);
+      if (result) {
+        DBUG_PRINT("timescaledb", "return true");
+      } else {
+        DBUG_PRINT("timescaledb", "return false");
+      }
+      return result;
+    }
+  }
+
+  DBUG_PRINT("timescaledb", "return false");
+  return false;
+}
+
+static bool
+involves_hypertable(PlannerInfo *root, RelOptInfo *rel)
+{
+  DBUG_TRACE;
+  bool result;
+
+  if (rel->reloptkind == RELOPT_JOINREL) {
+    result = join_involves_hypertable(root, rel);
+    if (result) {
+      DBUG_PRINT("timescaledb", "return true");
+    } else {
+      DBUG_PRINT("timescaledb", "return false");
+    }
+    return result;
+  }
+
+  Hypertable *ht;
+  result = ts_classify_relation(root, rel, &ht) == TS_REL_HYPERTABLE;
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+  return result;
+}
+
+/*
+ * Replace ModifyTablePath paths on hypertables.
+ *
+ * From the ModifyTable description: "Each ModifyTable node contains
+ * a list of one or more subplans, much like an Append node.  There
+ * is one subplan per result relation."
+ *
+ * The subplans produce the tuples for INSERT, while the result relation is the
+ * table we'd like to insert into.
+ *
+ * Conceptually, the plan modification looks like this:
+ *
+ * Original plan:
+ *
+ *      ^
+ *      |
+ *  [ ModifyTable ] -> resultRelation
+ *      ^
+ *      | Tuple
+ *      |
+ *    [ subplan ]
+ *
+ *
+ * Modified plan:
+ *
+ *  [ ModifyHypertable ]
+ *      ^
+ *      |
+ *  [ ModifyTable ] -> resultRelation
+ *      ^
+ *      | Tuple
+ *      |
+ *    [ subplan ]
+ *
+ */
+static List *
+replace_modify_hypertable_paths(PlannerInfo *root, List *pathlist, RelOptInfo *input_rel)
+{
+  DBUG_TRACE;
+  List *new_pathlist = NIL;
+  ListCell *lc;
+
+  DBUG_PRINT("timescaledb", "replace ModifyTablePath paths on hypertables");
+
+  foreach (lc, pathlist) {
+    Path *path = lfirst(lc);
+
+    if (IsA(path, ModifyTablePath)) {
+      ModifyTablePath *mt = castNode(ModifyTablePath, path);
+      RangeTblEntry *rte = planner_rt_fetch(mt->nominalRelation, root);
+      Hypertable *ht = ts_planner_get_hypertable(rte->relid, CACHE_FLAG_CHECK);
+
+      /* Direct INSERT into internal compressed hypertable is not supported.
+       * Compressed chunks have no dimensions so we could not do tuple routing.
+       * Additionally internal compressed hypertable has no columns so you
+       * couldn't even insert any actual data.
+       */
+      if (ht && ht->fd.compression_state == HypertableInternalCompressionTable)
+        ereport(ERROR,
+                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                 errmsg("direct insert into internal compressed hypertable is not "
+                        "supported")));
+
+      /* Check for DML on chunk directly */
+      if (!ht) {
+        Chunk *chunk = ts_chunk_get_by_relid(rte->relid, false);
+
+        if (!chunk) {
+          /* Not a hypertable or chunk, continue */
+          DBUG_PRINT("timescaledb", "not a hypertable or chunk, continue");
+          new_pathlist = lappend(new_pathlist, path);
+          continue;
+        }
+
+        ht = ts_hypertable_get_by_id(chunk->fd.hypertable_id);
+
+        if (ht->fd.compression_state == HypertableInternalCompressionTable) {
+          /*
+           * For operations on internal compressed chunks we block modifications
+           * if the chunk belongs to a frozen chunk.
+           * Direct modifications of uncompressed chunks is intercepted by chunk
+           * tuple routing.
+           * In all other cases of direct modification of chunks we dont interfere
+           * and do not add a ModifyHypertable node.
+           */
+          Chunk *uncompressed = ts_chunk_get_compressed_chunk_parent(chunk);
+
+          if (ts_chunk_is_frozen(uncompressed))
+            ereport(ERROR,
+                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                     errmsg("cannot modify compressed chunk belonging to a frozen "
+                            "chunk")));
+
+          new_pathlist = lappend(new_pathlist, path);
+          continue;
+        }
+      }
+
+      switch (mt->operation) {
+        case CMD_INSERT:
+        case CMD_UPDATE:
+        case CMD_DELETE: {
+          path = ts_modify_hypertable_path_create(root, mt, input_rel);
+          break;
+        }
+
+        case CMD_MERGE: {
+          /*
+           * Create ModifyHypertable node for MERGE when:
+           * - INSERT actions need chunk tuple routing
+           * - Compressed chunks need decompression for correct
+           *   join evaluation of matched vs not-matched rows
+           */
+          bool need_modify = (ht != NULL && TS_HYPERTABLE_HAS_COMPRESSION_TABLE(ht));
+
+          if (!need_modify) {
+            List *firstMergeActionList = linitial(mt->mergeActionLists);
+            ListCell *l;
+
+            foreach (l, firstMergeActionList) {
+              MergeAction *action = (MergeAction *) lfirst(l);
+
+              if (action->commandType == CMD_INSERT) {
+                need_modify = true;
+                break;
+              }
+            }
+          }
+
+          if (need_modify)
+            path = ts_modify_hypertable_path_create(root, mt, input_rel);
+
+          break;
+        }
+
+        default:
+          break;
+      }
+    }
+
+    new_pathlist = lappend(new_pathlist, path);
+  }
+
+  return new_pathlist;
+}
+
+static void
+timescaledb_create_upper_paths_hook(PlannerInfo *root, UpperRelationKind stage,
+                                    RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra)
+{
+  DBUG_TRACE;
+  Query *parse = root->parse;
+  TsRelType reltype = TS_REL_OTHER;
+  Hypertable *ht = NULL;
+
+  if (prev_create_upper_paths_hook != NULL)
+    prev_create_upper_paths_hook(root, stage, input_rel, output_rel, extra);
+
+  if (!ts_extension_is_loaded_and_not_upgrading())
+    return;
+
+  if (input_rel != NULL)
+    reltype = ts_classify_relation(root, input_rel, &ht);
+
+  if (output_rel != NULL) {
+    /* Modify for INSERTs on a hypertable */
+    if (output_rel->pathlist != NIL) {
+      DBUG_PRINT("timescaledb", "modify for INSERTs on a hypertable");
+      output_rel->pathlist =
+        replace_modify_hypertable_paths(root, output_rel->pathlist, input_rel);
+    }
+  }
+
+  if (stage == UPPERREL_GROUP_AGG && output_rel != NULL && ts_guc_enable_optimizations &&
+      input_rel != NULL && !IS_DUMMY_REL(input_rel) && involves_hypertable(root, input_rel)) {
+    if (parse->hasAggs)
+      ts_preprocess_first_last_aggregates(root, root->processed_tlist);
+  }
+
+  if (ts_cm_functions->create_upper_paths_hook != NULL)
+    ts_cm_functions
+    ->create_upper_paths_hook(root, stage, input_rel, output_rel, reltype, ht, extra);
+}
+
+static bool
+contains_join_param_walker(Node *node, void *context)
+{
+  DBUG_TRACE;
+  bool result;
+
+  if (node == NULL) {
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  if (IsA(node, Param) && castNode(Param, node)->paramkind == PARAM_EXEC) {
+    DBUG_PRINT("timescaledb", "return true");
+    return true;
+  }
+
+  result = expression_tree_walker(node, contains_join_param_walker, context);
+  if (result) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+  return result;
+}
+
+bool
+ts_contains_join_param(Node *node)
+{
+  DBUG_TRACE;
+  return contains_join_param_walker(node, NULL);
+}
+
+static bool
+contains_external_param_walker(Node *node, void *context)
+{
+  DBUG_TRACE;
+
+  if (node == NULL) {
+    return false;
+  }
+
+  if (IsA(node, Param) && castNode(Param, node)->paramkind == PARAM_EXTERN)
+    return true;
+
+  return expression_tree_walker(node, contains_external_param_walker, context);
+}
+
+bool
+ts_contains_external_param(Node *node)
+{
+  DBUG_TRACE;
+  return contains_external_param_walker(node, NULL);
+}
+
+static List *
+fill_missing_groupclause(List *new_groupclause, List *orig_groupclause)
+{
+  DBUG_TRACE;
+
+  if (new_groupclause != NIL) {
+    ListCell *gl;
+
+    foreach (gl, orig_groupclause) {
+      SortGroupClause *gc = lfirst_node(SortGroupClause, gl);
+
+      if (list_member_ptr(new_groupclause, gc))
+        continue; /* already in list */
+
+      new_groupclause = lappend(new_groupclause, gc);
+    }
+  }
+
+  return new_groupclause;
+}
+
+static bool
+check_cagg_view_rte(RangeTblEntry *rte)
+{
+  DBUG_TRACE;
+  ContinuousAgg *cagg = NULL;
+  ListCell *rtlc;
+  bool found = false;
+  Query *viewq = rte->subquery;
+  Assert(rte->rtekind == RTE_SUBQUERY);
+
+  if (list_length(viewq->rtable) != 3) { /* a view has 3 entries */
+    DBUG_PRINT("timescaledb", "return false");
+    return false;
+  }
+
+  /* should cache this information for cont. aggregates */
+  foreach (rtlc, viewq->rtable) {
+    RangeTblEntry *rte = lfirst_node(RangeTblEntry, rtlc);
+
+    if (!OidIsValid(rte->relid))
+      break;
+
+    cagg = ts_continuous_agg_find_by_relid(rte->relid);
+
+    if (cagg != NULL)
+      found = true;
+  }
+
+  if (found) {
+    DBUG_PRINT("timescaledb", "return true");
+  } else {
+    DBUG_PRINT("timescaledb", "return false");
+  }
+  return found;
+}
+
+/* Note that it modifies the passed in Query
+* select * from (select a, b, max(c), min(d) from ...
+         group by a, b)
+  order by b;
+* is transformed as
+* SELECT * from (select a, b, max(c), min(d) from ..
+*                 group by B desc, A  <------ note the change in order here
+*              )
+*  order by b desc;
+*  we transform only if order by is a subset of group-by
+* transformation is applicable only to continuous aggregates
+* Parameters:
+* subq_rte - rte for subquery (inner query that will be modified)
+* outer_sortcl -- outer query's sort clause
+* outer_tlist - outer query's target list
+*/
+static void
+cagg_reorder_groupby_clause(RangeTblEntry *subq_rte, Index rtno, List *outer_sortcl,
+                            List *outer_tlist)
+{
+  DBUG_TRACE;
+  bool not_found = true;
+  Query *subq;
+  ListCell *lc;
+  Assert(subq_rte->rtekind == RTE_SUBQUERY);
+  subq = subq_rte->subquery;
+
+  if (outer_sortcl && subq->groupClause && subq->sortClause == NIL &&
+      check_cagg_view_rte(subq_rte)) {
+    List *new_groupclause = NIL;
+    /* we are going to modify this. so make a copy and use it
+     if we replace */
+    List *subq_groupclause_copy = copyObject(subq->groupClause);
+
+    foreach (lc, outer_sortcl) {
+      SortGroupClause *outer_sc = (SortGroupClause *) lfirst(lc);
+      TargetEntry *outer_tle = get_sortgroupclause_tle(outer_sc, outer_tlist);
+      not_found = true;
+
+      if (IsA(outer_tle->expr, Var) && ((Index) ((Var *) outer_tle->expr)->varno == rtno)) {
+        int outer_attno = ((Var *) outer_tle->expr)->varattno;
+        TargetEntry *subq_tle = list_nth(subq->targetList, outer_attno - 1);
+
+        if (subq_tle->ressortgroupref > 0) {
+          /* get group clause corresponding to this */
+          SortGroupClause *subq_gclause =
+            get_sortgroupref_clause(subq_tle->ressortgroupref, subq_groupclause_copy);
+          subq_gclause->sortop = outer_sc->sortop;
+          subq_gclause->nulls_first = outer_sc->nulls_first;
+#if PG18_GE
+          /* Track sort direction in SortGroupClause
+           * https://github.com/postgres/postgres/commit/0d2aa4d4
+           */
+          subq_gclause->reverse_sort = outer_sc->reverse_sort;
+#endif
+          Assert(subq_gclause->eqop == outer_sc->eqop);
+          new_groupclause = lappend(new_groupclause, subq_gclause);
+          not_found = false;
+        }
+      }
+
+      if (not_found)
+        break;
+    }
+
+    /* all order by found in group by clause */
+    if (new_groupclause != NIL && not_found == false) {
+      /* use new groupby clause for this subquery/view */
+      subq->groupClause = fill_missing_groupclause(new_groupclause, subq_groupclause_copy);
+    }
+  }
+}
+
+void
+_planner_init(void)
+{
+  DBUG_TRACE;
+  prev_planner_hook = planner_hook;
+  planner_hook = timescaledb_planner;
+  prev_set_rel_pathlist_hook = set_rel_pathlist_hook;
+  set_rel_pathlist_hook = timescaledb_set_rel_pathlist;
+
+  prev_get_relation_info_hook = get_relation_info_hook;
+  get_relation_info_hook = timescaledb_get_relation_info_hook;
+
+  prev_create_upper_paths_hook = create_upper_paths_hook;
+  create_upper_paths_hook = timescaledb_create_upper_paths_hook;
+}
+
+void
+_planner_fini(void)
+{
+  DBUG_TRACE;
+  planner_hook = prev_planner_hook;
+  set_rel_pathlist_hook = prev_set_rel_pathlist_hook;
+  get_relation_info_hook = prev_get_relation_info_hook;
+  create_upper_paths_hook = prev_create_upper_paths_hook;
+}

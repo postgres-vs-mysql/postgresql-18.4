@@ -1,0 +1,4 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--10.0-2--10.0-3.sql: \
+ sql/citus--10.0-2--10.0-3.sql \
+ sql/udfs/citus_update_table_statistics/10.0-3.sql
+sql/udfs/citus_update_table_statistics/10.0-3.sql:

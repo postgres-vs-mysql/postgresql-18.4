@@ -1,0 +1,312 @@
+#-----------------------------------------------------
+#
+# Configuration directives are in postgis_config.h
+#
+#-----------------------------------------------------
+
+SUBDIRS = liblwgeom
+
+ifeq (yes,yes)
+SUBDIRS +=  libpgcommon postgis regress topology  doc
+endif
+SUBDIRS +=  loader
+ifeq (yes,yes)
+# NOTE: utils need be built after raster
+# See https://trac.osgeo.org/postgis/ticket/5779
+# NOTE: extension need be built after raster
+# See https://trac.osgeo.org/postgis/ticket/5780
+SUBDIRS += utils extensions
+endif
+
+HAVE_SFCGAL=
+CAN_BUILD_COMMENTS=yes
+
+POSTGIS_MAJOR_VERSION=3
+POSTGIS_MINOR_VERSION=7
+POSTGIS_MICRO_VERSION=0dev
+POSTGIS_FULL_VERSION=$(POSTGIS_MAJOR_VERSION).$(POSTGIS_MINOR_VERSION).$(POSTGIS_MICRO_VERSION)
+
+CTAGS = ctags
+PERL = /usr/bin/perl
+top_srcdir = .
+top_builddir = .
+
+# todo: add more rules here, like uninstall, clean...
+all install uninstall noop clean distclean check-unit:
+	for s in $(SUBDIRS); do \
+		echo "---- Making $@ in $${s}"; \
+		$(MAKE) -C $${s} $@ || exit 1; \
+	done;
+	@if test x"$@" = xall; then \
+		echo "PostGIS was built successfully. Ready to install."; \
+	fi
+ifneq (extensions,)
+	@if test x"$@" = xinstall; then \
+		if test x"yes" = xyes; then \
+			$(MAKE) install-extension-upgrades-from-known-versions; \
+		else \
+			echo; \
+			echo "PostGIS extensions installed, upgrade scripts retained."; \
+			echo; \
+			echo "You may use the "postgis" script to only install the ones you need, or";\
+			echo "you can install the ones required to upgrade from currently known versions with:"; \
+			echo; \
+			echo "  make install-extension-upgrades-from-known-versions"; \
+			echo; \
+		fi; \
+	fi
+endif
+
+ifneq (extensions,)
+install-extension-upgrades-from-known-versions:
+	$(MAKE) -C extensions/ $@
+endif
+
+all: postgis_revision.h
+
+ifeq (yes,yes)
+ifeq ($(CAN_BUILD_COMMENTS),yes)
+install: comments-install
+uninstall: comments-uninstall
+endif
+endif
+
+clean: docs-clean clean-local
+
+clean-local:
+
+# TODO: drop 'test' target..
+test: check
+
+check: check-unit docs-check check-lint check-spell
+
+ifeq (yes,yes)
+check: check-regress
+endif
+
+# The "lint" tests do not depend on specific code configurations
+# but solely on the source code state
+check-lint: check-no-trailing-blanks check-news check-tests-enabled check-lang-enabled
+
+staged-install: all
+	$(MAKE) -C regress staged-install
+
+check-news:
+	$(top_srcdir)/utils/check_news.sh $(top_srcdir)
+
+check-unit check-regress: all
+
+check-regress: export POSTGIS_REGRESS_DB ?= postgis_reg-$(POSTGIS_MAJOR_VERSION).$(POSTGIS_MINOR_VERSION)
+
+check-no-trailing-blanks:
+	! find $(top_srcdir) -name '*.c' -o -name '*.h' -o -name '*.proto' | \
+		grep -v lwin_wkt_lex.c | \
+		grep -v lwin_wkt_parse | \
+		grep -v lookup3 | \
+		grep -v vector_tile.pb-c | \
+		grep -v postgis/sqldefines.h | \
+		grep -v deps/ | \
+		xargs grep -n '[[:space:]]$$'
+
+installcheck: installcheck-base installcheck-upgrade
+
+installcheck-base:
+	# this includes packaged-extension self upgrade
+	$(MAKE) check-regress RUNTESTFLAGS="$(RUNTESTFLAGS) --extension"
+
+installcheck-upgrade-base:
+	$(MAKE) installcheck-base \
+			RUNTESTFLAGS="$(RUNTESTFLAGS) \
+			--upgrade"
+
+installcheck-upgrade:
+	$(MAKE) installcheck-upgrade-from-unpackaged
+	$(MAKE) installcheck-upgrade-from-unpackaged-by-func
+	$(MAKE) installcheck-upgrade-from-packaged-by-func
+
+
+installcheck-upgrade-from-unpackaged:
+	$(MAKE) installcheck-upgrade-base \
+			RUNTESTFLAGS="$(RUNTESTFLAGS) \
+			--upgrade-path unpackaged--$(POSTGIS_FULL_VERSION)"
+
+installcheck-upgrade-from-unpackaged-by-func:
+	$(MAKE) installcheck-upgrade-base \
+			RUNTESTFLAGS="$(RUNTESTFLAGS) \
+			--upgrade-path unpackaged--$(POSTGIS_FULL_VERSION)!"
+
+installcheck-upgrade-from-packaged-by-func:
+	$(MAKE) installcheck-upgrade-base \
+			RUNTESTFLAGS="$(RUNTESTFLAGS) \
+			--upgrade-path $(POSTGIS_FULL_VERSION)--$(POSTGIS_FULL_VERSION)!"
+
+
+
+distclean: distclean-local
+
+distclean-local: clean-local
+	rm -Rf autom4te.cache
+	rm -f GNUmakefile
+	rm -f config.log config.cache config.status
+	rm -f postgis_config.h
+	rm -f libtool
+	if test -z ""; then \
+		$(MAKE) -C raster/rt_pg distclean; \
+		rm -f raster/Makefile; \
+	fi
+	if test -z ""; then \
+		$(MAKE) -C sfcgal distclean; \
+		rm -f sfcgal/Makefile; \
+	fi
+
+# GNU Coding Standards wants capitalized TAGS:
+# https://www.gnu.org/prep/standards/html_node/Standard-Targets.html
+# But for ctags a lowercase is normally used:
+# https://git.savannah.gnu.org/cgit/bash.git/tree/Makefile.in#n823
+.PHONY: tags
+tags:
+	cd $(top_srcdir) && $(CTAGS) \
+		--exclude=build \
+		--exclude=ci \
+		--exclude=doc \
+		--exclude=.git \
+		--exclude=regress \
+		--exclude=utils \
+		--recurse=yes
+
+maintainer-clean-local: distclean-local
+	rm -f configure
+	rm -Rf build-aux
+	rm -f tags
+
+maintainer-clean:
+	@echo '------------------------------------------------------'
+	@echo 'This command is intended for maintainers to use; it'
+	@echo 'deletes files that may need special tools to rebuild.'
+	@echo '------------------------------------------------------'
+	$(MAKE) -C doc maintainer-clean
+	$(MAKE) -C postgis maintainer-clean
+	$(MAKE) -C liblwgeom maintainer-clean
+	$(MAKE) maintainer-clean-local
+
+garden:
+	@echo '------------------------------------------------------'
+	@echo 'Generating SQL file from Documentation'
+	@echo '------------------------------------------------------'
+	$(MAKE) -C doc garden
+	@echo '------------------------------------------------------'
+	@echo 'Launch regression Test'
+	@echo '------------------------------------------------------'
+	$(MAKE) -C regress garden
+
+templategis:
+	$(MAKE) -C extras/template_gis
+
+templategis-clean:
+	$(MAKE) -C extras/template_gis clean
+
+templategis-install:
+	$(MAKE) -C extras/template_gis install
+
+templategis-uninstall:
+	$(MAKE) -C extras/template_gis uninstall
+
+docs: postgis_revision.h
+	$(MAKE) -C doc html
+
+docs-localized: postgis_revision.h
+	$(MAKE) -C doc html-localized
+
+docs-clean:
+	$(MAKE) -C doc clean
+
+docs-check:
+	$(MAKE) -C doc check
+
+comments:
+	$(MAKE) -C doc comments
+
+cheatsheets:
+	$(MAKE) -C doc cheatsheets
+
+comments-install:
+	$(MAKE) -C doc comments-install
+
+comments-uninstall:
+	$(MAKE) -C doc comments-uninstall
+
+docs-install:
+	$(MAKE) -C doc install
+
+docs-uninstall:
+	$(MAKE) -C doc uninstall
+
+#utils:
+#	$(MAKE) -C utils
+
+configure: configure.in
+	./autogen.sh
+
+config.status: configure
+	./configure
+
+ChangeLog:
+	git log --pretty --numstat --summary | PERL_UNICODE="IO" git2cl > ChangeLog
+
+raster-sql:
+	$(MAKE) -C raster rtpostgis.sql
+
+.PHONY: fmt
+fmt:
+	./astyle.sh
+
+commit:
+	$(MAKE) fmt && $(MAKE) clean && $(MAKE) check && svn commit
+
+
+ifeq (yes,yes)
+.PHONY: postgis_revision.h
+endif
+
+postgis_revision.h:
+	$(PERL) $(top_srcdir)/utils/repo_revision.pl
+
+.PHONY: utils liblwgeom ChangeLog raster
+
+include $(top_builddir)/regress/core/tests.mk
+include $(top_srcdir)/regress/loader/tests.mk
+include $(top_srcdir)/regress/dumper/tests.mk
+ifeq ($(HAVE_SFCGAL),yes)
+	override RUNTESTFLAGS := $(RUNTESTFLAGS) --sfcgal
+	include $(top_builddir)/sfcgal/regress/tests.mk
+endif
+ifeq (topology,topology)
+	include $(top_srcdir)/topology/test/tests.mk
+endif
+ifeq (,raster)
+	include $(top_builddir)/raster/test/regress/tests.mk
+endif
+
+include $(top_srcdir)/regress/runtest.mk
+
+check-regress: staged-install check-regress-deps
+
+check-tests-enabled:
+	$(top_srcdir)/utils/check_tests_enabled.sh $(top_srcdir)
+
+check-lang-enabled:
+	$(top_srcdir)/utils/check_lang_enabled.sh $(top_srcdir)
+
+
+check-regress-deps:
+ifeq (topology,topology)
+	$(MAKE) -C topology/test $@
+endif
+
+
+check-spell:
+ifneq (,)
+	cd $(top_srcdir) &&  --config .codespellrc .
+else
+	@echo "SKIP: spell checking disabled"
+endif

@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""
+通用脚本：将 DBUG_PRINT 行与同级别的普通C语句对齐
+"""
+
+import sys
+import re
+import os
+
+def get_indent(line):
+    """获取行的缩进字符串"""
+    match = re.match(r'^\s*', line)
+    return match.group() if match else ''
+
+def is_code_line(line):
+    """判断是否是有效的C语句行（非空、非注释、非预处理器）"""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
+        return False
+    if stripped.startswith('#'):
+        return False
+    return True
+
+def is_dbug_line(line):
+    """判断是否是DBUG相关的行"""
+    return 'DBUG_' in line and not line.strip().startswith('//')
+
+def find_nearest_code_line(lines, start_idx, direction=1):
+    """
+    查找最近的普通C语句行
+    direction: 1 向下查找, -1 向上查找
+    返回: (行索引, 缩进字符串) 或 (None, None)
+    """
+    step = 1 if direction > 0 else -1
+    for i in range(start_idx + step, -1 if direction < 0 else len(lines), step):
+        line = lines[i]
+        if is_code_line(line) and not is_dbug_line(line):
+            # 跳过单独的花括号
+            stripped = line.strip()
+            if stripped in ['{', '}', '};', ');']:
+                continue
+            return i, get_indent(line)
+    return None, None
+
+def fix_dbug_indent(filepath):
+    """修复文件中的所有 DBUG 行缩进"""
+    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()
+    
+    if not lines:
+        return False
+    
+    modified = False
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i]
+        
+        # 只处理 DBUG 行
+        if is_dbug_line(line):
+            current_indent = get_indent(line)
+            target_indent = None
+            
+            # 优先向下找参考行
+            idx, target_indent = find_nearest_code_line(lines, i, direction=1)
+            
+            # 向下找不到则向上找
+            if idx is None:
+                idx, target_indent = find_nearest_code_line(lines, i, direction=-1)
+            
+            # 如果找到参考行且缩进不同，则修改
+            if target_indent is not None and target_indent != current_indent:
+                lines[i] = target_indent + line.lstrip()
+                modified = True
+                print(f"  {filepath}:{i+1}: '{current_indent}' -> '{target_indent}'")
+        
+        i += 1
+    
+    if modified:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        return True
+    return False
+
+def main():
+    # 从命令行参数获取文件列表，或者遍历当前目录
+    if len(sys.argv) > 1:
+        files = sys.argv[1:]
+    else:
+        files = []
+        for root, dirs, filenames in os.walk('.'):
+            for f in filenames:
+                if f.endswith(('.c', '.h', '.cc', '.cpp', '.hpp')):
+                    files.append(os.path.join(root, f))
+    
+    for filepath in files:
+        if os.path.isfile(filepath):
+            if fix_dbug_indent(filepath):
+                print(f"✓ {filepath}")
+
+if __name__ == '__main__':
+    main()

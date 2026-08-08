@@ -1,0 +1,2 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.4-2--9.4-1.sql: \
+ sql/citus--9.4-2--9.4-1.sql

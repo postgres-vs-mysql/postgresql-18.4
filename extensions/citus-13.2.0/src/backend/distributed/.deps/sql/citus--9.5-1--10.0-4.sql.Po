@@ -1,0 +1,103 @@
+/home/wangbin/work/citus-13.2.0/src/backend/distributed/build/sql/citus--9.5-1--10.0-4.sql: \
+ sql/citus--9.5-1--10.0-4.sql \
+ sql/udfs/citus_total_relation_size/10.0-1.sql \
+ sql/udfs/citus_finish_pg_upgrade/10.0-1.sql \
+ sql/udfs/alter_distributed_table/10.0-1.sql \
+ sql/udfs/alter_table_set_access_method/10.0-1.sql \
+ sql/udfs/undistribute_table/10.0-1.sql \
+ sql/udfs/create_citus_local_table/10.0-1.sql \
+ sql/udfs/citus_set_coordinator_host/10.0-1.sql \
+ sql/udfs/citus_add_node/10.0-1.sql \
+ sql/udfs/citus_activate_node/10.0-1.sql \
+ sql/udfs/citus_add_inactive_node/10.0-1.sql \
+ sql/udfs/citus_add_secondary_node/10.0-1.sql \
+ sql/udfs/citus_disable_node/10.0-1.sql \
+ sql/udfs/citus_drain_node/10.0-1.sql \
+ sql/udfs/citus_remove_node/10.0-1.sql \
+ sql/udfs/citus_set_node_property/10.0-1.sql \
+ sql/udfs/citus_unmark_object_distributed/10.0-1.sql \
+ sql/udfs/citus_update_node/10.0-1.sql \
+ sql/udfs/citus_update_shard_statistics/10.0-1.sql \
+ sql/udfs/citus_update_table_statistics/10.0-1.sql \
+ sql/udfs/citus_copy_shard_placement/10.0-1.sql \
+ sql/udfs/citus_move_shard_placement/10.0-1.sql \
+ sql/udfs/citus_drop_trigger/10.0-1.sql \
+ sql/udfs/worker_change_sequence_dependency/10.0-1.sql \
+ sql/udfs/remove_local_tables_from_metadata/10.0-1.sql \
+ sql/../../columnar/sql/columnar--9.5-1--10.0-1.sql \
+ sql/../../columnar/sql/udfs/columnar_handler/10.0-1.sql \
+ sql/../../columnar/sql/udfs/alter_columnar_table_set/10.0-1.sql \
+ sql/../../columnar/sql/udfs/alter_columnar_table_reset/10.0-1.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/10.0-1.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../columnar_handler/10.0-1.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_set/10.0-1.sql \
+ sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_reset/10.0-1.sql \
+ sql/udfs/time_partition_range/10.0-1.sql \
+ sql/udfs/time_partitions/10.0-1.sql \
+ sql/udfs/alter_old_partitions_set_access_method/10.0-1.sql \
+ sql/udfs/citus_conninfo_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_local_group_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_node_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_object_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_partition_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_placement_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_dist_shard_cache_invalidate/10.0-1.sql \
+ sql/udfs/citus_shard_sizes/10.0-1.sql sql/udfs/citus_shards/10.0-1.sql \
+ sql/udfs/fix_pre_citus10_partitioned_table_constraint_names/10.0-1.sql \
+ sql/udfs/worker_fix_pre_citus10_partitioned_table_constraint_names/10.0-1.sql \
+ sql/../../columnar/sql/columnar--10.0-1--10.0-2.sql \
+ sql/udfs/citus_update_table_statistics/10.0-3.sql \
+ sql/udfs/citus_tables/10.0-4.sql \
+ sql/udfs/citus_prepare_pg_upgrade/9.5-2.sql \
+ sql/udfs/citus_finish_pg_upgrade/10.0-4.sql
+sql/udfs/citus_total_relation_size/10.0-1.sql:
+sql/udfs/citus_finish_pg_upgrade/10.0-1.sql:
+sql/udfs/alter_distributed_table/10.0-1.sql:
+sql/udfs/alter_table_set_access_method/10.0-1.sql:
+sql/udfs/undistribute_table/10.0-1.sql:
+sql/udfs/create_citus_local_table/10.0-1.sql:
+sql/udfs/citus_set_coordinator_host/10.0-1.sql:
+sql/udfs/citus_add_node/10.0-1.sql:
+sql/udfs/citus_activate_node/10.0-1.sql:
+sql/udfs/citus_add_inactive_node/10.0-1.sql:
+sql/udfs/citus_add_secondary_node/10.0-1.sql:
+sql/udfs/citus_disable_node/10.0-1.sql:
+sql/udfs/citus_drain_node/10.0-1.sql:
+sql/udfs/citus_remove_node/10.0-1.sql:
+sql/udfs/citus_set_node_property/10.0-1.sql:
+sql/udfs/citus_unmark_object_distributed/10.0-1.sql:
+sql/udfs/citus_update_node/10.0-1.sql:
+sql/udfs/citus_update_shard_statistics/10.0-1.sql:
+sql/udfs/citus_update_table_statistics/10.0-1.sql:
+sql/udfs/citus_copy_shard_placement/10.0-1.sql:
+sql/udfs/citus_move_shard_placement/10.0-1.sql:
+sql/udfs/citus_drop_trigger/10.0-1.sql:
+sql/udfs/worker_change_sequence_dependency/10.0-1.sql:
+sql/udfs/remove_local_tables_from_metadata/10.0-1.sql:
+sql/../../columnar/sql/columnar--9.5-1--10.0-1.sql:
+sql/../../columnar/sql/udfs/columnar_handler/10.0-1.sql:
+sql/../../columnar/sql/udfs/alter_columnar_table_set/10.0-1.sql:
+sql/../../columnar/sql/udfs/alter_columnar_table_reset/10.0-1.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/10.0-1.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../columnar_handler/10.0-1.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_set/10.0-1.sql:
+sql/../../columnar/sql/udfs/columnar_ensure_objects_exist/../alter_columnar_table_reset/10.0-1.sql:
+sql/udfs/time_partition_range/10.0-1.sql:
+sql/udfs/time_partitions/10.0-1.sql:
+sql/udfs/alter_old_partitions_set_access_method/10.0-1.sql:
+sql/udfs/citus_conninfo_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_local_group_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_node_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_object_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_partition_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_placement_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_dist_shard_cache_invalidate/10.0-1.sql:
+sql/udfs/citus_shard_sizes/10.0-1.sql:
+sql/udfs/citus_shards/10.0-1.sql:
+sql/udfs/fix_pre_citus10_partitioned_table_constraint_names/10.0-1.sql:
+sql/udfs/worker_fix_pre_citus10_partitioned_table_constraint_names/10.0-1.sql:
+sql/../../columnar/sql/columnar--10.0-1--10.0-2.sql:
+sql/udfs/citus_update_table_statistics/10.0-3.sql:
+sql/udfs/citus_tables/10.0-4.sql:
+sql/udfs/citus_prepare_pg_upgrade/9.5-2.sql:
+sql/udfs/citus_finish_pg_upgrade/10.0-4.sql:

@@ -1,0 +1,447 @@
+-- This file and its contents are licensed under the Timescale License.
+-- Please see the included NOTICE for copyright information and
+-- LICENSE-TIMESCALE for a copy of the license.
+
+\c :TEST_DBNAME :ROLE_SUPERUSER
+
+CREATE OR REPLACE VIEW compressed_chunk_info_view AS
+SELECT
+   h.schema_name AS hypertable_schema,
+   h.table_name AS hypertable_name,
+   c.schema_name as chunk_schema,
+   c.table_name as chunk_name,
+   c.status as chunk_status,
+   comp.schema_name as compressed_chunk_schema,
+   comp.table_name as compressed_chunk_name,
+   c.id as chunk_id
+FROM
+   _timescaledb_catalog.hypertable h JOIN
+  _timescaledb_catalog.chunk c ON h.id = c.hypertable_id
+   LEFT JOIN _timescaledb_catalog.chunk comp
+ON comp.id = c.compressed_chunk_id
+;
+
+CREATE OR REPLACE VIEW compression_rowcnt_view AS
+select ccs.numrows_pre_compression, ccs.numrows_post_compression,
+(v.chunk_schema || '.' || v.chunk_name) as chunk_name,
+v.chunk_id as chunk_id
+ from _timescaledb_catalog.compression_chunk_size ccs
+join compressed_chunk_info_view v on ccs.chunk_id = v.chunk_id;
+
+-- enable GUC to ensure correct index is being used during recompression
+SET timescaledb.debug_compression_path_info TO ON;
+
+------------- only one segment exists and only one segment affected ---------
+
+create table mytab_oneseg (time timestamptz not null, a int, b int, c int);
+
+SELECT create_hypertable('mytab_oneseg', 'time', chunk_time_interval => interval '1 day');
+
+insert into mytab_oneseg values
+('2023-01-01 21:56:20.048355+02'::timestamptz, 2, NULL, 2),
+('2023-01-01 21:56:10.048355+02'::timestamptz, 2, NULL, 2); --same chunk same segment
+
+alter table mytab_oneseg set (timescaledb.compress, timescaledb.compress_segmentby = 'a, c');
+
+select show_chunks as chunk_to_compress_1 from show_chunks('mytab_oneseg') limit 1 \gset
+
+select compress_chunk(:'chunk_to_compress_1');
+
+SELECT compressed_chunk_schema || '.' || compressed_chunk_name as compressed_chunk_name_1
+from compressed_chunk_info_view where hypertable_name = 'mytab_oneseg' \gset
+
+SELECT ctid, * FROM :compressed_chunk_name_1;
+
+-- after compressing the chunk
+select numrows_pre_compression, numrows_post_compression from _timescaledb_catalog.compression_chunk_size;
+
+insert into mytab_oneseg values ('2023-01-01 19:56:20.048355+02'::timestamptz, 2, NULL, 2);
+-- after inserting new row in compressed chunk
+select numrows_pre_compression, numrows_post_compression from _timescaledb_catalog.compression_chunk_size;
+
+select _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress_1');
+
+-- check the ctid of the rows in the recompressed chunk to verify that we've written new data
+SELECT ctid, * FROM :compressed_chunk_name_1;
+-- after recompressing chunk
+select numrows_pre_compression, numrows_post_compression from _timescaledb_catalog.compression_chunk_size;
+
+
+insert into mytab_oneseg values ('2023-01-01 19:56:20.048355+02'::timestamptz, 2, NULL, 2);
+select chunk_id
+from compressed_chunk_info_view where hypertable_name = 'mytab_oneseg' \gset
+-- check we are handling unexpected chunk status (partially compressed but not compressed)
+update _timescaledb_catalog.chunk set status = 8 where id = :chunk_id;
+\set ON_ERROR_STOP 0
+select _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress_1');
+\set ON_ERROR_STOP 1
+
+
+---------------- test1: one affected segment, one unaffected --------------
+-- unaffected segment will still be recompressed in a future PR we want to avoid doing this
+create table mytab_twoseg (time timestamptz not null, a int, b int, c int);
+
+SELECT create_hypertable('mytab_twoseg', 'time', chunk_time_interval => interval '1 day');
+
+insert into mytab_twoseg values
+('2023-01-01 21:56:20.048355+02'::timestamptz, 2, NULL, 2),
+('2023-01-01 21:56:20.048355+02'::timestamptz, 3, NULL, 3), --same chunk diff segment
+('2023-01-01 21:57:20.048355+02'::timestamptz, 3, NULL, 3);
+
+alter table mytab_twoseg set (timescaledb.compress, timescaledb.compress_segmentby = 'a, c');
+
+select show_chunks as chunk_to_compress_2 from show_chunks('mytab_twoseg') limit 1 \gset
+
+select compress_chunk(:'chunk_to_compress_2');
+
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'chunk_to_compress_2';
+
+insert into mytab_twoseg values ('2023-01-01 19:56:20.048355+02'::timestamptz, 2, NULL, 2);
+
+select * from :chunk_to_compress_2 ORDER BY a, c, time DESC;
+
+SELECT compressed_chunk_schema || '.' || compressed_chunk_name as compressed_chunk_name_2
+from compressed_chunk_info_view where hypertable_name = 'mytab_twoseg' \gset
+
+select ctid, * from :compressed_chunk_name_2;
+
+select _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress_2');
+
+-- verify that metadata count looks good
+select ctid, * from :compressed_chunk_name_2;
+
+-- verify that initial data is returned as expected
+select * from :chunk_to_compress_2 ORDER BY a, c, time DESC;
+
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'chunk_to_compress_2';
+
+----------------- more than one batch per segment ----------------------
+-- test that metadata sequence number is correct
+create table mytab2(time timestamptz not null, a int, b int, c int);
+
+select create_hypertable('mytab2', 'time', chunk_time_interval => interval '1 week');
+
+insert into mytab2 (time, a, c) select t,s,s from
+generate_series('2023-01-01 00:00:00+00'::timestamptz, '2023-01-01 00:00:00+00'::timestamptz + interval '1 day', interval '30 sec') t cross join generate_series(0,2, 1) s;
+
+alter table mytab2 set (timescaledb.compress, timescaledb.compress_segmentby = 'a, c');
+
+select compress_chunk(c) from show_chunks('mytab2') c;
+
+SELECT compressed_chunk_schema || '.' || compressed_chunk_name as compressed_chunk_name_2
+from compressed_chunk_info_view where hypertable_name = 'mytab2'
+and compressed_chunk_name is not null limit 1 \gset
+
+insert into mytab2 values ('2023-01-01 00:00:02+00'::timestamptz, 0, NULL, 0); -- goes into the uncompressed chunk
+
+select show_chunks('mytab2') as chunk_to_compress_2 \gset
+
+select ctid, * from :compressed_chunk_name_2;
+-- after compression
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'chunk_to_compress_2';
+
+select _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress_2');
+
+select ctid, * from :compressed_chunk_name_2;
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'chunk_to_compress_2';
+
+-- failing test from compression_ddl
+CREATE TABLE test_defaults(time timestamptz NOT NULL, device_id int);
+SELECT create_hypertable('test_defaults','time');
+
+ALTER TABLE test_defaults SET (timescaledb.compress,timescaledb.compress_segmentby='device_id');
+
+-- create 2 chunks
+INSERT INTO test_defaults SELECT '2000-01-01', 1;
+INSERT INTO test_defaults SELECT '2001-01-01', 1;
+
+SELECT compress_chunk(show_chunks) AS "compressed_chunk" FROM show_chunks('test_defaults') ORDER BY show_chunks::text LIMIT 1 \gset
+
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'compressed_chunk';
+
+SELECT * FROM test_defaults ORDER BY 1;
+
+ALTER TABLE test_defaults ADD COLUMN c1 int;
+ALTER TABLE test_defaults ADD COLUMN c2 int NOT NULL DEFAULT 42;
+SELECT * FROM test_defaults ORDER BY 1,2;
+
+INSERT INTO test_defaults SELECT '2000-01-01', 2;
+SELECT * FROM test_defaults ORDER BY 1,2;
+
+SELECT compress_chunk(:'compressed_chunk');
+SELECT * FROM test_defaults ORDER BY 1,2;
+-- stats are no longer updated during segmentwise recompression
+select * from compression_rowcnt_view where chunk_name = :'compressed_chunk';
+
+-- test prepared statements
+-- PREPRE A SELECT before recompress and perform it after recompress
+CREATE TABLE mytab_prep (time timestamptz, a int, b int, c int);
+SELECT create_hypertable('mytab_prep', 'time');
+INSERT INTO mytab_prep VALUES ('2023-01-01'::timestamptz, 2, NULL, 2),
+('2023-01-01'::timestamptz, 2, NULL, 2);
+
+alter table mytab_prep set (timescaledb.compress, timescaledb.compress_segmentby = 'a, c');
+
+PREPARE p1 AS
+SELECT * FROM mytab_prep ORDER BY a, c, time DESC;
+
+select show_chunks as chunk_to_compress_prep from show_chunks('mytab_prep') limit 1 \gset
+SELECT compress_chunk(:'chunk_to_compress_prep'); -- the output of the prepared plan would change before and after compress
+INSERT INTO mytab_prep VALUES ('2023-01-01'::timestamptz, 2, 3, 2);
+VACUUM ANALYZE mytab_prep;
+
+-- plan should be invalidated to return results from the uncompressed chunk also
+set enable_sort to off; /* penalize MergeAppend for predictable plans on PG < 17. */
+EXPLAIN (BUFFERS OFF, COSTS OFF) EXECUTE p1;
+EXECUTE p1;
+reset enable_sort;
+
+-- check plan again after recompression
+SELECT compress_chunk(:'chunk_to_compress_prep');
+VACUUM ANALYZE mytab_prep;
+EXPLAIN (BUFFERS OFF, COSTS OFF) EXECUTE p1;
+EXECUTE p1;
+
+-- verify segmentwise recompression when index exists, decompress + compress otherwise
+-- we verify by checking the compressed chunk after recompression in both cases.
+-- in the first case, it is the same before and after
+-- in the second case, a new compressed chunk is created
+CREATE TABLE mytab (time timestamptz, a int, b int, c int);
+SELECT create_hypertable('mytab', 'time');
+INSERT INTO mytab VALUES ('2023-01-01'::timestamptz, 2, NULL, 2),
+('2023-01-01'::timestamptz, 2, NULL, 2);
+
+select show_chunks as chunk_to_compress_mytab from show_chunks('mytab') limit 1 \gset
+-- index exists, recompression should happen segment by segment so expect a  debug message
+alter table mytab set (timescaledb.compress, timescaledb.compress_segmentby = 'a, c');
+select compress_chunk(show_chunks('mytab'));
+select compressed_chunk_name as compressed_chunk_name_before_recompression from compressed_chunk_info_view where hypertable_name = 'mytab' \gset
+INSERT INTO mytab VALUES ('2023-01-01'::timestamptz, 2, 3, 2);
+-- segmentwise recompression should not create a new compressed chunk, so verify compressed chunk is the same after recompression
+SELECT compress_chunk(:'chunk_to_compress_mytab');
+select compressed_chunk_name as compressed_chunk_name_after_recompression from compressed_chunk_info_view where hypertable_name = 'mytab' \gset
+select :'compressed_chunk_name_before_recompression' as before_segmentwise_recompression, :'compressed_chunk_name_after_recompression' as after_segmentwise_recompression;
+
+INSERT INTO mytab
+SELECT t, a, 3, 2
+FROM generate_series('2023-01-01'::timestamptz, '2023-01-02'::timestamptz, '1 hour'::interval) t
+CROSS JOIN generate_series(1, 10, 1) a;
+-- recompress will insert newly inserted tuples into compressed chunk along with inserting into the compressed chunk index
+SELECT compress_chunk(:'chunk_to_compress_mytab');
+VACUUM ANALYZE mytab;
+-- make sure we are hitting the index and that the index contains the tuples
+SET enable_seqscan TO off;
+EXPLAIN (BUFFERS OFF, COSTS OFF) SELECT count(*) FROM mytab where a = 2;
+SELECT count(*) FROM mytab where a = 2;
+RESET enable_seqscan;
+
+SELECT decompress_chunk(show_chunks('mytab'));
+alter table mytab set (timescaledb.compress = false);
+alter table mytab set (timescaledb.compress);
+select compress_chunk(show_chunks('mytab'));
+select compressed_chunk_name as compressed_chunk_name_before_recompression from compressed_chunk_info_view where hypertable_name = 'mytab' \gset
+INSERT INTO mytab VALUES ('2023-01-01'::timestamptz, 2, 3, 2);
+-- expect to see same chunk after recompression
+SELECT compress_chunk(:'chunk_to_compress_mytab');
+select compressed_chunk_name as compressed_chunk_name_after_recompression from compressed_chunk_info_view where hypertable_name = 'mytab' \gset
+select :'compressed_chunk_name_before_recompression' as before_recompression, :'compressed_chunk_name_after_recompression' as after_recompression;
+
+-- check behavior with NULL values in segmentby columns
+select '2022-01-01 09:00:00+00' as start_time \gset
+create table nullseg_one (time timestamptz, a int, b int);
+
+select create_hypertable('nullseg_one', 'time');
+
+insert into nullseg_one values (:'start_time', 1, 1), (:'start_time', 1, 2), (:'start_time', 2,2), (:'start_time', 2,3);
+
+alter table nullseg_one set (timescaledb.compress, timescaledb.compress_segmentby= 'a');
+select compress_chunk(show_chunks('nullseg_one'));
+
+insert into nullseg_one values (:'start_time', NULL, 4);
+
+select show_chunks as chunk_to_compress from show_chunks('nullseg_one') limit 1 \gset
+select compressed_chunk_schema || '.' || compressed_chunk_name as compressed_chunk_name from compressed_chunk_info_view where hypertable_name = 'nullseg_one' \gset
+
+SELECT compress_chunk(:'chunk_to_compress');
+
+select * from :compressed_chunk_name;
+-- insert again, check both index insertion works and NULL values properly handled
+insert into nullseg_one values (:'start_time', NULL, 4);
+SELECT compress_chunk(:'chunk_to_compress');
+select * from :compressed_chunk_name;
+
+-- test multiple NULL segmentby columns
+create table nullseg_many (time timestamptz, a int, b int, c int);
+
+select create_hypertable('nullseg_many', 'time');
+
+insert into nullseg_many values (:'start_time', 1, 1, 1), (:'start_time', 1, 2, 2), (:'start_time', 2,2, 2), (:'start_time', 2,3, 3), (:'start_time', 2, NULL, 3);
+
+alter table nullseg_many set (timescaledb.compress, timescaledb.compress_segmentby= 'a, c');
+select compress_chunk(show_chunks('nullseg_many'));
+-- new segment (1, NULL)
+insert into nullseg_many values (:'start_time', 1, 4, NULL);
+
+select show_chunks as chunk_to_compress from show_chunks('nullseg_many') limit 1 \gset
+select compressed_chunk_schema || '.' || compressed_chunk_name as compressed_chunk_name from compressed_chunk_info_view where hypertable_name = 'nullseg_many' \gset
+
+SELECT compress_chunk(:'chunk_to_compress');
+
+select * from :compressed_chunk_name;
+-- insert again, check both index insertion works and NULL values properly handled
+-- should match existing segment (1, NULL)
+insert into nullseg_many values (:'start_time', 1, NULL, NULL);
+SELECT compress_chunk(:'chunk_to_compress');
+select * from :compressed_chunk_name;
+
+-- Test behaviour when no segmentby columns are present
+CREATE TABLE noseg(time timestamptz, a int, b int, c int);
+SELECT create_hypertable('noseg', by_range('time', INTERVAL '1 day'));
+
+ALTER TABLE noseg set (timescaledb.compress, timescaledb.compress_segmentby = '');
+INSERT INTO noseg VALUES ('2025-01-24 09:54:27.323421-07'::timestamptz, 1, 1, 1);
+SELECT show_chunks as chunk_to_compress FROM show_chunks('noseg') LIMIT 1 \gset
+SELECT compress_chunk(:'chunk_to_compress');
+INSERT INTO noseg VALUES ('2025-01-24 10:54:27.323421-07'::timestamptz, 1, 1, 2);
+
+-- should recompress chunk using the default index
+SELECT compress_chunk(:'chunk_to_compress');
+
+-- Test behaviour when default order by is empty: should not segmentwise-recompress in this case
+CREATE TABLE no_oby(ts int, c1 int);
+SELECT create_hypertable('no_oby','ts');
+\set VERBOSITY default
+ALTER TABLE no_oby SET (timescaledb.compress, timescaledb.compress_segmentby = 'ts');
+\set VERBOSITY terse
+
+INSERT INTO no_oby (ts,c1) VALUES (6,6);
+SELECT show_chunks as chunk_to_compress FROM show_chunks('no_oby') LIMIT 1 \gset
+SELECT compress_chunk(:'chunk_to_compress');
+
+INSERT INTO no_oby (ts,c1) VALUES (7,7);
+-- Direct segmentwise-recompress request: throw an error
+\set ON_ERROR_STOP 0
+SELECT _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress');
+\set ON_ERROR_STOP 1
+-- Compress wrapper: do full recompress instead of by segment
+SELECT compress_chunk(:'chunk_to_compress');
+
+RESET timescaledb.debug_compression_path_info;
+
+--- Test behaviour when enable_segmentwise_recompression GUC if OFF
+CREATE TABLE guc_test(time timestamptz not null, a int, b int, c int);
+SELECT create_hypertable('guc_test', by_range('time', INTERVAL '1 day'));
+
+ALTER TABLE guc_test set (timescaledb.compress, timescaledb.compress_segmentby = 'a, b');
+INSERT INTO guc_test VALUES ('2024-10-30 14:04:00.501519-06'::timestamptz, 1, 1, 1);
+SELECT show_chunks as chunk_to_compress FROM show_chunks('guc_test') LIMIT 1 \gset
+SELECT compress_chunk(:'chunk_to_compress');
+
+INSERT INTO guc_test VALUES ('2024-10-30 14:14:00.501519-06'::timestamptz, 1, 1, 2);
+-- When GUC is OFF, recompress function should throw an error
+SET timescaledb.enable_segmentwise_recompression TO OFF;
+\set ON_ERROR_STOP 0
+SELECT _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress');
+\set ON_ERROR_STOP 1
+-- When GUC is OFF, entire chunk should be fully uncompressed and compressed instead
+SELECT compress_chunk(:'chunk_to_compress');
+
+RESET timescaledb.enable_segmentwise_recompression;
+
+--- Test behaviour of enable_exclusive_locking_recompression GUC
+CREATE TABLE exclusive_test(time timestamptz not null, a int, b int, c int);
+SELECT create_hypertable('exclusive_test', by_range('time', INTERVAL '1 day'));
+
+ALTER TABLE guc_test set (timescaledb.compress, timescaledb.compress_segmentby = 'a, b');
+INSERT INTO guc_test VALUES ('2024-10-30 14:04:00.501519-06'::timestamptz, 1, 1, 1);
+SELECT show_chunks as chunk_to_compress FROM show_chunks('guc_test') LIMIT 1 \gset
+SELECT compress_chunk(:'chunk_to_compress');
+
+INSERT INTO guc_test VALUES ('2024-10-30 14:14:00.501519-06'::timestamptz, 1, 1, 2);
+
+-- Default behavior will try to get exclusive lock at the end of operation
+-- in order to change the chunk status. Here it will succeed since there
+-- isn't any concurrent operations.
+RESET timescaledb.enable_exclusive_locking_recompression;
+BEGIN;
+SELECT _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress');
+SELECT c.relname FROM pg_locks l
+INNER JOIN pg_class c ON c.oid = l.relation
+WHERE locktype = 'relation' AND mode = 'ExclusiveLock'
+ORDER BY 1;
+ROLLBACK;
+
+-- If we enable this GUC, it should get exclusive locks on 3 relations:
+-- uncompressed chunk table, compressed chunk table, and compressed chunk index.
+-- This is done so that we keep locking consistency to legacy way of locking.
+SET timescaledb.enable_exclusive_locking_recompression TO ON;
+BEGIN;
+SELECT _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress');
+SELECT c.relname FROM pg_locks l
+INNER JOIN pg_class c ON c.oid = l.relation
+WHERE locktype = 'relation' AND mode = 'ExclusiveLock'
+ORDER BY 1;
+ROLLBACK;
+
+RESET timescaledb.enable_exclusive_locking_recompression;
+
+-- Test: recompress_chunk_segmentwise should not clear the UNORDERED flag
+--
+-- The UNORDERED flag means that some compressed batches do not follow the
+-- configured compress_orderby. Segmentwise recompression only processes
+-- segments that have new uncompressed data. Segments that were UNORDERED
+-- but have no new uncompressed rows are left untouched, so the chunk-level
+-- UNORDERED flag must be preserved after segmentwise recompression.
+CREATE TABLE segwise_unordered(time timestamptz NOT NULL, a int, b int);
+SELECT create_hypertable('segwise_unordered', by_range('time', INTERVAL '1 day'));
+ALTER TABLE segwise_unordered SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'a',
+    timescaledb.compress_orderby = 'time'
+);
+
+SET timescaledb.enable_direct_compress_insert TO ON;
+INSERT INTO segwise_unordered
+SELECT t, a, 0
+FROM generate_series('2025-01-01 00:00:00+00'::timestamptz,
+                     '2025-01-01 00:10:00+00'::timestamptz,
+                     '1 minute'::interval) t
+CROSS JOIN (VALUES (1), (2)) AS seg(a);
+INSERT INTO segwise_unordered
+SELECT t, 2, 0
+FROM generate_series('2025-01-01 00:00:00+00'::timestamptz,
+                     '2025-01-01 00:10:00+00'::timestamptz,
+                     '1 minute'::interval) t;
+RESET timescaledb.enable_direct_compress_insert;
+
+SELECT show_chunks AS chunk_to_compress FROM show_chunks('segwise_unordered') LIMIT 1 \gset
+
+-- Chunk should now be COMPRESSED|UNORDERED (status=3)
+SELECT DISTINCT _timescaledb_functions.chunk_status_text(chunk) FROM show_chunks('segwise_unordered') chunk;
+
+-- Insert new data for only segment a=1 via normal INSERT so the chunk becomes PARTIAL
+INSERT INTO segwise_unordered VALUES ('2025-01-01 03:00:00+00', 1, 30);
+
+-- Chunk should now be COMPRESSED|UNORDERED|PARTIAL (status=11)
+SELECT DISTINCT _timescaledb_functions.chunk_status_text(chunk) FROM show_chunks('segwise_unordered') chunk;
+
+
+-- Segmentwise recompression processes only segment a=1 (which has new data).
+-- Segment a=2 is never touched, so its unordered batches remain unordered.
+SELECT _timescaledb_functions.recompress_chunk_segmentwise(:'chunk_to_compress');
+
+-- PARTIAL should be cleared (no more uncompressed rows).
+-- UNORDERED must be preserved (segment a=2 still has unordered compressed data).
+-- Expected status: 3 (COMPRESSED|UNORDERED), NOT 1 (COMPRESSED).
+SELECT DISTINCT _timescaledb_functions.chunk_status_text(chunk) FROM show_chunks('segwise_unordered') chunk;
+
+-- Output would be incorrectly ordered if the flag was cleared
+-- We have to see a sort on top of the ColumnarScan node due to UNORDERED flag
+EXPLAIN (COSTS OFF) SELECT a, time FROM segwise_unordered WHERE a = 2 ORDER BY a, time;
+
+DROP TABLE segwise_unordered;
